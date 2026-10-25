@@ -1,0 +1,130 @@
+# Autofix design system
+
+Source of truth for every screen the UI agent builds. The visual language is SOB Autofix's (navy and electric blue, Barlow Condensed display type, registration-first booking), adjusted for a white-label product that many garages share.
+
+- Live design canvas (editable, comments): https://claude.ai/artifact/UYRN7ayr8LpWS5U59221mP
+- Screen sources: `design/screens/*.dc.html`. Inline styles are the spec; `{{accent}}` means the garage's brand colour.
+- Static previews you can open in a browser: `design/preview/*.html`
+- Screenshots at 2x: `design/screenshots/*.png`. Read these before building a screen.
+- Tokens: `design/tokens.css` (copy into `src/app/globals.css` in Phase 2)
+
+All names, cars, prices and figures in the screens are sample data. Never hard-code them.
+
+## What changed from SOB, on purpose
+
+| SOB today | Autofix | Why |
+| --- | --- | --- |
+| 7-step booking wizard inside a dark hero card | 5 full-screen steps: Vehicle → Service → Time → Details → Confirmed | Fewer taps on a phone; one decision per screen |
+| White GB plate input | Yellow UK rear-plate input with a blue UK band | Recognisable at a glance, different from SOB |
+| Pill-shaped buttons (`border-radius: 9999px`) | 14px corner buttons, 16 to 18px cards | A distinct look for the platform |
+| Fixed SOB blue | `--garage-accent` per garage (default `#155fba`) | White-label: each garage's own colour |
+| Buttons inline in the card | Sticky bottom action bar in the thumb zone | One-handed booking |
+| Admin dashboard of CMS counts (articles, stock, invoices) | Opens on today's diary by bay, plus "Needs your OK" and reminders | The garage's day comes first |
+| Navy sidebar with CMS sections | Navy sidebar with Workshop / Customers / Setup groups | Same look, workshop tasks first |
+
+## Tokens
+
+### Colour
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `--navy-950` | `#071127` | Booking header, admin sidebar, dark cards, H1 text |
+| `--navy-900` | `#0c1d3d` | Hover on navy |
+| `--navy-line` | `#22385f` | Borders on navy |
+| `--garage-accent` | per garage, default `#155fba` | Primary buttons, selected states, progress, links |
+| `--blue-700` | `#1446a5` | UK band on the plate; link hover |
+| `--plate-yellow` | `#f6c700` | Registration plates everywhere (input and chips) |
+| `--plate-ink` | `#111111` | Text on plates |
+| `--grey-50` | `#f4f7fa` | App background |
+| `--grey-100` | `#eef1f5` | Neutral chips |
+| `--grey-200` | `#e4eaf0` | Card borders, dividers |
+| `--grey-300` | `#cfd8e3` | Input and secondary button borders |
+| `--grey-600` | `#586575` | Secondary text (5.9:1 on white) |
+| `--grey-700` | `#3d4a5a` | Body text on light chips |
+| `--grey-800` | `#202a36` | Body text |
+| `--success-600` / `--success-bg` / `--success-ink` | `#16a34a` / `#e7f6ec` / `#166534` | Ready, booked, confirmed |
+| `--warning-bg` / `--warning-ink` | `#fdf1d3` / `#6e4a06` | Waiting parts, pending |
+| `--info-bg` / `--info-ink` | `#dbe8fb` / `#0d3b7a` | In bay, sent |
+| `--danger-600` | `#dc2626` | Errors, the diary's "now" line |
+
+Accent options shown in Branding: `#155fba` blue, `#0f766e` teal, `#b9451a` orange, `#6d28d9` purple. Custom colours are allowed only if white text on them passes 4.5:1. Validate on save and darken automatically if not.
+
+### Type
+
+| Role | Font | Size / weight / line height |
+| --- | --- | --- |
+| Booking H1 | Barlow Condensed | 34 to 38px / 800 / 0.98 |
+| Confirmation H1 | Barlow Condensed | 44px / 800 / 0.95 |
+| Admin H1 | Barlow Condensed | 40px / 800 / 1 |
+| KPI numbers | Barlow Condensed | 36 to 40px / 700 |
+| Plate text | Barlow Condensed | 36px input, 14 to 17px chips / 700 / letter-spacing 0.05 to 0.08em |
+| Body | Inter | 15 to 16px / 400 |
+| Labels, buttons | Inter | 14 to 16px / 600 to 700 |
+| Eyebrows | Inter | 12px / 600 to 700 / uppercase / letter-spacing 0.06 to 0.1em |
+| Code (DNS records) | JetBrains Mono | 13 to 14px / 500 |
+
+Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as SOB does.
+
+### Shape and spacing
+
+- Radius: buttons and inputs 12 to 14px; cards 16px; booking hero cards 18px; chips 999px; plate 10px.
+- Touch targets at least 44px tall; primary booking button 54px.
+- Spacing scale: 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 28. Phone screen padding 20px; admin page padding 28px.
+- Shadows only on the plate input (`0 6px 18px rgba(7,17,39,.12)`) and the selected segmented button.
+
+## Components
+
+| Component | Where | Notes |
+| --- | --- | --- |
+| `GarageHeader` | Every booking step | Navy bar: garage logo or initials tile in accent, name, subtitle (location, or car + reg once known), call or back button 44px |
+| `StepProgress` | Booking 1 to 4 | "Step n of 5" + step name + 5 segments (accent / `#dfe6ee`) |
+| `PlateInput` | Booking 1 | Yellow plate, UK band, uppercase, auto-spacing to `AB12 CDE`, `autocomplete=off`, never written into the URL |
+| `PlateChip` | Summaries, admin lists | Small yellow plate |
+| `VehicleCard` | Booking 1 | Make + model, year · engine · colour, MOT-due chip (only when the garage has MOT on), mileage chip |
+| `ServiceOption` | Booking 2 | Radio card: name, one-line description with duration, price (`£x`, `From £x` or `Quote`) |
+| `SegmentedControl` | Booking 2 (workshop/mobile) | Two options; hide when the garage offers one mode |
+| `SymptomChips` | Booking 2 | Toggle chips + "Add a note" |
+| `DateStrip` | Booking 3 | Horizontal scroll, 58×72 day buttons, selected = navy |
+| `SlotGrid` | Booking 3 | 3 columns of 48px buttons, grouped Morning/Afternoon; taken = dashed + struck through and disabled |
+| `StickyActionBar` | Booking 1 to 4 | White bar, 54px accent button whose label states the next step or the chosen time |
+| `BookingSummaryBar` | Booking 4 | Navy card: plate chip, service, time, Edit |
+| `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due" |
+| `ConfirmationCard` | Booking 5 | Reference in Barlow, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
+| `AdminShell` | Admin desktop | Navy sidebar (garage switcher, 3 groups), white top bar (search, booking page link, bell, avatar); stacks on phones |
+| `AdminTabBar` | Admin phone | 5 tabs: Today, Diary, New (accent), Customers, More |
+| `KpiCard` | Admin | Label, Barlow number, one-line context; the "won back" card is navy |
+| `DiaryGrid` | Admin Today and Diary | Rows = resources, columns = 30-minute slots 08:00 to 17:00, blocks coloured by status, red "now" line, scrolls sideways under 820px |
+| `JobCard` | Admin phone Today | Time + resource, plate chip + model, service, status pill; the active one shows Add photos / Send quote / Mark ready |
+| `ApprovalCard` | "Needs your OK" | Plate, source (online, missed call, AI agent), customer + service + time, Accept + second action |
+| `StatusPill` | Everywhere | booked = grey, in bay/sent = info, waiting parts = warning, ready/booked = success |
+| `AutomationRow` | Reminders | Name, rule description, channel badge, Edit, switch (`role="switch"`) |
+| `MessagePreview` | Reminders | SMS bubble with the rendered template |
+| `DnsRecordTable` + `DomainStatusSteps` | Booking page settings | CNAME `book` → `cname.vercel-dns-0.com`; steps: Record found → Securing (HTTPS) → Live |
+| `EmbedSnippet` | Booking page settings | Tabs: button link, /book redirect, embed |
+
+## Screens to routes
+
+| Screen | File | Route (after host rewrite) |
+| --- | --- | --- |
+| Book 1 · Vehicle | `Book-1-Vehicle` | `/_site/[garageId]` → `/` on the garage host |
+| Book 2 · Service | `Book-2-Service` | `/service` |
+| Book 3 · Time | `Book-3-Time` | `/time` |
+| Book 4 · Details | `Book-4-Details` | `/details` |
+| Book 5 · Confirmed | `Book-5-Confirmed` | `/confirmed/[reference]` |
+| Admin · Dashboard | `Admin-Dashboard` | `autofix.vitalos.co.uk/app` |
+| Admin · Today (phone) | `Admin-Today-Phone` | same route, phone layout |
+| Admin · Reminders | `Admin-Reminders` | `/app/reminders` |
+| Admin · Booking page & domain | `Admin-Domain` | `/app/settings/booking-page` |
+
+Booking state between steps lives in a signed, httpOnly cookie or server session, never in the query string (registration privacy rule).
+
+Screens not drawn yet (build them in the same language, then add them to the canvas): Diary (week view), Bookings list + booking detail, Customers & cars, Services & prices, Opening hours & bays, Messages & calls, Settings, sign-up/onboarding, manage booking, super admin.
+
+## Rules
+
+1. Phone first. Build at 390px, then widen. No horizontal page scroll; wide tables scroll inside their own box.
+2. Accessible as drawn: real `<button>`, `<a>`, `<label>`; `aria-pressed` on toggles; `role="switch"` + `aria-checked` on switches; icon buttons get `aria-label`. Text contrast 4.5:1.
+3. Icons: `lucide-react` (already in SOB), 18 to 22px, stroke 2.
+4. No emoji, gradients or decorative shadows.
+5. Garage brand appears only on customer screens and the admin garage switcher. The admin itself is Autofix-branded.
+6. Lighthouse mobile at least 90 for performance and 100 for accessibility on booking routes (SOB's `lighthouserc.json` thresholds carry over).

@@ -1,0 +1,72 @@
+/*
+ * Autofix design tokens. Copy into src/app/globals.css (Tailwind v4) in Phase 2.
+ * --garage-accent is set per request from garages.accent on customer routes:
+ *   <html style="--garage-accent: #155fba">
+ * See design/DESIGN.md for usage.
+ */
+:root {
+  --navy-950: #071127;
+  --navy-900: #0c1d3d;
+  --navy-line: #22385f;
+  --blue-700: #1446a5;
+
+  --garage-accent: #155fba;
+  --garage-accent-ink: #ffffff;
+
+  --plate-yellow: #f6c700;
+  --plate-ink: #111111;
+  --plate-band: #1446a5;
+
+  --grey-50: #f4f7fa;
+  --grey-100: #eef1f5;
+  --grey-200: #e4eaf0;
+  --grey-300: #cfd8e3;
+  --grey-600: #586575;
+  --grey-700: #3d4a5a;
+  --grey-800: #202a36;
+
+  --success-600: #16a34a;
+  --success-bg: #e7f6ec;
+  --success-ink: #166534;
+  --warning-bg: #fdf1d3;
+  --warning-ink: #6e4a06;
+  --info-bg: #dbe8fb;
+  --info-ink: #0d3b7a;
+  --danger-600: #dc2626;
+
+  --radius-control: 14px;
+  --radius-input: 12px;
+  --radius-card: 16px;
+  --radius-hero: 18px;
+  --radius-plate: 10px;
+
+  --tap-min: 44px;
+  --tap-primary: 54px;
+}
+
+@theme inline {
+  --color-navy-950: var(--navy-950);
+  --color-navy-900: var(--navy-900);
+  --color-accent: var(--garage-accent);
+  --color-plate: var(--plate-yellow);
+  --color-grey-50: var(--grey-50);
+  --color-grey-100: var(--grey-100);
+  --color-grey-200: var(--grey-200);
+  --color-grey-300: var(--grey-300);
+  --color-grey-600: var(--grey-600);
+  --color-grey-700: var(--grey-700);
+  --color-grey-800: var(--grey-800);
+  --color-success: var(--success-600);
+  --color-success-bg: var(--success-bg);
+  --color-success-ink: var(--success-ink);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-ink: var(--warning-ink);
+  --color-info-bg: var(--info-bg);
+  --color-info-ink: var(--info-ink);
+  --color-danger: var(--danger-600);
+  --font-display: var(--font-barlow-condensed), "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+  --radius-control: 14px;
+  --radius-card: 16px;
+}
