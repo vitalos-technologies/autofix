@@ -12,14 +12,11 @@ describe("public contact email separation", () => {
     expect(approvedInvoiceReplyTo).toBe("info@sobautofix.com");
   });
 
-  it("updates production public settings conditionally and preserves invoice history", () => {
-    const migration = readFileSync("supabase/migrations/202608130006_public_contact_email.sql", "utf8");
-    expect(migration).toContain("begin;");
-    expect(migration).toContain("value->>'email' = 'sobautofix@gmail.com'");
-    expect(migration).toContain("alter column issuer_email set default 'info@sobautofix.com'");
-    expect(migration).not.toMatch(/update\s+public\.invoices/i);
-    expect(migration).not.toMatch(/delete|truncate|drop\s+(?:table|column)/i);
-    expect(migration).toContain("commit;");
+  it("takes invoice issuer contact details from the garage instead of SOB defaults", () => {
+    const migration = readFileSync("supabase/migrations/20261026000100_tenancy.sql", "utf8");
+    expect(migration).toContain("alter column issuer_email drop default");
+    expect(migration).toContain("coalesce(garage.email, '')");
+    expect(migration).not.toContain("sobautofix.com");
   });
 
   it("keeps routing, sender and masked-reply configuration unchanged", () => {

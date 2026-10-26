@@ -5,15 +5,17 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
 describe("CMS trash", () => {
-  it("adds recoverable deletion metadata and a restricted bulk management function", () => {
-    const migration = read("supabase/migrations/20260928124203_add_cms_trash.sql");
-    for (const table of ["enquiries", "bookings", "invoices", "sale_vehicles", "content_entries", "media_assets", "reviews", "offers"]) {
-      expect(migration).toContain(`alter table public.${table} add column if not exists deleted_at`);
+  it("adds recoverable deletion metadata and a restricted, garage-scoped bulk management function", () => {
+    const baseline = read("supabase/migrations/20261026000000_baseline.sql");
+    const migration = read("supabase/migrations/20261026000100_tenancy.sql");
+    for (const table of ["enquiries", "bookings", "invoices", "booking_service_types", "service_catalogue_systems"]) {
+      expect(baseline).toMatch(new RegExp(`create table public\\.${table} \\([\\s\\S]*?\\n  deleted_at timestamptz,`));
     }
     expect(migration).toContain("create or replace function public.manage_admin_trash");
-    expect(migration).toContain("auth.uid() is null or not public.is_admin()");
+    expect(migration).toContain("if not coalesce(public.garage_actor_allowed(), false) then\n    raise exception 'ADMIN_REQUIRED'");
+    expect(migration).toContain("where garage_id = $3 and id = any($2) and deleted_at is null");
     expect(migration).toContain("status = 'draft'");
-    expect(migration).toContain("grant execute on function public.manage_admin_trash(text,uuid[],text) to authenticated");
+    expect(migration).toContain("grant execute on function public.manage_admin_trash(text, uuid[], text) to authenticated;");
   });
 
   it("shows a separated trash section for every record-based admin module", () => {

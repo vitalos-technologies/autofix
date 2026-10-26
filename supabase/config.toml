@@ -53,12 +53,12 @@ otp_length = 6
 otp_expiry = 3600
 
 [auth.email.template.recovery]
-subject = "Reset your SOB Autofix admin password"
+subject = "Reset your Autofix admin password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.notification.password_changed]
 enabled = true
-subject = "Your SOB Autofix admin password was changed"
+subject = "Your Autofix admin password was changed"
 content_path = "./templates/password_changed_notification.html"
 
 [auth.mfa]

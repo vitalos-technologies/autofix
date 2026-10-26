@@ -14,19 +14,39 @@ type LocalTestIdentity = {
   accessToken: string;
 };
 
+export type LocalTestGarage = {
+  id: string;
+  slug: string;
+  bookingPrefix: string;
+  name: string;
+};
+
 export type LocalTestUsers = {
+  /** Service role. Sends no garage header, so inserts must set garage_id. */
   service: SupabaseClient;
   anon: SupabaseClient;
+  /** Owner of garage A (MFA verified), with garage A selected. */
   admin: SupabaseClient;
+  /** A second owner of garage A (MFA verified), with garage A selected. */
   secondaryAdmin: SupabaseClient;
+  /** Signed in but a member of no garage; sends garage A's id anyway. */
   nonAdmin: SupabaseClient;
+  /** Owner of garage B (MFA verified), with garage B selected. */
+  otherGarageAdmin: SupabaseClient;
+  /** Garage B's owner sending garage A's id (a forged selection). */
+  otherGarageAdminForgingGarageA: SupabaseClient;
+  garageA: LocalTestGarage;
+  garageB: LocalTestGarage;
   adminIdentity: LocalTestIdentity;
   secondaryAdminIdentity: LocalTestIdentity;
   nonAdminIdentity: LocalTestIdentity;
+  otherGarageAdminIdentity: LocalTestIdentity;
 };
 
-export const localAdminEmail = "sobautofix@gmail.com";
-export const localSecondaryAdminEmail = "temitopeagbola@gmail.com";
+const runId = randomUUID().replaceAll("-", "").slice(0, 10);
+export const localAdminEmail = `garage-a-owner-${runId}@example.test`;
+export const localSecondaryAdminEmail = `garage-a-second-owner-${runId}@example.test`;
+export const localOtherGarageAdminEmail = `garage-b-owner-${runId}@example.test`;
 export const localTestPassword = "Local-only-9f2e7c4a!";
 const localDatabaseContainer = "supabase_db_sobautofix-local-tests";
 
@@ -52,11 +72,18 @@ export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   return { url: parsed.origin, publishableKey, secretKey };
 }
 
-export function createLocalClient(key: string, accessToken?: string) {
+/**
+ * A PostgREST client. `garageId` is sent as the x-garage-id header, which the
+ * database honours only for members of that garage (or the service role).
+ */
+export function createLocalClient(key: string, accessToken?: string, garageId?: string) {
   const { url } = getLocalSupabaseConfig();
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (garageId) headers["x-garage-id"] = garageId;
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-    global: accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : undefined,
+    global: Object.keys(headers).length ? { headers } : undefined,
   });
 }
 
@@ -64,33 +91,45 @@ export async function provisionLocalTestUsers(): Promise<LocalTestUsers> {
   const config = getLocalSupabaseConfig();
   const service = createLocalClient(config.secretKey);
   const anon = createLocalClient(config.publishableKey);
-  const runId = randomUUID().slice(0, 12);
-  const nonAdminEmail = `invoice-non-admin-${runId}@example.test`;
 
-  const adminIdentity = await ensureLocalAdminIdentity(service, config.publishableKey, localAdminEmail);
-  const secondaryAdminIdentity = await ensureLocalAdminIdentity(service, config.publishableKey, localSecondaryAdminEmail);
-  const nonAdminIdentity = await createLocalIdentity(service, config.publishableKey, nonAdminEmail);
+  const garageA = await createLocalGarage(service, "a");
+  const garageB = await createLocalGarage(service, "b");
 
-  executeLocalOwnerSql(
-    `
-      insert into public.admin_profiles (user_id, display_name)
-      values
-        (:'admin_id'::uuid, 'Local Invoice Test Admin'),
-        (:'secondary_admin_id'::uuid, 'Secondary Local Invoice Test Admin')
-      on conflict (user_id) do update set display_name = excluded.display_name;
-    `,
-    { admin_id: adminIdentity.id, secondary_admin_id: secondaryAdminIdentity.id },
-  );
+  // Owners are created first so that MFA enrollment happens before they are
+  // used; mandatory MFA for owners stays on, as in production.
+  const adminIdentity = await createLocalMfaIdentity(service, config.publishableKey, localAdminEmail);
+  const secondaryAdminIdentity = await createLocalMfaIdentity(service, config.publishableKey, localSecondaryAdminEmail);
+  const otherGarageAdminIdentity = await createLocalMfaIdentity(service, config.publishableKey, localOtherGarageAdminEmail);
+  const nonAdminIdentity = await createLocalIdentity(service, config.publishableKey, `no-garage-${runId}@example.test`);
+
+  const { error: membershipError } = await service.from("garage_members").insert([
+    { garage_id: garageA.id, user_id: adminIdentity.id, role: "owner" },
+    { garage_id: garageA.id, user_id: secondaryAdminIdentity.id, role: "owner" },
+    { garage_id: garageB.id, user_id: otherGarageAdminIdentity.id, role: "owner" },
+  ]);
+  if (membershipError) throw new Error(`Could not add local garage members: ${membershipError.message}`);
+
+  const { error: profileError } = await service.from("admin_profiles").upsert([
+    { user_id: adminIdentity.id, display_name: "Garage A Test Owner" },
+    { user_id: secondaryAdminIdentity.id, display_name: "Garage A Second Test Owner" },
+    { user_id: otherGarageAdminIdentity.id, display_name: "Garage B Test Owner" },
+  ]);
+  if (profileError) throw new Error(`Could not add local staff profiles: ${profileError.message}`);
 
   return {
     service,
     anon,
-    admin: createLocalClient(config.publishableKey, adminIdentity.accessToken),
-    secondaryAdmin: createLocalClient(config.publishableKey, secondaryAdminIdentity.accessToken),
-    nonAdmin: createLocalClient(config.publishableKey, nonAdminIdentity.accessToken),
+    admin: createLocalClient(config.publishableKey, adminIdentity.accessToken, garageA.id),
+    secondaryAdmin: createLocalClient(config.publishableKey, secondaryAdminIdentity.accessToken, garageA.id),
+    nonAdmin: createLocalClient(config.publishableKey, nonAdminIdentity.accessToken, garageA.id),
+    otherGarageAdmin: createLocalClient(config.publishableKey, otherGarageAdminIdentity.accessToken, garageB.id),
+    otherGarageAdminForgingGarageA: createLocalClient(config.publishableKey, otherGarageAdminIdentity.accessToken, garageA.id),
+    garageA,
+    garageB,
     adminIdentity,
     secondaryAdminIdentity,
     nonAdminIdentity,
+    otherGarageAdminIdentity,
   };
 }
 
@@ -157,6 +196,24 @@ export function invoiceDraftPayload(issueDate: string, suffix = randomUUID().sli
   };
 }
 
+async function createLocalGarage(service: SupabaseClient, label: "a" | "b"): Promise<LocalTestGarage> {
+  // Two to four upper-case letters, unique enough per run.
+  const letters = runId.replace(/[^a-z]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
+  const garage = {
+    slug: `it-${label}-${runId}`,
+    name: `Integration Garage ${label.toUpperCase()} ${runId}`,
+    booking_prefix: `${letters}${label.toUpperCase()}`,
+    legal_name: `Integration Garage ${label.toUpperCase()} Limited`,
+    email: `garage-${label}-${runId}@example.test`,
+    phone: label === "a" ? "+441302000101" : "+441302000102",
+    address: { line1: `${label === "a" ? 1 : 2} Test Street`, town: "Doncaster", postcode: "DN1 1AA" },
+    status: "active",
+  };
+  const { data, error } = await service.from("garages").insert(garage).select("id,slug,booking_prefix,name").single();
+  if (error || !data) throw new Error(`Could not create local garage ${label}: ${error?.message}`);
+  return { id: data.id, slug: data.slug, bookingPrefix: data.booking_prefix, name: data.name };
+}
+
 async function createLocalIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
   const { data: created, error: createError } = await service.auth.admin.createUser({
     email,
@@ -172,32 +229,8 @@ async function createLocalIdentity(service: SupabaseClient, publishableKey: stri
   return { id: created.user.id, email, accessToken: signedIn.session.access_token };
 }
 
-async function ensureLocalIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
-  const { data, error } = await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) throw new Error(`Could not inspect local Auth users: ${error.message}`);
-  const existing = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
-  if (!existing) return createLocalIdentity(service, publishableKey, email);
-
-  const { error: updateError } = await service.auth.admin.updateUserById(existing.id, {
-    password: localTestPassword,
-    email_confirm: true,
-  });
-  if (updateError) throw new Error(`Could not reset local Auth user: ${updateError.message}`);
-
-  const authClient = createLocalClient(publishableKey);
-  const { data: signedIn, error: signInError } = await authClient.auth.signInWithPassword({ email, password: localTestPassword });
-  if (signInError || !signedIn.session) throw new Error(`Could not sign in local Auth user ${email}: ${signInError?.message}`);
-  return { id: existing.id, email, accessToken: signedIn.session.access_token };
-}
-
-async function ensureLocalAdminIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
-  const identity = await ensureLocalIdentity(service, publishableKey, email);
-  const { data: factors, error: factorsError } = await service.auth.admin.mfa.listFactors({ userId: identity.id });
-  if (factorsError) throw new Error(`Could not inspect local MFA factors for ${email}: ${factorsError.message}`);
-  for (const factor of factors.factors) {
-    const { error } = await service.auth.admin.mfa.deleteFactor({ userId: identity.id, id: factor.id });
-    if (error) throw new Error(`Could not reset local MFA factor for ${email}: ${error.message}`);
-  }
+async function createLocalMfaIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
+  const identity = await createLocalIdentity(service, publishableKey, email);
 
   const authClient = createLocalClient(publishableKey);
   const { error: signInError } = await authClient.auth.signInWithPassword({ email, password: localTestPassword });

@@ -9,7 +9,8 @@ import type { Invoice } from "@/lib/invoices/types";
 
 const root = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(root, ...parts), "utf8");
-const migration = read("supabase", "migrations", "202608110008_invoicing.sql");
+const baseline = read("supabase", "migrations", "20261026000000_baseline.sql");
+const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
 
 describe("garage invoicing", () => {
   it("parses GBP to integer pence without floating-point arithmetic", () => {
@@ -43,7 +44,8 @@ describe("garage invoicing", () => {
   });
 
   it("allocates sequential numbers safely under concurrency", () => {
-    expect(migration).toMatch(/on conflict \(invoice_year\) do update\s+set last_value/);
+    expect(migration).toMatch(/on conflict \(garage_id, invoice_year\) do update\s+set last_value/);
+    expect(migration).toContain("primary key (garage_id, invoice_year)");
     expect(migration).toContain("lpad(allocated_sequence::text, 6, '0')");
     expect(migration).not.toMatch(/max\s*\(\s*invoice_number/i);
   });
@@ -55,10 +57,10 @@ describe("garage invoicing", () => {
     expect(migration).toContain("ONLY_DRAFT_INVOICES_CAN_BE_DELETED");
   });
 
-  it("protects all invoice data with admin RLS", () => {
-    for (const table of ["invoice_number_sequences", "invoices", "invoice_items", "invoice_email_attempts"]) expect(migration).toContain(`alter table public.${table} enable row level security;`);
-    expect(migration).toContain("using (public.is_admin())");
-    expect(migration).toContain("revoke all on table public.invoices from public, anon");
+  it("protects all invoice data with garage RLS", () => {
+    for (const table of ["invoice_number_sequences", "invoices", "invoice_items", "invoice_email_attempts"]) expect(baseline).toContain(`alter table public.${table} enable row level security;`);
+    expect(migration).toContain(`create policy "garage members read invoices" on public.invoices\n  for select to authenticated using (garage_id = (select public.current_garage_id()));`);
+    expect(migration).toContain("revoke all on all tables in schema public from public, anon, authenticated, service_role;");
     expect(migration).not.toMatch(/to anon[^;]+invoices/i);
   });
 
@@ -71,7 +73,7 @@ describe("garage invoicing", () => {
 
   it("supports protected invoice search fields", () => {
     const page = read("src", "app", "app", "(protected)", "invoices", "page.tsx");
-    const dashboardMigration = read("supabase", "migrations", "202608110009_invoice_dashboard_query.sql");
+    const dashboardMigration = migration;
     for (const field of ["invoice_number", "customer_name", "customer_email", "customer_phone", "vehicle_registration"]) expect(dashboardMigration).toContain(field);
     expect(page).toContain("loadInvoiceDashboard");
     expect(page).not.toContain(".limit(500)");

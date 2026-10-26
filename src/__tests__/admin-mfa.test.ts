@@ -94,7 +94,7 @@ describe("admin TOTP MFA", () => {
   });
 
   it("enforces AAL2 in database authorization after MFA enrollment", () => {
-    const migration = read("supabase", "migrations", "202608130001_require_mfa_for_enrolled_admin.sql");
+    const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
     expect(migration).toContain("auth.mfa_factors");
     expect(migration).toContain("factor.status = 'verified'");
     expect(migration).toContain("auth.jwt() ->> 'aal'");

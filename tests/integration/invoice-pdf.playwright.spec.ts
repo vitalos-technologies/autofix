@@ -28,11 +28,11 @@ test.beforeAll(async () => {
 });
 
 test("an authenticated admin receives a private PDF document", async ({ context, page }) => {
-  await page.goto("/admin/login");
+  await page.goto("/app/login");
   await page.getByLabel("Email").fill(localAdminEmail);
   await page.getByLabel("Password").fill(localTestPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/admin(?:\/)?$/);
+  await expect(page).toHaveURL(/\/app(?:\/)?$/);
 
   const response = await context.request.get(`${appOrigin}/api/admin/invoices/${invoiceId}/pdf`);
   expect(response.status()).toBe(200);
