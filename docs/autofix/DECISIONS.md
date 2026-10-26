@@ -46,7 +46,7 @@ Agents: add items here instead of doing them. Each needs his explicit OK.
 - [ ] Create Vercel project `autofix` (link `vitalos-technologies/autofix`) and attach `autofix.vitalos.co.uk` + `*.autofix.vitalos.co.uk` (see INFRA.md), plus a team-scoped `VERCEL_API_TOKEN` as a Sensitive env var. With it, set `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` and `VERCEL_DOMAINS_MODE=live` (P1.8); until then production reports the domains integration as "configuration required" instead of using the mock.
 - [ ] Supabase Free project `autofix` in London (no spend). Pro later, with approval.
 - [ ] Twilio account, UK numbers, alphanumeric sender, WhatsApp sender (Temitope is creating these).
-- [ ] DVLA VES and DVSA MOT History API keys (Temitope is applying).
+- [ ] DVLA VES and DVSA MOT History API keys (Temitope is applying). Note: on 26 Oct 2026 the DVLA developer portal says it is "currently not accepting new VES API registrations while we make some system upgrades"; until then lookups use DVSA + Vehicle Data Global (`VEHICLE_LOOKUP_PROVIDER=composite`). Also set `VEHICLE_FACTS_PEPPER` (≥ 32 chars, Sensitive) in Vercel.
 - [ ] Stripe: Autofix product line and prices in the live account (Temitope); agents use test mode only.
 - [ ] Solicitor review of `docs/autofix/legal/` before the first paying garage.
 - [ ] First founding garage and its domain.
