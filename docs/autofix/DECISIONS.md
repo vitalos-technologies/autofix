@@ -50,3 +50,4 @@ Agents: add items here instead of doing them. Each needs his explicit OK.
 - [ ] Stripe: Autofix product line and prices in the live account (Temitope); agents use test mode only.
 - [ ] Solicitor review of `docs/autofix/legal/` before the first paying garage.
 - [ ] First founding garage and its domain.
+- [ ] **GitHub Actions never starts a runner on this repo.** Every CI run since the bootstrap PR (runs 1–9, 26 Oct 2026) fails in ~3 s with no runner assigned and no logs, which points to an org-level Actions setting or billing/spending limit for private repos in `vitalos-technologies`. Please check Organization settings → Billing (Actions minutes / spending limit / payment method) and Settings → Actions → General (Actions enabled for this repo). Until then, gates are proven with the same commands run locally against Docker Supabase (evidence in the build log).
