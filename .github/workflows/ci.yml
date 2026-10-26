@@ -43,6 +43,10 @@ jobs:
       group: autofix-supabase-vm
       cancel-in-progress: false
     steps:
+      - name: Sample VM memory during the job (shared build VM capacity check)
+        run: |
+          free -h
+          nohup bash -c 'while true; do echo "$(date +%s) $(awk "/MemAvailable/ {print \$2}" /proc/meminfo)" >> "$RUNNER_TEMP/mem.log"; sleep 5; done' >/dev/null 2>&1 &
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
@@ -78,6 +82,12 @@ jobs:
       - name: Remove isolated local Supabase data
         if: always()
         run: supabase stop --no-backup
+      - name: Report VM memory (lowest MemAvailable during this job)
+        if: always()
+        run: |
+          free -h
+          sort -k2 -n "$RUNNER_TEMP/mem.log" | head -1 | awk '{printf "Lowest available memory during the job: %.1f GiB\n", $2/1048576}'
+          awk 'NR==1{first=$2} {last=$2} END{printf "Available at start %.1f GiB, at end %.1f GiB, %d samples\n", first/1048576, last/1048576, NR}' "$RUNNER_TEMP/mem.log"
 
   browser-tests:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
