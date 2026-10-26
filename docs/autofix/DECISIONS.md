@@ -30,7 +30,7 @@
 Agents: add items here instead of doing them. Each needs his explicit OK.
 
 - [ ] Vercel Pro decision before the first paying garage (D13) (Hobby is non-commercial, 50 custom domains, daily crons only).
-- [ ] Create Vercel project `autofix` (link `vitalos-technologies/autofix`) and attach `autofix.vitalos.co.uk` + `*.autofix.vitalos.co.uk` (see INFRA.md), plus a team-scoped `VERCEL_API_TOKEN` as a Sensitive env var.
+- [ ] Create Vercel project `autofix` (link `vitalos-technologies/autofix`) and attach `autofix.vitalos.co.uk` + `*.autofix.vitalos.co.uk` (see INFRA.md), plus a team-scoped `VERCEL_API_TOKEN` as a Sensitive env var. With it, set `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` and `VERCEL_DOMAINS_MODE=live` (P1.8); until then production reports the domains integration as "configuration required" instead of using the mock.
 - [ ] Supabase Free project `autofix` in London (no spend). Pro later, with approval.
 - [ ] Twilio account, UK numbers, alphanumeric sender, WhatsApp sender (Temitope is creating these).
 - [ ] DVLA VES and DVSA MOT History API keys (Temitope is applying).
