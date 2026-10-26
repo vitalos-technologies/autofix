@@ -31,10 +31,10 @@ describe("admin notifications", () => {
     expect(actions).toContain("admin_seen_at: new Date().toISOString()");
   });
 
-  it("backfills old bookings as reviewed while leaving recent and future bookings visible", () => {
-    const migration = readFileSync(join(process.cwd(), "supabase/migrations/20260927125345_track_booking_admin_notifications.sql"), "utf8");
-    expect(migration).toContain("add column if not exists admin_seen_at timestamptz");
-    expect(migration).toContain("created_at < now() - interval '24 hours'");
-    expect(migration).toContain("where admin_seen_at is null");
+  it("tracks bookings still awaiting review per garage", () => {
+    const baseline = readFileSync(join(process.cwd(), "supabase/migrations/20261026000000_baseline.sql"), "utf8");
+    const tenancy = readFileSync(join(process.cwd(), "supabase/migrations/20261026000100_tenancy.sql"), "utf8");
+    expect(baseline).toContain("admin_seen_at timestamptz,");
+    expect(tenancy).toContain("create index bookings_admin_unseen_idx on public.bookings (garage_id, created_at desc) where admin_seen_at is null;");
   });
 });

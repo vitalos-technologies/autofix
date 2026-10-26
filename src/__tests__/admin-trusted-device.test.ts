@@ -86,7 +86,7 @@ describe("admin trusted devices", () => {
   });
 
   it("stores only token hashes in a server-only table", () => {
-    const migration = read("supabase", "migrations", "202608130007_admin_trusted_devices.sql");
+    const migration = read("supabase", "migrations", "20261026000000_baseline.sql");
     expect(migration).toContain("token_hash text not null unique");
     expect(migration).toContain("enable row level security");
     expect(migration).toContain("revoke all on table public.admin_trusted_devices from public, anon, authenticated");

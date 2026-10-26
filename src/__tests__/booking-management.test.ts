@@ -50,22 +50,23 @@ describe("provider-neutral booking management", () => {
     expect(verifyBookingAccessToken(createBookingAccessToken("booking-id", -1))).toBeNull();
   });
 
-  it("keeps non-sequential collision-checked SOB references", () => {
-    const migration = read("supabase", "migrations", "202608110002_booking_management.sql");
-    expect(migration).toContain("floor(random() * 1000000)");
+  it("keeps non-sequential collision-checked references, prefixed and unique per garage", () => {
+    const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
+    expect(migration).toContain("floor(random() * (10 ^ digits))");
     expect(migration).toContain("exit when not exists");
-    expect(migration).toContain("^SOB-[0-9]{6}$");
+    expect(migration).toContain("^[A-Z]{2,4}-[0-9]{4,6}$");
+    expect(migration).toContain("unique (garage_id, booking_reference)");
   });
 
   it("adds provider-neutral booking correlation and sync fields", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
+    const migration = read("supabase", "migrations", "20261026000000_baseline.sql");
     expect(migration).toContain("provider_booking_uid text");
     expect(migration).toContain("provider_event_type_id bigint");
     expect(migration).toContain("provider_sync_state");
   });
 
   it("reserves booking creation through an idempotent database function", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
+    const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
     expect(migration).toContain("create_booking_intent");
     expect(migration).toContain("idempotency_key");
     expect(migration).toContain("IDEMPOTENCY_KEY_REQUIRED");
@@ -74,7 +75,7 @@ describe("provider-neutral booking management", () => {
   });
 
   it("ships service mappings disabled until real event types are configured", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
+    const migration = read("supabase", "migrations", "20261026000000_baseline.sql");
     expect(migration).toContain("online_booking_enabled boolean not null default false");
     expect(migration).toContain("not online_booking_enabled or provider_event_type_id is not null");
     expect(migration).toContain("provider_event_type_id > 0");
@@ -139,9 +140,9 @@ describe("provider-neutral booking management", () => {
   it("rejects reintroduced legacy scheduling integration outside compatibility migrations", () => {
     const legacyName = ["calen", "dly"].join("");
     const forbidden = new RegExp(`${legacyName}|${legacyName}\\.com|${legacyName.toUpperCase()}_`, "i");
+    // The build plan names the legacy table it schedules for removal (P2.1).
     const historicalMigrations = new Set([
-      join("supabase", "migrations", "202608110002_booking_management.sql"),
-      join("supabase", "migrations", "202608110006_calcom_booking_rework.sql"),
+      join("docs", "autofix", "BUILD-PLAN.md"),
     ]);
     const candidates = [
       ...filesUnder("src"),

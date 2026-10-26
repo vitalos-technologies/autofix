@@ -35,7 +35,7 @@ describe("transactional email templates", () => {
   it("uses the Supabase token hash with the server-side recovery callback", () => {
     const recovery = readFileSync(resolve("supabase/templates/recovery.html"), "utf8");
     expect(recovery).toContain(
-      'href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/admin/reset-password"',
+      'href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/app/reset-password"',
     );
     expect(recovery).not.toContain("{{ .ConfirmationURL }}");
     expect(recovery).not.toMatch(/password\s*[:=]/i);

@@ -8,14 +8,17 @@ function source(path: string) {
 }
 
 describe("shared service catalogue", () => {
-  it("seeds every established vehicle system and service into the database catalogue", () => {
-    const migration = source("supabase/migrations/20260928131539_unify_service_catalogue.sql");
-    for (const system of serviceCatalogue) {
-      expect(migration).toContain(`'${system.id}'`);
-      for (const service of system.services) expect(migration).toContain(`'${service.replaceAll("'", "''")}'`);
-    }
-    expect(migration).toContain("create table public.service_catalogue_systems");
-    expect(migration).toContain("add column system_id uuid references public.service_catalogue_systems(id)");
+  it("keeps a per-garage database catalogue of vehicle systems and services", () => {
+    // SOB's seeded catalogue rows are not carried into the multi-tenant
+    // baseline; each garage's catalogue is created with the garage.
+    expect(serviceCatalogue.length).toBeGreaterThan(0);
+    const baseline = source("supabase/migrations/20261026000000_baseline.sql");
+    const tenancy = source("supabase/migrations/20261026000100_tenancy.sql");
+    expect(baseline).toContain("create table public.service_catalogue_systems");
+    expect(baseline).toContain("system_id uuid references public.service_catalogue_systems(id)");
+    expect(tenancy).toContain("unique (garage_id, system_key)");
+    expect(tenancy).toContain("unique (garage_id, service_key)");
+    expect(tenancy).toContain("foreign key (garage_id, system_id)\n    references public.service_catalogue_systems (garage_id, id)");
   });
 
   it("uses the database catalogue for booking, invoices and the public portfolio", () => {
