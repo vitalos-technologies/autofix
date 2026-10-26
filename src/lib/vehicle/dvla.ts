@@ -1,5 +1,6 @@
 import { titleCase } from "@/lib/utils";
 import type { VehicleDetails } from "@/types/domain";
+import { toIsoDate, toStatusLabel } from "./mot";
 import { VehicleLookupError, type VehicleLookupProvider } from "./provider";
 
 type DvlaResponse = {
@@ -9,12 +10,16 @@ type DvlaResponse = {
   colour?: string;
   fuelType?: string;
   engineCapacity?: number;
+  taxStatus?: string;
+  taxDueDate?: string;
+  motStatus?: string;
+  motExpiryDate?: string;
   [key: string]: unknown;
 };
 
 export function normalizeDvlaVehicle(response: DvlaResponse, registration: string): VehicleDetails {
-  // Deliberately select only approved vehicle identity fields. Other upstream
-  // data is discarded and must never cross this provider boundary.
+  // Select vehicle identity, MOT and tax fields only. Other upstream data
+  // (keeper, V5C, export and emissions details) is discarded here.
   return {
     registration,
     make: titleCase(response.make),
@@ -22,6 +27,10 @@ export function normalizeDvlaVehicle(response: DvlaResponse, registration: strin
     colour: titleCase(response.colour),
     fuelType: titleCase(response.fuelType),
     engineCapacityCc: response.engineCapacity,
+    motStatus: toStatusLabel(response.motStatus),
+    motExpiry: toIsoDate(response.motExpiryDate),
+    taxStatus: toStatusLabel(response.taxStatus),
+    taxDueDate: toIsoDate(response.taxDueDate),
   };
 }
 

@@ -23,6 +23,7 @@ import Link from "next/link";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useVehicleSession } from "@/components/vehicle/vehicle-context";
+import { VehicleMotDetails } from "@/components/vehicle/vehicle-mot-details";
 import { contactLinks, formatPhone, siteConfig } from "@/config/site";
 import { track } from "@/lib/analytics/events";
 import { addCalendarDays, slotBelongsToCalendarDate } from "@/lib/bookings/date";
@@ -94,7 +95,7 @@ const defaultTimeZone = "Europe/London";
 const inputClass = "mt-2 block min-h-12 w-full rounded-xl border border-[#C8D4E0] bg-white px-4 py-3 text-[#071127] outline-none transition placeholder:text-[#7C8998] focus:border-[#168BFF] focus:ring-4 focus:ring-[#168BFF]/10";
 const workshopAddress = `${siteConfig.address.building}, ${siteConfig.address.street}, ${siteConfig.address.town}, ${siteConfig.address.city}, ${siteConfig.address.postcode}`;
 
-export function BookingWizard() {
+export function BookingWizard({ motEnabled = false }: { motEnabled?: boolean } = {}) {
   const { session, updateSession, clearVehicle } = useVehicleSession();
   const [step, setStep] = useState(0);
   const [vehicleView, setVehicleView] = useState<VehicleView>("input");
@@ -587,6 +588,7 @@ export function BookingWizard() {
           <StepShell headingRef={headingRef} icon={CarFront} eyebrow="Your vehicle" title="Which vehicle are we booking in?" description="Start with the registration. If lookup is unavailable, you can enter the essentials yourself.">
             <VehicleStep
               activeVehicle={activeVehicle}
+              motEnabled={motEnabled}
               view={effectiveVehicleView}
               registration={registration}
               setRegistration={setRegistration}
@@ -760,8 +762,9 @@ function StepShell({ headingRef, icon: Icon, eyebrow, title, description, childr
   );
 }
 
-function VehicleStep({ activeVehicle, view, registration, setRegistration, manualVehicle, setManualVehicle, lookupMessage, errors, onLookup, onConfirm, onManual, onShowManual, onRetry, onSearchAgain }: {
+function VehicleStep({ activeVehicle, motEnabled, view, registration, setRegistration, manualVehicle, setManualVehicle, lookupMessage, errors, onLookup, onConfirm, onManual, onShowManual, onRetry, onSearchAgain }: {
   activeVehicle: VehicleDetails | null;
+  motEnabled: boolean;
   view: VehicleView;
   registration: string;
   setRegistration: (value: string) => void;
@@ -791,6 +794,7 @@ function VehicleStep({ activeVehicle, view, registration, setRegistration, manua
             <span className="inline-block rounded-lg bg-white px-3 py-2 font-mono text-lg font-black tracking-[.12em] text-black shadow-sm">{formatRegistration(activeVehicle.registration)}</span>
             <h3 className="mt-3 text-2xl font-extrabold text-[#071127]">{vehicleLabel(activeVehicle)}</h3>
             {facts.length > 0 && <p className="mt-1 text-sm text-[#586575]">{facts.join(" · ")}</p>}
+            <VehicleMotDetails vehicle={activeVehicle} motEnabled={motEnabled} />
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             {view === "found" && <Button type="button" onClick={onConfirm}>Yes, this is my vehicle <ArrowRight size={18} aria-hidden="true" /></Button>}

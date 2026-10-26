@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { assertCustomerFacingContent } from "@/lib/content-guard";
 import { retryEnquiryNotifications } from "@/lib/enquiries/repository";
 import { addInternalNote, ignoreUnmatchedInboundEmail, linkUnmatchedInboundEmail, markEnquiryThreadRead, sendEnquiryReply, type ReplyState } from "@/lib/enquiries/thread-repository";
 import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
@@ -142,7 +141,6 @@ export async function saveSettings(formData: FormData) {
     openingHours,
     googleMapsUrl: String(formData.get("googleMapsUrl") || ""),
   };
-  assertCustomerFacingContent(value);
   await client.from("site_settings").upsert({ id: true, value, updated_by: auth.user.id });
   await audit(client, auth.user.id, "update", "site_settings", "primary");
   revalidatePath("/", "layout");

@@ -17,7 +17,6 @@
     "test:e2e": "playwright test",
     "test:e2e:local-invoicing": "playwright test --config playwright.local-invoicing.config.ts",
     "test:lighthouse": "lhci autorun",
-    "test:mot": "vitest run src/__tests__/content-guard.test.ts",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",

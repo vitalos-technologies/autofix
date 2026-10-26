@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
+import { DEFAULT_MOT_ENABLED, withMotVisibility } from "@/lib/vehicle/mot";
 import { VehicleLookupError } from "@/lib/vehicle/provider";
 import { registrationSchema } from "@/lib/vehicle/registration";
 
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
   if (!provider) return NextResponse.json({ success: false, error: { code: "unavailable", message: "Vehicle lookup is not configured. You can continue manually." } }, { status: 503 });
 
   try {
-    const vehicle = await provider.lookup(parsed.data);
+    // MOT data reaches the customer only when the garage shows MOT.
+    const vehicle = withMotVisibility(await provider.lookup(parsed.data), DEFAULT_MOT_ENABLED);
     return NextResponse.json({ success: true, vehicle }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const known = error instanceof VehicleLookupError ? error : new VehicleLookupError("Vehicle lookup is unavailable", "unavailable");
