@@ -1,7 +1,7 @@
-import { Bell, Building2, Clock3, Contact, HeartPulse, ImageIcon, MapPin, ShieldCheck } from "lucide-react";
+import { Bell, Building2, Clock3, Contact, HeartPulse, MapPin } from "lucide-react";
 import Link from "next/link";
 import { saveSettings } from "../actions";
-import { AdminField } from "@/components/admin/content-editor";
+import { AdminField } from "@/components/admin/admin-field";
 import { OpeningHoursEditor } from "@/components/admin/opening-hours-editor";
 import { siteConfig } from "@/config/site";
 import { createAdminReadClient } from "@/lib/supabase/server";
@@ -23,11 +23,10 @@ export default async function SettingsPage() {
     <>
       <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Configuration</p>
       <h1 className="mt-2 text-4xl font-extrabold text-[#071127]">Settings</h1>
-      <p className="mt-3 text-[#586575]">Manage the business details used across the website and customer communications.</p>
+      <p className="mt-3 text-[#586575]">Manage the business details used in booking pages and customer communications.</p>
 
       <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
         <Link href="/admin/settings" aria-current="page" className="rounded-lg bg-[#071127] px-4 py-2 text-sm font-bold text-white">Settings</Link>
-        <Link href="/admin/settings/review-health" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-[#1974E2]">Review health</Link>
         <Link href="/admin/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-[#1974E2]">Security</Link>
       </nav>
 
@@ -38,10 +37,6 @@ export default async function SettingsPage() {
           <SettingsLink href="#contact-details" label="Contact details" icon={<Contact />} />
           <SettingsLink href="#location" label="Location" icon={<MapPin />} />
           <SettingsLink href="#opening-hours" label="Opening hours" icon={<Clock3 />} />
-
-          <p className="mt-4 px-3 pb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.16em] text-[#8794A3]">Website</p>
-          <SettingsLink href="#media-settings" label="Media library" icon={<ImageIcon />} />
-          <SettingsLink href="#publishing-controls" label="Publishing controls" icon={<ShieldCheck />} />
 
           <p className="mt-4 px-3 pb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.16em] text-[#8794A3]">Operations</p>
           <SettingsLink href="#notification-settings" label="Notifications" icon={<Bell />} />
@@ -81,28 +76,10 @@ export default async function SettingsPage() {
           </form>
 
           <div className="mt-6 grid gap-6">
-            <ManagementSection id="media-settings" icon={<ImageIcon />} title="Media library" description="Manage approved website images, publication status and accessible alternative text." href="/admin/media" action="Open media library" />
             <ManagementSection id="notification-settings" icon={<Bell />} title="Notifications" description="Review new enquiries, pending messages and email delivery issues requiring attention." href="/admin/notifications" action="Review notifications" />
-            <ManagementSection id="system-settings" icon={<HeartPulse />} title="System health" description="Check integration readiness, publishing health and the services used by the website." href="/admin/settings/review-health" action="View review health" />
+            <ManagementSection id="system-settings" icon={<HeartPulse />} title="System health" description="Check integration readiness for the database, email, booking and vehicle lookup." href="/admin#system-health" action="View system health" />
           </div>
 
-      <section id="publishing-controls" className="mt-6 scroll-mt-6 rounded-2xl border border-[#E4EAF0] bg-white p-6" aria-labelledby="safeguards-heading">
-        <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]">
-            <ShieldCheck size={20} aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Publishing controls</p>
-            <h2 id="safeguards-heading" className="mt-1 text-2xl font-bold text-[#071127]">Launch safeguards</h2>
-          </div>
-        </div>
-        <ul className="mt-5 grid gap-3 text-sm leading-6 text-[#586575] md:grid-cols-2">
-          <li className="rounded-xl bg-[#F8FAFC] p-4">Draft content is never public or included in the sitemap.</li>
-          <li className="rounded-xl bg-[#F8FAFC] p-4">Publishing validates SEO fields, structured sections and prohibited customer-facing terms.</li>
-          <li className="rounded-xl bg-[#F8FAFC] p-4">Missing integrations are reported without exposing secret names or values.</li>
-          <li className="rounded-xl bg-[#F8FAFC] p-4">Public photos require useful alternative text before publication.</li>
-        </ul>
-      </section>
         </div>
       </div>
     </>

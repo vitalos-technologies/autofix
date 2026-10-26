@@ -1,13 +1,12 @@
+import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { Container, Eyebrow } from "@/components/ui/container";
-import { createMetadata } from "@/lib/seo";
 
-export const metadata = createMetadata(
-  "Book a Vehicle Service Appointment",
-  "Book a diagnostics, repair, service or inspection appointment directly with SOB Autofix in Doncaster.",
-  "/book",
-);
+export const metadata: Metadata = {
+  title: "Book a vehicle appointment",
+  description: "Book a diagnostics, repair, service or inspection appointment online.",
+};
 
 export default function BookPage() {
   return (

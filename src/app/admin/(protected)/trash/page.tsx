@@ -12,26 +12,16 @@ export default async function AdminTrashPage() {
     client.from("enquiries").select("id,type,deleted_at,customers(name,email)").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
     client.from("bookings").select("id,booking_reference,service_name,deleted_at,customers(name)").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
     client.from("invoices").select("id,invoice_number,status,customer_name,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-    client.from("sale_vehicles").select("id,year,make,model,registration,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-    client.from("content_entries").select("id,title,slug,status,deleted_at").eq("kind", "article").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-    client.from("media_assets").select("id,alt_text,object_path,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-    client.from("reviews").select("id,author_name,rating,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-    client.from("offers").select("id,title,active,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
     client.from("service_catalogue_systems").select("id,display_name,system_key,deleted_at").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
     client.from("booking_service_types").select("id,display_name,service_key,deleted_at,service_catalogue_systems(display_name)").not("system_id", "is", null).not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
-  ]) : Array.from({ length: 10 }, () => ({ data: [] }));
+  ]) : Array.from({ length: 5 }, () => ({ data: [] }));
 
   const sections: TrashSection[] = [
     { entity: "enquiries", label: "Enquiries", items: (results[0].data || []).map((item) => ({ id: item.id, title: relation(item.customers)?.name || "Customer enquiry", detail: String(item.type).replaceAll("_", " "), deletedAt: item.deleted_at! })) },
     { entity: "bookings", label: "Bookings", items: (results[1].data || []).map((item) => ({ id: item.id, title: item.booking_reference, detail: `${relation(item.customers)?.name || "Customer"} · ${item.service_name}`, deletedAt: item.deleted_at! })) },
     { entity: "invoices", label: "Invoices", note: "Only draft invoices can be permanently deleted. Issued, paid and linked financial records remain protected.", items: (results[2].data || []).map((item) => ({ id: item.id, title: item.invoice_number || "Draft invoice", detail: `${item.customer_name} · ${item.status}`, deletedAt: item.deleted_at! })) },
-    { entity: "inventory", label: "Vehicle stock", items: (results[3].data || []).map((item) => ({ id: item.id, title: `${item.year} ${item.make} ${item.model}`, detail: item.registration || "No registration", deletedAt: item.deleted_at! })) },
-    { entity: "news", label: "News & Blog", items: (results[4].data || []).map((item) => ({ id: item.id, title: item.title, detail: `/news/${item.slug} · ${item.status}`, deletedAt: item.deleted_at! })) },
-    { entity: "media", label: "Media", items: (results[5].data || []).map((item) => ({ id: item.id, title: item.alt_text, detail: item.object_path, deletedAt: item.deleted_at! })) },
-    { entity: "reviews", label: "Reviews", items: (results[6].data || []).map((item) => ({ id: item.id, title: item.author_name, detail: `${item.rating}/5 review`, deletedAt: item.deleted_at! })) },
-    { entity: "offers", label: "Offers", items: (results[7].data || []).map((item) => ({ id: item.id, title: item.title, detail: item.active ? "Previously active" : "Inactive", deletedAt: item.deleted_at! })) },
-    { entity: "catalogue_systems", label: "Service catalogue · Vehicle systems", note: "A vehicle system can only be deleted permanently after all of its services are removed.", items: (results[8].data || []).map((item) => ({ id: item.id, title: item.display_name, detail: item.system_key, deletedAt: item.deleted_at! })) },
-    { entity: "catalogue_services", label: "Service catalogue · Services", note: "Services already referenced by bookings remain protected from permanent deletion.", items: (results[9].data || []).map((item) => ({ id: item.id, title: item.display_name, detail: relation(item.service_catalogue_systems)?.display_name || item.service_key, deletedAt: item.deleted_at! })) },
+    { entity: "catalogue_systems", label: "Service catalogue · Vehicle systems", note: "A vehicle system can only be deleted permanently after all of its services are removed.", items: (results[3].data || []).map((item) => ({ id: item.id, title: item.display_name, detail: item.system_key, deletedAt: item.deleted_at! })) },
+    { entity: "catalogue_services", label: "Service catalogue · Services", note: "Services already referenced by bookings remain protected from permanent deletion.", items: (results[4].data || []).map((item) => ({ id: item.id, title: item.display_name, detail: relation(item.service_catalogue_systems)?.display_name || item.service_key, deletedAt: item.deleted_at! })) },
   ];
   const total = sections.reduce((sum, section) => sum + section.items.length, 0);
 

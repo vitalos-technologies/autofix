@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
+import { getAdminUser } from "@/lib/supabase/server";
 
-const entitySchema = z.enum(["enquiries", "bookings", "invoices", "inventory", "news", "media", "reviews", "offers", "catalogue_systems", "catalogue_services"]);
+const entitySchema = z.enum(["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]);
 const actionSchema = z.enum(["trash", "restore", "delete"]);
 const idsSchema = z.array(z.string().uuid()).min(1).max(100);
 
@@ -28,30 +28,12 @@ export async function manageTrashAction(formData: FormData): Promise<TrashAction
   });
   if (!parsed.success) return { success: false, message: "Choose at least one valid item." };
 
-  const service = createAdminClient();
-  if (!service) return { success: false, message: "Trash is temporarily unavailable." };
-
-  let objectPaths: string[] = [];
-  if (parsed.data.intent === "delete" && parsed.data.entity === "media") {
-    const { data } = await service.from("media_assets").select("object_path").in("id", parsed.data.ids).not("deleted_at", "is", null);
-    objectPaths = (data || []).map((item) => item.object_path);
-  }
-  if (parsed.data.intent === "delete" && parsed.data.entity === "inventory") {
-    const { data } = await service.from("sale_vehicle_images").select("object_path").in("sale_vehicle_id", parsed.data.ids);
-    objectPaths = (data || []).map((item) => item.object_path);
-  }
-
   const { data, error } = await admin.client.rpc("manage_admin_trash", {
     p_entity: parsed.data.entity,
     p_ids: parsed.data.ids,
     p_action: parsed.data.intent,
   });
   if (error) return { success: false, message: "The selected items could not be updated. They may be protected by linked records." };
-
-  if (parsed.data.intent === "delete" && objectPaths.length) {
-    const bucket = parsed.data.entity === "inventory" ? "vehicle-sales" : "public-media";
-    await service.storage.from(bucket).remove(objectPaths);
-  }
 
   revalidateTrashPaths(parsed.data.entity);
   const affected = typeof data === "number" ? data : 0;
@@ -67,16 +49,11 @@ function revalidateTrashPaths(entity: z.infer<typeof entitySchema>) {
     enquiries: "/admin/enquiries",
     bookings: "/admin/bookings",
     invoices: "/admin/invoices",
-    inventory: "/admin/inventory",
-    news: "/admin/news",
-    media: "/admin/media",
-    reviews: "/admin/reviews",
-    offers: "/admin/offers",
     catalogue_systems: "/admin/service-catalogue",
     catalogue_services: "/admin/service-catalogue",
   };
   revalidatePath(adminPath[entity]);
   revalidatePath("/admin/trash");
   revalidatePath("/admin", "layout");
-  for (const path of ["/", "/news", "/cars-for-sale", "/gallery", "/reviews", "/book", "/services"]) revalidatePath(path, "layout");
+  revalidatePath("/book", "layout");
 }

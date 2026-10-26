@@ -18,19 +18,11 @@ describe("shared service catalogue", () => {
     expect(migration).toContain("add column system_id uuid references public.service_catalogue_systems(id)");
   });
 
-  it("uses the database catalogue for booking, invoices and the public portfolio", () => {
+  it("uses the database catalogue for booking and invoices", () => {
     const booking = source("src/lib/bookings/services.ts");
     const invoice = source("src/components/admin/invoice-form.tsx");
-    const publicCatalogue = source("src/components/services/service-catalogue.tsx");
-    const vehicleJourney = source("src/components/vehicle/vehicle-journey.tsx");
     expect(booking).toContain("listServiceCatalogue({ bookableOnly: true })");
     expect(invoice).toContain("serviceCategories={serviceCategories}");
-    expect(publicCatalogue).toContain("await listServiceCatalogue()");
-    expect(vehicleJourney).toContain('fetch("/api/bookings/services"');
-    expect(vehicleJourney).toContain("selectedSystem: system.key");
-    expect(vehicleJourney).not.toContain("const serviceOptions");
-    expect(vehicleJourney).not.toContain("serviceCount");
-    expect(vehicleJourney).toContain("overflow-x-hidden");
   });
 
   it("presents vehicle systems before their services in the customer booking flow", () => {

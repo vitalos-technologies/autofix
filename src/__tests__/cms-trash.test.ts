@@ -16,11 +16,16 @@ describe("CMS trash", () => {
     expect(migration).toContain("grant execute on function public.manage_admin_trash(text,uuid[],text) to authenticated");
   });
 
-  it("shows a separated trash section for every record-based CMS module", () => {
+  it("shows a separated trash section for every record-based admin module", () => {
     const page = read("src/app/admin/(protected)/trash/page.tsx");
+    const actions = read("src/app/admin/(protected)/trash/actions.ts");
     const navigation = read("src/components/admin/admin-navigation.tsx");
-    for (const entity of ["enquiries", "bookings", "invoices", "inventory", "news", "media", "reviews", "offers"]) {
+    for (const entity of ["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]) {
       expect(page).toContain(`entity: "${entity}"`);
+    }
+    for (const removed of ["inventory", "news", "media", "reviews", "offers"]) {
+      expect(page).not.toContain(`entity: "${removed}"`);
+      expect(actions).not.toContain(`"${removed}"`);
     }
     expect(navigation).toContain('href: "/admin/trash"');
     expect(page).toContain('mode="trash"');
@@ -31,11 +36,6 @@ describe("CMS trash", () => {
       "src/app/admin/(protected)/enquiries/page.tsx",
       "src/app/admin/(protected)/bookings/page.tsx",
       "src/app/admin/(protected)/invoices/page.tsx",
-      "src/app/admin/(protected)/inventory/page.tsx",
-      "src/app/admin/(protected)/news/page.tsx",
-      "src/app/admin/(protected)/media/page.tsx",
-      "src/app/admin/(protected)/reviews/page.tsx",
-      "src/app/admin/(protected)/offers/page.tsx",
     ];
     for (const file of files) expect(read(file)).toContain("<AdminBulkActions");
     const control = read("src/components/admin/admin-bulk-actions.tsx");
@@ -43,24 +43,5 @@ describe("CMS trash", () => {
     expect(control).toContain("Move to trash");
     expect(control).toContain("Restore");
     expect(control).toContain("Delete permanently");
-  });
-
-  it("keeps trashed records out of public repositories", () => {
-    for (const file of [
-      "src/lib/content/repository.ts",
-      "src/lib/news/repository.ts",
-      "src/lib/media/repository.ts",
-      "src/lib/reviews/repository.ts",
-      "src/lib/offers/repository.ts",
-      "src/lib/sales/repository.ts",
-    ]) expect(read(file)).toContain('is("deleted_at", null)');
-  });
-});
-
-describe("steered UI changes", () => {
-  it("uses sales-specific enquiry wording", () => {
-    const source = read("src/components/forms/enquiry-form.tsx");
-    expect(source).toContain('type === "vehicle_sales" ? "What would you like to know?"');
-    expect(source).toContain("Ask about availability, condition, part exchange or arranging a viewing.");
   });
 });

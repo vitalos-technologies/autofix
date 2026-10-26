@@ -1,23 +1,17 @@
 "use client";
 
 import {
-  BadgePoundSterling,
   Bell,
   CalendarClock,
-  CarFront,
   Gauge,
-  Gift,
-  ImageIcon,
   Inbox,
   LogOut,
   Menu,
-  Newspaper,
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
   Settings,
   ShieldCheck,
-  Star,
   Trash2,
   Wrench,
   X,
@@ -41,22 +35,6 @@ const navigationGroups: Array<{ label: string; links: AdminLink[] }> = [
       { href: "/admin/bookings", label: "Bookings", icon: CalendarClock },
       { href: "/admin/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/admin/service-catalogue", label: "Service catalogue", icon: Wrench },
-      { href: "/admin/inventory", label: "Vehicle stock", icon: CarFront },
-    ],
-  },
-  {
-    label: "Content",
-    links: [
-      { href: "/admin/news", label: "News & Blog", icon: Newspaper },
-      { href: "/admin/media", label: "Media", icon: ImageIcon },
-      { href: "/admin/reviews", label: "Reviews", icon: Star },
-    ],
-  },
-  {
-    label: "Commercial",
-    links: [
-      { href: "/admin/offers", label: "Offers", icon: Gift },
-      { href: "/admin/pricing", label: "Pricing", icon: BadgePoundSterling },
     ],
   },
   {

@@ -4,10 +4,8 @@ import {
   ArrowRight,
   BadgePoundSterling,
   CalendarClock,
-  CarFront,
   CheckCircle2,
   CircleAlert,
-  FileText,
   Inbox,
   Plus,
   Radio,
@@ -18,7 +16,6 @@ import Link from "next/link";
 import {
   auditActionLabel,
   auditEntityLabel,
-  countStatuses,
   createSystemHealthChecks,
   formatRelativeTime,
   type HealthState,
@@ -62,12 +59,10 @@ export default async function DashboardPage() {
   const admin = await getAdminUser({ allowTrustedDevice: true });
   const now = new Date();
 
-  const [newEnquiriesResult, recentEnquiriesResult, stockResult, contentResult, failedEmailsResult, activityResult, bookingsResult, bookingServicesResult, invoicesResult] = client
+  const [newEnquiriesResult, recentEnquiriesResult, failedEmailsResult, activityResult, bookingsResult, bookingServicesResult, invoicesResult] = client
     ? await Promise.all([
         client.from("enquiries").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "new"),
         client.from("enquiries").select("id,type,service_slug,status,created_at,customers(name),vehicles(registration,make,model)").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
-        client.from("sale_vehicles").select("id,status").is("deleted_at", null),
-        client.from("content_entries").select("id,status,kind").is("deleted_at", null),
         client.from("enquiries").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("notification_status", "failed"),
         client.from("admin_audit_log").select("id,actor_id,action,entity_type,entity_id,detail,created_at").order("created_at", { ascending: false }).limit(6),
         client.from("bookings").select("id,status,appointment_start,provider_sync_state").is("deleted_at", null).order("appointment_start", { ascending: true }).limit(500),
@@ -76,20 +71,14 @@ export default async function DashboardPage() {
           ? loadInvoiceDashboard(admin.client, normalizeInvoiceDashboardFilters({}))
           : { ...emptyInvoiceDashboard, error: new Error("Admin session is unavailable") },
       ])
-    : [emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyInvoiceDashboard];
+    : [emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyInvoiceDashboard];
 
   const recentEnquiries = (recentEnquiriesResult.data || []) as unknown as RecentEnquiry[];
-  const stockRows = (stockResult.data || []) as Array<{ status: string }>;
-  const contentRows = (contentResult.data || []) as Array<{ status: string; kind: string }>;
   const activity = (activityResult.data || []) as unknown as AuditEntry[];
   const bookingRows = (bookingsResult.data || []) as BookingSummary[];
-  const stockCounts = countStatuses(stockRows, ["available", "reserved", "sold"]);
-  const articleCounts = countStatuses(contentRows.filter((entry) => entry.kind === "article"), ["published", "draft", "scheduled"]);
   const databaseReady = Boolean(client) && ![
     newEnquiriesResult,
     recentEnquiriesResult,
-    stockResult,
-    contentResult,
     failedEmailsResult,
     activityResult,
     bookingsResult,
@@ -117,7 +106,6 @@ export default async function DashboardPage() {
   const failedEmails = failedEmailsResult.count ?? 0;
   const setupIssues = systemHealth.filter((check) => check.state !== "healthy").length;
   const attentionRequired = failedEmails + bookingAttention + setupIssues;
-  const vehiclesForSale = (stockCounts.available ?? 0) + (stockCounts.reserved ?? 0);
   const displayName = admin?.profile.display_name || "Administrator";
   const greeting = greetingForDate(now);
 
@@ -131,9 +119,8 @@ export default async function DashboardPage() {
         </div>
         <div className="hidden flex-wrap gap-2 md:flex" aria-label="Quick actions">
           <QuickAction href="/admin/enquiries" label="View enquiries" icon={Inbox} variant="secondary" />
-          <QuickAction href="/admin/inventory/new" label="Add vehicle" icon={CarFront} variant="secondary" />
-          <QuickAction href="/admin/invoices/new" label="Add invoice" icon={ReceiptText} variant="secondary" />
-          <QuickAction href="/admin/news/new" label="Add article" icon={Plus} />
+          <QuickAction href="/admin/bookings" label="View bookings" icon={CalendarClock} variant="secondary" />
+          <QuickAction href="/admin/invoices/new" label="Add invoice" icon={Plus} />
         </div>
       </div>
 
@@ -144,7 +131,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" aria-label="Key performance indicators">
+      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key performance indicators">
         <KpiCard
           label="Outstanding invoices"
           value={invoicesResult.outstandingCount}
@@ -168,20 +155,6 @@ export default async function DashboardPage() {
           icon={Inbox}
         />
         <KpiCard
-          label="Published articles"
-          value={articleCounts.published ?? 0}
-          support="Live news and advice"
-          href="/admin/news"
-          icon={FileText}
-        />
-        <KpiCard
-          label="Vehicles for sale"
-          value={vehiclesForSale}
-          support="Available or reserved"
-          href="/admin/inventory"
-          icon={CarFront}
-        />
-        <KpiCard
           label="Attention required"
           value={attentionRequired}
           support={`${failedEmails} email ${failedEmails === 1 ? "failure" : "failures"} · ${setupIssues} setup ${setupIssues === 1 ? "item" : "items"}`}
@@ -200,9 +173,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-12">
-        <StockPanel counts={stockCounts} />
-        <ContentPanel counts={articleCounts} />
+      <div className="mt-6">
         <ActivityPanel entries={activity} displayName={displayName} now={now} />
       </div>
     </>
@@ -366,62 +337,16 @@ function SystemHealthPanel({ checks }: { checks: ReturnType<typeof createSystemH
           </div>
         ))}
       </div>
-      <Link href="/admin/settings/review-health" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#1974E2] hover:text-[#1446A5]">
+      <Link href="/admin/settings" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#1974E2] hover:text-[#1446A5]">
         Review settings <ArrowRight size={15} aria-hidden="true" />
       </Link>
     </section>
   );
 }
 
-function StockPanel({ counts }: { counts: Record<string, number> }) {
-  return (
-    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 md:col-span-1 xl:col-span-4" aria-labelledby="stock-heading">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[0.68rem] font-extrabold tracking-[0.14em] text-[#1974E2] uppercase">Sales</p>
-          <h2 id="stock-heading" className="mt-1 text-xl font-bold text-[#071127]">Vehicle stock</h2>
-        </div>
-        <CarFront className="text-[#1974E2]" size={23} aria-hidden="true" />
-      </div>
-      <div className="mt-5 grid grid-cols-3 divide-x divide-[#E4EAF0] rounded-xl bg-[#F8FAFC] py-4 text-center">
-        <MiniMetric label="Available" value={counts.available ?? 0} />
-        <MiniMetric label="Reserved" value={counts.reserved ?? 0} />
-        <MiniMetric label="Sold" value={counts.sold ?? 0} />
-      </div>
-      <div className="mt-5 flex flex-wrap gap-4 text-sm font-bold">
-        <Link href="/admin/inventory/new" className="text-[#1974E2] hover:text-[#1446A5]">Add vehicle</Link>
-        <Link href="/admin/inventory" className="text-[#586575] hover:text-[#071127]">Manage stock</Link>
-      </div>
-    </section>
-  );
-}
-
-function ContentPanel({ counts }: { counts: Record<string, number> }) {
-  return (
-    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 md:col-span-1 xl:col-span-4" aria-labelledby="content-heading">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[0.68rem] font-extrabold tracking-[0.14em] text-[#1974E2] uppercase">Publishing</p>
-          <h2 id="content-heading" className="mt-1 text-xl font-bold text-[#071127]">News &amp; Blog</h2>
-        </div>
-        <FileText className="text-[#1974E2]" size={23} aria-hidden="true" />
-      </div>
-      <div className="mt-5 grid grid-cols-3 divide-x divide-[#E4EAF0] rounded-xl bg-[#F8FAFC] py-4 text-center">
-        <MiniMetric label="Published" value={counts.published ?? 0} />
-        <MiniMetric label="Draft" value={counts.draft ?? 0} />
-        <MiniMetric label="Scheduled" value={counts.scheduled ?? 0} />
-      </div>
-      <div className="mt-5 flex flex-wrap gap-4 text-sm font-bold">
-        <Link href="/admin/news/new" className="text-[#1974E2] hover:text-[#1446A5]">Create article</Link>
-        <Link href="/admin/news" className="text-[#586575] hover:text-[#071127]">Manage articles</Link>
-      </div>
-    </section>
-  );
-}
-
 function ActivityPanel({ entries, displayName, now }: { entries: AuditEntry[]; displayName: string; now: Date }) {
   return (
-    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 md:col-span-2 xl:col-span-4" aria-labelledby="activity-heading">
+    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5" aria-labelledby="activity-heading">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[0.68rem] font-extrabold tracking-[0.14em] text-[#1974E2] uppercase">Audit log</p>
@@ -445,7 +370,7 @@ function ActivityPanel({ entries, displayName, now }: { entries: AuditEntry[]; d
         <div className="mt-5 rounded-xl bg-[#F8FAFC] p-5 text-center">
           <CheckCircle2 className="mx-auto text-[#1974E2]" size={24} aria-hidden="true" />
           <p className="mt-3 font-bold text-[#071127]">No activity recorded yet</p>
-          <p className="mt-1 text-sm text-[#667586]">Publishing and operational changes will appear here.</p>
+          <p className="mt-1 text-sm text-[#667586]">Operational changes will appear here.</p>
         </div>
       )}
     </section>

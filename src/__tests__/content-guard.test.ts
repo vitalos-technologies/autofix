@@ -2,14 +2,13 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { guardCustomerFacingContent } from "@/lib/content-guard";
-import { diagnostics, mainNavigation, services, siteConfig } from "@/config/site";
-import { legalContent, topLevelContent } from "@/config/landing-content";
+import { siteConfig } from "@/config/site";
 
 const forbiddenServiceWord = ["M", "O", "T"].join("");
 
 describe("customer-facing content guard", () => {
   it("accepts approved seeded content", () => {
-    expect(guardCustomerFacingContent({ siteConfig, services, diagnostics, mainNavigation, topLevelContent, legalContent })).toEqual({ safe: true });
+    expect(guardCustomerFacingContent({ siteConfig })).toEqual({ safe: true });
   });
 
   it("rejects a prohibited standalone service term", () => {

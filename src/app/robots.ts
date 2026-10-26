@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
-import { siteConfig } from "@/config/site";
 
+// The admin host must not be indexed. Per-garage booking sites will publish
+// their own robots rules and sitemaps from /_site (P1.7 and later).
 export default function robots(): MetadataRoute.Robots {
-  if (process.env.VERCEL_ENV === "preview") return { rules: { userAgent: "*", disallow: "/" } };
-  return { rules: { userAgent: "*", allow: "/", disallow: ["/admin/", "/auth/", "/api/"] }, sitemap: `${siteConfig.siteUrl}/sitemap.xml`, host: siteConfig.siteUrl };
+  return { rules: { userAgent: "*", disallow: "/" } };
 }

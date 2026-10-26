@@ -1065,16 +1065,15 @@ function AppointmentStep({ date, setDate, minDate, maxDate, state, slots, select
       {state === "empty" && (
         <div className="mt-5 rounded-2xl border border-[#D7E0E9] bg-[#F8FAFC] p-5">
           <h3 className="text-xl font-extrabold text-[#071127]">No appointments on this date</h3>
-          <p className="mt-2 text-sm leading-6 text-[#586575]">Try the next day, choose another date, or send us an enquiry.</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onNextDay}>Check next day</Button><Link href="/get-a-quote" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-[#1974E2]/25 px-5 py-3 text-sm font-bold text-[#071127]">Send a booking enquiry</Link></div>
+          <p className="mt-2 text-sm leading-6 text-[#586575]">Try the next day, choose another date, or call us.</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onNextDay}>Check next day</Button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_no_slots" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#1974E2]/25 px-5 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a></div>
         </div>
       )}
       {state === "error" && (
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" /><div><h3 className="text-xl font-extrabold text-[#4E3A10]">Online appointment availability is temporarily unavailable.</h3><p className="mt-2 text-sm leading-6 text-amber-900">Your details are still here. You can try again or contact SOB Autofix.</p></div></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Button type="button" onClick={onLoad}>Try again</Button>
-            <Link href="/get-a-quote" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]">Send an enquiry</Link>
             <a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_availability" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call {formatPhone(siteConfig.phone)}</a>
           </div>
         </div>
@@ -1089,7 +1088,7 @@ function AppointmentStep({ date, setDate, minDate, maxDate, state, slots, select
         </fieldset>
       )}
       {errors.appointmentStart && <p role="alert" className="mt-3 text-sm text-red-700">{errors.appointmentStart}</p>}
-      {(state === "ready" || state === "empty") && <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm"><button type="button" onClick={onNextDay} className="font-bold text-[#145CAD] underline">Check the next day</button><Link href="/get-a-quote" className="font-bold text-[#145CAD] underline">No suitable time? Send an enquiry</Link></div>}
+      {(state === "ready" || state === "empty") && <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm"><button type="button" onClick={onNextDay} className="font-bold text-[#145CAD] underline">Check the next day</button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_no_suitable_time" })} className="font-bold text-[#145CAD] underline">No suitable time? Call us</a></div>}
     </div>
   );
 }
@@ -1145,8 +1144,8 @@ function AvailabilityFallback({ title, onRetry }: { title: string; onRetry: () =
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
       <h3 className="text-xl font-extrabold text-[#4E3A10]">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-amber-900">Try again, send a booking enquiry, or call us and we&apos;ll help.</p>
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onRetry}>Try again</Button><Link href="/get-a-quote" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]">Send a booking enquiry</Link><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_services" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a></div>
+      <p className="mt-2 text-sm leading-6 text-amber-900">Try again, or call us and we&apos;ll help.</p>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onRetry}>Try again</Button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_services" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a></div>
     </div>
   );
 }

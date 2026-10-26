@@ -159,7 +159,6 @@ function revalidateCatalogue() {
   revalidatePath("/admin/bookings/services");
   revalidatePath("/admin/invoices/new");
   revalidatePath("/book");
-  revalidatePath("/services");
 }
 
 function unavailable(): CatalogueActionState { return { success: false, message: "The service catalogue is temporarily unavailable." }; }

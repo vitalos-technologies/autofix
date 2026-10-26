@@ -1,37 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Inter } from "next/font/google";
 import siteIcon from "../../assets/sobautofix_siteicon.png";
-import { SiteChrome } from "@/components/layout/site-chrome";
 import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
-import { siteConfig } from "@/config/site";
-import { getSiteSettings } from "@/lib/settings/repository";
-import { getPublicNavigation } from "@/lib/navigation/repository";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional", preload: false });
 const barlow = Barlow_Condensed({ subsets: ["latin"], weight: "700", variable: "--font-barlow", display: "optional", preload: false });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.siteUrl),
-  title: { default: `${siteConfig.tagline} | ${siteConfig.name}`, template: `%s | ${siteConfig.name}` },
-  description: "Professional vehicle diagnostics, electrical fault finding, repairs, servicing and vehicle sales in Doncaster.",
-  applicationName: siteConfig.name,
+  title: { default: "Autofix", template: "%s | Autofix" },
+  description: "Online booking and garage management.",
+  applicationName: "Autofix",
+  // The admin host must never be indexed. Garage booking sites get their own
+  // robots rules when they move to /_site (P1.7).
+  robots: { index: false, follow: false },
   icons: {
     icon: [{ url: siteIcon.src, type: "image/png" }],
     apple: [{ url: siteIcon.src, type: "image/png" }],
   },
-  verification: { google: process.env.GOOGLE_SEARCH_CONSOLE_VERIFICATION },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#030712" };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [settings, navigation] = await Promise.all([getSiteSettings(), getPublicNavigation()]);
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-GB" data-scroll-behavior="smooth" className={`${inter.variable} ${barlow.variable}`}>
       <body>
         <VehicleSessionProvider>
-          <SiteChrome settings={settings} navigation={navigation}>{children}</SiteChrome>
+          <main>{children}</main>
         </VehicleSessionProvider>
       </body>
     </html>

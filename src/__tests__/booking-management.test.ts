@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createBookingAccessToken, verifyBookingAccessToken } from "@/lib/bookings/access-token";
 import { bookingLookupSchema, createBookingSchema } from "@/lib/bookings/schema";
@@ -143,9 +143,12 @@ describe("provider-neutral booking management", () => {
       join("supabase", "migrations", "202608110002_booking_management.sql"),
       join("supabase", "migrations", "202608110006_calcom_booking_rework.sql"),
     ]);
+    // docs/autofix/ is the Autofix planning kit; it names the legacy scheduler
+    // only to record that it is not used. Every SOB doc and all of src/ stay scanned.
+    const autofixPlanningDocs = join("docs", "autofix") + sep;
     const candidates = [
       ...filesUnder("src"),
-      ...filesUnder("docs"),
+      ...filesUnder("docs").filter((file) => !file.startsWith(autofixPlanningDocs)),
       ".env.example",
       "README.md",
       "next.config.ts",

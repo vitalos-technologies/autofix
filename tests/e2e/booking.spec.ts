@@ -283,7 +283,6 @@ test.describe("SOB Autofix booking wizard", () => {
 
     await expect(page.getByRole("heading", { name: /Online appointment availability is temporarily unavailable/ })).toBeVisible();
     await expect(page.locator("button[aria-pressed]")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Send an enquiry" })).toHaveAttribute("href", "/get-a-quote");
     await expect(page.getByRole("link", { name: /Call 07469/ })).toHaveAttribute("href", /^tel:/);
     await page.getByRole("button", { name: "Try again" }).click();
 

@@ -75,7 +75,6 @@ describe("admin trusted devices", () => {
     expect(read("src", "app", "admin", "mfa", "page.tsx")).toContain('query.stepUp !== "1"');
     expect(read("src", "proxy.ts")).toContain("isSensitiveAdminPath(pathname)");
     expect(read("src", "app", "admin", "(protected)", "invoices", "actions.ts")).toContain("requireFreshAdminSession");
-    expect(read("src", "app", "admin", "(protected)", "news", "import-actions.ts")).toContain("requireFreshAdminSession");
   });
 
   it("revokes trust before password and factor changes", () => {
