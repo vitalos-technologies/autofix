@@ -7,10 +7,10 @@ vi.mock("@/config/site", () => ({ siteConfig: { siteUrl: "https://sobautofix.com
 
 import { GET, POST } from "@/app/auth/confirm/route";
 
-const recoveryUrl = "https://sobautofix.com/auth/confirm?token_hash=hashed-token&type=recovery&next=/admin/reset-password";
+const recoveryUrl = "https://sobautofix.com/auth/confirm?token_hash=hashed-token&type=recovery&next=/app/reset-password";
 
 function recoveryPost(overrides: Record<string, string> = {}, origin = "https://sobautofix.com") {
-  const values = { token_hash: "hashed-token", type: "recovery", next: "/admin/reset-password", ...overrides };
+  const values = { token_hash: "hashed-token", type: "recovery", next: "/app/reset-password", ...overrides };
   return new NextRequest("https://sobautofix.com/auth/confirm", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", origin },
@@ -22,7 +22,7 @@ function proxiedRecoveryPost() {
   return new NextRequest("https://internal-deployment.vercel.app/auth/confirm", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://sobautofix.com" },
-    body: new URLSearchParams({ token_hash: "hashed-token", type: "recovery", next: "/admin/reset-password" }),
+    body: new URLSearchParams({ token_hash: "hashed-token", type: "recovery", next: "/app/reset-password" }),
   });
 }
 
@@ -51,21 +51,39 @@ describe("recovery auth confirmation callback", () => {
     authMocks.verifyOtp.mockResolvedValue({ error: null });
     const response = await POST(recoveryPost());
     expect(authMocks.verifyOtp).toHaveBeenCalledWith({ token_hash: "hashed-token", type: "recovery" });
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/reset-password");
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/reset-password");
   });
 
   it("accepts the canonical production origin behind a proxy deployment host", async () => {
     authMocks.verifyOtp.mockResolvedValue({ error: null });
     const response = await POST(proxiedRecoveryPost());
     expect(authMocks.verifyOtp).toHaveBeenCalledWith({ token_hash: "hashed-token", type: "recovery" });
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/reset-password");
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/reset-password");
+  });
+
+  it("accepts the pre-/app recovery link from the Supabase template and lands on /app", async () => {
+    const legacyUrl = "https://sobautofix.com/auth/confirm?token_hash=hashed-token&type=recovery&next=/admin/reset-password";
+    const page = await GET(new NextRequest(legacyUrl));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('name="next" value="/app/reset-password"');
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
+
+    authMocks.verifyOtp.mockResolvedValue({ error: null });
+    const response = await POST(recoveryPost({ next: "/admin/reset-password" }));
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/reset-password");
+  });
+
+  it("does not treat other /admin paths as recovery destinations", async () => {
+    const response = await POST(recoveryPost({ next: "/admin/enquiries" }));
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/login?error=invalid-link");
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
   });
 
   it("rejects a missing token, invalid type, and unsafe destination", async () => {
     const invalidValues: Array<Record<string, string>> = [{ token_hash: "" }, { type: "invalid" }, { next: "https://evil.example" }];
     for (const values of invalidValues) {
       const response = await POST(recoveryPost(values));
-      expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+      expect(response.headers.get("location")).toBe("https://sobautofix.com/app/login?error=invalid-link");
     }
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
   });
@@ -73,19 +91,19 @@ describe("recovery auth confirmation callback", () => {
   it("rejects cross-origin POSTs without attempting verification", async () => {
     const response = await POST(recoveryPost({}, "https://evil.example"));
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/login?error=invalid-link");
   });
 
   it("handles failed Supabase verification as an invalid link", async () => {
     authMocks.verifyOtp.mockResolvedValue({ error: new Error("expired token") });
     const response = await POST(recoveryPost());
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/login?error=invalid-link");
   });
 
   it("rejects a GET without a token or code", async () => {
-    const response = await GET(new NextRequest("https://sobautofix.com/auth/confirm?next=/admin/reset-password"));
+    const response = await GET(new NextRequest("https://sobautofix.com/auth/confirm?next=/app/reset-password"));
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
     expect(authMocks.exchangeCodeForSession).not.toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://sobautofix.com/app/login?error=invalid-link");
   });
 });

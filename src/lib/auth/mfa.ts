@@ -1,11 +1,13 @@
+import { GARAGE_ADMIN_BASE_PATH, isGarageAdminPath } from "@/config/admin";
+
 export function safeAdminReturnTo(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith("/admin") || value.startsWith("//")) return "/admin";
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return GARAGE_ADMIN_BASE_PATH;
   try {
     const parsed = new URL(value, "http://localhost");
-    if (parsed.origin !== "http://localhost" || parsed.pathname === "/admin/mfa") return "/admin";
+    if (parsed.origin !== "http://localhost" || !isGarageAdminPath(parsed.pathname) || parsed.pathname === "/app/mfa") return GARAGE_ADMIN_BASE_PATH;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
-    return "/admin";
+    return GARAGE_ADMIN_BASE_PATH;
   }
 }
 

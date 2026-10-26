@@ -6,7 +6,7 @@ import {
   createSystemHealthChecks,
 } from "@/lib/admin/dashboard";
 
-const dashboardSource = readFileSync("src/app/admin/(protected)/page.tsx", "utf8");
+const dashboardSource = readFileSync("src/app/app/(protected)/page.tsx", "utf8");
 
 describe("admin operations dashboard", () => {
   it("uses the existing operational tables and recent-enquiry fields", () => {

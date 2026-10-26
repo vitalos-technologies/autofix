@@ -3,7 +3,7 @@
 import { Check, ChevronDown, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { saveInvoiceDraftAction, type InvoiceFormState } from "@/app/admin/(protected)/invoices/actions";
+import { saveInvoiceDraftAction, type InvoiceFormState } from "@/app/app/(protected)/invoices/actions";
 import { serviceCatalogue } from "@/config/service-catalogue";
 import { calculateInvoiceTotals, formatPence, poundsToPence } from "@/lib/invoices/money";
 import type { InvoiceSourceType } from "@/lib/invoices/types";
@@ -40,7 +40,7 @@ export function InvoiceForm({ initial, existingSourceInvoices = [], serviceCateg
     {existingSourceInvoices.length > 0 && <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
       <h2 className="text-lg font-extrabold">An active invoice already exists for this source</h2>
       <p className="mt-2 text-sm leading-6">Review the existing record before deliberately creating another draft.</p>
-      <ul className="mt-3 grid gap-2 text-sm font-bold">{existingSourceInvoices.map((invoice) => <li key={invoice.id}><Link className="underline" href={`/admin/invoices/${invoice.id}`}>{invoice.reference}</Link> <span className="font-medium">({invoice.status})</span></li>)}</ul>
+      <ul className="mt-3 grid gap-2 text-sm font-bold">{existingSourceInvoices.map((invoice) => <li key={invoice.id}><Link className="underline" href={`/app/invoices/${invoice.id}`}>{invoice.reference}</Link> <span className="font-medium">({invoice.status})</span></li>)}</ul>
       <label className="mt-4 flex items-start gap-3 text-sm font-bold"><input required type="checkbox" name="confirmDuplicateSource" value="true" className="mt-1 size-4" />I have reviewed the existing invoice and intend to create another draft.</label>
     </section>}
     <FormSection title="Customer"><div className="grid gap-4 sm:grid-cols-2"><Field name="customer_name" title="Customer name" value={initial.customerName} required /><Field name="customer_email" title="Email" value={initial.customerEmail} type="email" /><Field name="customer_phone" title="Phone" value={initial.customerPhone} /><TextField name="customer_address" title="Address" value={initial.customerAddress} /></div></FormSection>

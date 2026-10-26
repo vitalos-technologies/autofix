@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { emailPreviewFixtures } from "@/lib/email/preview-fixtures";
+import { isRecoveryNextPath } from "@/lib/auth/recovery-paths";
 import { renderEnquiryReply } from "@/lib/email/templates/enquiries";
 
 const fixtures = emailPreviewFixtures();
@@ -34,9 +35,10 @@ describe("transactional email templates", () => {
 
   it("uses the Supabase token hash with the server-side recovery callback", () => {
     const recovery = readFileSync(resolve("supabase/templates/recovery.html"), "utf8");
-    expect(recovery).toContain(
-      'href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/admin/reset-password"',
-    );
+    const link = recovery.match(/href="\{\{ \.SiteURL \}\}\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}&amp;type=recovery&amp;next=([^"]+)"/);
+    expect(link).not.toBeNull();
+    // The template may still carry the pre-/app path; /auth/confirm must accept it.
+    expect(isRecoveryNextPath(link?.[1])).toBe(true);
     expect(recovery).not.toContain("{{ .ConfirmationURL }}");
     expect(recovery).not.toMatch(/password\s*[:=]/i);
   });

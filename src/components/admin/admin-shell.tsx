@@ -67,11 +67,11 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
     if (!query) return;
 
     const destinations = [
-      ["dashboard home", "/admin"], ["enquiries messages", "/admin/enquiries"],
-      ["bookings appointments", "/admin/bookings"], ["invoices billing", "/admin/invoices"],
-      ["service catalogue services", "/admin/service-catalogue"], ["trash deleted", "/admin/trash"],
-      ["notifications alerts", "/admin/notifications"], ["settings configuration", "/admin/settings"],
-      ["security mfa two factor authenticator", "/admin/configuration/security"],
+      ["dashboard home", "/app"], ["enquiries messages", "/app/enquiries"],
+      ["bookings appointments", "/app/bookings"], ["invoices billing", "/app/invoices"],
+      ["service catalogue services", "/app/service-catalogue"], ["trash deleted", "/app/trash"],
+      ["notifications alerts", "/app/notifications"], ["settings configuration", "/app/settings"],
+      ["security mfa two factor authenticator", "/app/configuration/security"],
     ] as const;
     const match = destinations.find(([terms]) => terms.includes(query));
     if (match) router.push(match[1]);

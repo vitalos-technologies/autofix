@@ -112,7 +112,7 @@ describe("administrator MFA recovery", () => {
     expect(migration).toContain("set revoked_at = now()\n  where user_id = p_user_id and used_at is null and revoked_at is null");
     expect(migration).toContain("update public.admin_mfa_recovery_sessions");
     expect(migration).toContain("update public.admin_trusted_devices");
-    const actions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const actions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     expect(actions).toContain("const admin = await getAdminUser();");
     expect(actions).toContain("if (!admin?.mfaVerified)");
   });
@@ -128,7 +128,7 @@ describe("administrator MFA recovery", () => {
   });
 
   it("keeps factor replacement controlled until a new genuine TOTP reaches AAL2", () => {
-    const actions = read("src", "app", "admin", "mfa", "recover", "actions.ts");
+    const actions = read("src", "app", "app", "mfa", "recover", "actions.ts");
     expect(actions.indexOf("challengeAndVerify")).toBeLessThan(actions.indexOf("auth.admin.mfa.deleteFactor"));
     expect(actions).toContain('assurance?.currentLevel !== "aal2"');
     expect(actions).toContain("recovery.old_factor_ids");
@@ -137,7 +137,7 @@ describe("administrator MFA recovery", () => {
   });
 
   it("supports an authenticated atomic-style handover without removing the current factor first", () => {
-    const actions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const actions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     const start = actions.indexOf("export async function startMfaReplacement");
     const verify = actions.indexOf("export async function verifyMfaReplacement");
     const replacement = actions.slice(start, actions.indexOf("export async function startMfaEnrollment"));
@@ -151,8 +151,8 @@ describe("administrator MFA recovery", () => {
   });
 
   it("does not let an email recovery session enter factor or recovery-code management", () => {
-    const recovery = read("src", "app", "admin", "mfa", "recover", "actions.ts");
-    const security = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const recovery = read("src", "app", "app", "mfa", "recover", "actions.ts");
+    const security = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     const server = read("src", "lib", "supabase", "server.ts");
     expect(recovery).toContain("consumeMfaRecoveryCode");
     expect(security).toContain("const admin = await getAdminUser();");
@@ -164,9 +164,9 @@ describe("administrator MFA recovery", () => {
     const migration = read("supabase", "migrations", "202608130008_admin_mfa_recovery.sql");
     expect(migration).toContain("mandatory_mfa_enabled boolean not null default false");
     expect(migration).toContain("values (true, false)");
-    expect(read("src", "proxy.ts")).toContain('enrollmentUrl.pathname = "/admin/mfa/enroll"');
-    const enrollmentPage = read("src", "app", "admin", "mfa", "enroll", "page.tsx");
-    expect(enrollmentPage).toContain('if (admin.mfaRequired) redirect("/admin/mfa")');
+    expect(read("src", "proxy.ts")).toContain('enrollmentUrl.pathname = "/app/mfa/enroll"');
+    const enrollmentPage = read("src", "app", "app", "mfa", "enroll", "page.tsx");
+    expect(enrollmentPage).toContain('if (admin.mfaRequired) redirect("/app/mfa")');
     expect(enrollmentPage).toContain("<MfaSecurityPanel />");
   });
 });

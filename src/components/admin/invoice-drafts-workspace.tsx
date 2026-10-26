@@ -36,7 +36,7 @@ export function InvoiceDraftsWorkspace({ header, children, drafts }: { header: R
             <h3 className="font-extrabold text-[#071127]">{draft.customerName}</h3>
             <p className="mt-1 text-sm font-semibold text-[#586575]">{draft.serviceName}</p>
             <p className="mt-1 text-xs text-[#667586]">{draft.vehicleLabel}</p>
-            <div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs text-[#667586]">Updated {draft.updatedLabel}</span><AdminLoadingLink href={`/admin/invoices/${draft.id}/edit`} className="inline-flex min-h-9 items-center rounded-lg bg-[#1974E2] px-3 text-xs font-extrabold text-white hover:bg-[#145EBA]" loadingTitle="Opening draft" loadingDescription="Please wait while the draft invoice opens.">Resume</AdminLoadingLink></div>
+            <div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs text-[#667586]">Updated {draft.updatedLabel}</span><AdminLoadingLink href={`/app/invoices/${draft.id}/edit`} className="inline-flex min-h-9 items-center rounded-lg bg-[#1974E2] px-3 text-xs font-extrabold text-white hover:bg-[#145EBA]" loadingTitle="Opening draft" loadingDescription="Please wait while the draft invoice opens.">Resume</AdminLoadingLink></div>
           </article>)}
         </div> : <p className="mt-4 rounded-xl border border-dashed border-[#BCD6F6] bg-white p-5 text-center text-sm text-[#667586]">There are no saved draft invoices.</p>}
       </aside>}

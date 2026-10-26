@@ -14,7 +14,7 @@ SOB Autofix uses Supabase Auth TOTP for normal administrator access. A verified 
 ## Lost-authenticator flow
 
 1. The administrator first authenticates the account with Supabase. A code alone is not a login credential.
-2. `/admin/mfa/recover` accepts an unused recovery code under conservative per-account and per-source rate limits.
+2. `/app/mfa/recover` accepts an unused recovery code under conservative per-account and per-source rate limits.
 3. Atomic consumption revokes trusted devices and issues a random 15-minute capability. The browser receives only the raw capability in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie scoped to the recovery route; PostgreSQL stores its hash.
 4. The old verified TOTP factor remains active while a replacement factor is enrolled.
 5. The administrator must prove the replacement factor works with a current six-digit TOTP. This creates a genuine AAL2 session.
@@ -50,9 +50,9 @@ This procedure must not be automated through a public route or email link.
 
 Migration `202608130008_admin_mfa_recovery.sql` creates `admin_mfa_policy` with `mandatory_mfa_enabled = false`. Both application routing and `public.is_admin()` read this server-only value. While false, an administrator with no factor can complete the controlled enrollment rollout. Once true:
 
-- no-factor administrators are restricted to `/admin/mfa/enroll`;
-- enrolled AAL1 administrators are restricted to `/admin/mfa`;
-- recovery capability holders are restricted to `/admin/mfa/recover`;
+- no-factor administrators are restricted to `/app/mfa/enroll`;
+- enrolled AAL1 administrators are restricted to `/app/mfa`;
+- recovery capability holders are restricted to `/app/mfa/recover`;
 - only AAL2 (or the existing ordinary-navigation trusted-device policy where explicitly allowed) reaches the admin shell;
 - sensitive operations and database RLS still require genuine AAL2.
 

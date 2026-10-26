@@ -44,9 +44,9 @@ describe("shared service catalogue", () => {
   });
 
   it("provides an editable CMS portfolio and recoverable deletion", () => {
-    const page = source("src/app/admin/(protected)/service-catalogue/page.tsx");
-    const editor = source("src/app/admin/(protected)/service-catalogue/catalogue-editor.tsx");
-    const trash = source("src/app/admin/(protected)/trash/actions.ts");
+    const page = source("src/app/app/(protected)/service-catalogue/page.tsx");
+    const editor = source("src/app/app/(protected)/service-catalogue/catalogue-editor.tsx");
+    const trash = source("src/app/app/(protected)/trash/actions.ts");
     expect(page).toContain("Service catalogue");
     expect(editor).toContain("createCatalogueSystemAction");
     expect(editor).toContain("updateCatalogueServiceAction");

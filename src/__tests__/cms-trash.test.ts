@@ -17,8 +17,8 @@ describe("CMS trash", () => {
   });
 
   it("shows a separated trash section for every record-based admin module", () => {
-    const page = read("src/app/admin/(protected)/trash/page.tsx");
-    const actions = read("src/app/admin/(protected)/trash/actions.ts");
+    const page = read("src/app/app/(protected)/trash/page.tsx");
+    const actions = read("src/app/app/(protected)/trash/actions.ts");
     const navigation = read("src/components/admin/admin-navigation.tsx");
     for (const entity of ["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]) {
       expect(page).toContain(`entity: "${entity}"`);
@@ -27,15 +27,15 @@ describe("CMS trash", () => {
       expect(page).not.toContain(`entity: "${removed}"`);
       expect(actions).not.toContain(`"${removed}"`);
     }
-    expect(navigation).toContain('href: "/admin/trash"');
+    expect(navigation).toContain('href: "/app/trash"');
     expect(page).toContain('mode="trash"');
   });
 
   it("adds bulk selection and move-to-trash controls to every active list", () => {
     const files = [
-      "src/app/admin/(protected)/enquiries/page.tsx",
-      "src/app/admin/(protected)/bookings/page.tsx",
-      "src/app/admin/(protected)/invoices/page.tsx",
+      "src/app/app/(protected)/enquiries/page.tsx",
+      "src/app/app/(protected)/bookings/page.tsx",
+      "src/app/app/(protected)/invoices/page.tsx",
     ];
     for (const file of files) expect(read(file)).toContain("<AdminBulkActions");
     const control = read("src/components/admin/admin-bulk-actions.tsx");

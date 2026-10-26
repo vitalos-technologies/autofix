@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("invoice dashboard requires an authenticated admin", async ({ page }) => {
-  await page.goto("/admin/invoices");
-  await expect(page).toHaveURL(/\/admin\/login/);
+  await page.goto("/app/invoices");
+  await expect(page).toHaveURL(/\/app\/login/);
   await expect(page.getByRole("heading", { name: /admin/i })).toBeVisible();
   await expect(page.getByText("Outstanding amount")).toHaveCount(0);
 });

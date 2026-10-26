@@ -63,14 +63,14 @@ describe("garage invoicing", () => {
   });
 
   it("uses persisted bookings and warns before duplicates", () => {
-    const page = read("src", "app", "admin", "(protected)", "invoices", "new", "page.tsx");
+    const page = read("src", "app", "app", "(protected)", "invoices", "new", "page.tsx");
     expect(page).toContain('from("bookings")');
     expect(page).toContain("An invoice already exists for this booking");
     expect(page).not.toContain("fetch(\"https://");
   });
 
   it("supports protected invoice search fields", () => {
-    const page = read("src", "app", "admin", "(protected)", "invoices", "page.tsx");
+    const page = read("src", "app", "app", "(protected)", "invoices", "page.tsx");
     const dashboardMigration = read("supabase", "migrations", "202608110009_invoice_dashboard_query.sql");
     for (const field of ["invoice_number", "customer_name", "customer_email", "customer_phone", "vehicle_registration"]) expect(dashboardMigration).toContain(field);
     expect(page).toContain("loadInvoiceDashboard");

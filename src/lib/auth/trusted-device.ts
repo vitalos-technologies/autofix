@@ -40,12 +40,12 @@ export function summarizeUserAgent(userAgent: string | null) {
 }
 
 export function isSensitiveAdminPath(pathname: string) {
-  return pathname === "/admin/configuration/security"
-    || pathname.startsWith("/admin/configuration/security/")
-    || pathname === "/admin/mfa/recover"
-    || pathname.startsWith("/admin/mfa/recover/")
-    || pathname === "/admin/mfa/enroll"
-    || pathname.startsWith("/admin/mfa/enroll/");
+  return pathname === "/app/configuration/security"
+    || pathname.startsWith("/app/configuration/security/")
+    || pathname === "/app/mfa/recover"
+    || pathname.startsWith("/app/mfa/recover/")
+    || pathname === "/app/mfa/enroll"
+    || pathname.startsWith("/app/mfa/enroll/");
 }
 
 export async function findValidTrustedDevice(

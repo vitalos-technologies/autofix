@@ -51,7 +51,7 @@ export function renderBusinessEnquiryNotification(input: EnquiryTemplateInput): 
     { label: "Vehicle", value: input.vehicle },
     { label: "Location", value: input.location },
   ];
-  const url = emailUrl(`/admin/enquiries/${input.enquiryId}`);
+  const url = emailUrl(`/app/enquiries/${input.enquiryId}`);
   return {
     html: emailLayout({
       preheader: `${typeLabel(input.type)} enquiry from ${input.customerName}.`,

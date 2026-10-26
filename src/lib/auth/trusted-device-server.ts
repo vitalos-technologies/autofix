@@ -55,10 +55,10 @@ export async function clearTrustedDeviceCookie() {
   (await cookies()).set(TRUSTED_DEVICE_COOKIE, "", { ...TRUSTED_DEVICE_COOKIE_OPTIONS, maxAge: 0 });
 }
 
-export async function requireFreshAdminSession(returnTo = "/admin") {
+export async function requireFreshAdminSession(returnTo = "/app") {
   const admin = await getAdminUser({ requireMfa: false });
   if (admin?.mfaRequired && !admin.mfaVerified) {
-    redirect(`/admin/mfa?returnTo=${encodeURIComponent(returnTo)}&stepUp=1`);
+    redirect(`/app/mfa?returnTo=${encodeURIComponent(returnTo)}&stepUp=1`);
   }
   return admin;
 }
