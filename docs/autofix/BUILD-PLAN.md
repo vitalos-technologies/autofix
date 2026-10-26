@@ -1,5 +1,11 @@
 # Autofix build plan
 
+## Build log
+
+| Phase | Gate | Date | Last commit | Notes |
+| --- | --- | --- | --- | --- |
+| 1 | in progress | 26 Oct 2026 | 35496ff | `/build` started on `claude/modest-mayer-9yzmr0`; local Supabase in Docker |
+
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
 
 Lanes: **data** (migrations, RLS, SQL, DB tests) · **api** (route handlers, zod, jobs, webhooks) · **ui** (screens from `design/`) · **integrations** (DVLA, DVSA, VDG, Twilio, Resend, Vercel) · **qa** (Playwright, axe, Lighthouse, tenancy suite). Subagent definitions live in `.claude/agents/`.

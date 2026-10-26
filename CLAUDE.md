@@ -11,6 +11,7 @@ Autofix is Vitalos's multi-tenant garage booking platform (working name). Garage
 | `docs/autofix/SPEC.md` | Backend engine spec: tenancy, data model, scheduling, vehicle/MOT, reminders, AI front desk, API, security |
 | `docs/autofix/BUILD-PLAN.md` | Phases, tasks, lanes, gates. Tick tasks here as you finish them |
 | `docs/autofix/DECISIONS.md` | Decisions, assumptions, and the "Waiting on Temitope" list |
+| `docs/autofix/ARCHITECTURE.md` | Names every lane codes against: tenancy SQL helpers, tenancy modules, routes, migrations |
 | `docs/autofix/INFRA.md` | DNS, Vercel, Supabase, env vars |
 | `design/DESIGN.md` | Design system, components, screen-to-route map |
 | `design/screenshots/*.png` | What each screen must look like (2x). Look at these before UI work |

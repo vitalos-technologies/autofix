@@ -24,6 +24,13 @@
 | --- | --- | --- |
 | A4 | Twilio for SMS, WhatsApp and voice | Medium (behind `MessageChannel`) |
 | A5 | Node 22, pnpm 10.12.1, Next 16, React 19, Tailwind 4 as in SOB | |
+| A6 | **Garage context in the database.** Admin requests send the member's selected garage to PostgREST as the `x-garage-id` header. `public.current_garage_id()` returns it only if `auth.uid()` is a member of that garage (or the caller is `service_role`), else `null`. Tenant RLS policies are `garage_id = (select public.current_garage_id())`, so a multi-garage user only ever sees the selected garage and a forged header yields zero rows. Tenant `garage_id` columns default to `current_garage_id()` | Low; one helper |
+| A7 | Garage admin moves from SOB's `/admin` to `/app` on the admin host; `/admin` is reserved for the Vitalos super admin (P4.5) | Low |
+| A8 | Garage booking sites render from `src/app/%5Fsite/[garageId]/…` (URL `/_site/<garageId>/…`, `%5F` because `_folders` are private in the App Router). Only reachable through the proxy rewrite; direct requests to `/_site` return 404 | Low |
+| A9 | Migrations: one squashed SOB baseline (SOB-only surfaces removed in P1.1 are left out) plus timestamped Autofix migrations (`<ts>_tenancy.sql`, `<ts>_scheduling.sql`, …). SOB's 30 migrations stay in git history only | Low |
+| A10 | Platform-level tables with no garage owner at write time (`rate_limit_buckets`, inbound/Resend webhook idempotency tables, `unmatched_inbound_emails`, MFA/trusted-device tables keyed by user) have no `garage_id`; they are service-role or own-user only, and the tenancy suite asserts staff cannot read them | Low |
+| A11 | Customer phone keeps SOB's column name `customers.phone` (E.164) rather than the SPEC's `mobile` to avoid churn; same meaning | Low |
+| A12 | Work is committed on the session branch `claude/modest-mayer-9yzmr0` (task commits prefixed with the task ID) rather than merged straight to `main`, because `main` changes need a reviewed PR | Low |
 
 ## Waiting on Temitope
 
