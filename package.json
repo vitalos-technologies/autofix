@@ -1,5 +1,5 @@
 {
-  "name": "sob-autofix",
+  "name": "autofix",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.12.1",
@@ -23,7 +23,8 @@
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
     "deploy:keepalive-worker": "wrangler deploy --config workers/keepalive/wrangler.jsonc",
     "test:keepalive-worker": "vitest run src/__tests__/cloudflare-keepalive-worker.test.ts",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:seed": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

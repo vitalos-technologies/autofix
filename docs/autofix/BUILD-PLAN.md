@@ -19,6 +19,9 @@ Conventions for every task:
 - [ ] P0.2 Overlay Autofix files from `.autofix/` (CLAUDE.md, AGENTS.md, README.md) and append `.autofix/env.autofix.example` to `.env.example`.
 - [ ] P0.3 Rename package to `autofix`; first commit "chore: start Autofix from SOB Autofix".
 - [ ] P0.4 `pnpm install && pnpm verify` passes on the untouched fork (baseline).
+  - Baseline 26 Oct 2026 (Node 22.22.0, pnpm 10.12.1 via lockfile, no `.env.local`): `pnpm install` ✅ · `lint` ✅ · `typecheck` ✅ · `test` ❌ 458/459 · `build` ❌.
+  - `test`: `src/__tests__/booking-management.test.ts` › "rejects reintroduced legacy scheduling integration" scans `docs/` and flags this file (`docs/autofix/BUILD-PLAN.md`), which names the legacy scheduler. Caused by the kit docs, not SOB code. Fix in P1 (reword the docs or exclude `docs/autofix/`).
+  - `build`: prerendering `/sitemap.xml` throws "Sitemap inventory source is not configured" (`src/lib/sales/repository.ts:28`) because Supabase env is unset. Needs env in CI/Vercel or a non-throwing fallback; goes away with SOB sales code removal in P1.
 - [ ] P0.5 Push to `https://github.com/vitalos-technologies/autofix` (created 25 Oct 2026) and protect `main`.
 
 ## Running in Claude Code cloud
