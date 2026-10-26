@@ -1,0 +1,17 @@
+{
+  "registrationNumber": "AB74CDE",
+  "taxStatus": "Taxed",
+  "taxDueDate": "2027-09-01",
+  "motStatus": "No details held by DVLA",
+  "make": "KIA",
+  "monthOfFirstRegistration": "2024-09",
+  "yearOfManufacture": 2024,
+  "co2Emissions": 0,
+  "fuelType": "ELECTRICITY",
+  "markedForExport": false,
+  "colour": "WHITE",
+  "typeApproval": "M1",
+  "wheelplan": "2 AXLE RIGID BODY",
+  "dateOfLastV5CIssued": "2024-09-14",
+  "euroStatus": "EURO 6"
+}
