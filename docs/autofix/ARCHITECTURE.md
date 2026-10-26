@@ -48,3 +48,34 @@ Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`,
 ## Migrations
 
 `supabase/migrations/20261026000000_baseline.sql` (SOB squash) then `20261026000100_tenancy.sql`, `…_scheduling.sql` (P2.1), `…_reminders.sql` (P3.6), and later ones. Never edit a migration after it has shipped to a shared database.
+
+## Booking engine (Phase 2)
+
+### Schema (`<ts>_scheduling.sql`, P2.1)
+
+| Table | Columns (all tenant tables: `garage_id` as above) |
+| --- | --- |
+| `resources` | `name`, `kind` (`bay`/`mobile`/`technician`), `active` bool, `sort` int |
+| `opening_hours` | `weekday` smallint (ISO 1 = Mon … 7 = Sun), `opens` time, `closes` time (`closes > opens`); several rows per weekday allowed (split day) |
+| `closures` | `starts_on` date, `ends_on` date (inclusive, `>= starts_on`), `reason` |
+| `services` | `name`, `description`, `duration_min`, `buffer_min`, `price_pence` (null for quote), `price_mode` (`fixed`/`from`/`quote`), `location_mode` (`workshop`/`mobile`/`both`), `resource_kind` (`bay`/`mobile`/`technician`), `online_enabled`, `needs_approval`, `min_notice_h` (default 2), `max_days_ahead` (default 60), `is_mot`, `sort`, `deleted_at` |
+| `bookings` (reshaped) | `reference` (unique per garage), `customer_id`, `vehicle_id`, `service_id`, `resource_id`, `starts_at`, `ends_at` (customer-facing appointment), `during tstzrange` (what the resource is blocked for: travel before + duration + buffer + travel after), `status` (`requested`/`confirmed`/`arrived`/`in_progress`/`waiting_parts`/`ready`/`collected`/`cancelled`/`no_show`), `source` (`online`/`phone`/`walk_in`/`reminder`/`missed_call`/`ai_agent`), `location_mode` (`workshop`/`mobile`), `postcode`, `address`, `symptoms text[]`, `notes`, `idempotency_key` (unique per garage), `manage_token_hash`, `reminder_send_id` (FK added in P3.6), `price_pence` (snapshot), `cancelled_at`, `cancellation_reason`, `admin_seen_at`. Constraint `no_overlap exclude using gist (resource_id with =, during with &&) where (status not in ('cancelled','no_show'))` |
+| `booking_events` | `booking_id` (composite FK), `type` (`created`/`status_changed`/`rescheduled`/`cancelled`/`note`/`notification_sent`…), `actor` (`customer`/`staff`/`system`/`agent`), `actor_id`, `at`, `data jsonb` |
+| `garages` (+) | `mobile_travel_min` int default 30 |
+
+Cal.com leftovers dropped: `provider_*` booking columns, `booking_service_types`, `service_catalogue_systems`, `provider_webhook_events`, `create_booking_intent()`.
+
+### SQL (service-role only; `revoke … from public, anon, authenticated`)
+
+- `available_slots(p_garage_id uuid, p_service_id uuid, p_from date, p_to date, p_location_mode text default null) returns table (starts_at timestamptz, ends_at timestamptz, free_count int)`. Dates are local dates in the garage's time zone (inclusive). Every candidate start is returned, `free_count = 0` means taken (the UI strikes it through). Starts are generated every `garages.slot_step_min` from each opening window's `opens` while `start + duration <= closes`, built as `(date + time) at time zone garages.timezone`; closures removed; starts before `now() + min_notice_h` or after `now() + max_days_ahead` dropped; `free_count` = active resources of `services.resource_kind` with no live booking overlapping the would-be `during`.
+- `create_booking(p_garage_id uuid, p_booking jsonb) returns jsonb`. Input keys: `service_id`, `starts_at`, `location_mode`, `postcode`, `address`, `symptoms`, `notes`, `source`, `idempotency_key`, `manage_token_hash`, `reminder_send_id`, `customer {name, phone (E.164), email, channel (sms/whatsapp/email), reminder_consent bool, consent_source}`, `vehicle {registration (normalised), make, model, colour, fuel, year, mot_expiry}`. One transaction: upsert customer by `(garage_id, phone)`, vehicle by `(garage_id, registration)`, pick the least-busy free resource of the kind for that day, insert, `booking_events` row, return `{booking_id, reference, status, starts_at, ends_at, customer_id, vehicle_id}`. Same idempotency key → the existing booking. Status `requested` if `services.needs_approval` or `garages.approve_online`, otherwise `confirmed` (`source = ai_agent` is always `requested`). Errors are raised with `errcode 'P0001'` and a message starting with a code: `SLOT_UNAVAILABLE`, `SERVICE_UNAVAILABLE`, `OUTSIDE_SERVICE_AREA`, `INVALID_BOOKING`. Reference: `booking_prefix || '-' || 4 random digits` (5–6 digits once a garage has used most 4-digit numbers), unique per garage.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/booking-engine/repository.ts` | `listOnlineServices(garageId)`, `getAvailableSlots({garageId, serviceId, from, to, locationMode})` (30 s in-memory cache keyed by all args, cleared on create), `createBooking(garageId, input)` → `{ok: true, booking} \| {ok: false, code, alternatives?}` (on `SLOT_UNAVAILABLE` returns the 3 nearest free slots) |
+| `src/lib/booking-engine/state.ts` | Booking flow cookie `af_booking`: AES-256-GCM sealed (key from `BOOKING_STATE_SECRET`, falls back to `BOOKING_MANAGEMENT_SECRET`), httpOnly, `SameSite=Lax`, `Secure` in production, 2 h, bound to the garage id. Holds vehicle, service, location mode, postcode, symptoms, note, chosen start |
+| `src/lib/booking-engine/manage.ts` | Manage tokens (HMAC, stored hashed), lookup by reference + registration (POST body, never the URL), reschedule/cancel with the garage's cancellation cutoff |
+
+Routes (garage from host): `GET /api/services`, `GET /api/slots?service=&from=&to=&mode=` (no registration in the query), `POST /api/bookings` (JSON body; Turnstile; rate limit per IP and per garage; idempotency key; 409 `{code: "SLOT_UNAVAILABLE", alternatives: [...]}`), `GET /api/bookings/manage?token=` (signed link), `POST /api/bookings/manage` (reference + registration → sets a 30-minute manage cookie), `PATCH /api/bookings/manage` (`{action: "cancel"} \| {action: "reschedule", startsAt}`). The 5 booking pages use server actions that read/write `af_booking` and call the same repository.
