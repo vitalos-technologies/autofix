@@ -11,6 +11,7 @@ export type HostKind =
   | { kind: "unknown" };
 
 export type HostEnvironment = {
+  [name: string]: string | undefined;
   NEXT_PUBLIC_ADMIN_HOST?: string;
   NEXT_PUBLIC_TENANT_ROOT_DOMAIN?: string;
   DEV_TENANT_ROOT_DOMAIN?: string;
@@ -60,7 +61,7 @@ function isPublicHostname(name: string) {
   if (name.length > 253 || /^\d+(\.\d+){3}$/.test(name)) return false;
   const labels = name.split(".");
   if (labels.length < 2) return false;
-  return labels.every((label) => LABEL_PATTERN.test(label)) && /^[a-z]{2,63}$/.test(labels[labels.length - 1]);
+  return labels.every((label) => LABEL_PATTERN.test(label)) && /^[a-z]{2,63}$/.test(labels[labels.length - 1] ?? "");
 }
 
 function devHostsEnabled(env: HostEnvironment) {
