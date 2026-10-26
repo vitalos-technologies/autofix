@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+
+# next
+.next/
+out/
+
+# test output
+coverage/
+playwright-report/
+test-results/
+.email-previews/
+.lighthouseci/
+/tmp/
+/output/
+
+# local environment
+.env
+.env.local
+.env.*.local
+
+# deployment and tooling
+.vercel/
+supabase/.temp/
+.wrangler/
+.wrangler-dry-run/
+.turbo/
+.wrangler/
+.wrangler-dry-run/
+*.tsbuildinfo
+next-env.d.ts
+.codex-next-dev.log
+/.codex-next-dev-error.log
+
+# operating systems/editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Sentry Config File
+.env.sentry-build-plugin
