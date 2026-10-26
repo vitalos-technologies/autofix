@@ -1,11 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, Inter } from "next/font/google";
 import siteIcon from "../../assets/sobautofix_siteicon.png";
 import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
+import { fontVariables } from "./fonts";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional", preload: false });
-const barlow = Barlow_Condensed({ subsets: ["latin"], weight: "700", variable: "--font-barlow", display: "optional", preload: false });
 
 export const metadata: Metadata = {
   title: { default: "Autofix", template: "%s | Autofix" },
@@ -24,7 +21,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" data-scroll-behavior="smooth" className={`${inter.variable} ${barlow.variable}`}>
+    <html lang="en-GB" data-scroll-behavior="smooth" className={fontVariables}>
       <body>
         <VehicleSessionProvider>
           <main>{children}</main>

@@ -85,7 +85,7 @@ const ACCENTS = [...ACCENT_PALETTE.map((value) => ({ value, label: value })), { 
 function Frame({ title, children, tone = "light", screen = false }: { title: string; children: ReactNode; tone?: "light" | "navy"; screen?: boolean }) {
   return (
     <section aria-label={title} className="flex w-full max-w-[390px] flex-col gap-2 justify-self-center">
-      <h2 className="m-0 px-5 font-display! text-2xl font-bold tracking-normal! text-navy-950 sm:px-0">{title}</h2>
+      <h2 className="m-0 px-5 font-display text-2xl font-bold tracking-normal text-navy-950 sm:px-0">{title}</h2>
       <div
         data-frame={title}
         className={cn(
@@ -104,7 +104,7 @@ function ScreenTitle({ children, size = 38 }: { children: ReactNode; size?: 34 |
   return (
     <h3
       className={cn(
-        "m-0 font-display! font-extrabold tracking-[-0.01em]! text-navy-950",
+        "m-0 font-display font-extrabold tracking-[-0.01em] text-navy-950",
         size === 38 ? "text-[38px]" : size === 36 ? "text-[36px]" : "text-[34px]",
         "leading-[0.98]",
       )}
@@ -136,7 +136,7 @@ export function ComponentGallery() {
     <div id="af-gallery" style={garageAccentStyle(accent)} className={cn("min-h-screen bg-white text-grey-800", stickyActionBarPadding)}>
       <div className="mx-auto flex max-w-[1320px] flex-col gap-8 px-0 py-8 sm:px-6">
         <div className="flex flex-col gap-3 px-5 sm:px-0">
-          <h1 className="m-0 font-display! text-[40px] leading-none font-extrabold tracking-[-0.01em]! text-navy-950">Booking components</h1>
+          <h1 className="m-0 font-display text-[40px] leading-none font-extrabold tracking-[-0.01em] text-navy-950">Booking components</h1>
           <p className="m-0 max-w-2xl text-[15px] leading-normal text-grey-600">
             Every component in <code className="font-mono text-sm">src/components/book</code> with sample data. Dev only; not indexed.
           </p>
@@ -357,7 +357,7 @@ export function ComponentGallery() {
                 <Check size={40} strokeWidth={3} className="text-white" />
               </span>
               <div className="flex flex-col gap-2">
-                <h3 className="m-0 font-display! text-[44px] leading-[0.95] font-extrabold tracking-[-0.01em]! text-white">You&apos;re booked in</h3>
+                <h3 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold tracking-[-0.01em] text-white">You&apos;re booked in</h3>
                 <p className="m-0 text-[15px] leading-normal text-[#b8c4d4]">We&apos;ve texted your confirmation to 07••• •••412.</p>
               </div>
               <ConfirmationCard
