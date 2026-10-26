@@ -59,12 +59,16 @@ Both setup scripts are idempotent and can also be run by hand as root on the VM.
 
 | Change | Detail |
 | --- | --- |
-| User | `ghrunner-autofix` (uid shown by `id ghrunner-autofix`), home `/home/ghrunner-autofix` `0750`, subordinate uid/gid range of 65 536 in `/etc/subuid`/`/etc/subgid`, systemd linger on |
+| User | `ghrunner-autofix` (uid 1004), home `/home/ghrunner-autofix` `0750`, subordinate uid/gid range of 65 536 in `/etc/subuid`/`/etc/subgid`, systemd linger on |
 | Runners | `/home/ghrunner-autofix/actions-runner-1`, `-2`; services `actions.runner.vitalos-technologies-autofix.autofix-build-vm-{1,2}.service` (enabled) + drop-ins in `/etc/systemd/system/<service>.d/rootless-docker.conf` |
-| Rootless Docker | user unit `docker.service` for `ghrunner-autofix` (enabled), data in `~/.local/share/docker` |
-| Packages | `uidmap`, `dbus-user-session`, `slirp4netns`, and the rootless extras for the installed engine (`docker-ce-rootless-extras` or `rootlesskit`); Chromium runtime libraries from `playwright install-deps chromium` |
+| Rootless Docker | Docker 29.9.2, user unit `docker.service` for `ghrunner-autofix` (enabled, linger on), data in `~/.local/share/docker`; `~/.config/docker/daemon.json` sets `"ip": "127.0.0.1"` so published ports (Supabase 54321–54324) bind to loopback only |
+| Packages | `uidmap`, `dbus-user-session`, `slirp4netns`, and the rootless extras for the installed engine (`docker-ce-rootless-extras` or `rootlesskit`); Chromium runtime libraries from `playwright install-deps chromium` (Playwright 1.62.1) |
 | AppArmor | profile for the `rootlesskit` binary allowing user namespaces (Ubuntu 24.04 restricts them by default) |
 | needrestart | `/etc/needrestart/conf.d/vitalos-technologies-autofix-runner.conf`: unattended upgrades never restart the autofix runner services |
+
+Provisioned 26 Oct 2026 by Temitope with `provision-vm.sh` (the `--prove` run of `supabase start`/`stop` as `ghrunner-autofix`
+passed; the Supabase images are cached in that user's Docker). The loopback binding in `daemon.json` was added afterwards:
+re-run `provision-vm.sh docker` once to apply it (idempotent; it only writes the file and restarts the user's daemon).
 
 ## Day to day
 

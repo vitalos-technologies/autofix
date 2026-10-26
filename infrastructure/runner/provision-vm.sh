@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision autofix's self-hosted runners on the AWS build VM from an operator machine. Runbook: infrastructure/RUNNER.md.
 # Needs: AWS credentials that can call SSM on the VM (e.g. AWS_PROFILE=workforce after `aws sso login --profile workforce`),
-# jq, and a `gh` login with admin on vitalos-technologies/autofix.
+# and a `gh` login with admin on vitalos-technologies/autofix (no jq or Python needed on the operator side).
 #
 # The VM's own checkouts can't authenticate to GitHub non-interactively, so the scripts travel base64-embedded inside the
 # SSM command. The runner registration token is fetched here, never printed or written to disk, and only reaches the VM
@@ -33,8 +33,11 @@ run_remote() {
   local label="$1" script="$2" env_line="${3:-}"
   local encoded params command_id status
   encoded="$(printf '%s' "$script" | base64 -w0)"
-  params="$(jq -n --arg cmd "${env_line}echo '${encoded}' | base64 -d > /root/autofix-runner-step.sh && bash /root/autofix-runner-step.sh; rc=\$?; rm -f /root/autofix-runner-step.sh; exit \$rc" \
-    '{commands: [$cmd], executionTimeout: ["3600"]}')"
+  local cmd="${env_line}echo '${encoded}' | base64 -d > /root/autofix-runner-step.sh && bash /root/autofix-runner-step.sh; rc=\$?; rm -f /root/autofix-runner-step.sh; exit \$rc"
+  # The command holds only base64, a token and plain shell, so it needs no JSON escaping; refuse anything that would.
+  [[ "$cmd" != *'"'* && "$cmd" != *\\* ]] || { echo "refusing to send a command containing quotes or backslashes" >&2; return 1; }
+  params="{\"commands\":[\"${cmd}\"],\"executionTimeout\":[\"3600\"]}"
+  unset cmd
   command_id="$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name AWS-RunShellScript \
     --comment "autofix runner: ${label}" --timeout-seconds 600 --parameters "$params" --query Command.CommandId --output text)"
   unset params

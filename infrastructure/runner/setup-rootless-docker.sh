@@ -97,11 +97,30 @@ as_user() {
 }
 
 echo "== Rootless daemon for ${RUNNER_USER}"
+# Published container ports bind to 127.0.0.1 unless a job asks otherwise: Supabase publishes 54321-54324 on 0.0.0.0,
+# which tailnet peers could reach.
+daemon_json="${home}/.config/docker/daemon.json"
+if ! sudo -u "$RUNNER_USER" test -f "$daemon_json" || ! grep -q '"ip"' "$daemon_json"; then
+  sudo -u "$RUNNER_USER" mkdir -p "$(dirname "$daemon_json")"
+  if sudo -u "$RUNNER_USER" test -s "$daemon_json"; then
+    python3 - "$daemon_json" <<'PY'
+import json, sys
+path = sys.argv[1]
+data = json.load(open(path))
+data["ip"] = "127.0.0.1"
+json.dump(data, open(path, "w"), indent=2)
+PY
+  else
+    echo '{ "ip": "127.0.0.1" }' | sudo -u "$RUNNER_USER" tee "$daemon_json" >/dev/null
+  fi
+  daemon_config_changed=1
+fi
 if [[ ! -f "${home}/.config/systemd/user/docker.service" ]]; then
   as_user bash -c "cd ~ && '${setuptool}' install --force" >/dev/null
 fi
 as_user systemctl --user daemon-reload
 as_user systemctl --user enable --now docker.service >/dev/null 2>&1
+[[ "${daemon_config_changed:-0}" == "1" ]] && as_user systemctl --user restart docker.service
 for _ in $(seq 1 30); do as_user docker info >/dev/null 2>&1 && break; sleep 1; done
 as_user docker info --format 'rootless daemon {{.ServerVersion}}, security: {{.SecurityOptions}}, storage: {{.Driver}}'
 
@@ -110,12 +129,14 @@ if [[ $PROVE -eq 1 ]]; then
   work="$(as_user mktemp -d)"
   as_user curl -fsSL -o "${work}/supabase.tgz" "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz"
   echo "${SUPABASE_CLI_SHA256}  ${work}/supabase.tgz" | sha256sum -c -
-  as_user tar -xzf "${work}/supabase.tgz" -C "$work" supabase
-  as_user bash -c "cd '${work}' && ./supabase init --force >/dev/null 2>&1 && sed -i 's/^project_id = .*/project_id = \"autofix-rootless-proof\"/' supabase/config.toml"
-  as_user bash -c "cd '${work}' && ./supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta" | grep -E "API URL|DB URL|Started|started" || true
-  as_user bash -c "cd '${work}' && ./supabase status -o env" | grep -E '^(API_URL|DB_URL)=' || die "supabase start did not come up."
-  as_user docker ps --format '{{.Names}} {{.Status}}'
-  as_user bash -c "cd '${work}' && ./supabase stop --no-backup"
+  # The CLI goes in cli/ because `supabase init` creates a supabase/ folder next to it.
+  as_user mkdir -p "${work}/cli"
+  as_user tar -xzf "${work}/supabase.tgz" -C "${work}/cli" supabase
+  as_user bash -c "cd '${work}' && ./cli/supabase init --force >/dev/null 2>&1 && sed -i 's/^project_id = .*/project_id = \"autofix-rootless-proof\"/' supabase/config.toml"
+  as_user bash -c "cd '${work}' && ./cli/supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta" | grep -E "API URL|DB URL|Started|started" || true
+  as_user bash -c "cd '${work}' && ./cli/supabase status -o env" | grep -E '^(API_URL|DB_URL)=' || die "supabase start did not come up."
+  as_user docker ps --format '{{.Names}} {{.Ports}}'
+  as_user bash -c "cd '${work}' && ./cli/supabase stop --no-backup"
   as_user rm -rf "$work"
   echo "Proof OK."
 fi
