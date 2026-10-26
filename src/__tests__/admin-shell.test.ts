@@ -8,6 +8,6 @@ describe("admin shell", () => {
     expect(source).toContain('<header className="sticky top-0 z-30');
     expect(source).toContain("SOB Autofix CMS");
     expect(source).toContain("Search admin sections");
-    expect(source).toContain('href="/"');
+    expect(source).toContain('href="/book"');
   });
 });

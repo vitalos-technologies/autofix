@@ -1,5 +1,6 @@
 import { titleCase } from "@/lib/utils";
 import type { VehicleDetails } from "@/types/domain";
+import { toIsoDate } from "./mot";
 import { VehicleLookupError, type VehicleLookupProvider } from "./provider";
 
 type VehicleDataGlobalResponse = {
@@ -31,6 +32,12 @@ type VehicleDataGlobalResponse = {
         Transmission?: { TransmissionType?: string };
       };
     };
+    // Present when the configured package includes MOT history
+    // (e.g. "VehicleAndMotHistory"). Confirm the shape against a recorded
+    // fixture when the composite provider lands (P3.5).
+    MotHistoryDetails?: {
+      MotDueDate?: string;
+    };
   };
 };
 
@@ -41,6 +48,7 @@ export function normalizeVehicleDataGlobal(response: VehicleDataGlobalResponse, 
   const model = response.Results?.ModelDetails?.ModelIdentification;
   const body = response.Results?.ModelDetails?.BodyDetails;
   const powertrain = response.Results?.ModelDetails?.Powertrain;
+  const motHistory = response.Results?.MotHistoryDetails;
 
   return {
     registration: identity?.Vrm || registration,
@@ -53,6 +61,7 @@ export function normalizeVehicleDataGlobal(response: VehicleDataGlobalResponse, 
     transmission: titleCase(powertrain?.Transmission?.TransmissionType),
     engineCapacityCc: technical?.EngineCapacityCc,
     bodyType: titleCase(body?.BodyStyle || body?.BodyShape || identity?.DvlaBodyType),
+    motExpiry: toIsoDate(motHistory?.MotDueDate),
   };
 }
 

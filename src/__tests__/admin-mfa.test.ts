@@ -47,20 +47,22 @@ describe("admin TOTP MFA", () => {
   });
 
   it("allows only local admin return paths", () => {
-    expect(safeAdminReturnTo("/admin/enquiries?status=new")).toBe("/admin/enquiries?status=new");
-    expect(safeAdminReturnTo("https://evil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("//evil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("javascript:alert(1)")).toBe("/admin");
-    expect(safeAdminReturnTo("/%2f%2fevil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("http://[%zz")).toBe("/admin");
-    expect(safeAdminReturnTo("/admin?returnTo=https%3A%2F%2Fevil.example")).toBe("/admin?returnTo=https%3A%2F%2Fevil.example");
-    expect(safeAdminReturnTo("/admin/mfa")).toBe("/admin");
+    expect(safeAdminReturnTo("/app/enquiries?status=new")).toBe("/app/enquiries?status=new");
+    expect(safeAdminReturnTo("https://evil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("//evil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("javascript:alert(1)")).toBe("/app");
+    expect(safeAdminReturnTo("/%2f%2fevil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("http://[%zz")).toBe("/app");
+    expect(safeAdminReturnTo("/app?returnTo=https%3A%2F%2Fevil.example")).toBe("/app?returnTo=https%3A%2F%2Fevil.example");
+    expect(safeAdminReturnTo("/app/mfa")).toBe("/app");
+    expect(safeAdminReturnTo("/application")).toBe("/app");
+    expect(safeAdminReturnTo("/admin/enquiries")).toBe("/app");
   });
 
   it("implements enrollment, challenge, removal and route enforcement", () => {
-    const securityActions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
-    const challengeAction = read("src", "app", "admin", "mfa", "actions.ts");
-    const protectedLayout = read("src", "app", "admin", "(protected)", "layout.tsx");
+    const securityActions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
+    const challengeAction = read("src", "app", "app", "mfa", "actions.ts");
+    const protectedLayout = read("src", "app", "app", "(protected)", "layout.tsx");
     const proxy = read("src", "proxy.ts");
     expect(securityActions).toContain("auth.mfa.enroll");
     expect(securityActions).toContain("challengeAndVerify");
@@ -69,12 +71,12 @@ describe("admin TOTP MFA", () => {
     expect(protectedLayout).toContain("getAdminUser({ requireMfa: false, allowTrustedDevice: true })");
     expect(protectedLayout).toContain('admin.mfaState === "enrollment_required"');
     expect(protectedLayout).toContain('admin.mfaState === "challenge_required"');
-    expect(proxy).toContain('challengeUrl.pathname = "/admin/mfa"');
+    expect(proxy).toContain('challengeUrl.pathname = "/app/mfa"');
     expect(read("src", "lib", "supabase", "server.ts")).toContain("const profileClient = createAdminClient()");
   });
 
   it("does not persist authenticator secrets in application storage", () => {
-    const securityActions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const securityActions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     expect(securityActions).not.toContain('from("mfa');
     expect(securityActions).not.toContain('from("site_settings").insert');
     expect(securityActions).not.toContain("console.");

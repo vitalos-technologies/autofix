@@ -32,10 +32,7 @@ vi.mock("@/lib/invoices/export", () => ({
   invoiceExportCsv: vi.fn(() => "Invoice number\r\n"),
 }));
 vi.mock("@/lib/invoices/export-pdf", () => ({ renderInvoiceExportPdf: harness.renderInvoiceExportPdf }));
-vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: vi.fn(async () => true) }));
-vi.mock("@/lib/vehicle/configured-provider", () => ({ getConfiguredVehicleProvider: vi.fn() }));
 
-import { POST as inventoryLookup } from "@/app/api/admin/inventory/lookup/route";
 import { GET as invoicePdf } from "@/app/api/admin/invoices/[id]/pdf/route";
 import { GET as invoiceExport } from "@/app/api/admin/invoices/export/route";
 
@@ -50,13 +47,6 @@ describe("admin API authorization", () => {
   });
 
   it("returns 401 with no-store before handling either endpoint", async () => {
-    const inventoryResponse = await inventoryLookup(new Request("https://sobautofix.com/api/admin/inventory/lookup", {
-      method: "POST",
-      body: JSON.stringify({ registration: "AB12CDE" }),
-    }) as never);
-    expect(inventoryResponse.status).toBe(401);
-    expect(inventoryResponse.headers.get("cache-control")).toBe("no-store");
-
     const pdfResponse = await invoicePdf(new Request("https://sobautofix.com/api/admin/invoices/invoice-id/pdf"), {
       params: Promise.resolve({ id: "invoice-id" }),
     });

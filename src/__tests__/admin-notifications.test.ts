@@ -20,9 +20,9 @@ describe("admin notifications", () => {
   });
 
   it("shows booking alerts in the notification centre and acknowledges them on open", () => {
-    const notifications = readFileSync(join(process.cwd(), "src/app/admin/(protected)/notifications/page.tsx"), "utf8");
-    const bookingPage = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/[id]/page.tsx"), "utf8");
-    const actions = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/actions.ts"), "utf8");
+    const notifications = readFileSync(join(process.cwd(), "src/app/app/(protected)/notifications/page.tsx"), "utf8");
+    const bookingPage = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/[id]/page.tsx"), "utf8");
+    const actions = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/actions.ts"), "utf8");
     expect(notifications).toContain("New booking awaiting review");
     expect(notifications).toContain("Booking email delivery failed");
     expect(notifications).toContain("Calendar sync failed");

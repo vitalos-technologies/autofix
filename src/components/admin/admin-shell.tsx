@@ -67,12 +67,11 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
     if (!query) return;
 
     const destinations = [
-      ["dashboard home", "/admin"], ["enquiries messages", "/admin/enquiries"],
-      ["vehicle stock inventory cars", "/admin/inventory"], ["news blog articles", "/admin/news"],
-      ["media images", "/admin/media"], ["reviews", "/admin/reviews"],
-      ["offers", "/admin/offers"], ["pricing prices", "/admin/pricing"],
-      ["notifications alerts", "/admin/notifications"], ["settings configuration", "/admin/settings"],
-      ["security mfa two factor authenticator", "/admin/configuration/security"],
+      ["dashboard home", "/app"], ["enquiries messages", "/app/enquiries"],
+      ["bookings appointments", "/app/bookings"], ["invoices billing", "/app/invoices"],
+      ["service catalogue services", "/app/service-catalogue"], ["trash deleted", "/app/trash"],
+      ["notifications alerts", "/app/notifications"], ["settings configuration", "/app/settings"],
+      ["security mfa two factor authenticator", "/app/configuration/security"],
     ] as const;
     const match = destinations.find(([terms]) => terms.includes(query));
     if (match) router.push(match[1]);
@@ -97,7 +96,7 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#718096]" size={17} aria-hidden="true" />
                 <input id="admin-search" name="admin-search" list="admin-search-options" placeholder="Search admin…" autoComplete="off" className="h-10 w-full rounded-xl border border-[#D7E0E9] bg-[#F8FAFC] pl-10 pr-3 text-sm text-[#071127] outline-none placeholder:text-[#8794A3] focus:border-[#1974E2] focus:bg-white" />
                 <datalist id="admin-search-options">
-                  {['Dashboard', 'Enquiries', 'Vehicle stock', 'News & Blog', 'Media', 'Reviews', 'Offers', 'Pricing', 'Notifications', 'Settings', 'Security'].map((option) => <option key={option} value={option} />)}
+                  {['Dashboard', 'Enquiries', 'Bookings', 'Invoices', 'Service catalogue', 'Trash', 'Notifications', 'Settings', 'Security'].map((option) => <option key={option} value={option} />)}
                 </datalist>
               </form>
             </div>
@@ -106,7 +105,7 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
                 <RefreshCw size={18} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
               </button>
               <NotificationMenu notificationCount={liveNotificationCount} />
-              <Link href="/" className="whitespace-nowrap text-sm font-bold text-[#1974E2]">View website ↗</Link>
+              <Link href="/book" className="whitespace-nowrap text-sm font-bold text-[#1974E2]">View booking page ↗</Link>
             </div>
           </div>
         </header>

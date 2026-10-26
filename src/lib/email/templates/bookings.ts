@@ -96,8 +96,8 @@ export function renderInternalBookingEmail(input: InternalBookingEmailInput): Re
       title,
       intro: "The booking is available in the SOB Autofix admin area. The key details are included below.",
       contentHtml: detailCard(details),
-      cta: { label: "View admin bookings", url: emailUrl("/admin/bookings") },
+      cta: { label: "View admin bookings", url: emailUrl("/app/bookings") },
     }),
-    text: ["SOB AUTOFIX", "", appointmentStatus, "", title, "", detailsText(details), "", `View admin bookings: ${emailUrl("/admin/bookings")}`, plainTextFooter()].join("\n"),
+    text: ["SOB AUTOFIX", "", appointmentStatus, "", title, "", detailsText(details), "", `View admin bookings: ${emailUrl("/app/bookings")}`, plainTextFooter()].join("\n"),
   };
 }

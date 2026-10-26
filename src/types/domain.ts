@@ -18,6 +18,17 @@ export type VehicleDetails = {
   transmission?: string;
   engineCapacityCc?: number;
   bodyType?: string;
+  // MOT and tax facts pass through provider normalisation. Customer-facing
+  // surfaces show MOT fields only when the garage has MOT switched on
+  // (garages.mot_enabled); see src/lib/vehicle/mot.ts.
+  /** Provider MOT status as given, e.g. "Valid" or "Not valid". */
+  motStatus?: string;
+  /** MOT expiry as an ISO date (YYYY-MM-DD). */
+  motExpiry?: string;
+  /** Provider tax status as given, e.g. "Taxed", "Untaxed" or "SORN". */
+  taxStatus?: string;
+  /** Vehicle tax due date as an ISO date (YYYY-MM-DD). */
+  taxDueDate?: string;
 };
 
 export type VehicleSession = {

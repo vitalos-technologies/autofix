@@ -16,13 +16,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:local-invoicing": "playwright test --config playwright.local-invoicing.config.ts",
-    "articles:import": "node scripts/import-high-intent-articles.mjs",
     "test:lighthouse": "lhci autorun",
-    "test:mot": "vitest run src/__tests__/content-guard.test.ts",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
-    "deploy:keepalive-worker": "wrangler deploy --config workers/keepalive/wrangler.jsonc",
-    "test:keepalive-worker": "vitest run src/__tests__/cloudflare-keepalive-worker.test.ts",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:seed": "node scripts/seed-demo.mjs"
   },

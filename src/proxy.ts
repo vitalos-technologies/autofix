@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { isGarageAdminPath } from "@/config/admin";
 import { requiresMfaChallenge } from "@/lib/auth/mfa";
 import { isMandatoryAdminMfaEnabled } from "@/lib/auth/mfa-policy";
 import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
@@ -26,9 +27,9 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-  const challengeAllowed = pathname === "/admin/mfa" || pathname.startsWith("/admin/mfa/");
-  const publicAdminRoute = pathname === "/admin/login" || pathname.startsWith("/admin/forgot-password") || pathname.startsWith("/admin/reset-password");
-  if (user && pathname.startsWith("/admin") && !challengeAllowed && !publicAdminRoute) {
+  const challengeAllowed = pathname === "/app/mfa" || pathname.startsWith("/app/mfa/");
+  const publicAdminRoute = pathname === "/app/login" || pathname.startsWith("/app/forgot-password") || pathname.startsWith("/app/reset-password");
+  if (user && isGarageAdminPath(pathname) && !challengeAllowed && !publicAdminRoute) {
     const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     const secretKey = process.env.SUPABASE_SECRET_KEY;
     const trustedClient = secretKey ? createSupabaseClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } }) : null;
@@ -38,7 +39,7 @@ export async function proxy(request: NextRequest) {
         : null;
       if (trustedDevice) return response;
       const challengeUrl = request.nextUrl.clone();
-      challengeUrl.pathname = "/admin/mfa";
+      challengeUrl.pathname = "/app/mfa";
       const returnTo = `${pathname}${request.nextUrl.search}`;
       challengeUrl.search = "";
       challengeUrl.searchParams.set("returnTo", returnTo);
@@ -48,7 +49,7 @@ export async function proxy(request: NextRequest) {
     }
     if (assurance?.currentLevel === "aal1" && assurance.nextLevel === "aal1" && await isMandatoryAdminMfaEnabled(trustedClient)) {
       const enrollmentUrl = request.nextUrl.clone();
-      enrollmentUrl.pathname = "/admin/mfa/enroll";
+      enrollmentUrl.pathname = "/app/mfa/enroll";
       enrollmentUrl.search = "";
       const redirectResponse = NextResponse.redirect(enrollmentUrl);
       response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
@@ -59,5 +60,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/auth/:path*"],
+  matcher: ["/app/:path*", "/auth/:path*"],
 };

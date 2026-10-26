@@ -2,7 +2,7 @@
 
 import { RotateCcw, Trash2 } from "lucide-react";
 import { startTransition, useRef, useState } from "react";
-import type { TrashActionResult } from "@/app/admin/(protected)/trash/actions";
+import type { TrashActionResult } from "@/app/app/(protected)/trash/actions";
 import { ConfirmActionDialog } from "@/components/admin/confirm-action-dialog";
 
 export function AdminBulkActions({ entity, children, mode = "active", action }: {

@@ -4,23 +4,23 @@ import { describe, expect, it } from "vitest";
 
 describe("admin booking list", () => {
   it("orders appointments by newest booking first", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     expect(source).toContain('.order("created_at", { ascending: false })');
     expect(source).not.toContain('.order("appointment_start", { ascending: false })');
   });
 
   it("links summary cards to list views and preserves the view while filtering and paging", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     expect(source).toContain('view: "today"');
     expect(source).toContain('view: "upcoming"');
     expect(source).toContain('view: "attention"');
-    expect(source).toContain('href={view === metric.view ? "/admin/bookings"');
+    expect(source).toContain('href={view === metric.view ? "/app/bookings"');
     expect(source).toContain('additionalParams={{ view }}');
     expect(source).toContain("matchesBookingView(booking, view");
   });
 
   it("uses a dedicated loading View action without a Time table column", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     expect(source).not.toContain(">Time</th>");
     expect(source).not.toContain(">Calendar sync</th>");
     expect(source).toContain(">View</BookingOpenLink>");
@@ -28,9 +28,9 @@ describe("admin booking list", () => {
   });
 
   it("keeps the email-thread action on booking details instead of every list row", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
-    const detail = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/[id]/page.tsx"), "utf8");
-    const actions = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/actions.ts"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
+    const detail = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/[id]/page.tsx"), "utf8");
+    const actions = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/actions.ts"), "utf8");
     const button = readFileSync(join(process.cwd(), "src/components/admin/booking-email-thread-button.tsx"), "utf8");
     expect(source).not.toContain("startBookingEnquiryThreadAction");
     expect(detail).toContain("startBookingEnquiryThreadAction");
@@ -38,11 +38,11 @@ describe("admin booking list", () => {
     expect(button).toContain("Email customer");
     expect(button).toContain("useFormStatus");
     expect(actions).toContain('.rpc("create_booking_enquiry_thread"');
-    expect(actions).toContain('redirect(`/admin/enquiries/${enquiryId.data}`)');
+    expect(actions).toContain('redirect(`/app/enquiries/${enquiryId.data}`)');
   });
 
   it("orders by date booked and keeps location details off list views", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     expect(source).toContain('.order("created_at", { ascending: false })');
     expect(source).toContain(">Date booked</th>");
     expect(source).toContain("Bookings are ordered by date booked, newest to oldest.");
@@ -53,7 +53,7 @@ describe("admin booking list", () => {
   });
 
   it("scopes pagination loading feedback to the appointment list", () => {
-    const pageSource = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const pageSource = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     const paginationSource = readFileSync(join(process.cwd(), "src/components/admin/admin-list-controls.tsx"), "utf8");
     expect(pageSource).toContain("<AdminBookingListFrame");
     expect(pageSource).toContain("pagination={<AdminPagination");
@@ -61,7 +61,7 @@ describe("admin booking list", () => {
   });
 
   it("links every booking summary metric to its filtered list", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/admin/(protected)/bookings/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/page.tsx"), "utf8");
     for (const view of ["today", "upcoming", "attention", "completed", "cancelled"]) {
       expect(source).toContain(`view: "${view}"`);
     }

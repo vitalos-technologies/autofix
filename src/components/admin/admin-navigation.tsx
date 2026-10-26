@@ -1,23 +1,17 @@
 "use client";
 
 import {
-  BadgePoundSterling,
   Bell,
   CalendarClock,
-  CarFront,
   Gauge,
-  Gift,
-  ImageIcon,
   Inbox,
   LogOut,
   Menu,
-  Newspaper,
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
   Settings,
   ShieldCheck,
-  Star,
   Trash2,
   Wrench,
   X,
@@ -26,7 +20,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { signOut } from "@/app/admin/login/actions";
+import { signOut } from "@/app/app/login/actions";
 import { Logo } from "@/components/layout/logo";
 import { cn } from "@/lib/utils";
 
@@ -36,36 +30,20 @@ const navigationGroups: Array<{ label: string; links: AdminLink[] }> = [
   {
     label: "Operations",
     links: [
-      { href: "/admin", label: "Dashboard", icon: Gauge },
-      { href: "/admin/enquiries", label: "Enquiries", icon: Inbox },
-      { href: "/admin/bookings", label: "Bookings", icon: CalendarClock },
-      { href: "/admin/invoices", label: "Invoices", icon: ReceiptText },
-      { href: "/admin/service-catalogue", label: "Service catalogue", icon: Wrench },
-      { href: "/admin/inventory", label: "Vehicle stock", icon: CarFront },
-    ],
-  },
-  {
-    label: "Content",
-    links: [
-      { href: "/admin/news", label: "News & Blog", icon: Newspaper },
-      { href: "/admin/media", label: "Media", icon: ImageIcon },
-      { href: "/admin/reviews", label: "Reviews", icon: Star },
-    ],
-  },
-  {
-    label: "Commercial",
-    links: [
-      { href: "/admin/offers", label: "Offers", icon: Gift },
-      { href: "/admin/pricing", label: "Pricing", icon: BadgePoundSterling },
+      { href: "/app", label: "Dashboard", icon: Gauge },
+      { href: "/app/enquiries", label: "Enquiries", icon: Inbox },
+      { href: "/app/bookings", label: "Bookings", icon: CalendarClock },
+      { href: "/app/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/app/service-catalogue", label: "Service catalogue", icon: Wrench },
     ],
   },
   {
     label: "System",
     links: [
-      { href: "/admin/notifications", label: "Notifications", icon: Bell },
-      { href: "/admin/trash", label: "Trash", icon: Trash2 },
-      { href: "/admin/settings", label: "Settings", icon: Settings },
-      { href: "/admin/configuration/security", label: "Security", icon: ShieldCheck },
+      { href: "/app/notifications", label: "Notifications", icon: Bell },
+      { href: "/app/trash", label: "Trash", icon: Trash2 },
+      { href: "/app/settings", label: "Settings", icon: Settings },
+      { href: "/app/configuration/security", label: "Security", icon: ShieldCheck },
     ],
   },
 ];
@@ -95,7 +73,7 @@ export function AdminNavigation({ displayName, notificationCount, collapsed, onT
           {!compact && <p className="mb-1.5 px-2.5 text-[0.625rem] font-extrabold tracking-[0.15em] text-[#71839A] uppercase">{group.label}</p>}
           <div className="grid gap-0.5">
             {group.links.map(({ href, label, icon: Icon }) => {
-              const active = href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+              const active = href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={href}
@@ -112,7 +90,7 @@ export function AdminNavigation({ displayName, notificationCount, collapsed, onT
                 >
                   <Icon size={17} className={active ? "text-[#67B9FF]" : "text-[#8FA4BC]"} aria-hidden="true" />
                   {!compact && <span>{label}</span>}
-                  {href === "/admin/notifications" && notificationCount > 0 && !compact && (
+                  {href === "/app/notifications" && notificationCount > 0 && !compact && (
                     <span className="ml-auto min-w-5 rounded-full bg-[#1974E2] px-1.5 py-0.5 text-center text-[0.625rem] font-black text-white" aria-label={`${notificationCount} notifications requiring attention`}>
                       {countLabel}
                     </span>

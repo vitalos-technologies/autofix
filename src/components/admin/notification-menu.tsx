@@ -95,7 +95,7 @@ export function NotificationMenu({ notificationCount }: { notificationCount: num
           </div>
 
           <Link
-            href="/admin/notifications"
+            href="/app/notifications"
             onClick={() => setOpen(false)}
             className="block border-t border-[#E4EAF0] px-5 py-3.5 text-center text-sm font-extrabold text-[#1974E2] hover:bg-[#F8FAFC]"
           >

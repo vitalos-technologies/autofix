@@ -3,29 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   auditActionLabel,
   auditEntityLabel,
-  countStatuses,
   createSystemHealthChecks,
 } from "@/lib/admin/dashboard";
 
-const dashboardSource = readFileSync("src/app/admin/(protected)/page.tsx", "utf8");
+const dashboardSource = readFileSync("src/app/app/(protected)/page.tsx", "utf8");
 
 describe("admin operations dashboard", () => {
-  it("derives stock and content metrics from real status rows, including zero-data states", () => {
-    expect(countStatuses([], ["available", "reserved", "sold"])).toEqual({ available: 0, reserved: 0, sold: 0 });
-    expect(countStatuses(
-      [{ status: "available" }, { status: "available" }, { status: "reserved" }, { status: "sold" }],
-      ["available", "reserved", "sold"],
-    )).toEqual({ available: 2, reserved: 1, sold: 1 });
-    expect(countStatuses(
-      [{ status: "published" }, { status: "draft" }, { status: "scheduled" }],
-      ["published", "draft", "scheduled"],
-    )).toEqual({ published: 1, draft: 1, scheduled: 1 });
-  });
-
   it("uses the existing operational tables and recent-enquiry fields", () => {
     expect(dashboardSource).toContain('from("enquiries")');
-    expect(dashboardSource).toContain('from("sale_vehicles")');
-    expect(dashboardSource).toContain('from("content_entries")');
+    expect(dashboardSource).not.toContain('from("sale_vehicles")');
+    expect(dashboardSource).not.toContain('from("content_entries")');
     expect(dashboardSource).toContain('from("admin_audit_log")');
     expect(dashboardSource).toContain("customers(name),vehicles(registration,make,model)");
     expect(dashboardSource).toContain("No enquiries yet");
@@ -71,6 +58,6 @@ describe("admin operations dashboard", () => {
     expect(dashboardSource).toContain("currentWeekPaidTotalPence");
     expect(dashboardSource).toContain('label="Paid this week"');
     expect(dashboardSource).toContain("Settled since Monday");
-    expect(dashboardSource).toContain("xl:grid-cols-6");
+    expect(dashboardSource).toContain("xl:grid-cols-4");
   });
 });

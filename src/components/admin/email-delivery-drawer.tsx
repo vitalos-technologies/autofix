@@ -48,7 +48,7 @@ export function EmailDeliveryDrawer({ attempts }: { attempts: EmailDeliveryAttem
           {filteredAttempts.map((attempt) => <div key={attempt.id} className="border-b border-[#E4EAF0] p-5">
             <div className="flex items-start gap-3">
               {attempt.status === "sent" ? <CheckCircle2 className="mt-0.5 shrink-0 text-green-700" size={19} /> : attempt.status === "failed" ? <MailWarning className="mt-0.5 shrink-0 text-red-700" size={19} /> : <Clock3 className="mt-0.5 shrink-0 text-amber-700" size={19} />}
-              <div className="min-w-0 flex-1"><p className="font-bold text-[#071127]">{attempt.recipient_type === "business" ? "Business notification" : "Customer confirmation"}</p><p className="mt-1 text-xs text-[#667586]">{formatDate(attempt.attempted_at)}{attempt.error_code ? ` · ${attempt.error_code}` : ""}</p><Link href={`/admin/enquiries/${attempt.enquiry_id}`} onClick={() => setOpen(false)} className="mt-3 inline-block text-sm font-bold text-[#1974E2]">Open enquiry</Link></div>
+              <div className="min-w-0 flex-1"><p className="font-bold text-[#071127]">{attempt.recipient_type === "business" ? "Business notification" : "Customer confirmation"}</p><p className="mt-1 text-xs text-[#667586]">{formatDate(attempt.attempted_at)}{attempt.error_code ? ` · ${attempt.error_code}` : ""}</p><Link href={`/app/enquiries/${attempt.enquiry_id}`} onClick={() => setOpen(false)} className="mt-3 inline-block text-sm font-bold text-[#1974E2]">Open enquiry</Link></div>
             </div>
           </div>)}
           {!filteredAttempts.length && <p className="p-8 text-center text-[#667586]">No email attempts match these filters.</p>}

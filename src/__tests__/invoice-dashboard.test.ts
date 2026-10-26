@@ -88,10 +88,10 @@ describe("invoice dashboard query", () => {
 
   it("uses the shared admin pagination and preserves invoice filters", () => {
     const source = readFileSync(
-      join(process.cwd(), "src/app/admin/(protected)/invoices/page.tsx"),
+      join(process.cwd(), "src/app/app/(protected)/invoices/page.tsx"),
       "utf8",
     );
-    expect(source).toContain('<AdminPagination path="/admin/invoices"');
+    expect(source).toContain('<AdminPagination path="/app/invoices"');
     expect(source).toContain("totalItems={matchingCount}");
     expect(source).toContain("totalPages={pages}");
     expect(source).toContain("additionalParams={{ date }}");
@@ -99,7 +99,7 @@ describe("invoice dashboard query", () => {
 
   it("matches the appointment table's customer and vehicle column spacing", () => {
     const source = readFileSync(
-      join(process.cwd(), "src/app/admin/(protected)/invoices/page.tsx"),
+      join(process.cwd(), "src/app/app/(protected)/invoices/page.tsx"),
       "utf8",
     );
     expect(source).toContain('min-w-[1100px] table-fixed');

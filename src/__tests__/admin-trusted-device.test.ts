@@ -63,25 +63,24 @@ describe("admin trusted devices", () => {
   });
 
   it("always treats Security as a genuine MFA step-up path", () => {
-    expect(isSensitiveAdminPath("/admin/configuration/security")).toBe(true);
-    expect(isSensitiveAdminPath("/admin/enquiries")).toBe(false);
+    expect(isSensitiveAdminPath("/app/configuration/security")).toBe(true);
+    expect(isSensitiveAdminPath("/app/enquiries")).toBe(false);
   });
 
   it("creates trust only after successful TOTP verification and leaves mutations on real AAL2", () => {
-    const challenge = read("src", "app", "admin", "mfa", "actions.ts");
+    const challenge = read("src", "app", "app", "mfa", "actions.ts");
     expect(challenge.indexOf("challengeAndVerify")).toBeLessThan(challenge.indexOf("await trustCurrentDevice"));
     expect(challenge).toContain('formData.get("trustDevice") === "yes"');
-    expect(read("src", "app", "admin", "(protected)", "actions.ts")).toContain("safeAdminReturnTo");
-    expect(read("src", "app", "admin", "mfa", "page.tsx")).toContain('query.stepUp !== "1"');
+    expect(read("src", "app", "app", "(protected)", "actions.ts")).toContain("safeAdminReturnTo");
+    expect(read("src", "app", "app", "mfa", "page.tsx")).toContain('query.stepUp !== "1"');
     expect(read("src", "proxy.ts")).toContain("isSensitiveAdminPath(pathname)");
-    expect(read("src", "app", "admin", "(protected)", "invoices", "actions.ts")).toContain("requireFreshAdminSession");
-    expect(read("src", "app", "admin", "(protected)", "news", "import-actions.ts")).toContain("requireFreshAdminSession");
+    expect(read("src", "app", "app", "(protected)", "invoices", "actions.ts")).toContain("requireFreshAdminSession");
   });
 
   it("revokes trust before password and factor changes", () => {
-    const loginActions = read("src", "app", "admin", "login", "actions.ts");
+    const loginActions = read("src", "app", "app", "login", "actions.ts");
     expect(loginActions.indexOf("revokeAllTrustedDevices(user.id")).toBeLessThan(loginActions.indexOf("auth.updateUser"));
-    const securityActions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const securityActions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     expect(securityActions.indexOf('"mfa_trusted_devices_revoked_factor_removed"')).toBeLessThan(securityActions.lastIndexOf("auth.mfa.unenroll"));
   });
 

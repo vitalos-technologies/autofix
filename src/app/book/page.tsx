@@ -1,13 +1,13 @@
+import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { Container, Eyebrow } from "@/components/ui/container";
-import { createMetadata } from "@/lib/seo";
+import { DEFAULT_MOT_ENABLED } from "@/lib/vehicle/mot";
 
-export const metadata = createMetadata(
-  "Book a Vehicle Service Appointment",
-  "Book a diagnostics, repair, service or inspection appointment directly with SOB Autofix in Doncaster.",
-  "/book",
-);
+export const metadata: Metadata = {
+  title: "Book a vehicle appointment",
+  description: "Book a diagnostics, repair, service or inspection appointment online.",
+};
 
 export default function BookPage() {
   return (
@@ -27,7 +27,7 @@ export default function BookPage() {
         </div>
 
         <div className="-mx-5 min-w-0 overflow-hidden bg-white text-[#202A36] shadow-[0_24px_70px_rgba(0,0,0,0.3)] sm:mx-0 sm:rounded-3xl">
-          <BookingWizard />
+          <BookingWizard motEnabled={DEFAULT_MOT_ENABLED} />
         </div>
       </Container>
     </section>

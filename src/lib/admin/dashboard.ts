@@ -7,13 +7,6 @@ export type SystemHealthCheck = {
   state: HealthState;
 };
 
-export function countStatuses<T extends { status: string }>(rows: T[], statuses: string[]) {
-  return statuses.reduce<Record<string, number>>((counts, status) => {
-    counts[status] = rows.filter((row) => row.status === status).length;
-    return counts;
-  }, {});
-}
-
 export function createSystemHealthChecks({
   websiteReady,
   databaseReady,

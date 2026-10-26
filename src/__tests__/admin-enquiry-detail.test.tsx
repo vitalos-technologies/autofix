@@ -16,14 +16,14 @@ vi.mock("next/navigation", async (importOriginal) => ({
 vi.mock("@/lib/enquiries/inbound-config", () => ({ getCloudflareInboundConfig: () => ({}) }));
 vi.mock("@/components/admin/mark-enquiry-read", () => ({ MarkEnquiryRead: () => null }));
 vi.mock("@/components/admin/enquiry-reply-composer", () => ({ EnquiryReplyComposer: () => null }));
-vi.mock("@/app/admin/(protected)/actions", () => ({
+vi.mock("@/app/app/(protected)/actions", () => ({
   markEnquiryThreadReadAction: vi.fn(),
   saveInternalNoteAction: vi.fn(),
   sendEnquiryReplyAction: vi.fn(),
   updateEnquiryStatus: vi.fn(),
 }));
 
-import EnquiryConversationPage from "@/app/admin/(protected)/enquiries/[id]/page";
+import EnquiryConversationPage from "@/app/app/(protected)/enquiries/[id]/page";
 
 const enquiryId = "11111111-1111-4111-8111-111111111111";
 const enquiry = {
@@ -102,9 +102,9 @@ describe("admin enquiry detail routing", () => {
   });
 
   it("keeps the inbox link stable on the enquiry ID", () => {
-    const inbox = readFileSync(join(process.cwd(), "src/app/admin/(protected)/enquiries/page.tsx"), "utf8");
-    expect(inbox).toContain('href={`/admin/enquiries/${enquiry.id}`}');
-    expect(inbox).not.toContain('href={`/admin/enquiries/${conversation.id}`}');
+    const inbox = readFileSync(join(process.cwd(), "src/app/app/(protected)/enquiries/page.tsx"), "utf8");
+    expect(inbox).toContain('href={`/app/enquiries/${enquiry.id}`}');
+    expect(inbox).not.toContain('href={`/app/enquiries/${conversation.id}`}');
   });
 
   it("renders conversation messages in stable newest-to-oldest order", async () => {

@@ -6,7 +6,7 @@ import { InvoiceLoadingLink } from "@/components/admin/invoice-loading-link";
 
 describe("invoice loading link", () => {
   it("shows an accessible loading modal when invoice navigation begins", () => {
-    render(<InvoiceLoadingLink href="/admin/invoices/invoice-1">View</InvoiceLoadingLink>);
+    render(<InvoiceLoadingLink href="/app/invoices/invoice-1">View</InvoiceLoadingLink>);
 
     fireEvent.click(screen.getByRole("link", { name: "View" }));
 

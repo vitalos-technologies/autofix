@@ -10,7 +10,7 @@ export const MFA_RECOVERY_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true,
   sameSite: "strict" as const,
-  path: "/admin/mfa/recover",
+  path: "/app/mfa/recover",
   maxAge: MFA_RECOVERY_SESSION_SECONDS,
 };
 

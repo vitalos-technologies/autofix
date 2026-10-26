@@ -16,8 +16,8 @@ describe("invoice email action inputs", () => {
 });
 
 describe("invoice email history wiring", () => {
-  const page = read("src", "app", "admin", "(protected)", "invoices", "[id]", "page.tsx");
-  const actions = read("src", "app", "admin", "(protected)", "invoices", "actions.ts");
+  const page = read("src", "app", "app", "(protected)", "invoices", "[id]", "page.tsx");
+  const actions = read("src", "app", "app", "(protected)", "invoices", "actions.ts");
   const repository = read("src", "lib", "invoices", "repository.ts");
 
   it("submits a page-generated ID for a new send and reuses the stored ID only for failed retries", () => {

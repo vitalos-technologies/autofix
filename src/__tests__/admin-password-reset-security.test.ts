@@ -25,8 +25,8 @@ vi.mock("@/lib/supabase/server", () => ({
   getAdminUser: harness.getAdminUser,
 }));
 
-import { loginWithPassword, resetAdminPassword } from "@/app/admin/login/actions";
-import ResetPasswordPage from "@/app/admin/reset-password/page";
+import { loginWithPassword, resetAdminPassword } from "@/app/app/login/actions";
+import ResetPasswordPage from "@/app/app/reset-password/page";
 
 function passwordForm() {
   const formData = new FormData();
@@ -89,7 +89,7 @@ describe("admin password reset authorization", () => {
     harness.getAdminUser.mockResolvedValue(adminAt("aal1", "otp", "aal2"));
 
     await expect(ResetPasswordPage()).rejects.toThrow(
-      "NEXT_REDIRECT:/admin/mfa?returnTo=%2Fadmin%2Freset-password&stepUp=1",
+      "NEXT_REDIRECT:/app/mfa?returnTo=%2Fapp%2Freset-password&stepUp=1",
     );
     expect(harness.getAdminUser).toHaveBeenCalledWith({ requireMfa: false });
   });
@@ -98,7 +98,7 @@ describe("admin password reset authorization", () => {
     harness.getAdminUser.mockResolvedValue(adminAt("aal1", "password"));
 
     await expect(ResetPasswordPage()).rejects.toThrow(
-      "NEXT_REDIRECT:/admin/login?error=invalid-link",
+      "NEXT_REDIRECT:/app/login?error=invalid-link",
     );
   });
 
@@ -111,7 +111,7 @@ describe("admin password reset authorization", () => {
   it("allows a genuine recovery session and invalidates remembered access", async () => {
     harness.getAdminUser.mockResolvedValue(adminAt("aal1", "recovery"));
     await expect(resetAdminPassword({ message: "" }, passwordForm())).rejects.toThrow(
-      "NEXT_REDIRECT:/admin/login?reset=success",
+      "NEXT_REDIRECT:/app/login?reset=success",
     );
     expect(harness.updateUser).toHaveBeenCalledWith({ password: "a-strong-new-password" });
     expect(harness.revokeAllTrustedDevices).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe("admin password reset authorization", () => {
   it("allows a current AAL2 administrator session", async () => {
     harness.getAdminUser.mockResolvedValue(adminAt("aal2", "password"));
     await expect(resetAdminPassword({ message: "" }, passwordForm())).rejects.toThrow(
-      "NEXT_REDIRECT:/admin/login?reset=success",
+      "NEXT_REDIRECT:/app/login?reset=success",
     );
     expect(harness.updateUser).toHaveBeenCalledOnce();
   });

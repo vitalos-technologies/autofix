@@ -1,12 +1,13 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { siteConfig } from "@/config/site";
+import { isRecoveryNextPath, RECOVERY_DESTINATION } from "@/lib/auth/recovery-paths";
 import { createClient } from "@/lib/supabase/server";
 
-const recoveryDestination = "/admin/reset-password";
+const recoveryDestination = RECOVERY_DESTINATION;
 
 function invalidLink() {
-  const destination = new URL("/admin/login", siteConfig.siteUrl);
+  const destination = new URL("/app/login", siteConfig.siteUrl);
   destination.searchParams.set("error", "invalid-link");
   return NextResponse.redirect(destination);
 }
@@ -39,9 +40,9 @@ export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null;
   const code = request.nextUrl.searchParams.get("code");
   const requestedNext = request.nextUrl.searchParams.get("next");
-  if (tokenHash && type === "recovery" && requestedNext === recoveryDestination) return recoveryConfirmation(tokenHash);
+  if (tokenHash && type === "recovery" && isRecoveryNextPath(requestedNext)) return recoveryConfirmation(tokenHash);
 
-  const destination = new URL(requestedNext === recoveryDestination ? recoveryDestination : "/admin", siteConfig.siteUrl);
+  const destination = new URL(isRecoveryNextPath(requestedNext) ? recoveryDestination : "/app", siteConfig.siteUrl);
   const client = await createClient();
   if (code) {
     const { error } = await client?.auth.exchangeCodeForSession(code) ?? { error: new Error("Not configured") };
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
   const tokenHash = formData.get("token_hash");
   const type = formData.get("type");
   const requestedNext = formData.get("next");
-  if (typeof tokenHash !== "string" || !tokenHash || type !== "recovery" || requestedNext !== recoveryDestination) return invalidLink();
+  if (typeof tokenHash !== "string" || !tokenHash || type !== "recovery" || !isRecoveryNextPath(requestedNext)) return invalidLink();
 
   const client = await createClient();
   const { error } = await client?.auth.verifyOtp({ type: "recovery", token_hash: tokenHash }) ?? { error: new Error("Not configured") };

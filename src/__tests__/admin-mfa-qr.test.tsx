@@ -7,7 +7,7 @@ const { qrCode } = vi.hoisted(() => ({
   qrCode: "data:image/svg+xml;utf-8,<svg xmlns='http://www.w3.org/2000/svg'><rect width='1' height='1'/></svg>",
 }));
 
-vi.mock("@/app/admin/(protected)/configuration/security/actions", () => ({
+vi.mock("@/app/app/(protected)/configuration/security/actions", () => ({
   startMfaEnrollment: vi.fn(),
   verifyMfaEnrollment: vi.fn(),
   startMfaReplacement: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-import { MfaSecurityPanel } from "@/app/admin/(protected)/configuration/security/mfa-security-panel";
+import { MfaSecurityPanel } from "@/app/app/(protected)/configuration/security/mfa-security-panel";
 
 describe("admin MFA QR rendering", () => {
   it("preserves Supabase's complete data URI on a normal image element", () => {

@@ -55,10 +55,10 @@ describe("threaded enquiry implementation safeguards", () => {
   });
 
   it("provides a protected detail route with legacy original-message fallback", () => {
-    const page = read("src/app/admin/(protected)/enquiries/[id]/page.tsx");
+    const page = read("src/app/app/(protected)/enquiries/[id]/page.tsx");
     expect(page).toContain('message_type: "website_enquiry"');
     expect(page).toContain("legacy-");
     expect(page).toContain("EnquiryReplyComposer");
-    expect(read("src/app/admin/(protected)/layout.tsx")).toContain('redirect("/admin/login")');
+    expect(read("src/app/app/(protected)/layout.tsx")).toContain('redirect("/app/login")');
   });
 });
