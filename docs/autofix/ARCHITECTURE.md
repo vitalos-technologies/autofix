@@ -62,6 +62,8 @@ Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`,
 | `bookings` (reshaped) | `reference` (unique per garage), `customer_id`, `vehicle_id`, `service_id`, `resource_id`, `starts_at`, `ends_at` (customer-facing appointment), `during tstzrange` (what the resource is blocked for: travel before + duration + buffer + travel after), `status` (`requested`/`confirmed`/`arrived`/`in_progress`/`waiting_parts`/`ready`/`collected`/`cancelled`/`no_show`), `source` (`online`/`phone`/`walk_in`/`reminder`/`missed_call`/`ai_agent`), `location_mode` (`workshop`/`mobile`), `postcode`, `address`, `symptoms text[]`, `notes`, `idempotency_key` (unique per garage), `manage_token_hash`, `reminder_send_id` (FK added in P3.6), `price_pence` (snapshot), `cancelled_at`, `cancellation_reason`, `admin_seen_at`. Constraint `no_overlap exclude using gist (resource_id with =, during with &&) where (status not in ('cancelled','no_show'))` |
 | `booking_events` | `booking_id` (composite FK), `type` (`created`/`status_changed`/`rescheduled`/`cancelled`/`note`/`notification_sent`…), `actor` (`customer`/`staff`/`system`/`agent`), `actor_id`, `at`, `data jsonb` |
 | `garages` (+) | `mobile_travel_min` int default 30 |
+| `customers` (+) | `channel` (`sms`/`whatsapp`/`email`, default `sms`), `reminder_consent` bool default false, `consent_at`, `consent_source` (`booking`/`import`/`soft_opt_in`/`staff`), `opted_out_at`; unique (`garage_id`, `phone`) |
+| `vehicles` (+) | `registration` normalised (upper case, no spaces), unique (`garage_id`, `registration`); `fuel`, `year`, `mot_expiry` date, `mot_checked_at`, `last_mileage`, `last_service_at` |
 
 Cal.com leftovers dropped: `provider_*` booking columns, `booking_service_types`, `service_catalogue_systems`, `provider_webhook_events`, `create_booking_intent()`.
 
@@ -79,3 +81,31 @@ Cal.com leftovers dropped: `provider_*` booking columns, `booking_service_types`
 | `src/lib/booking-engine/manage.ts` | Manage tokens (HMAC, stored hashed), lookup by reference + registration (POST body, never the URL), reschedule/cancel with the garage's cancellation cutoff |
 
 Routes (garage from host): `GET /api/services`, `GET /api/slots?service=&from=&to=&mode=` (no registration in the query), `POST /api/bookings` (JSON body; Turnstile; rate limit per IP and per garage; idempotency key; 409 `{code: "SLOT_UNAVAILABLE", alternatives: [...]}`), `GET /api/bookings/manage?token=` (signed link), `POST /api/bookings/manage` (reference + registration → sets a 30-minute manage cookie), `PATCH /api/bookings/manage` (`{action: "cancel"} \| {action: "reschedule", startsAt}`). The 5 booking pages use server actions that read/write `af_booking` and call the same repository.
+
+## Admin, reminders and jobs (Phase 3)
+
+### Schema (`<ts>_reminders.sql`, P3.6)
+
+| Table | Columns |
+| --- | --- |
+| `reminder_rules` (tenant) | `kind` (`mot`/`service`/`review`/`missed_call`), `enabled`, `offset_days int[]` (MOT `{28,7}` before expiry; service `{335}` after last service; review `{1}` after collection), `channel` (`sms`/`whatsapp`/`email`/`customer` = the customer's preferred channel), `template` text, unique (`garage_id`, `kind`). Defaults inserted by `seed_garage_defaults(p_garage_id)` (also seeds opening hours, services, resources at sign-up) |
+| `reminder_sends` (tenant) | `rule_id`, `vehicle_id`, `customer_id`, `kind`, `due_date`, `offset_days`, `send_at`, `channel`, `status` (`scheduled`/`sending`/`sent`/`delivered`/`failed`/`cancelled`/`skipped`), `skip_reason`, `provider_msg_id`, `link_token_hash`, `link_expires_at`, `opened_at`, `booking_id`, `body` (rendered), `sent_at`; unique (`garage_id`, `vehicle_id`, `kind`, `due_date`, `offset_days`) so scheduling is idempotent |
+| `messages` (tenant) | `customer_id`, `channel`, `direction` (`inbound`/`outbound`), `to_address`, `from_address`, `body`, `provider`, `provider_msg_id` (unique when set), `status`, `reminder_send_id`, `booking_id`, `call_id`, `error_code` |
+| `calls` (tenant) | `provider_call_sid` (unique), `from_number`, `to_number`, `status`, `missed` bool, `voicemail_url`, `duration_s`, `text_back_message_id`, `handled_at`, `handled_by` |
+| `garage_phone_numbers` (tenant) | `number` E.164 unique, `purpose` (`forwarding`), `provider_sid` — maps Twilio's called number → garage |
+| `jobs` (platform, service role only) | `kind`, `garage_id` (nullable), `payload jsonb`, `dedupe_key` (unique when set), `run_at`, `status` (`queued`/`running`/`done`/`failed`), `attempts`, `max_attempts` default 5, `locked_until`, `last_error` |
+| `vehicle_facts` (platform, service role only) | `reg_hash` pk (HMAC-SHA-256 of the normalised reg with `VEHICLE_FACTS_PEPPER`), `facts jsonb`, `fetched_at` — no customer data |
+
+SQL: `claim_jobs(p_kind text, p_limit int) returns setof jobs` (`for update skip locked`; sets `status = running`, `locked_until = now() + interval '5 minutes'`, `attempts + 1`; re-claims rows whose lock expired), `finish_job(p_id uuid)`, `fail_job(p_id uuid, p_error text)` (exponential backoff `2^attempts` minutes, `failed` after `max_attempts`). `create_booking` gains attribution: when `reminder_send_id` is given and belongs to the garage, `source = reminder` and `reminder_sends.booking_id` is set in the same transaction. `reminder_won_back(p_garage_id, p_from, p_to)` → bookings + pence credited (invoice total when an invoice links to the booking, else `bookings.price_pence`).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/messaging/channel.ts` | `interface MessageChannel { kind; send(message): Promise<SendResult> }`, `getChannel(kind)` (mock unless `MESSAGING_MODE=live`), `renderTemplate(template, vars)` (`{first_name}`, `{vehicle}`, `{reg}`, `{due_date}`, `{link}`, `{garage}`; always ends "Reply STOP to opt out" for SMS/WhatsApp), `smsSegments(body)` |
+| `src/lib/messaging/twilio.ts` | SMS + WhatsApp adapters, `verifyTwilioSignature(url, params, signature, authToken)` |
+| `src/lib/messaging/quiet-hours.ts` | `isWithinSendWindow(at, timezone)` (09:00–19:00 Mon–Sat), `nextSendWindow(at, timezone)` |
+| `src/lib/jobs/*` | `enqueueJob(kind, payload, {runAt, dedupeKey, garageId})`, `drainJobs({kinds, budgetMs})`, handler registry: `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention`, `notifications.booking` |
+| `src/lib/reminders/*` | scheduling (rules × vehicles → `reminder_sends`), sending (consent + opt-out re-check, quiet hours, render, token), link tokens (`/r/{token}`: 32 random bytes base64url, SHA-256 hash stored, 30-day expiry) |
+
+Routes: `GET /api/cron/[job]` (`Authorization: Bearer CRON_SECRET`; enqueues then drains for up to 20 s — Vercel Hobby only runs daily crons), `POST /api/jobs/drain` (same secret), `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` (signature on the raw body, `webhook_events` first), `GET /r/[token]` on the garage host. Admin pages on the admin host under `/app`: `/app` (Today), `/app/diary`, `/app/bookings`, `/app/bookings/[id]`, `/app/customers`, `/app/customers/[id]`, `/app/customers/import`, `/app/reminders`, `/app/messages`, `/app/settings/{services,hours,resources,branding,booking-page,team}`.
