@@ -9,7 +9,7 @@ This folder is the Claude Code setup for Autofix, Vitalos's multi-tenant garage 
 1. Install the Claude GitHub App on `vitalos-technologies/autofix` and `Isaacpyo/sobautofix` (github.com/apps/claude → Configure).
 2. In the Claude desktop app's Code tab, choose a **Cloud** environment and the `vitalos-technologies/autofix` repo.
 3. Run `/bootstrap`. It brings in SOB's code and history, overlays the Autofix files, runs the baseline and pushes.
-4. Run `/phase 1`. Each phase ends with `/gate <n>`. Use `/status` any time.
+4. Run `/build` to run Phases 1–4 back to back without stopping (or `/phase <n>` for one phase at a time). Use `/status` any time.
 
 **In a local folder**
 
