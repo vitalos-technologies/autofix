@@ -33,6 +33,10 @@
 | A12 | Work is committed on the session branch `claude/modest-mayer-9yzmr0` (task commits prefixed with the task ID) rather than merged straight to `main`, because `main` changes need a reviewed PR | Low |
 | A13 | **Opt-out and sender IDs.** UK alphanumeric senders (e.g. `HartleyRd`) are one-way, so a customer cannot reply STOP to them. Reminders and other messages that promise "Reply STOP" go from the garage's two-way Twilio number (Messaging Service). A garage may use its alphanumeric sender for booking updates only, and those messages end with an opt-out link (`/unsubscribe`) instead of "Reply STOP" | Low; needs the PECR wording review already on the list |
 | A14 | Twilio has no idempotency key: the engine claims the `reminder_sends`/`messages` row before calling `send()` and treats timeouts as ambiguous (not retried automatically) | Low |
+| A15 | MFA stays enforced in the database for invoice and trash RPCs (AAL2 when the user has TOTP; owners must enrol while mandatory MFA is on, the shipped default). Plain table reads follow membership only, so the app keeps its MFA gate before handing out the RLS client. Trusted-device sessions can read but not call invoice RPCs (as SOB) | Low |
+| A16 | `garage_domains.hostname` is unique among non-deleted rows, so a removed domain can be connected again later | Low |
+| A17 | Retention no longer anonymises customers who still have bookings or invoices (SOB's job did on its next run). Retention removes storage rows directly; switch to the Storage API in P3.7 so files are deleted too | Low |
+| A18 | Invoice numbers are `<booking_prefix>-YYYY-NNNNNN` per garage; invoice issuer details are copied from the garage when a draft is saved/issued | Low |
 
 ## Waiting on Temitope
 
