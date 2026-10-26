@@ -44,4 +44,4 @@ Set up the Autofix repository. Works in a Claude Code cloud session on `vitalos-
    - Local folder: `git remote add origin https://github.com/vitalos-technologies/autofix.git` if missing, `git fetch origin`, `git merge origin/main --allow-unrelated-histories --no-edit` (the web-uploaded kit), then `git push -u origin main`.
    - After the first push: protect `main` (require PR + passing CI), matching `vitalos-technologies/workforce`.
 
-8. Tick P0.1 to P0.5 in `docs/autofix/BUILD-PLAN.md`, commit, push, and report Done / Needs approval / Blockers. Suggest `/phase 1`.
+8. Tick P0.1 to P0.5 in `docs/autofix/BUILD-PLAN.md`, commit, push, and report Done / Needs approval / Blockers. Suggest `/build` (all phases) or `/phase 1`.
