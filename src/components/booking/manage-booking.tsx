@@ -20,7 +20,7 @@ import {
   getRescheduleSlotsAction,
   lookupBookingAction,
   rescheduleBookingAction,
-} from "@/app/manage-booking/actions";
+} from "@/lib/bookings/manage-actions";
 import { Button } from "@/components/ui/button";
 import { initialBookingLookupState, type BookingHistoryEntry, type PublicBooking } from "@/lib/bookings/types";
 import { cn } from "@/lib/utils";

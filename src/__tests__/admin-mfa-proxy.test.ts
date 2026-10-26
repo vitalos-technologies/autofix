@@ -81,8 +81,10 @@ describe("admin MFA proxy enforcement", () => {
 });
 
 describe("proxy route matching", () => {
-  it("guards the garage admin at /app and leaves /admin free for the super admin", () => {
-    expect(config.matcher).toEqual(["/app/:path*", "/auth/:path*"]);
-    expect(config.matcher.some((pattern) => pattern.startsWith("/admin"))).toBe(false);
+  it("runs on every route except build assets, so host routing covers /app, /auth and /admin", () => {
+    expect(config.matcher).toHaveLength(1);
+    const pattern = new RegExp(`^${config.matcher[0]!.replace("/((?!", "/(?!(?:").replace(").*)", ")).*")}$`);
+    for (const path of ["/app/enquiries", "/auth/confirm", "/admin", "/", "/service"]) expect(pattern.test(path)).toBe(true);
+    for (const path of ["/_next/static/chunk.js", "/_next/image", "/favicon.ico", "/email/logo.png"]) expect(pattern.test(path)).toBe(false);
   });
 });

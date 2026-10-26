@@ -112,7 +112,7 @@ describe("provider-neutral booking management", () => {
   });
 
   it("keeps rescheduling and cancellation inside the product", () => {
-    const actions = read("src", "app", "manage-booking", "actions.ts");
+    const actions = read("src", "lib", "bookings", "manage-actions.ts");
     const component = read("src", "components", "booking", "manage-booking.tsx");
     expect(actions).toContain("getBookingRescheduleSlots");
     expect(actions).toContain("rescheduleBooking");
@@ -121,7 +121,7 @@ describe("provider-neutral booking management", () => {
   });
 
   it("rate-limits lookup, slot browsing, reschedule and cancellation separately", () => {
-    const actions = read("src", "app", "manage-booking", "actions.ts");
+    const actions = read("src", "lib", "bookings", "manage-actions.ts");
     expect(actions).toContain("booking_lookup_ip");
     expect(actions).toContain("booking_reschedule_slots");
     expect(actions).toContain('"booking_reschedule"');

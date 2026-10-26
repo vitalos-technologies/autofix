@@ -55,5 +55,5 @@ function revalidateTrashPaths(entity: z.infer<typeof entitySchema>) {
   revalidatePath(adminPath[entity]);
   revalidatePath("/app/trash");
   revalidatePath("/app", "layout");
-  revalidatePath("/book", "layout");
+  revalidatePath("/_site/[garageId]", "layout");
 }

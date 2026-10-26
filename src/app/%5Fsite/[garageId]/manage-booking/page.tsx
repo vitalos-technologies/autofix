@@ -34,7 +34,7 @@ export default async function ManageBookingPage() {
               <a href={links.email} className="inline-flex min-h-11 items-center gap-2 font-bold text-[#67B9FF] hover:text-white"><Mail size={17} aria-hidden="true" /> {settings.email}</a>
             </div>
           </aside>
-          <p className="mt-6 text-center text-xs text-[#667586]">Looking to make a new appointment? <Link href="/book" className="font-bold text-[#1974E2]">Book online</Link>.</p>
+          <p className="mt-6 text-center text-xs text-[#667586]">Looking to make a new appointment? <Link href="/" className="font-bold text-[#1974E2]">Book online</Link>.</p>
         </Container>
       </section>
     </>

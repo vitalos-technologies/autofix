@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { Container, Eyebrow } from "@/components/ui/container";
-import { DEFAULT_MOT_ENABLED } from "@/lib/vehicle/mot";
+import { requireSiteGarage } from "@/lib/tenancy/garage";
 
 export const metadata: Metadata = {
   title: "Book a vehicle appointment",
   description: "Book a diagnostics, repair, service or inspection appointment online.",
 };
 
-export default function BookPage() {
+// Temporary home for SOB's wizard until the 5-step flow replaces it (P2.8).
+export default async function BookPage({ params }: { params: Promise<{ garageId: string }> }) {
+  const garage = await requireSiteGarage((await params).garageId);
   return (
     <section className="hero-grid min-h-[calc(100vh-4.5rem)] overflow-hidden py-6 text-white max-lg:!bg-none max-lg:!bg-white max-lg:!text-[#202A36] sm:py-10 lg:min-h-[calc(100vh-5rem)] lg:py-14" data-motion="off">
       <Container className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,0.58fr)_minmax(36rem,1.2fr)] lg:gap-10 xl:gap-14">
@@ -27,7 +29,7 @@ export default function BookPage() {
         </div>
 
         <div className="-mx-5 min-w-0 overflow-hidden bg-white text-[#202A36] shadow-[0_24px_70px_rgba(0,0,0,0.3)] sm:mx-0 sm:rounded-3xl">
-          <BookingWizard motEnabled={DEFAULT_MOT_ENABLED} />
+          <BookingWizard motEnabled={garage.motEnabled} />
         </div>
       </Container>
     </section>

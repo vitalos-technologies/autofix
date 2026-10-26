@@ -158,7 +158,7 @@ function revalidateCatalogue() {
   revalidatePath("/app/service-catalogue");
   revalidatePath("/app/bookings/services");
   revalidatePath("/app/invoices/new");
-  revalidatePath("/book");
+  revalidatePath("/_site/[garageId]", "layout");
 }
 
 function unavailable(): CatalogueActionState { return { success: false, message: "The service catalogue is temporarily unavailable." }; }

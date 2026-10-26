@@ -225,7 +225,7 @@ export async function saveBookingServiceMappingAction(
   if (error || !data) return { success: false, message: "The service mapping could not be saved." };
 
   revalidatePath("/app/bookings/services");
-  revalidatePath("/book");
+  revalidatePath("/_site/[garageId]", "layout");
   const { error: auditError } = await client.from("admin_audit_log").insert({
     actor_id: admin.user.id,
     action: "update",

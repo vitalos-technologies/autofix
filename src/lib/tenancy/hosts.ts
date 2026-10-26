@@ -64,8 +64,9 @@ function isPublicHostname(name: string) {
   return labels.every((label) => LABEL_PATTERN.test(label)) && /^[a-z]{2,63}$/.test(labels[labels.length - 1] ?? "");
 }
 
+/** Dev hosts (`localhost`, `<slug>.localhost`) work everywhere except Vercel production. */
 function devHostsEnabled(env: HostEnvironment) {
-  return Boolean(env.DEV_TENANT_ROOT_DOMAIN) && env.VERCEL_ENV !== "production";
+  return env.VERCEL_ENV !== "production";
 }
 
 /**
@@ -85,16 +86,17 @@ export function classifyHost(
   const { name } = splitPort(host);
 
   if (devHostsEnabled(env)) {
-    const devRoot = normaliseHost(env.DEV_TENANT_ROOT_DOMAIN)!;
-    const devRootName = splitPort(devRoot).name;
-    if (host === devRoot || isLoopbackName(name)) {
+    const devRootName = splitPort(normaliseHost(env.DEV_TENANT_ROOT_DOMAIN) ?? "localhost").name;
+    if (name === devRootName || isLoopbackName(name)) {
       const slug = devGarageParam?.trim().toLowerCase();
       if (slug) return isValidSlug(slug) ? { kind: "dev-garage", slug } : { kind: "unknown" };
       return { kind: "admin" };
     }
-    if (name.endsWith(`.${devRootName}`)) {
-      const label = name.slice(0, -(devRootName.length + 1));
-      return isValidSlug(label) ? { kind: "dev-garage", slug: label } : { kind: "unknown" };
+    for (const root of new Set([devRootName, "localhost"])) {
+      if (name.endsWith(`.${root}`)) {
+        const label = name.slice(0, -(root.length + 1));
+        return isValidSlug(label) ? { kind: "dev-garage", slug: label } : { kind: "unknown" };
+      }
     }
   }
 
