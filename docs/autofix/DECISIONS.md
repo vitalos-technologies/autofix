@@ -31,6 +31,8 @@
 | A10 | Platform-level tables with no garage owner at write time (`rate_limit_buckets`, inbound/Resend webhook idempotency tables, `unmatched_inbound_emails`, MFA/trusted-device tables keyed by user) have no `garage_id`; they are service-role or own-user only, and the tenancy suite asserts staff cannot read them | Low |
 | A11 | Customer phone keeps SOB's column name `customers.phone` (E.164) rather than the SPEC's `mobile` to avoid churn; same meaning | Low |
 | A12 | Work is committed on the session branch `claude/modest-mayer-9yzmr0` (task commits prefixed with the task ID) rather than merged straight to `main`, because `main` changes need a reviewed PR | Low |
+| A13 | **Opt-out and sender IDs.** UK alphanumeric senders (e.g. `HartleyRd`) are one-way, so a customer cannot reply STOP to them. Reminders and other messages that promise "Reply STOP" go from the garage's two-way Twilio number (Messaging Service). A garage may use its alphanumeric sender for booking updates only, and those messages end with an opt-out link (`/unsubscribe`) instead of "Reply STOP" | Low; needs the PECR wording review already on the list |
+| A14 | Twilio has no idempotency key: the engine claims the `reminder_sends`/`messages` row before calling `send()` and treats timeouts as ambiguous (not retried automatically) | Low |
 
 ## Waiting on Temitope
 
