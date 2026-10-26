@@ -19,7 +19,7 @@ Set up the Autofix repository. Works in a Claude Code cloud session on `vitalos-
 3. **Combine histories**
    - If this repo already has commits (it does on GitHub: the Autofix kit was uploaded first):
      `git merge sob/main --allow-unrelated-histories --no-edit -m "chore: import SOB Autofix as the base of Autofix"`
-     The kit only adds new paths, so there should be no conflicts. If there are, list them and stop.
+     Expected conflicts: `README.md` (both sides have one). Resolve it with `git checkout --ours README.md` (step 4 replaces it with `.autofix/README.md` anyway), `git add README.md`, then `git commit --no-edit`. For any other conflict, list the files and stop.
    - If this is a fresh local folder with no commits: `git init -b main` (if needed) then `git checkout -B main sob/main` (untracked kit files are kept).
 
 4. **Overlay Autofix files**
