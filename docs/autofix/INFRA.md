@@ -33,3 +33,37 @@ Kept from SOB: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_
 Removed: `CALCOM_*`, `NEXT_PUBLIC_TAWK_*`, `NEXT_PUBLIC_GOOGLE_MAPS_URL`, `GOOGLE_PLACE_ID`, `ENQUIRY_*` single-business values, `LEGAL_COPY_APPROVED`/`COOKIE_CONFIGURATION_APPROVED` (become per-platform flags).
 
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
+
+## Local development
+
+Everything below runs against the local Supabase CLI stack in Docker (`supabase/config.toml`, project `sobautofix-local-tests`, API on `http://127.0.0.1:54321`). Nothing here touches a hosted project.
+
+```bash
+pnpm install
+pnpm exec supabase start                       # local Postgres, Auth, Storage, PostgREST
+pnpm exec supabase db reset --local --no-seed  # rebuild the schema from supabase/migrations
+pnpm db:seed                                   # demo garages, staff, customers (safe to run again)
+pnpm dev                                       # admin: http://localhost:3000/app
+                                               # booking sites: http://hartley-road.localhost:3000/, http://demo-b.localhost:3000/
+```
+
+For `pnpm dev`, put the local values in `.env.local` (gitignored): `NEXT_PUBLIC_SUPABASE_URL` (`API_URL`), `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`PUBLISHABLE_KEY`) and `SUPABASE_SECRET_KEY` (`SECRET_KEY`) from `pnpm exec supabase status -o env`. Never print or commit them.
+
+### Demo seed (`pnpm db:seed`, `scripts/seed-demo.mjs`)
+
+- **Local only.** It refuses any Supabase URL other than `http://127.0.0.1:54321` (or `localhost`/`[::1]` on that port), the same rule as the integration tests. It takes the URL and secret key from `INTEGRATION_SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SECRET_KEY` or `API_URL`/`SECRET_KEY`, and otherwise asks `supabase status -o env` itself.
+- **Idempotent.** Fixed UUIDs (derived from stable names) and upserts; run it as often as you like.
+- **Creates** garage A *Hartley Road Motors* (`hartley-road`, prefix `HRM`, accent `#155fba`, MOT on, Doncaster) and garage B *Demo Garage B* (`demo-b`, `DGB`, accent `#0f766e`, MOT off); `site_settings` for both; 10 + 8 fictional customers with UK mobiles in Ofcom's drama range (`07700 900xxx`) and their vehicles; five enquiries with their conversations. Resources (3 bays + 1 mobile van), opening hours (Mon–Fri 08:00–17:30, Sat 08:30–13:00), closures and services (MOT only at garage A, Diagnostics, Full service, Interim service, Brakes and Something else as quotes) are written by `seedResources`, `seedOpeningHours`, `seedClosures` and `seedServices`, which say "skipped" until the P2.1 scheduling tables exist.
+- **Staff** (Auth admin API). The script prints the emails, never the password:
+
+  | Email | Role |
+  | --- | --- |
+  | `owner@hartley-road.example` | owner, Hartley Road Motors |
+  | `manager@hartley-road.example` | manager, Hartley Road Motors |
+  | `technician@hartley-road.example` | technician, Hartley Road Motors |
+  | `owner@demo-b.example` | owner, Demo Garage B |
+  | `shared.manager@autofix-demo.example` | manager in both garages (garage switcher) |
+
+  Password: `SEED_STAFF_PASSWORD`, default `Autofix-demo-local-1` (documented in the script; local only, never reuse it anywhere).
+- **MFA.** Mandatory MFA for owners is the shipped default (DECISIONS.md A15), so owners enrol TOTP at `/app/mfa/enroll` on first sign-in. For local convenience only, `SEED_RELAX_MFA=1 pnpm db:seed` switches `admin_mfa_policy.mandatory_mfa_enabled` **off** in the local database and says so loudly; running the seed again without the flag switches it back on.
+
