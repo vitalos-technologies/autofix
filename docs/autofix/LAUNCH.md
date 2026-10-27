@@ -8,7 +8,7 @@ Status key: **Todo** (not started) · **Ready** (agent work done, waiting on you
 
 | # | Step | Owner | Status | How to verify |
 | --- | --- | --- | --- | --- |
-| 0.1 | The build is merged into `main` (it is on `claude/modest-mayer-9yzmr0` until you approve the PR) and `main` is green: CI (lint, typecheck, unit, pgTAP, integration incl. tenancy, every Playwright project incl. Gate 3, Lighthouse) on the commit you deploy | Temitope (approve the PR), then Agent | Todo | GitHub Actions run for that commit is green |
+| 0.1 | The build is merged into `main` and `main` is green: CI (lint, typecheck, unit, pgTAP, integration incl. tenancy, every Playwright project incl. Gate 3, Lighthouse) on the commit you deploy | Agent | Done for `92bff23` (PR #2, CI run 40536393952); check again on the commit you deploy | GitHub Actions run for that commit is green |
 | 0.2 | Gates 1 to 4 ticked in [BUILD-PLAN.md](BUILD-PLAN.md) (`/gate 4`) | Agent | Todo | `/status` shows every phase gate ticked |
 
 ## 1. Vercel project and plan
