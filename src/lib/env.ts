@@ -51,6 +51,18 @@ export function getEnvironmentReadiness() {
   return { ready: missing.length === 0, missing };
 }
 
+/**
+ * Askbridge (P4.6): optional. The widget script is public (`NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`); the
+ * knowledge sync needs `ASKBRIDGE_SYNC_URL` and the signing secret `ASKBRIDGE_WEBHOOK_SECRET`
+ * (server only). Missing values never block launch: the chat stays hidden and syncs stay queued.
+ */
+export const askbridgeVariables = ["NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL", "ASKBRIDGE_SYNC_URL", "ASKBRIDGE_WEBHOOK_SECRET"] as const;
+
+export function getAskbridgeEnvironmentReadiness(env: Readonly<Record<string, string | undefined>> = process.env) {
+  const missing: string[] = askbridgeVariables.filter((name) => !env[name]?.trim());
+  return { ready: missing.length === 0, missing };
+}
+
 export function getBookingEnvironmentReadiness() {
   const missing: string[] = requiredBookingVariables.filter((name) => !process.env[name]);
   return { ready: missing.length === 0, missing };

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBookingEnvironmentReadiness, getEnvironmentReadiness } from "@/lib/env";
+import { getAskbridgeEnvironmentReadiness, getBookingEnvironmentReadiness, getEnvironmentReadiness } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getVehicleLookupReadiness } from "@/lib/vehicle/configured-provider";
 
@@ -35,6 +35,8 @@ export async function GET() {
           status: tenancyReady ? "ready" : "configuration_required",
         },
         email: readiness.ready ? "operational" : "configuration_required",
+        // Optional integration (P4.6): never counted as missing.
+        askbridge: getAskbridgeEnvironmentReadiness().ready ? "configured" : "not_configured",
         bookingManagement: Boolean(process.env.BOOKING_MANAGEMENT_SECRET) ? "configured" : "configuration_required",
         // Source names only; never values or variable names.
         vehicleLookup: { status: vehicleLookup.status, provider: vehicleLookup.provider, sources: vehicleLookup.sources, cache: vehicleLookup.cache },

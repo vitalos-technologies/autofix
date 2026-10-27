@@ -4,17 +4,18 @@ import { CircleAlert, CircleCheck, Info } from "lucide-react";
 import { focusRing } from "@/components/admin-ui";
 import { cn } from "@/lib/utils";
 
-export type SetupSection = "services" | "hours" | "resources" | "branding";
+export type SetupSection = "services" | "hours" | "resources" | "branding" | "booking-page";
 
 export const SETUP_SECTIONS: ReadonlyArray<{ key: SetupSection; label: string; href: string }> = [
   { key: "services", label: "Services & prices", href: "/app/settings/services" },
   { key: "hours", label: "Opening hours", href: "/app/settings/hours" },
   { key: "resources", label: "Bays & vans", href: "/app/settings/resources" },
   { key: "branding", label: "Branding & MOT", href: "/app/settings/branding" },
+  { key: "booking-page", label: "Booking page", href: "/app/settings/booking-page" },
 ];
 
 /**
- * Links between the four Setup pages. On phones it scrolls sideways inside its own box; the page
+ * Links between the Setup pages. On phones it scrolls sideways inside its own box; the page
  * never does.
  */
 export function SetupNav({ current }: { current: SetupSection }) {
