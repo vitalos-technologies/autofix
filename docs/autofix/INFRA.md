@@ -36,7 +36,22 @@ Email (P1.3): `RESEND_FROM_EMAIL` is the platform sender address (the display na
 
 Agent tool API (P4.2): `AGENT_TOKEN_PEPPER` (32+ random characters, Sensitive; keys the HMAC of agent tokens, so rotating it invalidates every issued token).
 
+Jobs and webhooks (P3.7, P3.8): `CRON_SECRET` (Sensitive, at least 16 random characters; shorter or unset refuses every cron and drain call) and `TWILIO_WEBHOOK_BASE_URL` (the public origin Twilio calls the webhooks on, e.g. `https://autofix.vitalos.co.uk`; the webhooks also need `TWILIO_AUTH_TOKEN` and answer 503 without it). Reminder link tokens need no secret (random, stored hashed), so the bootstrap's `REMINDER_LINK_SECRET` is gone.
+
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
+
+## Jobs and crons (P3.7)
+
+The job queue is the `jobs` table (P3.6). `GET /api/cron/<name>` (`Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends by itself) queues that name's platform job for the current period (dedupe key per UTC day, per 10-minute slot for `reminders.send`, per 5-minute slot for `domains.check`), then drains due jobs of every kind for up to 20 seconds. `POST /api/jobs/drain` (same header; optional JSON `{"kinds": [...], "budgetMs": 1000-50000}`) only drains. Booking notifications and HELP answers are also drained straight after the request that queued them (`after()`).
+
+| Plan | `vercel.json` crons |
+| --- | --- |
+| **Hobby (now)**: daily crons only, started any time within the hour | one cron: `/api/cron/daily` at `0 11 * * *` (11:00–11:59 UTC = 11:00–12:59 London: after the 10:00 reminder time and inside the 09:00–19:00 send window in GMT and BST). Reminders therefore go out once a day around midday; Sunday's wait for Monday's run; a domain moves one step a day; jobs left over (budget spent, retries with backoff) wait for the next run or a manual `POST /api/jobs/drain` |
+| **Pro** | `/api/cron/reminders.send` every 10 minutes (`*/10 * * * *`), `/api/cron/domains.check` every 5 (`*/5 * * * *`), `/api/cron/mot.refresh` at `0 2 * * *`, `/api/cron/reminders.schedule` at `0 6 * * *`, `/api/cron/retention` at `15 3 * * *`, `/api/cron/customers.enrich` hourly, and drop `daily` |
+
+Without Pro an external scheduler can call `POST /api/jobs/drain` (or `GET /api/cron/reminders.send`) every 10 minutes with the bearer header instead. The send window is enforced inside the job (a run outside it re-queues itself for 09:00 on the next Monday–Saturday), so a scheduler never needs to know quiet hours.
+
+Twilio webhooks (P3.8): `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` on the admin host. Behind a proxy that rewrites the host, set `TWILIO_WEBHOOK_BASE_URL`, otherwise the signature check rebuilds the URL from `X-Forwarded-Proto` and `X-Forwarded-Host` (first value), then `Host`. A number only routes once its `garage_phone_numbers` row has `provider_sid` (A55).
 
 ## Local development
 

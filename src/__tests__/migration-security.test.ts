@@ -23,7 +23,7 @@ const garageTables = ["garages", "garage_domains", "garage_members", "platform_a
 const platformTables = [
   "rate_limit_buckets", "resend_webhook_events", "inbound_email_events", "provider_webhook_events",
   "unmatched_inbound_emails", "admin_profiles", "admin_mfa_policy", "admin_mfa_recovery_codes",
-  "admin_mfa_recovery_sessions", "admin_trusted_devices",
+  "admin_mfa_recovery_sessions", "admin_trusted_devices", "twilio_webhook_events",
 ];
 const removedSurfaces = ["content_entries", "content_revisions", "navigation_items", "sale_vehicles", "sale_vehicle_images", "import_article_drafts", "vehicle-sales"];
 const serviceRoleFunctions = [
@@ -100,6 +100,16 @@ describe("Supabase migration security invariants", () => {
     expect(grants.filter((statement) => /\b(anon|public)\b(?!\.)/.test(statement.replace(/public\.\w+/g, "")))).toEqual([]);
     const policies = tenancyStatements.filter((statement) => /^create policy/i.test(statement));
     expect(policies.filter((statement) => /\bto (anon|public)\b/i.test(statement))).toEqual([]);
+  });
+
+  it.each([
+    "claim_twilio_webhook_event(text, text, text)",
+    "finish_twilio_webhook_event(text, text, text, text)",
+    "apply_messaging_keyword(uuid, text, text)",
+  ])("keeps the Twilio webhook function %s service-role only (P3.8)", (signature) => {
+    const statements = sqlStatements(allMigrations);
+    expect(statements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`))).toEqual([`grant execute on function public.${signature} to service_role`]);
+    expect(statements).toContain(`revoke all on function public.${signature} from public, anon, authenticated`);
   });
 
   it.each(serviceRoleFunctions)("keeps %s service-role only", (signature) => {

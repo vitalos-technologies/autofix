@@ -61,7 +61,8 @@ const harness = vi.hoisted(() => ({
   context: null as null | Record<string, unknown>,
   audits: [] as Array<[string, Record<string, unknown>]>,
   afterCallbacks: [] as Array<() => unknown>,
-  enrich: vi.fn(async () => ({ checked: 0, enriched: 0, notFound: 0, failed: 0, remaining: false, stoppedReason: "done" })),
+  enrich: vi.fn(async () => ({ checked: 0, enriched: 0, notFound: 0, failed: 0, remaining: false, stoppedReason: "done" } as Record<string, unknown>)),
+  enqueue: vi.fn(async () => ({ id: "job" })),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -79,6 +80,7 @@ vi.mock("@/lib/admin/audit", () => ({
   }),
 }));
 vi.mock("@/lib/customers/enrichment", () => ({ enrichImportedVehicles: harness.enrich }));
+vi.mock("@/lib/jobs/queue", () => ({ enqueueJob: harness.enqueue }));
 
 import {
   importCustomersAction,
@@ -166,6 +168,25 @@ describe("importCustomersAction", () => {
     expect(harness.afterCallbacks).toHaveLength(1);
     await harness.afterCallbacks[0]!();
     expect(harness.enrich).toHaveBeenCalledWith({ garageId: garage.id, importId: "00000000-0000-4000-8000-000000000001", limit: 25 });
+  });
+
+  it("queues the rest of the enrichment as a customers.enrich job when the first batch leaves cars waiting", async () => {
+    harness.enqueue.mockClear();
+    await importCustomersAction({ fileName: "customers.csv", csv, declarationAccepted: true });
+    await harness.afterCallbacks[0]!();
+    expect(harness.enqueue).not.toHaveBeenCalled();
+
+    harness.afterCallbacks = [];
+    harness.enrich.mockResolvedValueOnce({ checked: 25, enriched: 25, notFound: 0, failed: 0, remaining: true, stoppedReason: "limit" });
+    await importCustomersAction({ fileName: "customers.csv", csv, declarationAccepted: true });
+    await harness.afterCallbacks[0]!();
+    // The second import of this test gets the next import id.
+    const importId = "00000000-0000-4000-8000-000000000002";
+    expect(harness.enqueue).toHaveBeenCalledWith(
+      "customers.enrich",
+      { garageId: garage.id, importId },
+      { garageId: garage.id, dedupeKey: `customers.enrich:${garage.id}:import:${importId}` },
+    );
   });
 
   it("imports 1,000 rows in two batches", async () => {
