@@ -144,6 +144,24 @@ As built (P3.6, `20261028001000_reminders.sql`; DECISIONS A49–A58). Every func
 | `src/lib/jobs/*` | `enqueueJob(kind, payload, {runAt, dedupeKey, garageId})`, `drainJobs({kinds, budgetMs})`, handler registry: `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention`, `notifications.booking` |
 | `src/lib/reminders/*` | scheduling (rules × vehicles → `reminder_sends`), sending (consent + opt-out re-check, quiet hours, render, token), link tokens (`/r/{token}`: 32 random bytes base64url, SHA-256 hash stored, 30-day expiry) |
 
+### Customers & cars (P3.11, `20261028000200_customer_imports.sql`)
+
+| Table / column | |
+| --- | --- |
+| `customer_imports` (tenant) | `created_by`, `file_name`, `status` (`importing`/`completed`/`failed`), `total_rows`, `valid_rows`, `invalid_rows`, `duplicate_rows`, `imported_rows`, `customers_created`, `customers_updated`, `vehicles_created`, `vehicles_updated`, `consent_recorded`, `declaration_text`, `declaration_accepted_at`, `errors jsonb` (≤ 500 `{row, field, message}`), `completed_at`. Staff select only |
+| `customers` (+) | `import_id` (composite FK, set null) |
+| `vehicles` (+) | `import_id`, `enrichment_status` (`pending`/`done`/`not_found`/`failed`, null = never queued), `enrichment_attempts` |
+
+SQL (authenticated owners/managers of the selected garage, MFA rule as invoices): `start_customer_import(p_file_name, p_summary jsonb, p_declaration_text) → uuid`, `import_customer_rows(p_import_id, p_rows jsonb) → jsonb counts` (rows `{name, phone E.164, email, registration normalised|null, consent}`, ≤ 1,000), `finish_customer_import(p_import_id, p_status) → customer_imports`. `apply_enquiry_retention` keeps live-consent customers and anonymises never-enquired customers only after 24 months without change (DECISIONS A46).
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/customers/csv.ts` (client-safe) | `parseCustomerCsv(text)` → `{fatal, columns, hasConsentColumn, totalRows, rows, errors, warnings, duplicates}`, `importBatches(rows, 500)`, `detectColumns`, `isUkRegistration`, `normaliseImportMobile`, `formatUkMobile` |
+| `src/lib/customers/import.ts` | `runCustomerImport(rlsClient, {fileName, parsed, declarationText})` |
+| `src/lib/customers/queries.ts` | `listCustomers(rlsClient, {query, page})`, `getCustomerDetail(rlsClient, id)`, `listRecentImports(rlsClient)` |
+| `src/lib/customers/enrichment.ts` | `enrichImportedVehicles({garageId, importId?, limit?, concurrency?, pauseMs?, budgetMs?}) → {checked, enriched, notFound, failed, remaining, stoppedReason, retryAfterMs?}` (service role, explicit garage filter, idempotent). P3.7 registers it as job `customers.enrich` (payload `{garageId, importId?}`), re-enqueued while `remaining` |
+| `src/lib/vehicle/configured-provider.ts` (+) | `getConfiguredEnrichmentLookup(env)`: DVSA, else DVLA, else mock in mock mode; never VDG |
+
 Routes: `GET /api/cron/[job]` (`Authorization: Bearer CRON_SECRET`; enqueues then drains for up to 20 s — Vercel Hobby only runs daily crons), `POST /api/jobs/drain` (same secret), `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` (signature on the raw body, `webhook_events` first), `GET /r/[token]` on the garage host. Admin pages on the admin host under `/app`: `/app` (Today), `/app/diary`, `/app/bookings`, `/app/bookings/[id]`, `/app/customers`, `/app/customers/[id]`, `/app/customers/import`, `/app/reminders`, `/app/messages`, `/app/settings/{services,hours,resources,branding,booking-page,team}`.
 
 Setup pages (P3.4, as built): `/app/settings/services` (+ `/new`, `/[id]`), `/app/settings/hours`, `/app/settings/resources`, `/app/settings/branding`. Rules shared by forms and actions: `src/lib/settings/setup.ts` (client-safe: `canManageSetup(role)` owner/manager, `canChangeGarage(role)` owner, `parseServiceForm`, `parseOpeningHoursForm` + `diffOpeningWindows`, `parseClosureForm`, `parseBookingRulesForm`, `parseServiceArea`, `parseResourceForm`, `chooseAccent`, `sniffLogoType`, `logoPath`). Server plumbing: `src/lib/settings/server.ts` (`requireSetupContext(returnTo)` = `getAdminContext()` with MFA, `roleAllows`, `databaseProblem`, `afterSetupChange(garageId, paths)` clears the slot cache and revalidates). Server actions sit next to each page (`settings/*/actions.ts`), write only through `admin.client` with `garage_id`/`id = admin.garage.id`, and return `SetupFormState` (`useActionState`) or redirect with `?done=`/`?error=` codes. The logo goes to `public-media/<garage_id>/logo.<ext>` through the RLS client's storage API.

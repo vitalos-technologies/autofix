@@ -297,6 +297,21 @@ class GarageRows {
     delivery_status: "note",
   }, "id")).id));
 
+  /** A customer import through the staff RPCs (P3.11), with one imported row. */
+  customerImport = () => this.once("customerImport", async () => {
+    const importId = String(await this.rpc("start_customer_import", {
+      p_file_name: `${this.tag("import")}.csv`,
+      p_summary: { total_rows: 1, valid_rows: 1 },
+      p_declaration_text: `Tenancy probe declaration ${this.key}`,
+    }));
+    await this.rpc("import_customer_rows", {
+      p_import_id: importId,
+      p_rows: [{ name: `Imported ${this.key}`, phone: this.key === "A" ? "+447700900911" : "+447700900912", email: null, registration: null, consent: true }],
+    });
+    await this.rpc("finish_customer_import", { p_import_id: importId, p_status: "completed" });
+    return importId;
+  });
+
   /** An issued invoice (also creates invoice_items and invoice_number_sequences). */
   issuedInvoice = () => this.once("issuedInvoice", async () => {
     const draftId = String(await this.rpc("save_invoice_draft", {
@@ -385,6 +400,8 @@ const FIXTURES: Record<string, Fixture> = {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
     patch: { reason: "Tampered" },
   },
+  // Written only by the import RPCs; staff have no update grant, so the probe is refused.
+  customer_imports: { create: (rows) => rows.customerImport(), patch: { file_name: "tampered.csv" } },
   customers: { create: (rows) => rows.customer(), patch: { name: "Tampered" } },
   enquiries: { create: (rows) => rows.enquiry(), patch: { description: "Tampered" } },
   enquiry_attachments: {
