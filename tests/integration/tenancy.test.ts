@@ -503,6 +503,18 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { text: "Tampered" },
   },
+  // Super-admin impersonation sessions (P4.5, service role only): staff get 42501 on every probe.
+  platform_impersonations: {
+    create: (rows) => rows.insert("platform_impersonations", {
+      admin_user_id: rows.ownerId,
+      reason: `Tenancy probe ${rows.key}`,
+      started_at: "2096-04-01T09:00:00.000Z",
+      expires_at: "2096-04-01T09:30:00.000Z",
+      ended_at: "2096-04-01T09:10:00.000Z",
+      end_reason: "ended",
+    }),
+    patch: { reason: "Tampered reason" },
+  },
   reminder_rules: { create: (rows) => rows.reminderRule(), patch: { template: "Tampered {link}" } },
   reminder_sends: {
     create: async (rows) => rows.insert("reminder_sends", {
