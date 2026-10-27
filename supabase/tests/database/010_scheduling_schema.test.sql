@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(102);
+select plan(108);
 
 -- Scheduling schema (P2.1): tables, constraints, grants, RLS and the removal
 -- of the Cal.com leftovers. Slot maths is in 011, create_booking in 012.
@@ -167,6 +167,45 @@ select ok(
 select ok(
   (select prosecdef and proconfig = array['search_path=""'] from pg_proc where oid = 'public.seed_garage_defaults(uuid)'::regprocedure),
   'seed_garage_defaults is security definer with an empty search_path'
+);
+
+-- available_slots() (P2.2)
+select ok(
+  has_function_privilege('service_role', 'public.available_slots(uuid,uuid,date,date,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.available_slots(uuid,uuid,date,date,text)', 'execute')
+  and not has_function_privilege('anon', 'public.available_slots(uuid,uuid,date,date,text)', 'execute'),
+  'available_slots is service-role only'
+);
+select ok(
+  (select bool_and(not has_function_privilege('service_role', signature, 'execute')
+                   and not has_function_privilege('authenticated', signature, 'execute')
+                   and not has_function_privilege('anon', signature, 'execute'))
+   from unnest(array[
+     'public.available_slots_at(uuid,uuid,date,date,text,timestamptz)',
+     'public.opening_window_starts(uuid,date,date,integer)',
+     'public.booking_service_context(uuid,uuid,text)'
+   ]) internal_function(signature)),
+  'the slot internals (clock-injectable available_slots_at) are not executable by any API role'
+);
+select is(
+  (select count(*)::integer from pg_proc
+   where oid = any(array['public.available_slots(uuid,uuid,date,date,text)'::regprocedure, 'public.available_slots_at(uuid,uuid,date,date,text,timestamptz)'::regprocedure])
+     and prosecdef and proconfig = array['search_path=""']),
+  2, 'available_slots and available_slots_at are security definer with an empty search_path'
+);
+select is(
+  (select provolatile::text from pg_proc where oid = 'public.available_slots(uuid,uuid,date,date,text)'::regprocedure),
+  's', 'available_slots is stable'
+);
+select is(
+  pg_get_function_result('public.available_slots(uuid,uuid,date,date,text)'::regprocedure),
+  'TABLE(starts_at timestamp with time zone, ends_at timestamp with time zone, free_count integer)',
+  'available_slots returns (starts_at, ends_at, free_count)'
+);
+select is(
+  pg_get_function_arguments('public.available_slots(uuid,uuid,date,date,text)'::regprocedure),
+  'p_garage_id uuid, p_service_id uuid, p_from date, p_to date, p_location_mode text DEFAULT NULL::text',
+  'available_slots takes the contract arguments'
 );
 
 select ok(

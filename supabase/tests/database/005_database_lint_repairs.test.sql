@@ -23,14 +23,14 @@ select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), true, 
 select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), false, 'request above the limit is rejected');
 
 select matches(
-  pg_get_functiondef('public.seed_garage_defaults(uuid)'::regprocedure),
-  'where garage\.id = p_garage_id for update',
-  'garage defaults lock the garage they are given'
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
+  'and service\.online_enabled',
+  'bookings and slots only use services enabled for online booking'
 );
 select matches(
-  pg_get_functiondef('public.seed_garage_defaults(uuid)'::regprocedure),
-  'where hours\.garage_id = p_garage_id',
-  'garage defaults only look at that garage''s rows'
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
+  'on service\.garage_id = garage\.id\s+and service\.id = p_service_id\s+.*where garage\.id = p_garage_id',
+  'bookings and slots only use the garage''s own services'
 );
 select matches(
   pg_get_functiondef('public.get_invoice_dashboard_without_payments(text,text,date,integer,integer)'::regprocedure),

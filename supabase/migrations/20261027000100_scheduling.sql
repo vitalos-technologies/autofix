@@ -535,6 +535,223 @@ create trigger bookings_log_status after update of status on public.bookings
   for each row execute function public.log_booking_status_change();
 
 -- ---------------------------------------------------------------------------
+-- 5. Availability (P2.2)
+-- ---------------------------------------------------------------------------
+-- Internals are not granted to any API role; available_slots() and
+-- create_booking() (security definer) call them as the owner.
+
+-- Every start on the given local dates (inclusive) that fits the service in
+-- an opening window: from each window's opening, every slot_step_min, while
+-- start + duration <= closing. Window bounds are built from the local date
+-- and time in the garage's time zone, so clock changes give the right UTC
+-- instants. Closures, notice and resources are applied by the callers.
+create function public.opening_window_starts(p_garage_id uuid, p_from date, p_to date, p_duration_min integer)
+returns table (local_date date, starts_at timestamptz)
+language sql
+stable
+set search_path = ''
+as $$
+  select day.local_date, slot.starts_at
+  from public.garages garage
+  cross join lateral (
+    select series::date as local_date
+    from generate_series(p_from::timestamp, p_to::timestamp, interval '1 day') series
+  ) day
+  join public.opening_hours hours
+    on hours.garage_id = garage.id
+   and hours.weekday = extract(isodow from day.local_date)
+  cross join lateral (
+    select
+      (day.local_date + hours.opens) at time zone garage.timezone as opens_at,
+      (day.local_date + hours.closes) at time zone garage.timezone as closes_at
+  ) bounds
+  cross join lateral generate_series(
+    bounds.opens_at,
+    bounds.closes_at - make_interval(mins => p_duration_min),
+    make_interval(mins => garage.slot_step_min)
+  ) slot(starts_at)
+  where garage.id = p_garage_id
+  order by slot.starts_at
+$$;
+
+-- The bookable shape of a service at a garage in a location mode, or
+-- SERVICE_UNAVAILABLE: the garage must be onboarding or active, the service
+-- live and online, MOT services need garages.mot_enabled, and the mode must
+-- be one the service offers. Without a mode, mobile-only services are mobile
+-- visits and everything else is a workshop visit. Mobile visits use mobile
+-- resources and garages.mobile_travel_min each way.
+create function public.booking_service_context(p_garage_id uuid, p_service_id uuid, p_location_mode text)
+returns table (
+  timezone text,
+  slot_step_min integer,
+  duration_min integer,
+  buffer_min integer,
+  min_notice_h integer,
+  max_days_ahead integer,
+  location_mode text,
+  resource_kind text,
+  travel_min integer,
+  needs_approval boolean,
+  approve_online boolean,
+  price_pence integer,
+  service_area text[]
+)
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if p_location_mode is not null and p_location_mode not in ('workshop', 'mobile') then
+    raise exception 'INVALID_BOOKING: location_mode must be workshop or mobile' using errcode = 'P0001';
+  end if;
+
+  return query
+  select
+    garage.timezone,
+    garage.slot_step_min,
+    service.duration_min,
+    service.buffer_min,
+    service.min_notice_h,
+    service.max_days_ahead,
+    visit.location_mode,
+    case when visit.location_mode = 'mobile' then 'mobile' else service.resource_kind end,
+    case when visit.location_mode = 'mobile' then garage.mobile_travel_min else 0 end,
+    service.needs_approval,
+    garage.approve_online,
+    service.price_pence,
+    garage.service_area
+  from public.garages garage
+  join public.services service
+    on service.garage_id = garage.id
+   and service.id = p_service_id
+  cross join lateral (
+    select coalesce(p_location_mode, case when service.location_mode = 'mobile' then 'mobile' else 'workshop' end) as location_mode
+  ) visit
+  where garage.id = p_garage_id
+    and garage.status in ('onboarding', 'active')
+    and service.deleted_at is null
+    and service.online_enabled
+    and (not service.is_mot or garage.mot_enabled)
+    and service.location_mode in ('both', visit.location_mode);
+
+  if not found then
+    raise exception 'SERVICE_UNAVAILABLE' using errcode = 'P0001';
+  end if;
+end
+$$;
+
+-- available_slots() with an explicit clock (p_now). Every candidate start on
+-- the local dates p_from..p_to (clamped to today .. now + max_days_ahead)
+-- outside closures and inside the notice window, with free_count = active
+-- resources of the kind with no live booking overlapping the would-be
+-- during. free_count = 0 rows are returned too.
+create function public.available_slots_at(
+  p_garage_id uuid,
+  p_service_id uuid,
+  p_from date,
+  p_to date,
+  p_location_mode text,
+  p_now timestamptz
+)
+returns table (starts_at timestamptz, ends_at timestamptz, free_count integer)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  context record;
+  travel interval;
+  duration interval;
+  block interval;
+  earliest timestamptz;
+  latest timestamptz;
+  first_day date;
+  last_day date;
+begin
+  if p_garage_id is null or p_service_id is null or p_from is null or p_to is null or p_now is null then
+    raise exception 'INVALID_BOOKING: garage, service, from and to are required' using errcode = 'P0001';
+  end if;
+  if p_to < p_from then
+    raise exception 'INVALID_BOOKING: from must not be after to' using errcode = 'P0001';
+  end if;
+
+  select * into context from public.booking_service_context(p_garage_id, p_service_id, p_location_mode);
+
+  travel := make_interval(mins => context.travel_min);
+  duration := make_interval(mins => context.duration_min);
+  block := duration + make_interval(mins => context.buffer_min) + travel;
+  earliest := p_now + make_interval(hours => context.min_notice_h);
+  latest := p_now + make_interval(hours => context.max_days_ahead * 24);
+  first_day := greatest(p_from, (p_now at time zone context.timezone)::date);
+  last_day := least(p_to, (latest at time zone context.timezone)::date);
+  if first_day > last_day then
+    return;
+  end if;
+
+  return query
+  with candidate as (
+    select window_start.starts_at as slot_start
+    from public.opening_window_starts(p_garage_id, first_day, last_day, context.duration_min) window_start
+    where window_start.starts_at >= earliest
+      and window_start.starts_at <= latest
+      and not exists (
+        select 1
+        from public.closures closure
+        where closure.garage_id = p_garage_id
+          and window_start.local_date between closure.starts_on and closure.ends_on
+      )
+  ),
+  pool as (
+    select resource.id as resource_id
+    from public.resources resource
+    where resource.garage_id = p_garage_id
+      and resource.active
+      and resource.kind = context.resource_kind
+  )
+  select
+    candidate.slot_start,
+    candidate.slot_start + duration,
+    (
+      select count(*)::integer
+      from pool
+      where not exists (
+        select 1
+        from public.bookings booking
+        where booking.garage_id = p_garage_id
+          and booking.resource_id = pool.resource_id
+          and booking.status not in ('cancelled', 'no_show')
+          and booking.during && tstzrange(candidate.slot_start - travel, candidate.slot_start + block, '[)')
+      )
+    )
+  from candidate
+  order by candidate.slot_start;
+end
+$$;
+
+-- Contract (ARCHITECTURE.md): local dates in the garage's time zone,
+-- inclusive; every candidate start, free_count = 0 meaning taken. Raises
+-- SERVICE_UNAVAILABLE / INVALID_BOOKING (errcode P0001) like create_booking.
+create function public.available_slots(
+  p_garage_id uuid,
+  p_service_id uuid,
+  p_from date,
+  p_to date,
+  p_location_mode text default null
+)
+returns table (starts_at timestamptz, ends_at timestamptz, free_count integer)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select slot.starts_at, slot.ends_at, slot.free_count
+  from public.available_slots_at(p_garage_id, p_service_id, p_from, p_to, p_location_mode, now()) slot
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 7. Garage defaults (sign-up, P4.4)
 -- ---------------------------------------------------------------------------
 -- Opening hours (Mon-Fri 08:00-17:30, Sat 08:30-13:00), 3 bays and a mobile
@@ -1510,10 +1727,15 @@ grant select on public.booking_events to authenticated;
 grant insert (garage_id, booking_id, type, actor, actor_id, data) on public.booking_events to authenticated;
 grant select, insert, delete on public.booking_events to service_role;
 
+revoke all on function public.available_slots(uuid, uuid, date, date, text) from public, anon, authenticated;
 revoke all on function public.seed_garage_defaults(uuid) from public, anon, authenticated;
+grant execute on function public.available_slots(uuid, uuid, date, date, text) to service_role;
 grant execute on function public.seed_garage_defaults(uuid) to service_role;
 
 -- Internals and trigger functions: owner only.
+revoke all on function public.available_slots_at(uuid, uuid, date, date, text, timestamptz) from public, anon, authenticated, service_role;
+revoke all on function public.opening_window_starts(uuid, date, date, integer) from public, anon, authenticated, service_role;
+revoke all on function public.booking_service_context(uuid, uuid, text) from public, anon, authenticated, service_role;
 revoke all on function public.maintain_booking_cancellation() from public, anon, authenticated, service_role;
 revoke all on function public.log_booking_status_change() from public, anon, authenticated, service_role;
 
