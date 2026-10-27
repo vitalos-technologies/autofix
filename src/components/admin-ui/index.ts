@@ -17,14 +17,17 @@ export { Badge, badgeTones, CHANNEL_LABELS, ChannelBadge, CountBadge, type Badge
 export { CopyButton, type CopyButtonProps } from "./copy-button";
 export { DataTable, type DataTableColumn, type DataTableProps } from "./data-table";
 export {
+  DIARY_BLOCK_TONES,
   DIARY_MIN_WIDTH,
   DiaryGrid,
   diaryBookingLabel,
   diaryPlacement,
+  diaryTone,
   type DiaryBooking,
   type DiaryGridProps,
   type DiaryPlacement,
   type DiaryResource,
+  type DiaryTone,
 } from "./diary-grid";
 export { DnsRecordTable, type DnsRecord, type DnsRecordTableProps } from "./dns-record-table";
 export {

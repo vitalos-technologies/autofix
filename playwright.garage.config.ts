@@ -9,6 +9,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
 //                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
+//   pnpm test:e2e:admin    admin.spec.ts    garage admin on the admin host (P3.1-P3.3): sign-in with TOTP, Today,
+//                          accept, status + notes, search, staff booking, diary, garage switch; 1440 and 390x844
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
@@ -21,7 +23,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts"],
+  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts", "admin.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -72,6 +74,17 @@ export default defineConfig({
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
     },
     // The manage spec also checks 1440 for horizontal scroll.
+    // The admin at desktop width (sidebar) and on a phone (tab bar), on the admin host.
+    {
+      name: "admin-chromium",
+      testMatch: "admin.spec.ts",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, baseURL: adminOrigin },
+    },
+    {
+      name: "admin-390",
+      testMatch: "admin.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: adminOrigin },
+    },
     {
       name: "manage-mobile",
       testMatch: "manage.spec.ts",

@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getBookingEngine } from "@/lib/booking-engine";
-import { cancelBooking, findBookingForManage, rescheduleBooking } from "@/lib/booking-engine/manage";
+import { findBookingForManage, rescheduleBooking } from "@/lib/booking-engine/manage";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
 
-// Staff booking actions. The garage is the signed-in member's selected garage
-// (getAdminContext), never a value from the form; booking ids from another
-// garage are simply "not found".
+// Staff booking actions that need the booking engine (moving a booking, its
+// free times) or a service-only RPC (the email thread). Status changes and
+// notes are in status-actions.ts (RLS client). The garage is the signed-in
+// member's selected garage (getAdminContext), never a value from the form;
+// booking ids from another garage are simply "not found".
 
 const uuidSchema = z.string().uuid();
 
@@ -111,24 +113,6 @@ export async function rescheduleAdminBookingAction(
     return { success: true, message: "The booking has been moved and the customer will be told." };
   } catch {
     return { success: false, message: "The booking could not be rescheduled. Reload the available times and try again." };
-  }
-}
-
-export async function cancelAdminBookingAction(bookingId: string): Promise<SafeActionResult> {
-  const admin = await getVerifiedAdmin();
-  if (!admin) return { success: false, message: "Your admin session has expired. Refresh and sign in again." };
-
-  const parsed = uuidSchema.safeParse(bookingId);
-  if (!parsed.success) return { success: false, message: "This booking could not be found." };
-
-  try {
-    const result = await cancelBooking({ garageId: admin.garage.id, bookingId: parsed.data, actor: "staff", actorId: admin.user.id });
-    if (!result.ok && result.code === "NOT_FOUND") return { success: false, message: "This booking could not be found." };
-    if (!result.ok) return { success: false, message: "This booking can no longer be cancelled." };
-    revalidateBookingPaths(parsed.data);
-    return { success: true, message: "The booking has been cancelled and the customer will be told." };
-  } catch {
-    return { success: false, message: "The booking could not be cancelled. Please try again." };
   }
 }
 

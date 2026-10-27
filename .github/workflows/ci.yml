@@ -170,6 +170,8 @@ jobs:
         run: pnpm test:e2e:booking
       - name: Manage booking on the seeded garage host (390px)
         run: pnpm test:e2e:manage
+      - name: Garage admin on the admin host (TOTP sign-in, Today, bookings, diary, garage switch; 1440 and 390px)
+        run: pnpm test:e2e:admin
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports

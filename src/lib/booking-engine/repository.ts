@@ -142,7 +142,8 @@ export function createBookingPayload(input: CreateBookingInput, normalised: { ph
       email: input.customer.email ?? null,
       channel: input.customer.channel,
       reminder_consent: input.customer.reminderConsent,
-      consent_source: input.customer.reminderConsent ? "booking" : null,
+      // Consent taken by staff (phone, walk-in) is recorded as such (PECR record).
+      consent_source: input.customer.reminderConsent ? (STAFF_SOURCES.has(input.source) ? "staff" : "booking") : null,
       consent_text: input.customer.reminderConsent ? (input.customer.consentText ?? null) : null,
     },
     vehicle: {

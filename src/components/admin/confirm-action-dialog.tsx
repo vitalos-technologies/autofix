@@ -64,7 +64,7 @@ export function ConfirmActionDialog({ open, pending = false, title = "Confirm ac
     <section ref={dialog} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId} className="w-full max-w-md rounded-3xl border border-white/20 bg-white p-6 shadow-2xl sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${danger ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>{danger ? <Trash2 size={23} aria-hidden="true" /> : <AlertTriangle size={23} aria-hidden="true" />}</span>
-        <button ref={cancelButton} type="button" disabled={pending} onClick={onCancel} aria-label="Close confirmation" className="grid size-10 place-items-center rounded-xl border border-[#D7E0E9] text-[#586575] transition hover:border-[#1974E2] hover:text-[#1974E2] disabled:opacity-50"><X size={18} aria-hidden="true" /></button>
+        <button ref={cancelButton} type="button" disabled={pending} onClick={onCancel} aria-label="Close confirmation" className="grid size-10 place-items-center rounded-xl border border-[#D7E0E9] text-[#586575] transition hover:border-[#1974E2] hover:text-accent disabled:opacity-50"><X size={18} aria-hidden="true" /></button>
       </div>
       <h2 id={titleId} className="mt-5 text-2xl font-extrabold text-[#071127]">{title}</h2>
       <p id={messageId} className="mt-3 text-sm leading-6 text-[#586575]">{message}</p>

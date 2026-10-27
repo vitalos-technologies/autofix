@@ -35,5 +35,5 @@ export function OpeningHoursEditor({ initialHours }: { initialHours: Record<stri
 }
 
 function TimeSelect({ label, name, value, onChange }: { label: string; name?: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-bold text-[#667586]">{label}<select aria-label={name ? `${name} time` : `All days ${label.toLowerCase()} time`} name={name} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full"><option value="">Not set</option>{openingTimeOptions.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>;
+  return <label className="text-xs font-bold text-grey-600">{label}<select aria-label={name ? `${name} time` : `All days ${label.toLowerCase()} time`} name={name} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full"><option value="">Not set</option>{openingTimeOptions.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>;
 }

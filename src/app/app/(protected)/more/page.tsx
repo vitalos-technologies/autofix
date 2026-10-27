@@ -31,7 +31,7 @@ export default async function MorePage() {
     <div className="flex flex-col gap-[18px]">
       <PageHeader title="More" />
       <section aria-labelledby="more-garage" className="flex flex-col gap-2">
-        <h2 id="more-garage" className="m-0 px-2.5 text-[11px] font-bold tracking-[0.1em] text-grey-600 uppercase">
+        <h2 id="more-garage" className="m-0 px-2.5 font-sans text-[11px] font-bold tracking-[0.1em] text-grey-600 uppercase">
           Garage
         </h2>
         <GarageSwitcher garages={garages} currentGarageId={admin.garage.id} switchGarageAction={switchGarage} tone="light" />
@@ -45,7 +45,7 @@ export default async function MorePage() {
         <AdminNavGroups groups={defaultAdminNav({ newBookings: requests, newBookingsLabel: `${requests} waiting for your OK` })} tone="light" />
       </nav>
       <section aria-labelledby="more-account" className="flex flex-col gap-0.5">
-        <h2 id="more-account" className="m-0 px-2.5 pb-1.5 text-[11px] font-bold tracking-[0.1em] text-grey-600 uppercase">
+        <h2 id="more-account" className="m-0 px-2.5 font-sans pb-1.5 text-[11px] font-bold tracking-[0.1em] text-grey-600 uppercase">
           Account
         </h2>
         <p className="m-0 px-2.5 pb-2 text-[14px] text-grey-700">

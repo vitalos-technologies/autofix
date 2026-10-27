@@ -53,10 +53,10 @@ const LABEL_COLUMN = 92;
 /** Under this width the grid scrolls sideways inside its own box. */
 export const DIARY_MIN_WIDTH = 820;
 
-type DiaryTone = "booked" | "in_progress" | "waiting_parts" | "ready" | "requested" | "collected";
+export type DiaryTone = "booked" | "in_progress" | "waiting_parts" | "ready" | "requested" | "collected";
 
 /** Block colours (design/screens/Admin-Dashboard.dc.html). Each text colour passes 4.5:1 on its fill. */
-const BLOCK_TONES: Record<DiaryTone, { block: string; title: string; sub: string; legend: string; label: string }> = {
+export const DIARY_BLOCK_TONES: Record<DiaryTone, { block: string; title: string; sub: string; legend: string; label: string }> = {
   booked: { block: "bg-[#dbe8fb]", title: "text-[#0d2a52]", sub: "text-[#2c4a73]", legend: "bg-[#dbe8fb]", label: "Booked" },
   in_progress: { block: "bg-[#155fba]", title: "text-white", sub: "text-[#d6e6fb]", legend: "bg-[#155fba]", label: "In progress" },
   waiting_parts: { block: "bg-[#fde7b0]", title: "text-[#5a3a00]", sub: "text-[#6e4a06]", legend: "bg-[#fde7b0]", label: "Waiting parts" },
@@ -73,7 +73,8 @@ const BLOCK_TONES: Record<DiaryTone, { block: string; title: string; sub: string
 
 const LEGEND_ALWAYS: DiaryTone[] = ["booked", "in_progress", "waiting_parts", "ready"];
 
-function toneFor(status: BookingStatus): DiaryTone | null {
+/** Diary colour of a booking status; `null` for cancelled and no-show (they no longer hold the bay). */
+export function diaryTone(status: BookingStatus): DiaryTone | null {
   switch (status) {
     case "confirmed":
     case "arrived":
@@ -189,7 +190,7 @@ export function DiaryGrid({
   const known = new Set(resources.map((resource) => resource.id));
   const placed = bookings
     .map((booking) => {
-      const tone = toneFor(booking.status);
+      const tone = diaryTone(booking.status);
       const placement = tone ? diaryPlacement(booking.startsAt, booking.endsAt, { date, timeZone, startHour, endHour }) : null;
       return tone && placement ? { booking, tone, placement, row: booking.resourceId && known.has(booking.resourceId) ? booking.resourceId : UNASSIGNED } : null;
     })
@@ -221,8 +222,8 @@ export function DiaryGrid({
           <ul aria-label="Colour key" className="m-0 ml-auto flex list-none flex-wrap gap-3.5 p-0 text-[12px] text-grey-700">
             {legend.map((tone) => (
               <li key={tone} className="flex items-center gap-1.5">
-                <span aria-hidden="true" className={cn("size-2.5 rounded-[3px]", BLOCK_TONES[tone].legend)} />
-                {BLOCK_TONES[tone].label}
+                <span aria-hidden="true" className={cn("size-2.5 rounded-[3px]", DIARY_BLOCK_TONES[tone].legend)} />
+                {DIARY_BLOCK_TONES[tone].label}
               </li>
             ))}
           </ul>
@@ -236,7 +237,7 @@ export function DiaryGrid({
           role="region"
           aria-label={`${typeof heading === "string" ? heading : "Diary"}, by bay`}
           tabIndex={0}
-          className={cn("overflow-x-auto rounded-[8px]", focusRing)}
+          className={cn("relative overflow-x-auto rounded-[8px]", focusRing)}
         >
           <div className="relative" style={{ minWidth: DIARY_MIN_WIDTH }}>
             {/* Now line first, so the bookings paint over it (as drawn) and their text stays readable. */}
@@ -287,7 +288,7 @@ export function DiaryGrid({
                     </div>
                     <ul className="relative m-0 grow list-none p-0">
                       {items.map(({ booking, tone, placement }) => {
-                        const colours = BLOCK_TONES[tone];
+                        const colours = DIARY_BLOCK_TONES[tone];
                         const sub = [formatRegistrationDisplay(booking.registration), booking.vehicle ?? booking.customerName].filter(Boolean).join(" · ");
                         return (
                           <li

@@ -166,7 +166,8 @@ async function matchingIds(client: SupabaseClient, search: string) {
   return {
     customers: [...new Set([...ids(customersByName.data), ...ids(customersByPhone.data)])],
     vehicles: ids(vehicles.data),
-    reference: /^[A-Z0-9-]{3,20}$/.test(search.toUpperCase().replace(/\s+/g, "")) ? search.toUpperCase().replace(/\s+/g, "") : null,
+    // A whole or partial reference: `HRM-1234`, `HRM-12`, or just its digits.
+    reference: /^(?:[A-Z]{2,4}-\d{1,6}|\d{3,6})$/.test(search.toUpperCase().replace(/\s+/g, "")) ? search.toUpperCase().replace(/\s+/g, "") : null,
   };
 }
 

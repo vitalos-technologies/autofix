@@ -7,10 +7,10 @@ export function AdminListFilters({ action, query, status, statusOptions, placeho
   return (
     <form action={action} method="get" className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#E4EAF0] bg-white p-4 sm:flex-row sm:items-end">
       {Object.entries(additionalParams).map(([name, value]) => value && <input key={name} type="hidden" name={name} value={value} />)}
-      <label className="min-w-0 flex-1 text-xs font-extrabold tracking-wide text-[#667586] uppercase">Search
+      <label className="min-w-0 flex-1 text-xs font-extrabold tracking-wide text-grey-600 uppercase">Search
         <input name="q" defaultValue={query} placeholder={placeholder} className="mt-2 block min-h-11 w-full rounded-xl border border-[#D7E0E9] px-4 text-sm font-medium text-[#071127] outline-none focus:border-[#1974E2] focus:ring-4 focus:ring-[#1974E2]/10" />
       </label>
-      <label className="text-xs font-extrabold tracking-wide text-[#667586] uppercase sm:w-52">Status
+      <label className="text-xs font-extrabold tracking-wide text-grey-600 uppercase sm:w-52">Status
         <select name="status" defaultValue={status} className="mt-2 block min-h-11 w-full rounded-xl border border-[#D7E0E9] bg-white px-4 text-sm font-bold text-[#071127] outline-none focus:border-[#1974E2] focus:ring-4 focus:ring-[#1974E2]/10">
           <option value="">All statuses</option>
           {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -30,7 +30,7 @@ export function AdminPagination({ path, page, pageSize, totalItems, totalPages, 
   const end = total < BigInt(page * pageSize) ? total : BigInt(page * pageSize);
   return (
     <nav aria-label="List pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E4EAF0] bg-white px-4 py-3">
-      <p className="text-sm font-semibold text-[#667586]">Showing {start.toString()}–{end.toString()} of {total.toString()}</p>
+      <p className="text-sm font-semibold text-grey-600">Showing {start.toString()}–{end.toString()} of {total.toString()}</p>
       <div className="flex items-center gap-2">
         <PageLink disabled={page <= 1} href={pageHref(path, page - 1, query, status, additionalParams)}><ChevronLeft aria-hidden="true" size={16} /> Previous</PageLink>
         <span className="px-2 text-sm font-extrabold text-[#071127]">Page {page} of {pages}</span>
