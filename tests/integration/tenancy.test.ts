@@ -486,7 +486,8 @@ const FIXTURES: Record<string, Fixture> = {
       provider_msg_id: `SMtenancy${rows.key}${localRunId}`,
       status: "sent",
     }),
-    patch: { body: "Tampered" },
+    // Staff may only mark inbound messages read (20261028003000_messages_inbox.sql), and only their garage's.
+    patch: { read_at: "2096-04-01T00:00:00.000Z" },
   },
   media_assets: {
     create: (rows) => rows.insert("media_assets", { object_path: `${rows.garage.id}/media/probe-${localRunId}.png`, alt_text: `Probe ${rows.key}` }),

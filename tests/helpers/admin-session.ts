@@ -356,10 +356,10 @@ export async function deleteServices(ids: readonly string[]) {
 // ---------------------------------------------------------------------------
 
 /** Everything a fixture below made, for `deleteReminderFixtures`. */
-export type ReminderCleanup = { customers: string[]; vehicles: string[]; calls: string[]; messages: string[] };
+export type ReminderCleanup = { customers: string[]; vehicles: string[]; calls: string[]; messages: string[]; numbers: string[] };
 
 export function emptyCleanup(): ReminderCleanup {
-  return { customers: [], vehicles: [], calls: [], messages: [] };
+  return { customers: [], vehicles: [], calls: [], messages: [], numbers: [] };
 }
 
 /** A customer on a fresh drama number (07700 900500–900998), retrying when the number is taken. */
@@ -460,8 +460,98 @@ export async function deleteReminderFixtures(cleanup: ReminderCleanup) {
   const service = serviceClient();
   if (cleanup.calls.length) await service.from("calls").delete().in("id", cleanup.calls);
   if (cleanup.messages.length) await service.from("messages").delete().in("id", cleanup.messages);
+  // Messages the spec's actions wrote (replies) go with their customers.
+  if (cleanup.customers.length) await service.from("messages").delete().in("customer_id", cleanup.customers);
+  if (cleanup.numbers.length) await service.from("garage_phone_numbers").delete().in("id", cleanup.numbers);
   if (cleanup.vehicles.length) await service.from("vehicles").delete().in("id", cleanup.vehicles);
   if (cleanup.customers.length) await service.from("customers").delete().in("id", cleanup.customers);
+}
+
+export type ConversationFixture = { customerId: string; name: string; phone: string; registration: string };
+
+/**
+ * Messages & calls fixtures at `garage`: a provisioned messaging number (A55), a customer with a
+ * delivered MOT reminder two days ago and an unread question an hour ago, and a customer who
+ * replied STOP (opted out).
+ */
+export async function createConversations(garage: SeededGarage, cleanup: ReminderCleanup): Promise<{ open: ConversationFixture; optedOut: ConversationFixture }> {
+  const service = serviceClient();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const number = `+447700900${randomInt(500, 999)}`;
+    const { data, error } = await service
+      .from("garage_phone_numbers")
+      .insert({ garage_id: garage.id, number, purpose: "messaging", provider_sid: `PNe2e${randomUUID().replace(/-/g, "").slice(0, 24)}` })
+      .select("id")
+      .single();
+    if (!error && data) {
+      cleanup.numbers.push(data.id as string);
+      break;
+    }
+    if (error?.code !== "23505") throw new Error(`Could not add a messaging number: ${error?.message}`);
+  }
+  const { data: rule } = await service.from("reminder_rules").select("id").eq("garage_id", garage.id).eq("kind", "mot").single();
+  const hours = (count: number) => new Date(Date.now() - count * 3_600_000).toISOString();
+
+  const make = async (name: string): Promise<ConversationFixture> => {
+    const customer = await insertCustomer(garage.id, name, true);
+    cleanup.customers.push(customer.id);
+    const registration = randomRegistration();
+    const { data: vehicle, error } = await service
+      .from("vehicles")
+      .insert({ garage_id: garage.id, customer_id: customer.id, registration, make: "Ford", model: "Fiesta", mot_expiry: londonDate(26) })
+      .select("id")
+      .single();
+    if (error || !vehicle) throw new Error(`Could not add a car for ${name}: ${error?.message}`);
+    cleanup.vehicles.push(vehicle.id);
+    const sentAt = hours(48);
+    const { data: send, error: sendError } = await service
+      .from("reminder_sends")
+      .insert({ garage_id: garage.id, rule_id: rule?.id ?? null, vehicle_id: vehicle.id, customer_id: customer.id, kind: "mot", due_date: londonDate(26), offset_days: 28, send_at: sentAt, channel: "sms", status: "delivered", claimed_at: sentAt, sent_at: sentAt })
+      .select("id")
+      .single();
+    if (sendError || !send) throw new Error(`Could not add a reminder send: ${sendError?.message}`);
+    const reminder = await service
+      .from("messages")
+      .insert({ garage_id: garage.id, customer_id: customer.id, reminder_send_id: send.id, channel: "sms", direction: "outbound", to_address: customer.phone, body: `Hi ${name.split(" ")[0]}, the MOT on your Ford Fiesta is due soon. Book a time: https://example.test/r/x`, provider: "mock", status: "delivered", created_at: sentAt })
+      .select("id")
+      .single();
+    if (reminder.error || !reminder.data) throw new Error(`Could not add the reminder message: ${reminder.error?.message}`);
+    cleanup.messages.push(reminder.data.id as string);
+    return { customerId: customer.id, name, phone: customer.phone, registration };
+  };
+
+  const open = await make("Rae Messagetest");
+  const question = await service
+    .from("messages")
+    .insert({ garage_id: garage.id, customer_id: open.customerId, channel: "sms", direction: "inbound", from_address: open.phone, to_address: "+441302000000", body: "Can I bring it in Thursday morning?", provider: "twilio", status: "received", created_at: hours(1) })
+    .select("id")
+    .single();
+  if (question.error || !question.data) throw new Error(`Could not add the question: ${question.error?.message}`);
+  cleanup.messages.push(question.data.id as string);
+
+  const optedOut = await make("Otto Optouttest");
+  const stop = await service
+    .from("messages")
+    .insert({ garage_id: garage.id, customer_id: optedOut.customerId, channel: "sms", direction: "inbound", from_address: optedOut.phone, to_address: "+441302000000", body: "STOP", provider: "twilio", status: "received", created_at: hours(2) })
+    .select("id")
+    .single();
+  if (stop.error || !stop.data) throw new Error(`Could not add the STOP: ${stop.error?.message}`);
+  cleanup.messages.push(stop.data.id as string);
+  const opted = await service.from("customers").update({ opted_out_at: hours(2) }).eq("id", optedOut.customerId);
+  if (opted.error) throw new Error(`Could not opt the customer out: ${opted.error.message}`);
+  return { open, optedOut };
+}
+
+/** An answered call (no voicemail, no text-back) from `customerPhone`. */
+export async function createAnsweredCall(garage: SeededGarage, fromNumber: string, cleanup: ReminderCleanup): Promise<string> {
+  const { data, error } = await serviceClient()
+    .from("calls")
+    .insert({ garage_id: garage.id, provider_call_sid: `CA${randomUUID().replace(/-/g, "")}`, from_number: fromNumber, to_number: "+441302000000", status: "completed", missed: false, duration_s: 125, created_at: new Date(Date.now() - 30 * 60_000).toISOString() })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Could not add an answered call: ${error?.message}`);
+  cleanup.calls.push(data.id as string);
+  return data.id as string;
 }
 
 type RuleSnapshot = { kind: string; enabled: boolean; offset_days: number[]; channel: string; template: string };
