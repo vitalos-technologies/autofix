@@ -36,6 +36,7 @@ vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => harness.admin
 vi.mock("@/lib/env", () => ({
   getEnvironmentReadiness: () => ({ ready: true, missing: [] }),
   getBookingEnvironmentReadiness: () => ({ ready: true, missing: [] }),
+  getAskbridgeEnvironmentReadiness: () => ({ ready: false, missing: ["ASKBRIDGE_SYNC_URL"] }),
 }));
 
 import { GET as healthRoute } from "@/app/api/health/route";
@@ -181,13 +182,18 @@ describe("admin pages stay on the garage's RLS client", () => {
       .sort();
     // Security settings manage MFA factors and trusted devices (auth schema);
     // bookings/actions.ts calls the service-only create_booking_enquiry_thread
-    // RPC with the context garage's p_garage_id.
+    // RPC with the context garage's p_garage_id; settings/booking-page/actions.ts hands it to
+    // src/lib/booking-page/domains-server.ts, which writes garage_domains.verification/status (no staff
+    // grant) filtered by the context garage's id, after the RLS client added or retired the row.
     expect(serviceRoleFiles).toEqual([
       "src/app/app/(protected)/bookings/actions.ts",
       "src/app/app/(protected)/configuration/security/actions.ts",
       "src/app/app/(protected)/configuration/security/page.tsx",
+      "src/app/app/(protected)/settings/booking-page/actions.ts",
     ]);
     expect(readFileSync(join(root, "src/app/app/(protected)/bookings/actions.ts"), "utf8")).toContain("p_garage_id: admin.garage.id");
+    const bookingPage = readFileSync(join(root, "src/app/app/(protected)/settings/booking-page/actions.ts"), "utf8");
+    expect(bookingPage.match(/Domain\(admin\.garage\.id|DomainNow\(admin\.garage\.id/g)?.length).toBe(4);
   });
 
   it("never reads a garage id from a form, query string or request body", () => {

@@ -4,6 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isGarageAdminPath } from "@/config/admin";
 import { requiresMfaChallenge } from "@/lib/auth/mfa";
 import { isMandatoryAdminMfaEnabled } from "@/lib/auth/mfa-policy";
+import { askbridgeScriptUrl } from "@/lib/askbridge/config";
+import { ADMIN_SECURITY_HEADERS, bookingSiteHeaders } from "@/lib/booking-page/security-headers";
 import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
 import { classifyHost } from "@/lib/tenancy/hosts";
 import { REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
@@ -61,19 +63,40 @@ function routeGarageSite(request: NextRequest, garage: HostGarage) {
   return response;
 }
 
+/**
+ * Framing and CSP per host: a garage's booking pages may be framed by the sites it allowed (and load
+ * the Askbridge widget when it is on); everything else is same-origin only. `next.config.ts` sets the
+ * headers that are the same on every host.
+ */
+function withSecurityHeaders(response: NextResponse, garage: HostGarage | null) {
+  const headers = garage
+    ? bookingSiteHeaders({
+      embedOrigins: garage.embedOrigins ?? [],
+      widgetOrigin: garage.widgetEnabled ? (askbridgeScriptUrl()?.origin ?? null) : null,
+      dev: process.env.NODE_ENV === "development",
+    })
+    : ADMIN_SECURITY_HEADERS;
+  for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);
+  if (garage) response.headers.delete("X-Frame-Options");
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
   const host = requestHost(request);
   const param = devGarageParam(request);
   let resolution;
   try {
     resolution = await resolveHost(host, { devGarageParam: param });
   } catch {
-    return new NextResponse("Service temporarily unavailable", { status: 503, headers: { "retry-after": "30" } });
+    return withSecurityHeaders(new NextResponse("Service temporarily unavailable", { status: 503, headers: { "retry-after": "30" } }), null);
   }
 
-  if (resolution.kind === "unknown") return notFound();
-  if (resolution.kind === "garage") return routeGarageSite(request, resolution.garage);
+  if (resolution.kind === "garage") return withSecurityHeaders(routeGarageSite(request, resolution.garage), resolution.garage);
+  return withSecurityHeaders(resolution.kind === "unknown" ? notFound() : await adminHost(request, param), null);
+}
+
+async function adminHost(request: NextRequest, param: string | null) {
+  const { pathname } = request.nextUrl;
 
   // Admin host from here on.
   if (hasPrefix(pathname, SITE_PREFIX)) return notFound();
@@ -85,7 +108,7 @@ export async function proxy(request: NextRequest) {
     response.cookies.delete(DEV_GARAGE_COOKIE);
     return response;
   }
-  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth") || hasPrefix(pathname, "/admin") || hasPrefix(pathname, "/api/platform")) {
+  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth") || hasPrefix(pathname, "/admin") || hasPrefix(pathname, "/api/platform") || hasPrefix(pathname, "/signup")) {
     return adminSession(request);
   }
   return NextResponse.next({ request });
@@ -133,7 +156,9 @@ async function adminSession(request: NextRequest) {
       response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
       return redirectResponse;
     }
-    if (assurance?.currentLevel === "aal1" && assurance.nextLevel === "aal1" && await isMandatoryAdminMfaEnabled(trustedClient)) {
+    // Onboarding (P4.4) runs its own, stricter rule: every step after Security needs MFA verified, and
+    // the Security step sends the owner to /app/mfa/enroll and back.
+    if (assurance?.currentLevel === "aal1" && assurance.nextLevel === "aal1" && !hasPrefix(pathname, "/app/onboarding") && await isMandatoryAdminMfaEnabled(trustedClient)) {
       const enrollmentUrl = request.nextUrl.clone();
       enrollmentUrl.pathname = "/app/mfa/enroll";
       enrollmentUrl.search = "";

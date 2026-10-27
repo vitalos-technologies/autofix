@@ -16,7 +16,7 @@ import {
   type AgentTool,
   type AgentVehicle,
 } from "@/lib/agent-api/schemas";
-import { getAgentApiStore, type AgentTokenRecord } from "@/lib/agent-api/store";
+import { getAgentApiStore, type AgentGarageRecord, type AgentTokenRecord } from "@/lib/agent-api/store";
 import { AgentTokenConfigError, agentTokenHashesMatch, bearerToken, hashAgentToken, tokenAllows } from "@/lib/agent-api/tokens";
 import { getBookingEngine } from "@/lib/booking-engine";
 import { BookingEngineError } from "@/lib/booking-engine/errors";
@@ -139,6 +139,37 @@ export function agentService(service: OnlineService): AgentService {
   };
 }
 
+/** The `garage_profile` response for a garage record. Shared with the Askbridge knowledge sync (P4.6). */
+export function agentGarageProfile(garage: AgentGarageRecord): AgentGarageProfile {
+  return {
+    garage: {
+      name: garage.name,
+      phone: garage.phone,
+      whatsapp: garage.whatsapp,
+      email: garage.email,
+      address: {
+        line1: garage.address.line1 ?? null,
+        line2: garage.address.line2 ?? null,
+        town: garage.address.town ?? null,
+        postcode: garage.address.postcode ?? null,
+      },
+      timezone: garage.timezone,
+      bookingUrl: garageUrl({ slug: garage.slug, customDomain: garage.customDomain }, "/"),
+      motEnabled: garage.motEnabled,
+    },
+    openingHours: garage.openingHours.map((entry) => ({ ...entry, day: DAYS[entry.weekday - 1] ?? "" })),
+    closures: garage.closures,
+    policies: {
+      cancellationCutoffHours: garage.cancellationCutoffH,
+      agentBookingsNeedConfirmation: true,
+      onlineBookingsNeedApproval: garage.approveOnline,
+      mobileServiceArea: garage.serviceArea,
+      humanCallbackAvailable: true,
+    },
+    faqs: garage.faqs,
+  };
+}
+
 const slot = (value: Slot): AgentSlot => ({ startsAt: value.startsAt, endsAt: value.endsAt });
 
 function localDate(at: Date, timeZone: string) {
@@ -232,34 +263,7 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
   async garage_profile(_input, { garageId, token, now }) {
     const garage = await getAgentApiStore().garageProfile(garageId, localDate(now, token.garage.timezone));
     if (!garage) return fail("GARAGE_INACTIVE");
-    const profile: AgentGarageProfile = {
-      garage: {
-        name: garage.name,
-        phone: garage.phone,
-        whatsapp: garage.whatsapp,
-        email: garage.email,
-        address: {
-          line1: garage.address.line1 ?? null,
-          line2: garage.address.line2 ?? null,
-          town: garage.address.town ?? null,
-          postcode: garage.address.postcode ?? null,
-        },
-        timezone: garage.timezone,
-        bookingUrl: garageUrl({ slug: garage.slug, customDomain: garage.customDomain }, "/"),
-        motEnabled: garage.motEnabled,
-      },
-      openingHours: garage.openingHours.map((entry) => ({ ...entry, day: DAYS[entry.weekday - 1] ?? "" })),
-      closures: garage.closures,
-      policies: {
-        cancellationCutoffHours: garage.cancellationCutoffH,
-        agentBookingsNeedConfirmation: true,
-        onlineBookingsNeedApproval: garage.approveOnline,
-        mobileServiceArea: garage.serviceArea,
-        humanCallbackAvailable: true,
-      },
-      faqs: garage.faqs,
-    };
-    return ok(profile);
+    return ok(agentGarageProfile(garage));
   },
 };
 

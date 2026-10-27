@@ -14,11 +14,13 @@ export function isSupabaseConfigured() {
  * this to send the selected garage as `x-garage-id` (see `createGarageClient`).
  */
 export async function createClient(options: { headers?: Record<string, string> } = {}) {
+  // Read the cookies first, even without Supabase env: it makes every caller render per request, so a
+  // build without env (CI's verify job, a preview) never prerenders a signed-in page as signed out.
+  const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
 
-  const cookieStore = await cookies();
   return createServerClient(url, key, {
     cookieOptions: { sameSite: "lax", secure: process.env.NODE_ENV === "production" },
     ...(options.headers ? { global: { headers: options.headers } } : {}),

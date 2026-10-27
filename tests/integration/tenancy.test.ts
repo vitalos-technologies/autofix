@@ -441,6 +441,17 @@ const FIXTURES: Record<string, Fixture> = {
     },
     patch: { deleted_at: "2096-04-01T00:00:00.000Z" },
   },
+  // Written only by the invite functions; staff have no update grant, so the probe is refused.
+  garage_invites: {
+    create: (rows) => rows.insert("garage_invites", {
+      email: `tenancy-invite-${rows.key.toLowerCase()}-${localRunId}@example.test`,
+      role: "technician",
+      token_hash: createHash("sha256").update(`tenancy-invite:${rows.garage.id}:${localRunId}`).digest("hex"),
+      invited_by: rows.ownerId,
+      expires_at: "2096-04-01T00:00:00.000Z",
+    }),
+    patch: { role: "manager" },
+  },
   // Rows come from provisioning (owner, manager, technician, shared manager).
   garage_members: { create: async () => undefined, patch: { role: "manager" } },
   garage_phone_numbers: {

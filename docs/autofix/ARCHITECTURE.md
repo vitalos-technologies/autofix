@@ -309,3 +309,84 @@ App:
 
 `/admin` has its own layout (navy platform bar, no garage shell) and shows the banner while the admin has an open session. **The garage admin layout must mount the banner**: in `src/app/app/(protected)/layout.tsx`, render `{admin.impersonation ? <ImpersonationBanner impersonation={admin.impersonation} /> : null}` above the shell content (lead / UI lane). `/app/login` sends platform admins with no garage to `/admin`.
 
+
+## Booking page, domains and Askbridge (P4.3, P4.6), as built
+
+Migration `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140–A153). pgTAP `022_domains_askbridge.test.sql`.
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `set_booking_page_settings(p_embed_origins jsonb default null, p_askbridge jsonb default null) → jsonb` | authenticated, **owner** of the selected garage (else `42501`) | Atomic merge into `garages.settings`: `embedOrigins` (≤ 10 `https://host[:port]`) and/or `askbridge` `{enabled bool, widgetId ^[A-Za-z0-9_-]{4,64}$}` (`enabled` needs an id); null leaves a key alone; `22023` on bad input. Returns `{embedOrigins, askbridge}` |
+| `enqueue_askbridge_sync(p_garage_id uuid)` | service role, triggers | One `askbridge.sync` job (`{garageId}`) per garage per UTC minute, run the minute after, only for active/onboarding garages with the chat on |
+| triggers `*_askbridge_sync` | — | After changes to `garages` (profile columns, status, `settings.faqs`, `settings.askbridge`), `services`, `opening_hours`, `closures`, `garage_domains` (status / `deleted_at` only) |
+
+`garage_domains.verification` (service role only) now holds `{records: [{type: CNAME\|TXT, name, host, value, purpose}], pending_since}`.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/booking-page/embed-origins.ts` (client-safe) | `normaliseEmbedOrigin`, `parseEmbedOrigins(text)`, `embedOriginsFromSettings(settings)`, `MAX_EMBED_ORIGINS` |
+| `src/lib/booking-page/security-headers.ts` (pure) | `bookingSiteCsp({embedOrigins, widgetOrigin, dev})`, `bookingSiteHeaders()`, `ADMIN_SECURITY_HEADERS`; applied by `src/proxy.ts` to every response (admin/unknown: `X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`; garage hosts: CSP, no `X-Frame-Options`). `next.config.ts` no longer sets `X-Frame-Options` |
+| `src/lib/booking-page/domain-view.ts` (client-safe) | `parseStoredVerification`, `dnsRecordsForDisplay` (→ `DnsRecordTable`), `failedStepFor` (→ `DomainStatusSteps`), `checkAvailableInMs`, `isDomainInProgress` |
+| `src/lib/booking-page/domains-server.ts` | `getCustomDomain(client, garageId)`, `connectCustomDomain(garageId, hostname, {rls, service, domains?})`, `checkCustomDomainNow` / `retryCustomDomain(garageId, {service, domains?, now?})`, `removeCustomDomain(garageId, {rls, service})`, `createSupabaseDomainsCheckRepo(client, {garageId?, id?, limit?})` (scoped to one garage/row for "Check now"; clears the host cache on each status write; the `domains.check` job keeps its own repo in `src/lib/jobs/handlers/domains-check.ts`) |
+| `src/lib/booking-page/qr.ts` | `qrMatrix`, `qrSvg(text, {title})`, `qrPng(text, scale)` (`uqr` + zlib; no external service) |
+| `src/lib/tenancy/resolve.ts` (+) | `HostGarage` gains `embedOrigins`, `widgetEnabled` (from `settings`); cache on `globalThis`; `clearHostCache({hostnames?, slugs?})` |
+| `src/lib/tenancy/garage.ts` (+) | `Garage.askbridgeWidgetId` (set only while the chat is on) |
+| `src/lib/askbridge/config.ts` (client-safe) | `askbridgeFromSettings`, `parseAskbridgeWidgetId`, `askbridgeScriptUrl(env)`, `askbridgeWidgetFor(settings, env)` |
+| `src/lib/askbridge/sync.ts` | `runAskbridgeSync(payload, deps)` (**job kind `askbridge.sync`** for the runner), `AskbridgeSyncError {retryable}`, `buildAskbridgeKnowledge`, `signAskbridgeBody` / `verifyAskbridgeSignature`, `askbridgeIdempotencyKey`, `getAskbridgeReadiness`, `askbridgeOutbox()` (mock) |
+| `src/lib/agent-api/handler.ts` (+) | `agentGarageProfile(record)` (the `garage_profile` body, shared with the sync) |
+| `src/components/askbridge/askbridge-widget.tsx` | `AskbridgeWidget` (`next/script` `lazyOnload`), rendered by the garage layout only when the chat is on and `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` is valid |
+
+Routes: `/app/settings/booking-page` (free link + copy + QR, own address: connect / DNS records / status steps / Check now / Try again / remove, embed snippets + allowed sites, branding summary, Askbridge chat; owners edit, others read; in `SetupNav`), `GET /app/settings/booking-page/qr?format=png|svg` (signed-in members, attachment). Server actions in `settings/booking-page/actions.ts` (`connectDomainAction`, `checkDomainAction`, `removeDomainAction`, `saveEmbedOriginsAction`, `saveAskbridgeAction`), each audited (`booking_page.*`, `askbridge.*`) and clearing the host cache. `/api/health` reports `checks.askbridge`.
+
+Contract with Askbridge: [askbridge.md](askbridge.md). Local stub `scripts/askbridge-widget-stub.mjs`; `pnpm test:lighthouse:askbridge` (`lighthouserc.askbridge.cjs`, reports in `output/lighthouse-askbridge/`); `pnpm test:e2e:booking-page` (Playwright project `booking-page-settings`).
+
+## Sign-up and onboarding (Phase 4, P4.4)
+
+As built (`20261028000400_signup.sql`; DECISIONS A100–A112). Done when a new garage is live on its free link in under 15 minutes: `tests/e2e/signup.spec.ts` records about 45 s locally.
+
+### Routes (admin host)
+
+| Route | What |
+| --- | --- |
+| `/signup` | Step 0: account (name, email, password ≥ 12). `signUpAction` (`src/app/signup/actions.ts`): Turnstile when both keys are set, 5 sign-ups per IP and 3 per email per hour, `supabase.auth.signUp` with `emailRedirectTo` `/auth/confirm?next=/signup/garage` and `user_metadata.display_name` |
+| `/signup/check-email` | "Check your email" (no address in the page or URL) |
+| `/auth/confirm?token_hash=…&type=email&next=/signup/garage` | GET shows a click-through page; POST (same origin) verifies the token and answers 303 to `/signup/garage` (`?link=invalid` on failure) |
+| `/signup/garage` | Steps 1–2 (signed in, email confirmed; otherwise "Sign in to continue"): `GarageWizard` with `searchPlacesAction`, `placeDetailsAction`, `checkSlugAction`, `createGarageAction` (`src/app/signup/garage/actions.ts`) |
+| `/app/onboarding` | Redirects to the next step. Outside the admin shell; `requireOnboardingOwner(path, {mfa})` (`src/app/app/onboarding/context.ts`) = owner of the selected garage, MFA verified for steps 4–6 and Done |
+| `/app/onboarding/security` | Step 3: link to `/app/mfa/enroll?returnTo=/app/onboarding/security` |
+| `/app/onboarding/services` | Step 4: MOT yes/no (`garages.mot_enabled`) and the seeded services to keep (others archived) — `saveOnboardingServicesAction` |
+| `/app/onboarding/agreement` | Step 5: `DpaAcceptance` + `acceptDpaAction` (P4.9) |
+| `/app/onboarding/team` | Step 6: `InviteForm`, pending invites, "Finish and go live" (`finishOnboardingAction` → `complete_garage_onboarding()`) |
+| `/app/onboarding/done` | Booking link (copy), "Book a test", next steps |
+| `/signup/invite/[token]` | Route handler: token → httpOnly `af_invite` cookie (path `/signup/invite`, 1 h), 303 to `/signup/invite` |
+| `/signup/invite` | Accept: join (right account), sign out (wrong account), password (existing account) or name + password (new account, created confirmed with the service role) — `src/app/signup/invite/actions.ts` |
+| `/app/settings/team` | Members (owners: change role, remove), invite form and pending invites (owners/managers: send again, withdraw) |
+
+Proxy: `/signup/*` gets the session refresh `/app` gets (no MFA rules there); the mandatory-enrolment redirect skips `/app/onboarding/*`, which enforces MFA itself. `/app/mfa/enroll` honours `returnTo` and stays (with Continue) for 5 minutes after a factor is verified, so the recovery codes are shown.
+
+### Schema and SQL
+
+| Object | |
+| --- | --- |
+| `garage_members.role` | + `front_desk` (technician's rights for now) |
+| `garage_invites` (tenant) | `email` (lower case), `role` (`manager`/`technician`/`front_desk`), `token_hash` (hex SHA-256, unique), `invited_by`, `expires_at` (7 days from the last send), `accepted_at`, `accepted_by`, `revoked_at`, `sent_count`, `last_sent_at`. One open invite per (`garage_id`, `email`). RLS select policy for owners/managers as a backstop; no staff grants |
+| `create_garage(p_user_id uuid, p_garage jsonb) → jsonb` | Service role. Keys `name`, `slug`, `phone` (E.164), `email`, `website`, `google_place_id`, `address {line1, line2, town, postcode}`, `opening_hours [{weekday, opens, closes}]`. Returns `{garage_id, slug, status, opening_hours_from_places, seeded}`. Errors `P0001`: `USER_NOT_FOUND`, `EMAIL_NOT_CONFIRMED`, `INVALID_GARAGE: <field>`, `SLUG_RESERVED`, `SLUG_TAKEN`, `GARAGE_LIMIT_REACHED` (3 per user per 24 h) |
+| `complete_garage_onboarding() → text` | Owner of the selected garage (`garage_actor_allowed()`); `DPA_NOT_ACCEPTED` until a DPA row exists; sets `active` and `settings.onboarding.completed_at`; idempotent |
+| `create_garage_invite(p_email, p_role, p_token_hash) → jsonb`, `resend_garage_invite(p_invite_id, p_token_hash) → jsonb`, `revoke_garage_invite(p_invite_id) → boolean`, `list_garage_invites() → table` | Owners/managers of the selected garage (`garage_actor_allowed()`); `INVITE_ALREADY_MEMBER`, `INVALID_INVITE: <field>`, `INVITE_NOT_FOUND`; audited `invite.created/resent/revoked` |
+| `accept_garage_invite(p_token_hash) → jsonb` | Any signed-in user whose email is the invited one: `{garage_id, role, already_member}`; `INVITE_NOT_FOUND`, `INVITE_EXPIRED`, `INVITE_EMAIL_MISMATCH`, `GARAGE_UNAVAILABLE`; audited `invite.accepted` |
+| `list_garage_team() → table (user_id, email, display_name, role, joined_at, is_self)` | Members of the selected garage; emails only for owners/managers (and yourself) |
+| `reserved_garage_slugs()`, `garage_booking_prefix(name)`, `auth_email_exists(email)`, `garage_invite_expiry()` | Helpers; service role only |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/signup/slug.ts` (client-safe) | `slugify`, `slugProblem`, `slugAlternatives`, `SLUG_PROBLEM_MESSAGES` |
+| `src/lib/signup/schema.ts` (client-safe) | `parseAccountForm`, `parseGarageDetails`, `parseSlug`, `parseOpeningHours`, `parseGarageForm`, `createGaragePayload`, `parseInviteForm`, `INVITE_ROLES`, `ROLE_LABELS`, `ROLE_DESCRIPTIONS`, `PASSWORD_MIN_LENGTH` |
+| `src/lib/signup/server.ts` | `getSignupSession`, `checkSlugAvailability`, `createGarageForUser` (RPC, admin profile, `af_garage` cookie, host cache cleared), `createGarageError`, `requestIp`, `passSignupHumanCheck`, `onboardingBookingUrl` |
+| `src/lib/signup/invite-token.ts` | `generateInviteToken`, `hashInviteToken`, `isInviteToken`, `inviteUrl`, `INVITE_COOKIE` |
+| `src/lib/places/*` | `types.ts` (`PlaceSummary`, `PlaceDetails`, `PlacesProvider`), `map.ts` (`mapPlaceDetails`, `placeOpeningHours`, `placeAddress`, `placePhone`, `describeOpeningHours`), `fixtures.ts`, `provider.ts` (`getPlacesProvider`, `resolvePlacesMode`, `createGooglePlacesProvider`, `createMockPlacesProvider`) |
+| `src/lib/team/server.ts`, `src/lib/team/actions.ts` | `listTeam`, `listPendingInvites`, `createInvite`, `resendInvite`, `revokeInvite`, `previewInvite`, `composeInviteEmail`; actions `inviteStaffAction`, `resendInviteAction`, `revokeInviteAction`, `changeMemberRoleAction`, `removeMemberAction` |
+| `src/components/onboarding/*`, `src/components/team/*` | `OnboardingFrame`, `OnboardingProgress`, `TextField`, `Notice`, `ONBOARDING_STEPS`/`ONBOARDING_PATHS`; `InviteForm`, `ResendInviteButton`, `MemberList`, `PendingInviteList` |
+
+No background job kinds: invite emails are sent inline through `getChannel("email")`.

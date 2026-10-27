@@ -170,7 +170,7 @@ describe("administrator MFA recovery", () => {
     expect(migration).toContain("public.current_garage_role() = 'owner'\n        and coalesce((select policy.mandatory_mfa_enabled from public.admin_mfa_policy policy where policy.singleton), false)");
     expect(read("src", "proxy.ts")).toContain('enrollmentUrl.pathname = "/app/mfa/enroll"');
     const enrollmentPage = read("src", "app", "app", "mfa", "enroll", "page.tsx");
-    expect(enrollmentPage).toContain('if (admin.mfaRequired) redirect("/app/mfa")');
+    expect(enrollmentPage).toContain('    if (admin.mfaRequired) redirect(destination === "/app" ? "/app/mfa" : `/app/mfa?returnTo=${encodeURIComponent(destination)}`)');
     expect(enrollmentPage).toContain("<MfaSecurityPanel />");
   });
 });
