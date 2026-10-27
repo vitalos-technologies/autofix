@@ -24,7 +24,8 @@ const files = sourceFiles(join(root, "src"));
 
 describe("garage facts instead of single-business config", () => {
   it("has no single-business config modules left", () => {
-    for (const path of ["src/config/site.ts", "src/config/settings.ts", "src/config/invoicing.ts", "src/lib/settings/repository.ts"]) {
+    const removedConfig = ["site", "settings", "invoicing"].map((name) => join("src", "config", `${name}.ts`));
+    for (const path of [...removedConfig, "src/lib/settings/repository.ts"]) {
       expect(existsSync(join(root, path)), path).toBe(false);
     }
   });
