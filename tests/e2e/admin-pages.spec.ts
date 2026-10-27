@@ -59,8 +59,8 @@ const SHELL_PAGES = [
   "/app/trash",
   "/app/more",
 ];
-/** In the nav ahead of their pages (P3.10 Reminders; Messages & calls is not in BUILD-PLAN yet). */
-const NOT_BUILT_YET = new Set(["/app/reminders", "/app/messages"]);
+/** In the nav ahead of its page (Messages & calls has no task in BUILD-PLAN yet). */
+const NOT_BUILT_YET = new Set(["/app/messages"]);
 
 const CUSTOMER = { name: "Priya Sweep", phone: "+447700900478", email: `priya-${localRunId}@example.test`, registration: randomRegistration() };
 

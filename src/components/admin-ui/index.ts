@@ -54,6 +54,7 @@ export { GARAGE_SWITCH_FIELD, GarageSwitcher, type GarageSwitcherProps } from ".
 export { JobCard, type JobCardAction, type JobCardProps } from "./job-card";
 export { KpiCard, KpiGrid, type KpiCardProps, type KpiTrend } from "./kpi-card";
 export { describeSegments, MessagePreview, type MessagePreviewProps, type PreviewChannel } from "./message-preview";
+export { MissedCallCard, type MissedCallCardData, type MissedCallCardProps } from "./missed-call-card";
 export { NavLink, type NavLinkProps } from "./nav-link";
 export { NotificationRefresher, type NotificationRefresherProps } from "./notification-refresher";
 export { PageHeader, type PageHeaderProps } from "./page-header";
@@ -72,6 +73,7 @@ export { SubmitButton, type SubmitButtonProps } from "./submit-button";
 export { SummaryChips, type SummaryChip, type SummaryChipsProps } from "./summary-chips";
 export { Switch, type SwitchProps } from "./switch";
 export { TemplateEditor, type TemplateEditorProps } from "./template-editor";
+export { formatVoicemailLength, VoicemailPlayer, type VoicemailPlayerProps } from "./voicemail-player";
 export type {
   AdminGarage,
   AdminLink,

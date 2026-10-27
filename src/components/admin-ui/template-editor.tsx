@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import {
   REMINDER_PLACEHOLDERS,
   renderTemplate,
@@ -36,6 +36,12 @@ export type TemplateEditorProps = {
   rows?: number;
   required?: boolean;
   id?: string;
+  /**
+   * Problems with the text as typed, e.g. from `checkTemplate` (src/lib/reminders/rules.ts): errors
+   * block saving and mark the field invalid, warnings are advice. Shown under the counter.
+   */
+  errors?: readonly string[];
+  warnings?: readonly string[];
   className?: string;
 };
 
@@ -58,12 +64,16 @@ export function TemplateEditor({
   rows = 5,
   required,
   id,
+  errors = [],
+  warnings = [],
   className,
 }: TemplateEditorProps) {
   const autoId = useId();
   const fieldId = id ?? `${autoId}-template`;
   const hintId = `${fieldId}-hint`;
   const countId = `${fieldId}-count`;
+  const problemsId = `${fieldId}-problems`;
+  const hasProblems = errors.length > 0 || warnings.length > 0;
   const chipsLabelId = `${fieldId}-chips`;
   const [internal, setInternal] = useState(defaultValue);
   const text = value ?? internal;
@@ -147,34 +157,46 @@ export function TemplateEditor({
         required={required}
         value={text}
         spellCheck
-        aria-describedby={[hint ? hintId : null, sms ? countId : null].filter(Boolean).join(" ") || undefined}
-        aria-invalid={tooLong || undefined}
+        aria-describedby={[hint ? hintId : null, sms ? countId : null, hasProblems || tooLong ? problemsId : null].filter(Boolean).join(" ") || undefined}
+        aria-invalid={errors.length > 0 || undefined}
         onChange={(event) => update(event.target.value)}
         className={cn(
           "min-h-[120px] w-full resize-y rounded-input border bg-white px-3.5 py-3 font-sans text-[15px] leading-normal text-navy-950",
           "focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none",
-          tooLong ? "border-[#b45309]" : "border-grey-300",
+          errors.length > 0 ? "border-2 border-[#b91c1c]" : tooLong ? "border-[#b45309]" : "border-grey-300",
         )}
       />
 
-      {sms ? (
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
+        {sms ? (
           <p id={countId} className={cn("m-0 text-[13px] tabular-nums", tooLong ? "font-semibold text-warning-ink" : "text-grey-600")}>
             {countText}
           </p>
-          <div role="status" className="text-[13px]">
-            {tooLong ? (
-              <p className="m-0 flex items-start gap-1.5 rounded-[10px] bg-warning-bg px-3 py-2 font-semibold text-warning-ink">
-                <TriangleAlert size={18} strokeWidth={2} aria-hidden="true" className="mt-px shrink-0" />
-                <span>
-                  This sends as {info.segments} texts, and each one is charged. Keep it to {limit} characters for one text
-                  {info.unicodeCharacters.length > 0 ? `, and swap ${info.unicodeCharacters.join(" ")} for plain characters` : ""}.
-                </span>
-              </p>
-            ) : null}
-          </div>
+        ) : null}
+        <div id={problemsId} role="status" className="flex flex-col gap-1.5 text-[13px]">
+          {tooLong ? (
+            <p className="m-0 flex items-start gap-1.5 rounded-[10px] bg-warning-bg px-3 py-2 font-semibold text-warning-ink">
+              <TriangleAlert size={18} strokeWidth={2} aria-hidden="true" className="mt-px shrink-0" />
+              <span>
+                This sends as {info.segments} texts, and each one is charged. Keep it to {limit} characters for one text
+                {info.unicodeCharacters.length > 0 ? `, and swap ${info.unicodeCharacters.join(" ")} for plain characters` : ""}.
+              </span>
+            </p>
+          ) : null}
+          {errors.map((error) => (
+            <p key={error} className="m-0 flex items-start gap-1.5 font-semibold text-[#b91c1c]">
+              <CircleAlert size={18} strokeWidth={2} aria-hidden="true" className="mt-px shrink-0" />
+              <span>{error}</span>
+            </p>
+          ))}
+          {warnings.map((warning) => (
+            <p key={warning} className="m-0 flex items-start gap-1.5 text-grey-700">
+              <Info size={18} strokeWidth={2} aria-hidden="true" className="mt-px shrink-0" />
+              <span>{warning}</span>
+            </p>
+          ))}
         </div>
-      ) : null}
+      </div>
 
       {showPreview ? <MessagePreview template={text} values={sampleValues} channel={channel} senderName={senderName} showCount={false} /> : null}
     </div>

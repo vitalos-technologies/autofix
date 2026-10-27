@@ -1,3 +1,5 @@
+import { RULE_SWITCH_LABELS, type RuleKind } from "@/lib/reminders/rules";
+
 export type HealthState = "healthy" | "warning" | "degraded";
 
 export type SystemHealthCheck = {
@@ -78,6 +80,14 @@ const SENTENCE_ACTIONS: Record<string, string> = {
   "customer.opted_out": "Customer stopped reminders",
   "customer.opted_in": "Customer turned reminders back on",
   "agreement.accepted": "Accepted agreement",
+  // Reminders page (P3.10): the rule's name follows ("Switched on MOT due reminders").
+  "reminder_rule.enabled": "Switched on",
+  "reminder_rule.disabled": "Switched off",
+  "reminder_rule.updated": "Changed",
+  "reminder.test_sent": "Sent a test of",
+  // Missed calls (P4.1).
+  "call.handled": "Marked a missed call handled",
+  "call.voicemail_played": "Played a missed call's voicemail",
 };
 
 const OPT_OUT_SOURCES: Record<string, string> = {
@@ -115,9 +125,11 @@ export function auditEntityLabel(entityType: string, detail: unknown) {
     const values = detail as Record<string, unknown>;
     if (entityType === "customer" && typeof values.source === "string") return OPT_OUT_SOURCES[values.source] ?? values.source.replaceAll("_", " ");
     if (entityType === "garage_agreement" && typeof values.version === "string") return `${String(values.kind ?? "").toUpperCase()} v${values.version}`.trim();
+    if (entityType === "reminder_rule" && typeof values.kind === "string" && values.kind in RULE_SWITCH_LABELS) return RULE_SWITCH_LABELS[values.kind as RuleKind];
     if (typeof values.slug === "string") return values.slug.replaceAll("-", " ");
     if (typeof values.status === "string") return values.status.replaceAll("_", " ");
   }
 
+  if (entityType === "call") return "";
   return entityType.replaceAll("_", " ");
 }

@@ -13,6 +13,8 @@ export type AutomationRowProps = {
   channel: ReminderChannel;
   /** Template / rule editor. */
   editHref?: string;
+  /** Link text for `editHref`. Default "Edit" ("View" for members who can only read). */
+  editLabel?: string;
   enabled: boolean;
   /** Switch accessible name; default the name, e.g. "MOT due reminders". */
   switchLabel?: string;
@@ -22,6 +24,8 @@ export type AutomationRowProps = {
    */
   toggleAction?: FormAction;
   ruleId?: string;
+  /** More hidden fields for `toggleAction`'s form, e.g. `{ kind: "mot" }`. */
+  fields?: Record<string, string>;
   /** Client alternative to `toggleAction`: called with the new state. */
   onToggle?: (enabled: boolean) => void;
   disabled?: boolean;
@@ -40,10 +44,12 @@ export function AutomationRow({
   description,
   channel,
   editHref,
+  editLabel = "Edit",
   enabled,
   switchLabel,
   toggleAction,
   ruleId,
+  fields,
   onToggle,
   disabled = false,
   divider = true,
@@ -73,12 +79,16 @@ export function AutomationRow({
             href={editHref}
             className={cn("inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-accent underline underline-offset-2 hover:text-blue-700", focusRing)}
           >
-            Edit <span className="sr-only">{name}</span>
+            <span aria-hidden="true">{editLabel}</span>
+            <span className="sr-only">{`${editLabel} ${name}`}</span>
           </Link>
         ) : null}
         {toggleAction ? (
           <form method={typeof toggleAction === "string" ? "post" : undefined} action={toggleAction} className="flex">
             {ruleId ? <input type="hidden" name="ruleId" value={ruleId} /> : null}
+            {Object.entries(fields ?? {}).map(([field, value]) => (
+              <input key={field} type="hidden" name={field} value={value} />
+            ))}
             <input type="hidden" name="enabled" value={String(!enabled)} />
             <Switch type="submit" label={label} checked={enabled} disabled={disabled} describedBy={descriptionId} />
           </form>

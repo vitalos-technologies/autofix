@@ -105,6 +105,36 @@ export function startOfLocalDay(dateKey: string, timeZone = DEFAULT_TIME_ZONE): 
   return new Date(guess);
 }
 
+const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+/**
+ * The instant a wall-clock time (`YYYY-MM-DDTHH:MM`, as an `<input type="datetime-local">` gives
+ * it) happens in `timeZone`, or `null` when it isn't a real time there: not a date, or inside the
+ * hour the clocks skip in spring (01:00-02:00 on Sun 29 Mar 2026 in Europe/London). In the hour
+ * that happens twice in autumn the first one (still BST) is taken.
+ */
+export function zonedInstant(value: string, timeZone = DEFAULT_TIME_ZONE): Date | null {
+  const match = LOCAL_DATE_TIME.exec(value.trim());
+  if (!match) return null;
+  const [year, month, day, hour, minute] = match.slice(1).map(Number) as [number, number, number, number, number];
+  if (hour > 23 || minute > 59 || !parseDateKey(`${match[1]}-${match[2]}-${match[3]}`)) return null;
+  const target = Date.UTC(year, month - 1, day, hour, minute);
+  // Each candidate offset of the zone around then; the earliest one whose wall clock matches wins.
+  const offsets = new Set<number>();
+  for (const probe of [target - 86_400_000, target, target + 86_400_000]) {
+    const clock = wallClock(new Date(probe), timeZone);
+    offsets.add(Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, clock.second) - probe);
+  }
+  const matches = [...offsets]
+    .map((offset) => target - offset)
+    .filter((instant) => {
+      const clock = wallClock(new Date(instant), timeZone);
+      return Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute) === target;
+    })
+    .sort((a, b) => a - b);
+  return matches.length > 0 ? new Date(matches[0]!) : null;
+}
+
 /** `[start, end)` of the local day as ISO instants, for `starts_at` range queries. */
 export function localDayRange(dateKey: string, timeZone = DEFAULT_TIME_ZONE): { from: string; to: string } {
   return { from: startOfLocalDay(dateKey, timeZone).toISOString(), to: startOfLocalDay(addDays(dateKey, 1), timeZone).toISOString() };
