@@ -53,11 +53,11 @@ function fakeRepo(found: LinkedReminder | null, list: LinkService[] = services) 
 }
 
 describe("reminder link tokens", () => {
-  it("are 32 random bytes in base64url, stored as SHA-256 hex, valid for 30 days", () => {
+  it("are 16 random bytes in base64url (22 characters), stored as SHA-256 hex, valid for 30 days", () => {
     const first = createReminderLinkToken(NOW);
     const second = createReminderLinkToken(NOW);
-    expect(first.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(Buffer.from(first.token, "base64url")).toHaveLength(32);
+    expect(first.token).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(Buffer.from(first.token, "base64url")).toHaveLength(16);
     expect(first.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(first.hash).toBe(hashReminderLinkToken(first.token));
     expect(first.expiresAt).toEqual(new Date(NOW.getTime() + REMINDER_LINK_TTL_MS));
@@ -65,6 +65,16 @@ describe("reminder link tokens", () => {
     expect(isReminderLinkToken(first.token)).toBe(true);
     expect(isReminderLinkToken(`${first.token}=`)).toBe(false);
     expect(isReminderLinkToken("AB12CDE")).toBe(false);
+  });
+
+  it("still accepts the 43-character tokens sent before A185, and nothing in between", () => {
+    const old = "7KQ2hT9mWc4pXv8RbN3sLq6dZf1JyG5aEu0kVo2MiCr";
+    expect(old).toHaveLength(43);
+    expect(isReminderLinkToken(old)).toBe(true);
+    expect(hashReminderLinkToken(old)).toMatch(/^[0-9a-f]{64}$/);
+    for (const length of [21, 23, 32, 42, 44]) expect(isReminderLinkToken("A".repeat(length))).toBe(false);
+    expect(isReminderLinkToken(`${"A".repeat(21)}=`)).toBe(false);
+    expect(isReminderLinkToken(`${"A".repeat(21)}/`)).toBe(false);
   });
 
   it("maps link problems for the /r page, defaulting to invalid", () => {
@@ -110,6 +120,13 @@ describe("openReminderLink", () => {
       },
     });
     expect(repo.opened).toEqual([{ garageId: garage.id, id: SEND, at: NOW }]);
+  });
+
+  it("opens a link sent before A185 with a 43-character token", async () => {
+    const old = "7KQ2hT9mWc4pXv8RbN3sLq6dZf1JyG5aEu0kVo2MiCr";
+    const repo = fakeRepo(linked());
+    expect(await openReminderLink({ garage, token: old, repo, now: NOW })).toMatchObject({ ok: true, next: "/time", draft: { reminderSendId: SEND } });
+    expect(repo.lookups).toEqual([`${garage.id}:${hashReminderLinkToken(old)}`]);
   });
 
   it("leaves MOT facts and services out while the garage has MOT off", async () => {

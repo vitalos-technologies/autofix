@@ -135,7 +135,7 @@ describe.skipIf(!configured).sequential("missed calls against local Supabase", (
     expect(await runTextBack(sid(1))).toEqual({ outcome: "sent" });
     const [sent] = mock.getMockOutbox().filter((entry) => entry.garageId === garage.id);
     expect(sent).toMatchObject({ kind: "sms", to: SAM });
-    expect(sent!.body).toMatch(/^Sorry we missed your call\. Book online in about a minute: http:\/\/it-mc-.+\.localhost:3000\/ or we'll call you back soon\. .+\nReply STOP to opt out\.$/);
+    expect(sent!.body).toMatch(/^.+: sorry we missed your call\. Book at http:\/\/it-mc-.+\.localhost:3000\/ or we'll call you back\. Reply STOP to opt out\.$/);
     const linked = await service.from("calls").select("text_back_message_id").eq("provider_call_sid", sid(1)).single();
     const message = await service.from("messages").select("direction,status,to_address,call_id,provider,provider_msg_id").eq("id", linked.data!.text_back_message_id).single();
     expect(message.data).toMatchObject({ direction: "outbound", status: "queued", to_address: SAM, provider: "mock", provider_msg_id: sent!.providerMessageId });

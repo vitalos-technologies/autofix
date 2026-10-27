@@ -143,13 +143,13 @@ describe("the rule in words, timing and sample details", () => {
   });
 
   it("uses sample details as long as the real ones, so the 160-character counter is honest", () => {
-    expect(SAMPLE_LINK_TOKEN).toHaveLength(43);
-    const values = sampleTemplateValues({ kind: "mot", garageName: "Hartley Road Motors", bookingBaseUrl: "https://hartley-road.autofix.vitalos.co.uk", dueDate: "24 November 2026" });
+    expect(SAMPLE_LINK_TOKEN).toHaveLength(22);
+    const values = sampleTemplateValues({ kind: "mot", garageName: "Hartley Road Motors", bookingBaseUrl: "https://hartley-road.autofix.vitalos.co.uk", dueDate: "24 Nov" });
     expect(values.link).toBe(`https://hartley-road.autofix.vitalos.co.uk/r/${SAMPLE_LINK_TOKEN}`);
     const sms = renderTemplate(defaultTemplate("mot"), values, { channel: "sms" }).text;
     expect(sms.endsWith("Reply STOP to opt out.")).toBe(true);
-    // The drafted MOT wording with a real-length link takes two texts (reported in DECISIONS).
-    expect(smsSegments(sms)).toMatchObject({ encoding: "GSM-7", segments: 2 });
+    // The default MOT wording with a real-length link fits one text (A169, A184).
+    expect(smsSegments(sms)).toMatchObject({ encoding: "GSM-7", segments: 1 });
     expect(sampleTemplateValues({ kind: "missed_call", garageName: "G", bookingBaseUrl: "https://x.example/", dueDate: "" })).toEqual({ first_name: "Priya", link: "https://x.example/", garage: "G" });
   });
 
@@ -375,7 +375,7 @@ describe("send me a test", () => {
     expect(result).toEqual({ ok: true, channel: "sms", to: "07••• •••123", mode: "mock" });
     const [sent] = getMockOutbox();
     expect(sent).toMatchObject({ kind: "sms", to: "+447700900123", garageId: garage.id });
-    expect(sent!.body).toMatch(/^Test: Hi Priya, the MOT on your Toyota Yaris \(BC23 DEF\) is due on 24 November 2026\. Book a time: http:\/\/hartley-road\.localhost:3000\/\n/);
+    expect(sent!.body).toBe("Test: Hartley Road Motors: Hi Priya, MOT due 24 Nov. Book: http://hartley-road.localhost:3000/\nReply STOP to opt out.");
     expect(sent!.body.endsWith("Reply STOP to opt out.")).toBe(true);
     expect(audit).toHaveBeenCalledWith(garage.id, expect.objectContaining({ action: "reminder.test_sent", detail: { kind: "mot", outcome: "sent", channel: "sms" } }));
     expect(JSON.stringify(audit.mock.calls)).not.toMatch(/7700900123|dan@/);
@@ -390,7 +390,7 @@ describe("send me a test", () => {
     expect(result).toEqual({ ok: false, code: "no_address" });
     const email = await sendReminderTest(input({ user: { id: USER_ID, email: "dan@example.com", phone: null } }));
     expect(email).toMatchObject({ ok: true, channel: "email", to: "d•••@example.com" });
-    expect(getMockOutbox()[0]).toMatchObject({ kind: "email", to: "dan@example.com", subject: "Test: Your MOT is due on 24 November 2026" });
+    expect(getMockOutbox()[0]).toMatchObject({ kind: "email", to: "dan@example.com", subject: "Test: Your MOT is due on 24 Nov" });
   });
 
   it("is rate limited per member (5 in 10 minutes) and audits the refusal", async () => {
@@ -415,7 +415,7 @@ describe("send me a test", () => {
 
   it("composes the missed-call test with the booking page link", () => {
     const composed = composeTest({ garage: { id: garage.id, name: garage.name, slug: garage.slug }, rule: { kind: "missed_call", channel: "sms", template: defaultTemplate("missed_call") }, sampleDueDate: "2026-11-24", env: {} }, "sms");
-    expect(composed.body).toBe("Test: Sorry we missed your call. Book online in about a minute: http://hartley-road.localhost:3000/ or we'll call you back soon. Hartley Road Motors\nReply STOP to opt out.");
+    expect(composed.body).toBe("Test: Hartley Road Motors: sorry we missed your call. Book at http://hartley-road.localhost:3000/ or we'll call you back. Reply STOP to opt out.");
     expect(composed.unknown).toEqual([]);
   });
 

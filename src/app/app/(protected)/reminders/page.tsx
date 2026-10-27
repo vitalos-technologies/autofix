@@ -36,7 +36,7 @@ import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
 import { cn } from "@/lib/utils";
-import { formatMotDate } from "@/lib/vehicle/mot";
+import { formatReminderDate } from "@/lib/reminders/compose";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { FlashMessage, ReadOnlyNotice, SetupNotice } from "../settings/_components/setup-nav";
 import { toggleRuleAction } from "./actions";
@@ -146,7 +146,7 @@ export default async function RemindersPage({ searchParams }: PageProps) {
   const previewRule = ruleFor(previewKind);
   const bookingBaseUrl = garageBaseUrl(admin.garage);
   const sampleDue = addDays(today, 28);
-  const samples = (kind: RuleKind) => sampleTemplateValues({ kind, garageName: admin.garage.name, bookingBaseUrl, dueDate: formatMotDate(sampleDue) });
+  const samples = (kind: RuleKind) => sampleTemplateValues({ kind, garageName: admin.garage.name, bookingBaseUrl, dueDate: formatReminderDate(sampleDue) });
   const share = month ? bookedShare(month.booked, month.sent) : null;
 
   return (
