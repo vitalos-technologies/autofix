@@ -1,7 +1,8 @@
 name: Sync Vercel env
 
 # Run by hand (Actions > Sync Vercel env > Run workflow) after adding or changing a repository secret or
-# variable. scripts/ci/sync-vercel-env.mjs copies every one the app reads into the Vercel project.
+# variable. scripts/ci/sync-vercel-env.mjs copies each one named below into the Vercel project; one not
+# set in GitHub yet is skipped. To sync a new name, add it here (SECRET__ for secrets, VAR__ for variables).
 on:
   workflow_dispatch:
     inputs:
@@ -32,9 +33,56 @@ jobs:
       - name: Copy repository secrets and variables into Vercel
         run: node scripts/ci/sync-vercel-env.mjs
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
-          VARS_JSON: ${{ toJSON(vars) }}
-          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           VERCEL_TARGETS: ${{ inputs.targets }}
+          # Secrets (Vercel "sensitive")
+          SECRET__AGENT_TOKEN_PEPPER: ${{ secrets.AGENT_TOKEN_PEPPER }}
+          SECRET__ASKBRIDGE_WEBHOOK_SECRET: ${{ secrets.ASKBRIDGE_WEBHOOK_SECRET }}
+          SECRET__BOOKING_MANAGEMENT_SECRET: ${{ secrets.BOOKING_MANAGEMENT_SECRET }}
+          SECRET__BOOKING_STATE_SECRET: ${{ secrets.BOOKING_STATE_SECRET }}
+          SECRET__CLOUDFLARE_EMAIL_WEBHOOK_SECRET: ${{ secrets.CLOUDFLARE_EMAIL_WEBHOOK_SECRET }}
+          SECRET__CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SECRET__DVLA_VES_API_KEY: ${{ secrets.DVLA_VES_API_KEY }}
+          SECRET__DVSA_MOT_API_KEY: ${{ secrets.DVSA_MOT_API_KEY }}
+          SECRET__DVSA_MOT_CLIENT_ID: ${{ secrets.DVSA_MOT_CLIENT_ID }}
+          SECRET__DVSA_MOT_CLIENT_SECRET: ${{ secrets.DVSA_MOT_CLIENT_SECRET }}
+          SECRET__GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          SECRET__RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SECRET__RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
+          SECRET__SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SECRET__SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SECRET__SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SECRET__TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          SECRET__TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          SECRET__TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          SECRET__TWILIO_MESSAGING_SERVICE_SID: ${{ secrets.TWILIO_MESSAGING_SERVICE_SID }}
+          SECRET__TWILIO_WHATSAPP_FROM: ${{ secrets.TWILIO_WHATSAPP_FROM }}
+          SECRET__VEHICLE_DATA_GLOBAL_API_KEY: ${{ secrets.VEHICLE_DATA_GLOBAL_API_KEY }}
+          SECRET__VEHICLE_FACTS_PEPPER: ${{ secrets.VEHICLE_FACTS_PEPPER }}
+          SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          # Variables (Vercel "encrypted")
+          VAR__ASKBRIDGE_SYNC_URL: ${{ vars.ASKBRIDGE_SYNC_URL }}
+          VAR__COOKIE_CONFIGURATION_APPROVED: ${{ vars.COOKIE_CONFIGURATION_APPROVED }}
+          VAR__DVSA_MOT_SCOPE: ${{ vars.DVSA_MOT_SCOPE }}
+          VAR__DVSA_MOT_TOKEN_URL: ${{ vars.DVSA_MOT_TOKEN_URL }}
+          VAR__ENQUIRY_NOTIFICATION_EMAIL: ${{ vars.ENQUIRY_NOTIFICATION_EMAIL }}
+          VAR__ENQUIRY_REPLY_DOMAIN: ${{ vars.ENQUIRY_REPLY_DOMAIN }}
+          VAR__LEGAL_COPY_APPROVED: ${{ vars.LEGAL_COPY_APPROVED }}
+          VAR__MESSAGING_MODE: ${{ vars.MESSAGING_MODE }}
+          VAR__NEXT_PUBLIC_ADMIN_HOST: ${{ vars.NEXT_PUBLIC_ADMIN_HOST }}
+          VAR__NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: ${{ vars.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL }}
+          VAR__NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          VAR__NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          VAR__NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          VAR__NEXT_PUBLIC_TENANT_ROOT_DOMAIN: ${{ vars.NEXT_PUBLIC_TENANT_ROOT_DOMAIN }}
+          VAR__NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
+          VAR__RESEND_REPLY_TO: ${{ vars.RESEND_REPLY_TO }}
+          VAR__SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          VAR__SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          VAR__VEHICLE_DATA_GLOBAL_BASE_URL: ${{ vars.VEHICLE_DATA_GLOBAL_BASE_URL }}
+          VAR__VEHICLE_DATA_GLOBAL_PACKAGE: ${{ vars.VEHICLE_DATA_GLOBAL_PACKAGE }}
+          VAR__VEHICLE_LOOKUP_PROVIDER: ${{ vars.VEHICLE_LOOKUP_PROVIDER }}
+          VAR__VERCEL_DOMAIN_CNAME_TARGET: ${{ vars.VERCEL_DOMAIN_CNAME_TARGET }}
+          VAR__VERCEL_DOMAINS_MODE: ${{ vars.VERCEL_DOMAINS_MODE }}
+          VAR__VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VAR__VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
