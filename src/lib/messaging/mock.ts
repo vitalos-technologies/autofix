@@ -14,6 +14,10 @@
 //   +15005550009 not a mobile (21614).
 // The same idempotency key for the same channel and garage is recorded once
 // and returns the first result.
+//
+// Provider ids are `SMmock<8-digit sequence><16 hex>` (`mock_email_…` for
+// email): the sequence restarts with every process, so a random part keeps
+// them unique in messages.provider_msg_id across restarts (DECISIONS A56).
 
 import { isValidEmailAddress } from "@/lib/email/identity";
 import type { ChannelKind, DeliveryStatus, MessageChannel, OutboundMessage, SendResult, WhatsAppTemplate } from "./channel";
@@ -97,6 +101,18 @@ function providerIdPrefix(kind: ChannelKind) {
   return kind === "email" ? "mock_email_" : "SMmock";
 }
 
+/** 16 random hex characters (Web Crypto, so this stays free of Node imports). */
+function randomSuffix() {
+  const bytes = new Uint8Array(8);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** True for ids this mock outbox hands out. */
+export function isMockProviderMessageId(value: string) {
+  return /^(?:SMmock|mock_email_)\d{8}[0-9a-f]{16}$/.test(value);
+}
+
 export function createMockChannel(kind: ChannelKind): MessageChannel {
   return {
     kind,
@@ -114,7 +130,7 @@ export function createMockChannel(kind: ChannelKind): MessageChannel {
       if ("ok" in checked) return checked;
 
       outbox.sequence += 1;
-      const providerMessageId = `${providerIdPrefix(kind)}${outbox.sequence.toString().padStart(8, "0")}`;
+      const providerMessageId = `${providerIdPrefix(kind)}${outbox.sequence.toString().padStart(8, "0")}${randomSuffix()}`;
       const status: DeliveryStatus = kind === "email" ? "sent" : "queued";
       outbox.entries.push({
         kind,

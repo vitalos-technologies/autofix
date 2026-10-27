@@ -40,6 +40,21 @@ describe("unsubscribe tokens", () => {
     for (const bad of ["", "nope", `${token}x`, "../../etc"]) expect(verifyUnsubscribeToken(garage.id, bad, ENV)).toBeNull();
   });
 
+  it("refuses every other spelling of the same bytes in the last character of either part", () => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    // Many customers, so some tokens end in a character whose unused low bits a decoder ignores.
+    for (let index = 0; index < 64; index += 1) {
+      const customer = `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`;
+      const token = createUnsubscribeToken(garage.id, customer, ENV)!;
+      const [id, tag] = token.split(".") as [string, string];
+      for (const other of alphabet) {
+        if (other !== tag.at(-1)) expect(verifyUnsubscribeToken(garage.id, `${id}.${tag.slice(0, -1)}${other}`, ENV)).toBeNull();
+        if (other !== id.at(-1)) expect(verifyUnsubscribeToken(garage.id, `${id.slice(0, -1)}${other}.${tag}`, ENV)).toBeNull();
+      }
+      expect(verifyUnsubscribeToken(garage.id, token, ENV)).toBe(customer);
+    }
+  });
+
   it("is not issued in production without the signing secret", () => {
     expect(createUnsubscribeToken(garage.id, CUSTOMER, { NODE_ENV: "production" })).toBeNull();
     expect(verifyUnsubscribeToken(garage.id, createUnsubscribeToken(garage.id, CUSTOMER, ENV), { NODE_ENV: "production" })).toBeNull();
