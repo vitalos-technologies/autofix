@@ -7,10 +7,11 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // values are inlined at build time).
 //   pnpm test:e2e:smoke    smoke.spec.ts    host routing (garage hosts, unknown hosts, admin login)
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
+//                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
-// The pages use the database engine (available_slots(), create_booking()); BOOKING_ENGINE=fake
-// swaps the booking flow to the in-memory engine (src/lib/booking-engine/fake.ts) instead. The manage
-// pages always read the database, so manage.spec.ts needs the database engine.
+// Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
+// books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
+// src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -49,8 +50,10 @@ export default defineConfig({
       DEV_TENANT_ROOT_DOMAIN: `localhost:${port}`,
       PLAYWRIGHT_TEST: "true",
       VEHICLE_LOOKUP_PROVIDER: "mock",
-      BOOKING_ENGINE: process.env.BOOKING_ENGINE || "supabase",
-      // Production builds refuse to seal the booking cookies or sign manage links without keys; these are local-only, not secrets.
+      // Gate 2 runs on the real engine, whatever the shell exports (see the header).
+      BOOKING_ENGINE: "supabase",
+      // Production builds refuse to seal the booking cookies or sign manage links without keys. CI generates its
+      // own per job; these fallbacks are for local runs only and are not secrets.
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
       // tests/helpers/booking-fixtures.ts derives link tokens with the same value.
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
@@ -62,7 +65,13 @@ export default defineConfig({
     { name: "smoke-chromium", testMatch: "smoke.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "booking-chromium", testMatch: "booking.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: bookingOrigin } },
     { name: "booking-mobile", testMatch: "booking.spec.ts", use: { ...devices["Pixel 5"], browserName: "chromium", baseURL: bookingOrigin } },
-    // Phone first: 390 x 844 (the design's frame). The spec also checks 1440 for horizontal scroll.
+    // Phone first: 390 x 844 (the design's frame).
+    {
+      name: "booking-390",
+      testMatch: "booking.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
+    },
+    // The manage spec also checks 1440 for horizontal scroll.
     {
       name: "manage-mobile",
       testMatch: "manage.spec.ts",

@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
   reactStrictMode: true,
+  // Blocking metadata for every user agent (node_modules/next/dist/docs: htmlLimitedBots, "Disabling").
+  // The garage layout's title comes from an async generateMetadata; streamed, the <title> lands in
+  // <body> after the first paint, so a document (and screen readers, axe) can briefly have none.
+  htmlLimitedBots: /.*/,
   experimental: {
     inlineCss: true,
     serverActions: {
