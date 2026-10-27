@@ -85,6 +85,11 @@ export const bookingCustomerInputSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
   channel: z.enum(messageChannels).default("sms"),
   reminderConsent: z.boolean().default(false),
+  /**
+   * The exact consent wording the customer ticked (stored with the consent record as its source).
+   * Only sent when `reminderConsent` is true.
+   */
+  consentSource: z.string().trim().min(1).max(300).optional(),
 });
 export type BookingCustomerInput = z.infer<typeof bookingCustomerInputSchema>;
 

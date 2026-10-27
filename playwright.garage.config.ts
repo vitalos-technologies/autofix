@@ -6,7 +6,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // build made with the same Supabase env exported (`pnpm build`; NEXT_PUBLIC_*
 // values are inlined at build time).
 //   pnpm test:e2e:smoke    smoke.spec.ts    host routing (garage hosts, unknown hosts, admin login)
-//   pnpm test:e2e:booking  booking.spec.ts  SOB's wizard on http://hartley-road.localhost:<port>/
+//   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
+//                          (in-memory booking engine unless BOOKING_ENGINE is set to something else)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -45,6 +46,10 @@ export default defineConfig({
       DEV_TENANT_ROOT_DOMAIN: `localhost:${port}`,
       PLAYWRIGHT_TEST: "true",
       VEHICLE_LOOKUP_PROVIDER: "mock",
+      // The fake engine (src/lib/booking-engine/fake.ts) until the scheduling tables and repository land.
+      BOOKING_ENGINE: process.env.BOOKING_ENGINE || "fake",
+      // Production builds refuse to seal the booking cookies without a key; this one is local-only, not a secret.
+      BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
     },
