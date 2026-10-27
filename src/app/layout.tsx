@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
 import { fontVariables } from "./fonts";
 import "./globals.css";
 
@@ -19,9 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-GB" data-scroll-behavior="smooth" className={fontVariables}>
       <body>
-        <VehicleSessionProvider>
-          <main>{children}</main>
-        </VehicleSessionProvider>
+        <main>{children}</main>
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Check, Clock, Search, Shield, User } from "lucide-react";
 import {
+  BookingStatusChip,
   BookingSummaryBar,
   ConfirmationCard,
   ConsentCheckbox,
@@ -399,6 +400,16 @@ export function ComponentGallery() {
             </div>
           </Frame>
 
+          <Frame title="Booking status chips (manage booking)">
+            <div className="flex flex-wrap gap-2 px-5 py-5">
+              <BookingStatusChip label="Confirmed" tone="success" />
+              <BookingStatusChip label="Awaiting the garage's OK" tone="warning" />
+              <BookingStatusChip label="In the workshop" tone="info" />
+              <BookingStatusChip label="Collected" tone="neutral" />
+              <BookingStatusChip label="Cancelled" tone="danger" />
+            </div>
+          </Frame>
+
           <Frame title="Vehicle card states">
             <div className="flex flex-col gap-3 px-5 py-5">
               <VehicleCard make="Ford" model="Focus Titanium" year={2018} engine="1.0 EcoBoost petrol" colour="Blue" motEnabled={false} motExpiry="2027-03-14" lastMileage={48210} now={NOW} />
@@ -442,6 +453,7 @@ export function ComponentGallery() {
             <div className="flex flex-col gap-3 py-5">
               <StickyActionBar fixed={false} label="Sending" busy onClick={() => undefined} />
               <StickyActionBar fixed={false} label="Choose a time" disabled onClick={() => undefined} />
+              <StickyActionBar fixed={false} label="Cancel booking" tone="danger" showArrow={false} onClick={() => undefined} />
               <ConfirmationCard
                 className="px-5"
                 reference="HRM-0042"

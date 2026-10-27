@@ -3,7 +3,7 @@
 /*
  * Base rules live in Tailwind layers so utilities always win over them.
  * The SOB --brand-* variables and .hero-grid/.plate-strip only serve the
- * legacy /book, /manage-booking and auth screens until they are restyled.
+ * legacy admin auth screens until they are restyled.
  */
 @layer base {
   :root {

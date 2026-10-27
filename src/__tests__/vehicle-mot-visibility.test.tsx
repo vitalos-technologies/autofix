@@ -1,69 +1,51 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
-import { VehicleMotDetails } from "@/components/vehicle/vehicle-mot-details";
-import { VehicleSummary } from "@/components/vehicle/vehicle-summary";
+import { describe, expect, it } from "vitest";
+import { VehicleCard } from "@/components/book";
+import { draftVehicleFromLookup } from "@/lib/booking-flow/vehicle";
+import { withMotVisibility } from "@/lib/vehicle/mot";
 import type { VehicleDetails } from "@/types/domain";
+
+// MOT is per garage (CLAUDE.md rule 6): a customer sees MOT facts only when the garage has
+// `mot_enabled` on. The SOB vehicle summary and MOT details components were replaced by the
+// booking flow's VehicleCard (P2.7/P2.8) and removed with the SOB manage page (P2.9); these tests
+// keep the same guarantee on the components and helpers that replaced them.
 
 const vehicle: VehicleDetails = {
   registration: "AB12CDE",
-  make: "Vauxhall",
-  model: "Astra",
+  make: "VAUXHALL",
+  model: "ASTRA",
   year: 2017,
-  fuelType: "Petrol",
+  fuelType: "PETROL",
   motStatus: "Valid",
   motExpiry: "2027-03-31",
 };
 
-function seedConfirmedVehicle() {
-  window.sessionStorage.setItem("af-vehicle-session", JSON.stringify({ vehicle, vehicleConfirmed: true }));
-}
+const NOW = new Date("2026-10-27T09:00:00.000Z");
 
-describe("VehicleMotDetails", () => {
-  it("renders nothing when the garage has MOT switched off", () => {
-    const { container } = render(<VehicleMotDetails vehicle={vehicle} motEnabled={false} />);
-    expect(container).toBeEmptyDOMElement();
+describe("MOT facts on the customer's car", () => {
+  it("are dropped from the looked-up car before it reaches the booking draft when MOT is off", () => {
+    const off = draftVehicleFromLookup(withMotVisibility(vehicle, false), "AB12CDE", false);
+    expect(off).toMatchObject({ registration: "AB12CDE", make: "Vauxhall", model: "Astra" });
+    expect(off.motExpiry).toBeUndefined();
+    expect(JSON.stringify(off)).not.toContain("2027-03-31");
+
+    const on = draftVehicleFromLookup(withMotVisibility(vehicle, true), "AB12CDE", true);
+    expect(on.motExpiry).toBe("2027-03-31");
   });
 
-  it("shows MOT status and expiry when the garage has MOT switched on", () => {
-    render(<VehicleMotDetails vehicle={vehicle} motEnabled />);
-    expect(screen.getByText("MOT status")).toBeInTheDocument();
-    expect(screen.getByText("Valid")).toBeInTheDocument();
-    expect(screen.getByText("MOT expires")).toBeInTheDocument();
-    expect(screen.getByText("31 March 2027")).toBeInTheDocument();
+  it("never reach the vehicle card when MOT is off, even with an expiry to hand", () => {
+    const { rerender } = render(<VehicleCard make="Vauxhall" model="Astra" motEnabled={false} motExpiry="2027-03-31" now={NOW} />);
+    expect(screen.getByText("Vauxhall Astra")).toBeInTheDocument();
+    expect(screen.queryByText(/MOT/)).not.toBeInTheDocument();
+
+    rerender(<VehicleCard make="Vauxhall" model="Astra" motEnabled motExpiry="2027-03-31" now={NOW} />);
+    expect(screen.getByText("MOT due 31 Mar 2027")).toBeInTheDocument();
   });
 
-  it("renders nothing when MOT is on but the provider returned no MOT data", () => {
-    const { container } = render(<VehicleMotDetails vehicle={{}} motEnabled />);
-    expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe("customer vehicle surfaces", () => {
-  beforeEach(() => {
-    seedConfirmedVehicle();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ services: [] }), { status: 200, headers: { "content-type": "application/json" } })));
-  });
-
-  afterEach(() => {
-    window.sessionStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  // The SOB booking wizard is gone (P2.4); the new booking pages (P2.8) carry
-  // their own MOT visibility tests, and online MOT services are filtered by
-  // the engine (booking-engine-repository.test.ts).
-
-  it("gates MOT facts in the enquiry vehicle summary the same way", () => {
-    const { unmount } = render(<VehicleSessionProvider><VehicleSummary /></VehicleSessionProvider>);
-    expect(screen.getByText(/Vauxhall Astra/)).toBeInTheDocument();
-    expect(screen.queryByText("MOT status")).not.toBeInTheDocument();
-    unmount();
-
-    render(<VehicleSessionProvider><VehicleSummary motEnabled /></VehicleSessionProvider>);
-    expect(screen.getByText("MOT status")).toBeInTheDocument();
-    expect(screen.getByText("31 March 2027")).toBeInTheDocument();
+  it("show nothing when MOT is on but the provider returned no MOT date", () => {
+    render(<VehicleCard make="Vauxhall" model="Astra" motEnabled now={NOW} />);
+    expect(screen.queryByTestId("vehicle-mot")).not.toBeInTheDocument();
   });
 });

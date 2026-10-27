@@ -2,10 +2,11 @@
  * The 5-step booking flow on a garage host (P2.8): vehicle → service → time → details → confirmed.
  * Runs under playwright.garage.config.ts against `pnpm build && pnpm start` with the demo seed
  * (`pnpm db:seed`: hartley-road with MOT on, demo-b with MOT off), the mock vehicle provider and the
- * in-memory booking engine (`BOOKING_ENGINE=fake`) until the scheduling tables land.
+ * database engine (`BOOKING_ENGINE=fake` runs the same journeys on the in-memory engine).
  */
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { cancelFixtures, fillSlot, seededGarage } from "../helpers/booking-fixtures";
 
 const port = Number(process.env.PLAYWRIGHT_PORT || "3430");
 const DEMO_B_ORIGIN = `http://demo-b.localhost:${port}`;
@@ -22,6 +23,8 @@ function watchUrls(page: Page) {
 }
 
 async function expectAccessible(page: Page) {
+  // The document title can arrive a moment after a server action's navigation.
+  await expect(page).toHaveTitle(/\S/);
   // Let colour transitions on just-pressed buttons finish so axe measures the final colours.
   await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const results = await new AxeBuilder({ page }).analyze();
@@ -52,17 +55,27 @@ async function chooseService(page: Page, service: RegExp = /Diagnostics/) {
   await page.waitForURL(/\/time/);
 }
 
-/** Picks the first free time on the n-th open day and returns its label ("Thu 29 Oct, 09:15"). */
+/** Picks the first free time on the n-th open day; returns its label ("Thu 29 Oct, 09:15") and ISO start. */
 async function pickTime(page: Page, dayIndex = 1) {
   await page.getByRole("group", { name: "Choose a day" }).locator("button:not([disabled])").nth(dayIndex).click();
-  await page.locator("button[data-start]:not([disabled])").first().click();
+  const slot = page.locator("button[data-start]:not([disabled])").first();
+  const startsAt = (await slot.getAttribute("data-start"))!;
+  await slot.click();
   const action = page.locator('button[form="time-form"]');
   const label = (await action.innerText()).trim();
   expect(label).toMatch(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d$/);
   await action.click();
   await page.waitForURL(/\/details$/);
-  return label;
+  return { label, startsAt };
 }
+
+/** The in-memory engine has one bay; the database engine has the seeded garage's three. */
+const DATABASE_ENGINE = (process.env.BOOKING_ENGINE || "supabase") !== "fake";
+const fixtureIds: string[] = [];
+
+test.afterAll(async () => {
+  if (DATABASE_ENGINE) await cancelFixtures(fixtureIds);
+});
 
 async function fillDetails(page: Page, name = "Test Customer", phone = "07700 900412") {
   await page.getByLabel("Full name").fill(name);
@@ -136,7 +149,7 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByText(when, { exact: true })).toBeVisible();
     await expect(page.getByText("Vauxhall Astra · AB12 CDE")).toBeVisible();
     await expect(page.getByText(/We'll send your confirmation on WhatsApp to 07••• •••412/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage-booking");
+    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage");
     await expectAccessible(page);
     expect((await context.cookies()).find((cookie) => cookie.name === "af_booking")).toBeUndefined();
     checkUrls();
@@ -199,17 +212,19 @@ test.describe("5-step booking flow", () => {
   test("offers the nearest free times when someone else takes the slot first", async ({ page, browser }) => {
     await findCar(page);
     await chooseService(page);
-    const when = await pickTime(page, 3);
+    const { label: when, startsAt } = await pickTime(page, 3);
     await fillDetails(page);
 
     const rival = await newPhonePage(browser);
     await findCar(rival, "ef56 ghj");
     await chooseService(rival);
-    expect(await pickTime(rival, 3)).toBe(when);
+    expect((await pickTime(rival, 3)).label).toBe(when);
     await fillDetails(rival, "Rival Customer", "07700 900999");
     await rival.getByRole("button", { name: "Confirm booking" }).click();
     await rival.waitForURL(/\/confirmed\//);
     await rival.context().close();
+    // Phone bookings take the garage's remaining bays at that time.
+    if (DATABASE_ENGINE) fixtureIds.push(...(await fillSlot(await seededGarage(), startsAt)));
 
     await page.getByRole("button", { name: "Confirm booking" }).click();
     await page.waitForURL(/\/time\?date=\d{4}-\d{2}-\d{2}$/);
