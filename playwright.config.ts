@@ -13,7 +13,7 @@ export default defineConfig({
   // (`pnpm test:e2e:smoke`, `pnpm test:e2e:booking`).
   testIgnore: garageSpecs,
   fullyParallel: true,
-  workers: process.env.E2E_ADMIN_ENQUIRY_IDS ? 1 : 2,
+  workers: 2,
   retries: process.env.CI ? 2 : 0,
   reporter: "html",
   use: {

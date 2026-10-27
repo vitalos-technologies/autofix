@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { garageSpecs } from "./tests/e2e/garage-specs";
+import { PLAYWRIGHT_CRON_SECRET } from "./tests/helpers/jobs";
 import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 
 // Browser tests on garage hosts. Garage hosts resolve through the database, so
@@ -12,6 +13,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
 //   pnpm test:e2e:admin    admin.spec.ts    garage admin on the admin host (P3.1-P3.3): sign-in with TOTP, Today,
 //                          accept, status + notes, search, staff booking, diary, garage switch; 1440 and 390x844
+//                          admin-pages.spec.ts (also in test:e2e:admin): every page the shell links to, with axe at
+//                          390 and 1440, and the Customers, Enquiries, Invoices and Trash journeys
 //   pnpm test:e2e:settings settings.spec.ts setup pages (/app/settings/*) for an owner signed in with password +
 //                          TOTP, checked on its own garage's booking site (<slug>.localhost), axe at 390 and 1440
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
@@ -24,6 +27,9 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 //   pnpm test:e2e:signup   signup.spec.ts   sign-up → email confirmation (local Mailpit) → onboarding → the new
 //                          garage's booking page on <slug>.localhost, timed (< 15 min), axe at 390 and 1440
+//   pnpm test:e2e:gate3    gate3.spec.ts    Gate 3: reminders.schedule drained by the server (POST /api/jobs/drain),
+//                          reminders.send on the mock SMS channel, the /r/ link opened on <slug>.localhost, the five
+//                          steps, attribution in the database, Today's "Won back by reminders"; axe at 390 and 1440
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -73,6 +79,10 @@ export default defineConfig({
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
+      // Mock channels only (no real texts or emails), whatever the shell exports.
+      MESSAGING_MODE: "mock",
+      // POST /api/jobs/drain and GET /api/cron/[job] for gate3.spec.ts (a local-only value, tests/helpers/jobs.ts).
+      CRON_SECRET: PLAYWRIGHT_CRON_SECRET,
     },
   },
   projects: [
@@ -102,6 +112,9 @@ export default defineConfig({
       testMatch: "admin.spec.ts",
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: adminOrigin },
     },
+    // Every page the admin shell links to, plus Customers, Enquiries, Invoices and Trash journeys: its own garages and
+    // owner; the spec checks 390 and 1440 itself (part of `pnpm test:e2e:admin`).
+    { name: "admin-pages", testMatch: "admin-pages.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Super admin: its own garage, owner and platform admin; the spec checks 390 and 1440 itself.
@@ -110,6 +123,8 @@ export default defineConfig({
     { name: "booking-page-settings", testMatch: "booking-page-settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Sign-up and onboarding (admin host, its own garage and users); the spec checks 390 and 1440 itself.
     { name: "signup", testMatch: "signup.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
+    { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

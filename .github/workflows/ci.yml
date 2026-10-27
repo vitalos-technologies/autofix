@@ -180,6 +180,8 @@ jobs:
         run: pnpm test:e2e:booking-page
       - name: Sign-up to a live booking page in under 15 minutes (local Mailpit, mock Places; axe at 390 and 1440)
         run: pnpm test:e2e:signup
+      - name: Gate 3, a reminder link books a car credited to the reminder (schedule via /api/jobs/drain, mock SMS, /r/ link, 5 steps, Today's won back; axe at 390 and 1440)
+        run: pnpm test:e2e:gate3
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports
