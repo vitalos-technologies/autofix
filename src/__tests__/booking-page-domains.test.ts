@@ -18,7 +18,7 @@ describe("DNS records to show", () => {
   it("maps the records startDomainConnection returns, CNAME first", async () => {
     const client = createMockDomainsClient();
     const connection = await startDomainConnection("book.pendinggarage.co.uk", { client, cnameTarget: CNAME });
-    const stored = parseStoredVerification({ records: [...connection.records].reverse(), pendingSince: "2026-10-27T09:00:00.000Z" });
+    const stored = parseStoredVerification({ records: [...connection.records].reverse(), pending_since: "2026-10-27T09:00:00.000Z" });
     expect(stored.pendingSince).toBe("2026-10-27T09:00:00.000Z");
     expect(dnsRecordsForDisplay({ hostname: connection.hostname, records: stored.records }, CNAME)).toEqual([
       { type: "CNAME", name: "book", value: CNAME },
@@ -31,7 +31,7 @@ describe("DNS records to show", () => {
   });
 
   it("drops malformed stored records", () => {
-    expect(parseStoredVerification({ records: [{ type: "A", name: "@", host: "x.example", value: "1.2.3.4" }, { type: "TXT" }, "nope"], pendingSince: "soon" })).toEqual({ records: [], pendingSince: null });
+    expect(parseStoredVerification({ records: [{ type: "A", name: "@", host: "x.example", value: "1.2.3.4" }, { type: "TXT" }, "nope"], pending_since: "soon" })).toEqual({ records: [], pendingSince: null });
     expect(parseStoredVerification(null)).toEqual({ records: [], pendingSince: null });
   });
 });

@@ -58,6 +58,7 @@ async function siteHeaders(path = "/") {
   const response = await visitor.goto(`${siteOrigin}${path}`);
   expect(response?.status()).toBe(200);
   const headers = (await response?.allHeaders()) ?? {};
+  await visitor.waitForLoadState("load");
   await visitor.close();
   return headers;
 }

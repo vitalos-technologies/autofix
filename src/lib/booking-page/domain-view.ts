@@ -17,7 +17,10 @@ export type StoredDnsRecord = {
   purpose: "routing" | "ownership";
 };
 
-/** What `garage_domains.verification` holds for a custom domain (written by the service role). */
+/**
+ * What `garage_domains.verification` holds for a custom domain (written by the service role):
+ * `{records, pending_since}`. `pending_since` is the key the `domains.check` job reads (src/lib/jobs).
+ */
 export type StoredVerification = { records: StoredDnsRecord[]; pendingSince: string | null };
 
 export type CustomDomainView = {
@@ -54,7 +57,7 @@ export function parseStoredVerification(raw: unknown): StoredVerification {
     if (!type || !name || !host || !recordValue) return [];
     return [{ type, name, host, value: recordValue, purpose: type === "CNAME" ? "routing" : "ownership" }];
   });
-  const pendingSince = typeof value.pendingSince === "string" && Number.isFinite(Date.parse(value.pendingSince)) ? value.pendingSince : null;
+  const pendingSince = typeof value.pending_since === "string" && Number.isFinite(Date.parse(value.pending_since)) ? value.pending_since : null;
   return { records, pendingSince };
 }
 

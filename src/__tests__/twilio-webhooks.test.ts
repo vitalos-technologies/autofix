@@ -1,0 +1,359 @@
+import { describe, expect, it, vi } from "vitest";
+import { createJobLogger } from "@/lib/jobs/log";
+import type { DeliveryStatus } from "@/lib/messaging/channel";
+import { computeTwilioSignature } from "@/lib/messaging/twilio";
+import { createSupabaseTwilioWebhookRepo } from "@/lib/messaging/twilio-webhook-repository";
+import { handleTwilioWebhook, type CallRecord, type InboundMessageRow, type TwilioWebhookKind, type TwilioWebhookRepo } from "@/lib/messaging/twilio-webhooks";
+import { twilioWebhookUrl } from "@/lib/messaging/webhook-request";
+import { createFakeSupabase, filterValue } from "./support/fake-supabase";
+
+// POST /api/webhooks/twilio/{sms,whatsapp,status,voice} (P3.8): the signature
+// on the raw body (good, bad, replayed), the public URL behind proxies,
+// routing by provisioned number, STOP/START/HELP, delivery-status ordering
+// and the voice log.
+
+const AUTH_TOKEN = "twilio-test-auth-token-0123456789";
+const BASE = "https://autofix.vitalos.co.uk";
+const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE };
+const GARAGE = "a0000000-0000-4000-8000-00000000000a";
+const GARAGE_NUMBER = "+447700100200";
+const CUSTOMER = "+447700900123";
+
+function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, options: { signWith?: string; url?: string; headers?: Record<string, string>; requestUrl?: string } = {}) {
+  const body = new URLSearchParams(params).toString();
+  const path = `/api/webhooks/twilio/${kind}`;
+  const signature = computeTwilioSignature(options.url ?? `${BASE}${path}`, new URLSearchParams(body), options.signWith ?? AUTH_TOKEN);
+  return new Request(options.requestUrl ?? `http://localhost:3000${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": signature, ...options.headers },
+    body,
+  });
+}
+
+type Customer = { garageId: string; phone: string; consent: boolean; optedOut: boolean };
+
+function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[] } = {}) {
+  const events = new Map<string, string>();
+  const customers = options.customers ?? [{ garageId: GARAGE, phone: CUSTOMER, consent: true, optedOut: false }];
+  const messageStatus = { ...options.messageStatus };
+  const reminderStatus = { ...options.reminderStatus };
+  const state = {
+    inbound: [] as InboundMessageRow[],
+    keywords: [] as Array<{ garageId: string; phone: string; intent: string; changed: number }>,
+    calls: new Map<string, CallRecord>(),
+    replies: [] as string[],
+    finished: [] as Array<{ key: string; status: string; outcome?: string | null }>,
+    messageStatus,
+    reminderStatus,
+  };
+  const repo: TwilioWebhookRepo = {
+    async claimEvent(key) {
+      const current = events.get(key);
+      if (current && current !== "failed") return false;
+      events.set(key, "processing");
+      return true;
+    },
+    async finishEvent(key, status, outcome) {
+      events.set(key, status);
+      state.finished.push({ key, status, outcome });
+    },
+    async findGarageByNumber(number) {
+      return options.routed === false || number !== GARAGE_NUMBER ? null : { garageId: GARAGE, garageName: "Hartley Road & Sons", purpose: "forwarding" };
+    },
+    async findCustomerId(garageId, phone) {
+      return customers.some((customer) => customer.garageId === garageId && customer.phone === phone) ? "customer-1" : null;
+    },
+    async insertInboundMessage(row) {
+      if (state.inbound.some((message) => message.providerMessageId === row.providerMessageId)) return null;
+      state.inbound.push(row);
+      return { id: `message-${state.inbound.length}` };
+    },
+    async applyKeyword(garageId, phone, intent) {
+      let changed = 0;
+      for (const customer of customers) {
+        if (customer.garageId !== garageId || customer.phone !== phone) continue;
+        if (intent === "stop" && !customer.optedOut) {
+          customer.optedOut = true;
+          changed += 1;
+        }
+        if (intent === "start" && customer.optedOut && customer.consent) {
+          customer.optedOut = false;
+          changed += 1;
+        }
+      }
+      state.keywords.push({ garageId, phone, intent, changed });
+      return { customers: changed, cancelled: 0, unchanged: 0 };
+    },
+    async garagesThatMessaged() {
+      return options.recentGarages ?? [];
+    },
+    async applyDeliveryStatus(sid, status: DeliveryStatus) {
+      const rank: Record<string, number> = { sending: 0, queued: 0, sent: 1, delivered: 2, failed: 2 };
+      let messages = 0;
+      const current = messageStatus[sid];
+      if (current && current !== "delivered" && current !== "failed" && rank[status]! > rank[current]!) {
+        messageStatus[sid] = status;
+        messages = 1;
+      }
+      return { messages, reminders: 0 };
+    },
+    async recordCall(call) {
+      const existing = state.calls.get(call.callSid);
+      state.calls.set(call.callSid, { ...existing, ...call });
+      return existing ? "updated" : "created";
+    },
+    async queueHelpReply(_garageId, messageId) {
+      state.replies.push(messageId);
+    },
+  };
+  return { repo, state, customers };
+}
+
+const lines: string[] = [];
+const log = createJobLogger({}, (_level, line) => lines.push(line));
+
+function deps(repo: TwilioWebhookRepo, extra: Record<string, unknown> = {}) {
+  return { repo: () => repo, env: ENV, log, ...extra };
+}
+
+const inboundParams = (body: string, sid = "SM00000000000000000000000000000001", extra: Record<string, string> = {}) => ({
+  MessageSid: sid,
+  AccountSid: "AC00000000000000000000000000000000",
+  From: CUSTOMER,
+  To: GARAGE_NUMBER,
+  Body: body,
+  NumMedia: "0",
+  ...extra,
+});
+
+describe("signature and URL", () => {
+  it("accepts Twilio's signature on the raw body and answers with empty TwiML", async () => {
+    const { repo, state } = memoryRepo();
+    const response = await handleTwilioWebhook(signedRequest("sms", inboundParams("Thanks, see you Tuesday")), "sms", deps(repo));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/xml");
+    expect(await response.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    expect(state.inbound).toHaveLength(1);
+  });
+
+  it("refuses a bad signature, another token's signature, and a tampered body before storing anything", async () => {
+    const { repo, state } = memoryRepo();
+    const forged = await handleTwilioWebhook(signedRequest("sms", inboundParams("STOP"), { signWith: "someone-elses-token-000000000000" }), "sms", deps(repo));
+    expect(forged.status).toBe(403);
+
+    const request = signedRequest("sms", inboundParams("hello"));
+    const tampered = new Request(request.url, { method: "POST", headers: request.headers, body: new URLSearchParams(inboundParams("STOP")).toString() });
+    expect((await handleTwilioWebhook(tampered, "sms", deps(repo))).status).toBe(403);
+
+    const unsigned = new Request(`${BASE}/api/webhooks/twilio/sms`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "MessageSid=SM1" });
+    expect((await handleTwilioWebhook(unsigned, "sms", deps(repo))).status).toBe(403);
+    expect(state.inbound).toEqual([]);
+    expect(state.finished).toEqual([]);
+  });
+
+  it("does a replayed (identical, validly signed) request's work only once", async () => {
+    const { repo, state, customers } = memoryRepo();
+    const params = inboundParams("STOP");
+    expect((await handleTwilioWebhook(signedRequest("sms", params), "sms", deps(repo))).status).toBe(200);
+    expect((await handleTwilioWebhook(signedRequest("sms", params), "sms", deps(repo))).status).toBe(200);
+    expect(state.inbound).toHaveLength(1);
+    expect(state.keywords).toEqual([{ garageId: GARAGE, phone: CUSTOMER, intent: "stop", changed: 1 }]);
+    expect(customers[0]!.optedOut).toBe(true);
+  });
+
+  it("logs kinds and outcomes only, never numbers or bodies", async () => {
+    lines.length = 0;
+    const { repo } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("My reg is AB12 CDE")), "sms", deps(repo));
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ event: "twilio_webhook", kind: "sms", outcome: "stored" });
+    for (const secret of [CUSTOMER, GARAGE_NUMBER, "AB12", "My reg"]) expect(lines[0]).not.toContain(secret);
+  });
+
+  it("fails closed without TWILIO_AUTH_TOKEN, and refuses other content types", async () => {
+    const { repo } = memoryRepo();
+    expect((await handleTwilioWebhook(signedRequest("sms", inboundParams("hi")), "sms", { repo: () => repo, env: {}, log })).status).toBe(503);
+    const json = new Request(`${BASE}/api/webhooks/twilio/sms`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect((await handleTwilioWebhook(json, "sms", deps(repo))).status).toBe(415);
+  });
+
+  it("rebuilds the signed URL from TWILIO_WEBHOOK_BASE_URL, else the forwarded headers, keeping the query", () => {
+    const behindProxy = new Request("http://10.0.0.5:3000/api/webhooks/twilio/status?garage=x", {
+      method: "POST",
+      headers: { "x-forwarded-proto": "https, http", "x-forwarded-host": "autofix.vitalos.co.uk, internal", host: "10.0.0.5:3000" },
+    });
+    expect(twilioWebhookUrl(behindProxy, {})).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/status?garage=x");
+    expect(twilioWebhookUrl(behindProxy, { TWILIO_WEBHOOK_BASE_URL: "https://hooks.example.com/autofix/" })).toBe("https://hooks.example.com/autofix/api/webhooks/twilio/status?garage=x");
+    const direct = new Request("https://autofix.vitalos.co.uk/api/webhooks/twilio/sms", { method: "POST", headers: { host: "autofix.vitalos.co.uk" } });
+    expect(twilioWebhookUrl(direct, {})).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/sms");
+  });
+
+  it("verifies a request signed for the forwarded public URL when no base URL is set", async () => {
+    const { repo, state } = memoryRepo();
+    const request = signedRequest("sms", inboundParams("hi"), {
+      url: "https://autofix.vitalos.co.uk/api/webhooks/twilio/sms",
+      requestUrl: "http://10.0.0.5:3000/api/webhooks/twilio/sms",
+      headers: { "x-forwarded-proto": "https", "x-forwarded-host": "autofix.vitalos.co.uk" },
+    });
+    expect((await handleTwilioWebhook(request, "sms", { repo: () => repo, env: { TWILIO_AUTH_TOKEN: AUTH_TOKEN }, log })).status).toBe(200);
+    expect(state.inbound).toHaveLength(1);
+  });
+});
+
+describe("inbound SMS and WhatsApp", () => {
+  it("stores the text for the garage behind the number, with the customer when known", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("whatsapp", inboundParams("Is Tuesday OK?", "SM00000000000000000000000000000002", { From: `whatsapp:${CUSTOMER}`, To: `whatsapp:${GARAGE_NUMBER}` })), "whatsapp", deps(repo));
+    expect(state.inbound).toEqual([{ garageId: GARAGE, customerId: "customer-1", channel: "whatsapp", from: CUSTOMER, to: GARAGE_NUMBER, body: "Is Tuesday OK?", providerMessageId: "SM00000000000000000000000000000002" }]);
+  });
+
+  it("ignores texts to numbers that are not provisioned, but still honours a STOP for garages that texted the sender", async () => {
+    const unrouted = memoryRepo({ routed: false });
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("hello")), "sms", deps(unrouted.repo));
+    expect(unrouted.state.inbound).toEqual([]);
+    expect(unrouted.state.finished).toEqual([{ key: "inbound:SM00000000000000000000000000000001", status: "ignored", outcome: "unrouted" }]);
+
+    const stop = memoryRepo({ routed: false, recentGarages: [GARAGE] });
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("Stop")), "sms", deps(stop.repo));
+    expect(stop.customers[0]!.optedOut).toBe(true);
+    expect(stop.state.finished[0]).toMatchObject({ status: "processed", outcome: "stop_unrouted" });
+  });
+
+  it("STOP opts out at once and a second STOP changes nothing; START comes back only with consent", async () => {
+    const { repo, state, customers } = memoryRepo({ customers: [
+      { garageId: GARAGE, phone: CUSTOMER, consent: true, optedOut: false },
+    ] });
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("STOP", "SM00000000000000000000000000000011")), "sms", deps(repo));
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("stop please", "SM00000000000000000000000000000012")), "sms", deps(repo));
+    expect(state.keywords.map((entry) => [entry.intent, entry.changed])).toEqual([["stop", 1], ["stop", 0]]);
+    expect(customers[0]!.optedOut).toBe(true);
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("START", "SM00000000000000000000000000000013")), "sms", deps(repo));
+    expect(customers[0]!.optedOut).toBe(false);
+    expect(state.finished.map((entry) => entry.outcome)).toEqual(["stop", "stop", "start"]);
+
+    const noConsent = memoryRepo({ customers: [{ garageId: GARAGE, phone: CUSTOMER, consent: false, optedOut: true }] });
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("START")), "sms", deps(noConsent.repo));
+    expect(noConsent.customers[0]!.optedOut).toBe(true);
+    expect(noConsent.state.finished[0]?.outcome).toBe("start_without_consent");
+  });
+
+  it("queues a HELP answer and drains it after the response, unless Twilio already answered", async () => {
+    const { repo, state } = memoryRepo();
+    const tasks: Array<() => Promise<unknown>> = [];
+    const drainReplies = vi.fn(async () => undefined);
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("HELP")), "sms", deps(repo, { afterResponse: (task: () => Promise<unknown>) => tasks.push(task), drainReplies }));
+    expect(state.replies).toEqual(["message-1"]);
+    expect(drainReplies).not.toHaveBeenCalled();
+    await tasks[0]!();
+    expect(drainReplies).toHaveBeenCalledOnce();
+
+    const advanced = memoryRepo();
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("HELP", "SM00000000000000000000000000000021", { OptOutType: "HELP" })), "sms", deps(advanced.repo));
+    expect(advanced.state.replies).toEqual([]);
+  });
+
+  it("answers 500 when the work fails, and processes the same event again on Twilio's retry", async () => {
+    const { repo, state } = memoryRepo();
+    const insert = repo.insertInboundMessage.bind(repo);
+    let failures = 1;
+    repo.insertInboundMessage = async (row) => {
+      if (failures-- > 0) throw Object.assign(new Error("connection reset"), { code: "08006" });
+      return insert(row);
+    };
+    expect((await handleTwilioWebhook(signedRequest("sms", inboundParams("hello")), "sms", deps(repo))).status).toBe(500);
+    expect(state.finished[0]).toMatchObject({ status: "failed" });
+    expect((await handleTwilioWebhook(signedRequest("sms", inboundParams("hello")), "sms", deps(repo))).status).toBe(200);
+    expect(state.inbound).toHaveLength(1);
+  });
+});
+
+describe("delivery status callbacks", () => {
+  const statusParams = (status: string, sid = "SMstatus000000000000000000000001", extra: Record<string, string> = {}) => ({ MessageSid: sid, MessageStatus: status, To: CUSTOMER, ...extra });
+
+  it("moves a message forward only, whatever order the callbacks arrive in", async () => {
+    const { repo, state } = memoryRepo({ messageStatus: { SMstatus000000000000000000000001: "queued" } });
+    for (const status of ["delivered", "sent", "queued"]) {
+      expect((await handleTwilioWebhook(signedRequest("status", statusParams(status)), "status", deps(repo))).status).toBe(200);
+    }
+    expect(state.messageStatus.SMstatus000000000000000000000001).toBe("delivered");
+    expect(state.finished.map((entry) => [entry.key, entry.status])).toEqual([
+      ["status:SMstatus000000000000000000000001:delivered", "processed"],
+      ["status:SMstatus000000000000000000000001:sent", "ignored"],
+      ["status:SMstatus000000000000000000000001:queued", "ignored"],
+    ]);
+  });
+
+  it("applies each status of a message once", async () => {
+    const { repo, state } = memoryRepo({ messageStatus: { SMstatus000000000000000000000001: "queued" } });
+    await handleTwilioWebhook(signedRequest("status", statusParams("sent")), "status", deps(repo));
+    await handleTwilioWebhook(signedRequest("status", statusParams("sent")), "status", deps(repo));
+    expect(state.finished).toHaveLength(1);
+  });
+});
+
+describe("voice", () => {
+  const callParams = (status: string, extra: Record<string, string> = {}) => ({ CallSid: "CA00000000000000000000000000000001", From: CUSTOMER, To: GARAGE_NUMBER, CallStatus: status, Direction: "inbound", ...extra });
+
+  it("logs the call as missed and answers with a short message (garage name escaped)", async () => {
+    const { repo, state } = memoryRepo();
+    const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    const xml = await response.text();
+    expect(xml).toContain("<Say language=\"en-GB\">Sorry, Hartley Road &amp; Sons can't take your call right now.");
+    expect(xml).toContain("<Hangup/>");
+    expect(state.calls.get("CA00000000000000000000000000000001")).toEqual({
+      garageId: GARAGE, callSid: "CA00000000000000000000000000000001", from: CUSTOMER, to: GARAGE_NUMBER, status: "ringing", durationSeconds: null, missed: true,
+    });
+
+    const completed = await handleTwilioWebhook(signedRequest("voice", callParams("completed", { CallDuration: "14" })), "voice", deps(repo));
+    expect(await completed.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    expect(state.calls.get("CA00000000000000000000000000000001")).toMatchObject({ status: "completed", durationSeconds: 14 });
+  });
+
+  it("stores withheld numbers as null and rejects calls to unprovisioned numbers", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing", { From: "+266696687" })), "voice", deps(repo));
+    expect(state.calls.get("CA00000000000000000000000000000001")?.from).toBeNull();
+
+    const unrouted = memoryRepo({ routed: false });
+    const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(unrouted.repo));
+    expect(await response.text()).toContain("<Reject/>");
+    expect(unrouted.state.calls.size).toBe(0);
+  });
+});
+
+describe("Supabase webhook repository", () => {
+  it("routes only provisioned numbers (provider_sid set)", async () => {
+    const fake = createFakeSupabase({ from: () => ({ data: { garage_id: GARAGE, purpose: "messaging", garages: { name: "Hartley Road Motors" } } }) });
+    const repo = createSupabaseTwilioWebhookRepo(fake.client);
+    expect(await repo.findGarageByNumber(GARAGE_NUMBER)).toEqual({ garageId: GARAGE, purpose: "messaging", garageName: "Hartley Road Motors" });
+    const query = fake.queries[0]!;
+    expect(query.table).toBe("garage_phone_numbers");
+    expect(filterValue(query, "eq", "number")).toBe(GARAGE_NUMBER);
+    expect(query.filters).toContainEqual({ method: "not", args: ["provider_sid", "is", null] });
+  });
+
+  it("moves a delivered reminder forward from sent, scoped to its garage", async () => {
+    const fake = createFakeSupabase({
+      from: (query) => {
+        if (query.operation === "select" && query.table === "messages") return { data: { id: "m1", garage_id: GARAGE, status: "sent", direction: "outbound" } };
+        if (query.operation === "select" && query.table === "reminder_sends") return { data: { id: "r1", garage_id: GARAGE, status: "sent" } };
+        return { data: null, count: 1 };
+      },
+    });
+    const repo = createSupabaseTwilioWebhookRepo(fake.client);
+    expect(await repo.applyDeliveryStatus("SM1", "failed", 30003)).toEqual({ messages: 1, reminders: 1 });
+    const updates = fake.queries.filter((query) => query.operation === "update");
+    expect(updates.map((query) => [query.table, query.values, filterValue(query, "eq", "garage_id"), filterValue(query, "eq", "status")])).toEqual([
+      ["messages", { status: "failed", error_code: "twilio:30003" }, GARAGE, "sent"],
+      ["reminder_sends", { status: "failed", error_code: "twilio:30003" }, GARAGE, "sent"],
+    ]);
+  });
+
+  it("never moves a delivered message back", async () => {
+    const fake = createFakeSupabase({
+      from: (query) => (query.operation === "select" ? { data: { id: "m1", garage_id: GARAGE, status: "delivered", direction: "outbound" } } : { data: null, count: 1 }),
+    });
+    expect(await createSupabaseTwilioWebhookRepo(fake.client).applyDeliveryStatus("SM1", "sent", null)).toEqual({ messages: 0, reminders: 0 });
+    expect(fake.queries.filter((query) => query.operation === "update")).toEqual([]);
+  });
+});

@@ -1,13 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { otherTestGarage, testGarage } from "./support/garage";
 
 // Admin and platform server paths: the garage switcher only accepts the
-// user's own garages, audit rows always carry a garage_id, the retention cron
-// runs once per garage, health leaks nothing, and admin pages stay on the
-// RLS garage client.
+// user's own garages, audit rows always carry a garage_id, health leaks
+// nothing, and admin pages stay on the RLS garage client. (Retention runs
+// once per garage as a job: src/__tests__/jobs-handlers.test.ts.)
 
 const garage = testGarage();
 const other = otherTestGarage();
@@ -41,7 +40,6 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import { GET as healthRoute } from "@/app/api/health/route";
-import { GET as retentionRoute } from "@/app/api/cron/retention/route";
 import { recordAdminAudit, recordUserSecurityEvent } from "@/lib/admin/audit";
 import { getAdminNotificationSummary } from "@/lib/admin/notifications";
 import { switchGarage } from "@/lib/tenancy/switch-garage";
@@ -138,52 +136,6 @@ describe("admin audit rows", () => {
     const none = recordingClient([]);
     await expect(recordUserSecurityEvent("user-id", "password_changed", {}, {}, none.client as never)).resolves.toBe(true);
     expect(none.inserts).toHaveLength(0);
-  });
-});
-
-describe("retention cron", () => {
-  const rpc = vi.fn();
-  beforeEach(() => {
-    vi.stubEnv("CRON_SECRET", "cron-secret-value");
-    rpc.mockReset();
-    harness.admin = {
-      from: (table: string) => ({
-        select: () => ({ order: async () => ({ data: table === "garages" ? [{ id: garage.id }, { id: other.id }] : [], error: null }) }),
-      }),
-      rpc,
-    };
-  });
-  afterEach(() => vi.unstubAllEnvs());
-
-  const cronRequest = (authorization?: string) => new NextRequest("https://autofix.vitalos.co.uk/api/cron/retention", { headers: authorization ? { authorization } : {} });
-
-  it("rejects calls without the cron secret", async () => {
-    expect((await retentionRoute(cronRequest())).status).toBe(401);
-    expect((await retentionRoute(cronRequest("Bearer wrong"))).status).toBe(401);
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it("runs apply_enquiry_retention once per garage and returns totals only", async () => {
-    rpc.mockResolvedValueOnce({ data: 2, error: null }).mockResolvedValueOnce({ data: 3, error: null });
-    const response = await retentionRoute(cronRequest("Bearer cron-secret-value"));
-    expect(response.status).toBe(200);
-    expect(rpc.mock.calls).toEqual([
-      ["apply_enquiry_retention", { p_garage_id: garage.id }],
-      ["apply_enquiry_retention", { p_garage_id: other.id }],
-    ]);
-    const body = await response.text();
-    expect(JSON.parse(body)).toEqual({ success: true, processedGarages: 2, anonymisedRecords: 5 });
-    expect(body).not.toContain(garage.id);
-  });
-
-  it("keeps going past a failing garage and reports a 500 without naming it", async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: { message: `garage ${garage.id} failed` } }).mockResolvedValueOnce({ data: 1, error: null });
-    const response = await retentionRoute(cronRequest("Bearer cron-secret-value"));
-    expect(response.status).toBe(500);
-    expect(rpc).toHaveBeenCalledTimes(2);
-    const body = await response.text();
-    expect(JSON.parse(body)).toMatchObject({ processedGarages: 1, failedGarages: 1, anonymisedRecords: 1 });
-    expect(body).not.toContain(garage.id);
   });
 });
 

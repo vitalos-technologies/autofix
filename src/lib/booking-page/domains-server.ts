@@ -126,7 +126,7 @@ export async function connectCustomDomain(garageId: string, input: string, deps:
   const id = (inserted.data as { id: string }).id;
   const { data, error } = await deps.service
     .from("garage_domains")
-    .update({ verification: { records, pendingSince: now.toISOString() } })
+    .update({ verification: { records, pending_since: now.toISOString() } })
     .eq("garage_id", garageId)
     .eq("id", id)
     .select(DOMAIN_COLUMNS)
@@ -227,7 +227,7 @@ export async function retryCustomDomain(garageId: string, deps: Omit<DomainDeps,
   if (current.status !== "failed") return checkCustomDomainNow(garageId, deps);
   const { error } = await deps.service
     .from("garage_domains")
-    .update({ status: "pending_dns", error: null, last_checked_at: null, verification: { records: current.records, pendingSince: now.toISOString() } })
+    .update({ status: "pending_dns", error: null, last_checked_at: null, verification: { records: current.records, pending_since: now.toISOString() } })
     .eq("garage_id", garageId)
     .eq("id", current.id);
   if (error) return { ok: false, code: "unavailable", message: "That could not be saved. Try again." };
