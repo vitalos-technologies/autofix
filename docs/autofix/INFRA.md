@@ -51,7 +51,7 @@ For `pnpm dev`, put the local values in `.env.local` (gitignored): `NEXT_PUBLIC_
 
 ### Demo seed (`pnpm db:seed`, `scripts/seed-demo.mjs`)
 
-- **Local only.** It refuses any Supabase URL other than `http://127.0.0.1:54321` (or `localhost`/`[::1]` on that port), the same rule as the integration tests. It takes the URL and secret key from `INTEGRATION_SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SECRET_KEY` or `API_URL`/`SECRET_KEY`, and otherwise asks `supabase status -o env` itself.
+- **Local only.** It refuses any Supabase URL that is not plain `http` on a loopback host (`127.0.0.1`, `localhost`, `[::1]`; any port, because CI runners shift ports), the same rule as the integration tests. It takes the URL and secret key from `INTEGRATION_SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SECRET_KEY` or `API_URL`/`SECRET_KEY`, and otherwise asks `supabase status -o env` itself.
 - **Idempotent.** Fixed UUIDs (derived from stable names) and upserts; run it as often as you like.
 - **Creates** garage A *Hartley Road Motors* (`hartley-road`, prefix `HRM`, accent `#155fba`, MOT on, Doncaster) and garage B *Demo Garage B* (`demo-b`, `DGB`, accent `#0f766e`, MOT off); `site_settings` for both; 10 + 8 fictional customers with UK mobiles in Ofcom's drama range (`07700 900xxx`) and their vehicles; five enquiries with their conversations. Resources (3 bays + 1 mobile van), opening hours (Mon–Fri 08:00–17:30, Sat 08:30–13:00), closures and services (MOT only at garage A, Diagnostics, Full service, Interim service, Brakes and Something else as quotes) are written by `seedResources`, `seedOpeningHours`, `seedClosures` and `seedServices`, which say "skipped" until the P2.1 scheduling tables exist.
 - **Staff** (Auth admin API). The script prints the emails, never the password:
@@ -67,3 +67,24 @@ For `pnpm dev`, put the local values in `.env.local` (gitignored): `NEXT_PUBLIC_
   Password: `SEED_STAFF_PASSWORD`, default `Autofix-demo-local-1` (documented in the script; local only, never reuse it anywhere).
 - **MFA.** Mandatory MFA for owners is the shipped default (DECISIONS.md A15), so owners enrol TOTP at `/app/mfa/enroll` on first sign-in. For local convenience only, `SEED_RELAX_MFA=1 pnpm db:seed` switches `admin_mfa_policy.mandatory_mfa_enabled` **off** in the local database and says so loudly; running the seed again without the flag switches it back on.
 
+### Tests against local Supabase
+
+```bash
+eval "$(pnpm exec supabase status -o env)"
+export INTEGRATION_SUPABASE_URL=$API_URL INTEGRATION_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY INTEGRATION_SUPABASE_SECRET_KEY=$SECRET_KEY
+export NEXT_PUBLIC_SUPABASE_URL=$API_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY SUPABASE_SECRET_KEY=$SECRET_KEY
+pnpm exec supabase test db --local supabase/tests/database   # pgTAP
+pnpm db:seed                                                 # garage hosts for the browser tests and Lighthouse
+pnpm exec vitest run --config vitest.integration.config.ts   # PostgREST suites, incl. tests/integration/tenancy.test.ts (Gate 1)
+pnpm build                                                   # with the env above: NEXT_PUBLIC_* are inlined at build time
+pnpm test:e2e:smoke                                          # host routing against `pnpm start` (port 3430)
+pnpm test:e2e:booking                                        # SOB wizard on http://hartley-road.localhost:3430/
+pnpm test:e2e:local-invoicing                                # invoice PDF access (`pnpm dev`, port 3100)
+CHROME_PATH=/path/to/chrome pnpm test:lighthouse             # mobile Lighthouse on http://hartley-road.localhost:3420/ (lighthouserc.cjs)
+```
+
+`PLAYWRIGHT_PORT`, `PLAYWRIGHT_INVOICE_PORT` and `LIGHTHOUSE_PORT` override the ports; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` uses an already installed Chromium instead of `playwright install`. Garage-host specs (`smoke.spec.ts`, `booking.spec.ts`) run through `playwright.garage.config.ts`; the default `pnpm test:e2e` covers the admin host only. The tenancy suite needs a fixture for every table with `garage_id` (`FIXTURES` in `tests/integration/tenancy.test.ts`).
+
+### CI on shared runners
+
+Several self-hosted runners share one machine and one user, one job per runner at a time. Every CI job that starts Supabase or serves the app first runs `scripts/ci/supabase-isolate.sh` (a no-op unless `CI=true`): with N the trailing number of `$RUNNER_NAME` (0 if none) it sets `project_id = "autofix-ci-N"` in `supabase/config.toml`, shifts every port Supabase binds on the host (api, db, shadow, pooler, studio, mail, analytics, edge inspector) by `N*100`, and exports `SUPABASE_PROJECT_ID`, `SUPABASE_API_PORT`, `SUPABASE_DB_PORT`, `INTEGRATION_SUPABASE_URL`, `PLAYWRIGHT_PORT` (3400 + N\*10 + 1), `LIGHTHOUSE_PORT` (+2), `PLAYWRIGHT_SMOKE_PORT` (+3) and `PLAYWRIGHT_INVOICE_PORT` (+4). `scripts/ci/supabase-env.sh` then exports the stack's URL and keys (masked). Each job ends with `supabase stop --no-backup`. The test helper finds the database container as `supabase_db_<project_id>`.

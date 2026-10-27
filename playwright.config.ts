@@ -3,9 +3,15 @@ import { defineConfig, devices } from "@playwright/test";
 const port = process.env.PLAYWRIGHT_PORT || "3000";
 const host = process.env.PLAYWRIGHT_HOST || "127.0.0.1";
 const baseURL = `http://${host}:${port}`;
+// Use an already installed Chromium (e.g. PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium)
+// instead of the one `playwright install` downloads.
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Garage-host specs need local Supabase and the seed: playwright.garage.config.ts
+  // (`pnpm test:e2e:smoke`, `pnpm test:e2e:booking`).
+  testIgnore: ["smoke.spec.ts", "booking.spec.ts"],
   fullyParallel: true,
   workers: process.env.E2E_ADMIN_ENQUIRY_IDS ? 1 : 2,
   retries: process.env.CI ? 2 : 0,
@@ -13,6 +19,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    launchOptions: { executablePath },
   },
   webServer: {
     command: `pnpm dev --port ${port}`,

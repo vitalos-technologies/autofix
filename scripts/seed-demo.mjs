@@ -2,9 +2,10 @@
 /**
  * Local demo data for Autofix (P1.9): `pnpm db:seed`.
  *
- * LOCAL ONLY. The script refuses any Supabase URL other than the local CLI
- * stack (http, loopback host, port 54321), the same rule as
- * tests/helpers/local-supabase.ts. It never talks to a hosted project.
+ * LOCAL ONLY. The script refuses any Supabase URL that is not a local CLI
+ * stack (plain http on a loopback host; any port, since CI runners shift
+ * ports per runner), the same rule as tests/helpers/local-supabase.ts. It
+ * never talks to a hosted project.
  *
  * Idempotent: every row has a fixed UUID derived from a stable name and is
  * written with an upsert, so running it twice leaves one copy of everything
@@ -230,7 +231,7 @@ function readLocalCliStatus() {
   return values;
 }
 
-/** Local Supabase only: http, loopback host, port 54321 (tests/helpers/local-supabase.ts). */
+/** Local Supabase only: plain http on a loopback host, any port (tests/helpers/local-supabase.ts). */
 function assertLocalSupabaseUrl(rawUrl) {
   let parsed;
   try {
@@ -239,8 +240,8 @@ function assertLocalSupabaseUrl(rawUrl) {
     throw new Error("Refusing to seed: the Supabase URL is not a valid URL.");
   }
   const loopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsed.hostname);
-  if (!loopback || parsed.protocol !== "http:" || parsed.port !== "54321") {
-    throw new Error(`Refusing to seed non-local Supabase URL ${parsed.origin}. The demo seed only runs against the local CLI stack (http://127.0.0.1:54321).`);
+  if (!loopback || parsed.protocol !== "http:") {
+    throw new Error(`Refusing to seed non-local Supabase URL ${parsed.origin}. The demo seed only runs against a local CLI stack (http on 127.0.0.1, localhost or [::1]).`);
   }
   return parsed.origin;
 }

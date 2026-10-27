@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:local-invoicing": "playwright test --config playwright.local-invoicing.config.ts",
+    "test:e2e:smoke": "playwright test --config playwright.garage.config.ts --project=smoke-chromium",
+    "test:e2e:booking": "playwright test --config playwright.garage.config.ts --project=booking-chromium --project=booking-mobile",
     "test:lighthouse": "lhci autorun",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",

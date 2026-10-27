@@ -1,5 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type LocalSupabaseConfig = {
@@ -50,7 +52,22 @@ export const localAdminEmail = `garage-a-owner-${runId}@example.test`;
 export const localSecondaryAdminEmail = `garage-a-second-owner-${runId}@example.test`;
 export const localOtherGarageAdminEmail = `garage-b-owner-${runId}@example.test`;
 export const localTestPassword = "Local-only-9f2e7c4a!";
-const localDatabaseContainer = "supabase_db_sobautofix-local-tests";
+
+/**
+ * The Supabase CLI project id: SUPABASE_PROJECT_ID, else `project_id` in
+ * supabase/config.toml (sobautofix-local-tests locally; autofix-ci-<N> on CI
+ * runners after scripts/ci/supabase-isolate.sh).
+ */
+export function localSupabaseProjectId() {
+  const fromEnvironment = process.env.SUPABASE_PROJECT_ID?.trim();
+  const projectId = fromEnvironment || /^project_id\s*=\s*"([^"]+)"/m.exec(readFileSync(resolve("supabase/config.toml"), "utf8"))?.[1];
+  if (!projectId || !/^[A-Za-z0-9_.-]+$/.test(projectId)) throw new Error("Could not read a valid Supabase project_id");
+  return projectId;
+}
+
+function localDatabaseContainer() {
+  return `supabase_db_${localSupabaseProjectId()}`;
+}
 
 export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   const url = firstEnvironmentValue("INTEGRATION_SUPABASE_URL", "API_URL", "SUPABASE_URL");
@@ -66,8 +83,10 @@ export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   );
 
   const parsed = new URL(url);
+  // The safety guard: a local stack only (loopback host, plain http). Any port,
+  // because CI runners on one machine each run their own stack on shifted ports.
   const isLoopback = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "::1" || parsed.hostname === "[::1]";
-  if (!isLoopback || parsed.protocol !== "http:" || parsed.port !== "54321") {
+  if (!isLoopback || parsed.protocol !== "http:") {
     throw new Error(`Refusing to run database integration tests against non-local Supabase URL: ${parsed.origin}`);
   }
 
@@ -150,7 +169,7 @@ export function executeLocalOwnerSql(sql: string, variables: Record<string, stri
         "-i",
         "--env",
         "PGPASSWORD=postgres",
-        localDatabaseContainer,
+        localDatabaseContainer(),
         "psql",
         "--host",
         "127.0.0.1",
