@@ -3,8 +3,11 @@
 //
 // Pure and client-safe, so the template editor (P3.10) can import it for the
 // live 160-character counter. Default wording comes from
-// docs/autofix/legal/consent-and-messaging-wording.md (draft v0.1, awaiting
-// solicitor review).
+// docs/autofix/legal/consent-and-messaging-wording.md (draft, awaiting
+// solicitor review). The reminder and missed-call defaults fit one GSM-7 text
+// (160 characters with the opt-out line) for a garage name and free-link slug
+// of up to 20 characters each and a first name of up to 12 (DECISIONS A184;
+// src/__tests__/reminder-sms-length.test.ts).
 //
 // SMS segment rules: GSM 03.38 basic set is 1 septet a character and the
 // extension table (^ { } \ [ ~ ] | € and form feed) is 2; one segment holds
@@ -198,25 +201,25 @@ export const DEFAULT_TEMPLATES: Readonly<Record<TemplateKind, DefaultTemplate>> 
     kind: "mot",
     purpose: "reminder",
     subject: "Your MOT is due on {due_date}",
-    body: "Hi {first_name}, the MOT on your {vehicle} ({reg}) is due on {due_date}. Book a time: {link}\n{garage}.",
+    body: "{garage}: Hi {first_name}, MOT due {due_date}. Book: {link}",
   },
   service: {
     kind: "service",
     purpose: "reminder",
     subject: "Your {vehicle} is due a service",
-    body: "Hi {first_name}, your {vehicle} ({reg}) is due a service. Book a time: {link}\n{garage}.",
+    body: "{garage}: Hi {first_name}, service due. Book: {link}",
   },
   review: {
     kind: "review",
     purpose: "reminder",
     subject: "How did we do?",
-    body: "Hi {first_name}, thanks for bringing your {vehicle} to us. Could you leave a quick review? {link}\n{garage}.",
+    body: "{garage}: thanks {first_name}! Please review us: {link}",
   },
   missed_call: {
     kind: "missed_call",
     purpose: "service",
     subject: "Sorry we missed your call",
-    body: "Sorry we missed your call. Book online in about a minute: {link} or we'll call you back soon. {garage}",
+    body: "{garage}: sorry we missed your call. Book at {link} or we'll call you back.",
   },
   booking_confirmed: {
     kind: "booking_confirmed",

@@ -6,7 +6,6 @@
 import { UNSUBSCRIBE_LINK_LINE } from "@/lib/consent/copy";
 import type { ChannelKind } from "@/lib/messaging/channel";
 import { DEFAULT_TEMPLATES, renderTemplate, type TemplatePlaceholder } from "@/lib/messaging/templates";
-import { formatMotDate } from "@/lib/vehicle/mot";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 
 export type ReminderKind = "mot" | "service" | "review";
@@ -35,6 +34,28 @@ export type ComposedReminder =
   | { ok: true; body: string; subject?: string }
   | { ok: false; reason: "template_placeholders"; missing: TemplatePlaceholder[]; unknown: string[] };
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+/** Further from the send than this, the date carries its year. */
+const DATE_WITHOUT_YEAR_DAYS = 180;
+
+/**
+ * `{due_date}` as reminders write it (DECISIONS A185): "24 Nov", short and GSM-7 so the default
+ * wording fits one text; "24 Nov 2027" when it is more than 180 days from `from` (the send time),
+ * so a reminder sent long before the date is never ambiguous. Fixed English month names (ICU's
+ * en-GB "Sept" would cost a character). `""` for anything that is not a real `YYYY-MM-DD` date.
+ */
+export function formatReminderDate(isoDate: string, from?: string | Date): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  const date = new Date(`${isoDate}T12:00:00.000Z`);
+  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== isoDate) return "";
+  const label = `${Number(day)} ${SHORT_MONTHS[Number(month) - 1]}`;
+  const fromMs = from === undefined ? Number.NaN : typeof from === "string" ? Date.parse(from) : from.getTime();
+  if (Number.isFinite(fromMs) && Math.abs(date.getTime() - fromMs) > DATE_WITHOUT_YEAR_DAYS * 86_400_000) return `${label} ${year}`;
+  return label;
+}
+
 /** "Sam Driver" → "Sam". */
 export function firstName(name: string | null | undefined) {
   return (name ?? "").trim().split(/\s+/)[0] ?? "";
@@ -58,7 +79,7 @@ export function composeReminder(input: {
     first_name: firstName(reminder.customer_name),
     vehicle: vehicleLabel(reminder.make, reminder.model),
     reg: formatRegistration(reminder.registration),
-    due_date: /^\d{4}-\d{2}-\d{2}$/.test(reminder.due_date) ? formatMotDate(reminder.due_date) : "",
+    due_date: formatReminderDate(reminder.due_date, reminder.send_at),
     link: input.link,
     garage: input.garageName,
   };

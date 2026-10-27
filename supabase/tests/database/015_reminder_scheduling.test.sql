@@ -338,7 +338,7 @@ select is(
   (select claim - 'id' - 'rule_id' - 'vehicle_id' from claim_round where round = 2 and claim->>'registration' = 'RC15AAA'),
   jsonb_build_object(
     'kind', 'mot', 'due_date', '2026-05-11', 'offset_days', 7, 'send_at', '2026-05-03T09:00:00+00:00', 'channel', 'sms',
-    'template', E'Hi {first_name}, the MOT on your {vehicle} ({reg}) is due on {due_date}. Book a time: {link}\n{garage}.',
+    'template', '{garage}: Hi {first_name}, MOT due {due_date}. Book: {link}',
     'customer_id', 'd1500000-0000-4000-8000-000000000801', 'customer_name', 'Cara Claim', 'phone', '+447700915801', 'email', null,
     'registration', 'RC15AAA', 'make', 'Toyota', 'model', 'Yaris'),
   'a claimed reminder carries what the sender renders: template, customer, contact details and car'
