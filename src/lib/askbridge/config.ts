@@ -34,10 +34,11 @@ function isLoopback(hostname: string) {
 }
 
 /**
- * The widget script URL from `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`: https only, except a loopback
- * stub outside production (the Lighthouse check serves one locally). `null` when unset or invalid.
+ * The widget script URL from `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`: https only, except a loopback stub
+ * (`http://127.0.0.1:…`) anywhere but a Vercel production deployment: the local production build that
+ * Playwright and Lighthouse run serves one. `null` when unset or invalid.
  */
-export function askbridgeScriptUrl(env: Env = { NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: process.env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL, NODE_ENV: process.env.NODE_ENV }): URL | null {
+export function askbridgeScriptUrl(env: Env = { NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: process.env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL, VERCEL_ENV: process.env.VERCEL_ENV }): URL | null {
   const raw = env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL?.trim();
   if (!raw) return null;
   let url: URL;
@@ -48,7 +49,7 @@ export function askbridgeScriptUrl(env: Env = { NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL
   }
   if (url.username || url.password) return null;
   if (url.protocol === "https:") return url;
-  if (url.protocol === "http:" && env.NODE_ENV !== "production" && isLoopback(url.hostname)) return url;
+  if (url.protocol === "http:" && env.VERCEL_ENV !== "production" && isLoopback(url.hostname)) return url;
   return null;
 }
 

@@ -66,7 +66,7 @@ function deps(overrides: AskbridgeSyncDeps = {}): AskbridgeSyncDeps {
 }
 
 describe("widget gating", () => {
-  const env = { NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "https://widget.askbridge.example/v1/widget.js", NODE_ENV: "production" };
+  const env = { NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "https://widget.askbridge.example/v1/widget.js", VERCEL_ENV: "production" };
 
   it("loads only when the garage has it on with a valid id and the platform has a script", () => {
     expect(askbridgeWidgetFor({ askbridge: { enabled: true, widgetId: "wid_1234" } }, env)).toEqual({
@@ -78,12 +78,12 @@ describe("widget gating", () => {
     expect(askbridgeWidgetFor({ askbridge: { enabled: true, widgetId: "<x>" } }, env)).toBeNull();
     expect(askbridgeWidgetFor({ askbridge: { enabled: "true", widgetId: "wid_1234" } }, env)).toBeNull();
     expect(askbridgeWidgetFor({}, env)).toBeNull();
-    expect(askbridgeWidgetFor({ askbridge: { enabled: true, widgetId: "wid_1234" } }, { NODE_ENV: "production" })).toBeNull();
+    expect(askbridgeWidgetFor({ askbridge: { enabled: true, widgetId: "wid_1234" } }, { VERCEL_ENV: "production" })).toBeNull();
   });
 
-  it("accepts https scripts, and a loopback stub only outside production", () => {
-    expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "http://127.0.0.1:4100/widget.js", NODE_ENV: "development" })?.origin).toBe("http://127.0.0.1:4100");
-    expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "http://127.0.0.1:4100/widget.js", NODE_ENV: "production" })).toBeNull();
+  it("accepts https scripts, and a loopback stub except on a Vercel production deployment", () => {
+    expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "http://127.0.0.1:4100/widget.js", NODE_ENV: "production" })?.origin).toBe("http://127.0.0.1:4100");
+    expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "http://127.0.0.1:4100/widget.js", VERCEL_ENV: "production" })).toBeNull();
     expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "http://widget.askbridge.example/w.js", NODE_ENV: "development" })).toBeNull();
     expect(askbridgeScriptUrl({ NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: "javascript:alert(1)" })).toBeNull();
     expect(askbridgeScriptUrl({})).toBeNull();
@@ -133,7 +133,7 @@ describe("runAskbridgeSync", () => {
   const liveEnv = { NODE_ENV: "production", ASKBRIDGE_SYNC_URL: "https://api.askbridge.example/v1/knowledge", ASKBRIDGE_WEBHOOK_SECRET: SECRET };
 
   it("posts the signed knowledge with an idempotency key", async () => {
-    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(null, { status: 202 }));
+    const fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => new Response(null, { status: 202 }));
     const result = await runAskbridgeSync({ garageId: GARAGE_ID }, deps({ env: liveEnv, fetch: fetchMock as unknown as typeof fetch }));
     expect(result).toMatchObject({ status: "sent", httpStatus: 202 });
     const [url, init] = fetchMock.mock.calls[0]!;

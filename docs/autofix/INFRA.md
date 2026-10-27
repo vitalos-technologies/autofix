@@ -36,6 +36,10 @@ Email (P1.3): `RESEND_FROM_EMAIL` is the platform sender address (the display na
 
 Agent tool API (P4.2): `AGENT_TOKEN_PEPPER` (32+ random characters, Sensitive; keys the HMAC of agent tokens, so rotating it invalidates every issued token).
 
+Askbridge (P4.6, [askbridge.md](askbridge.md)): `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` (public, https widget script; inlined at build), `ASKBRIDGE_SYNC_URL` and `ASKBRIDGE_WEBHOOK_SECRET` (server only, Sensitive). All optional.
+
+Security headers (P4.3): `X-Frame-Options` and `Content-Security-Policy` are set per host in `src/proxy.ts` (not `next.config.ts`): admin host `SAMEORIGIN` + `frame-ancestors 'self'`; garage booking hosts a CSP whose `frame-ancestors` lists the garage's allowed sites and whose script/connect/frame sources add the Askbridge origin only when that garage has the chat on.
+
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
 
 ## Local development

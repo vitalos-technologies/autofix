@@ -15,6 +15,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
+//   booking-page-settings.spec.ts  /app/settings/booking-page: free link + QR, custom domain (mock Vercel), embed CSP
+//                          on the garage host, Askbridge setting, manager read only (project booking-page-settings)
 //   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
@@ -83,6 +85,8 @@ export default defineConfig({
     },
     // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // Booking page & domain settings (P4.3/P4.6): its own garage, owner and manager; axe at 390 and 1440.
+    { name: "booking-page-settings", testMatch: "booking-page-settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

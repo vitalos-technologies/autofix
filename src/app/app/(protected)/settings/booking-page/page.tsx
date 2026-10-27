@@ -31,6 +31,8 @@ import { AskbridgeForm, CheckDomainForm, ConnectDomainForm, EmbedOriginsForm } f
 export const metadata: Metadata = { title: "Booking page" };
 
 const MESSAGES: Record<string, string> = {
+  "done:domain_connected": "Address added. Now add the record below at your domain provider; we check for it every few minutes.",
+  "done:domain_queued": "Address added. Our hosting provider is busy, so we'll finish setting it up in a few minutes. Add the record below in the meantime.",
   "done:domain_removed": "Address removed. Customers use your free link again.",
   "error:not_allowed": "Only the garage owner can change the booking page.",
   "error:no_domain": "There is no address to remove.",

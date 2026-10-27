@@ -188,3 +188,33 @@ SQL: `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` 
 | `src/lib/agent-api/store.ts` | `AgentApiStore` (`findToken`, `recordCall`, `garageProfile`, `findBooking`), `getAgentApiStore()` / `setAgentApiStoreForTests()`, `issueAgentToken({garageId, name, scopes})` → raw token once |
 | `src/lib/agent-api/handler.ts` | `handleAgentToolRequest(tool, request)`: token → garage status → scope → rate limits → body → tool (booking engine, vehicle provider with MOT only when `mot_enabled`, `findBookingForManage`) → `agent_call_log` row + `agent_api.call` log line |
 
+
+## Booking page, domains and Askbridge (P4.3, P4.6), as built
+
+Migration `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140–A153). pgTAP `022_domains_askbridge.test.sql`.
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `set_booking_page_settings(p_embed_origins jsonb default null, p_askbridge jsonb default null) → jsonb` | authenticated, **owner** of the selected garage (else `42501`) | Atomic merge into `garages.settings`: `embedOrigins` (≤ 10 `https://host[:port]`) and/or `askbridge` `{enabled bool, widgetId ^[A-Za-z0-9_-]{4,64}$}` (`enabled` needs an id); null leaves a key alone; `22023` on bad input. Returns `{embedOrigins, askbridge}` |
+| `enqueue_askbridge_sync(p_garage_id uuid)` | service role, triggers | One `askbridge.sync` job (`{garageId}`) per garage per UTC minute, run the minute after, only for active/onboarding garages with the chat on |
+| triggers `*_askbridge_sync` | — | After changes to `garages` (profile columns, status, `settings.faqs`, `settings.askbridge`), `services`, `opening_hours`, `closures`, `garage_domains` (status / `deleted_at` only) |
+
+`garage_domains.verification` (service role only) now holds `{records: [{type: CNAME\|TXT, name, host, value, purpose}], pendingSince}`.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/booking-page/embed-origins.ts` (client-safe) | `normaliseEmbedOrigin`, `parseEmbedOrigins(text)`, `embedOriginsFromSettings(settings)`, `MAX_EMBED_ORIGINS` |
+| `src/lib/booking-page/security-headers.ts` (pure) | `bookingSiteCsp({embedOrigins, widgetOrigin, dev})`, `bookingSiteHeaders()`, `ADMIN_SECURITY_HEADERS`; applied by `src/proxy.ts` to every response (admin/unknown: `X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`; garage hosts: CSP, no `X-Frame-Options`). `next.config.ts` no longer sets `X-Frame-Options` |
+| `src/lib/booking-page/domain-view.ts` (client-safe) | `parseStoredVerification`, `dnsRecordsForDisplay` (→ `DnsRecordTable`), `failedStepFor` (→ `DomainStatusSteps`), `checkAvailableInMs`, `isDomainInProgress` |
+| `src/lib/booking-page/domains-server.ts` | `getCustomDomain(client, garageId)`, `connectCustomDomain(garageId, hostname, {rls, service, domains?})`, `checkCustomDomainNow` / `retryCustomDomain(garageId, {service, domains?, now?})`, `removeCustomDomain(garageId, {rls, service})`, `createSupabaseDomainsCheckRepo(client, {garageId?, id?, limit?})` — **the repo P3.7 can pass to `runDomainsCheck` for the `domains.check` job** |
+| `src/lib/booking-page/qr.ts` | `qrMatrix`, `qrSvg(text, {title})`, `qrPng(text, scale)` (`uqr` + zlib; no external service) |
+| `src/lib/tenancy/resolve.ts` (+) | `HostGarage` gains `embedOrigins`, `widgetEnabled` (from `settings`); cache on `globalThis`; `clearHostCache({hostnames?, slugs?})` |
+| `src/lib/tenancy/garage.ts` (+) | `Garage.askbridgeWidgetId` (set only while the chat is on) |
+| `src/lib/askbridge/config.ts` (client-safe) | `askbridgeFromSettings`, `parseAskbridgeWidgetId`, `askbridgeScriptUrl(env)`, `askbridgeWidgetFor(settings, env)` |
+| `src/lib/askbridge/sync.ts` | `runAskbridgeSync(payload, deps)` (**job kind `askbridge.sync`** for the runner), `AskbridgeSyncError {retryable}`, `buildAskbridgeKnowledge`, `signAskbridgeBody` / `verifyAskbridgeSignature`, `askbridgeIdempotencyKey`, `getAskbridgeReadiness`, `askbridgeOutbox()` (mock) |
+| `src/lib/agent-api/handler.ts` (+) | `agentGarageProfile(record)` (the `garage_profile` body, shared with the sync) |
+| `src/components/askbridge/askbridge-widget.tsx` | `AskbridgeWidget` (`next/script` `lazyOnload`), rendered by the garage layout only when the chat is on and `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` is valid |
+
+Routes: `/app/settings/booking-page` (free link + copy + QR, own address: connect / DNS records / status steps / Check now / Try again / remove, embed snippets + allowed sites, branding summary, Askbridge chat; owners edit, others read; in `SetupNav`), `GET /app/settings/booking-page/qr?format=png|svg` (signed-in members, attachment). Server actions in `settings/booking-page/actions.ts` (`connectDomainAction`, `checkDomainAction`, `removeDomainAction`, `saveEmbedOriginsAction`, `saveAskbridgeAction`), each audited (`booking_page.*`, `askbridge.*`) and clearing the host cache. `/api/health` reports `checks.askbridge`.
+
+Contract with Askbridge: [askbridge.md](askbridge.md). Local stub `scripts/askbridge-widget-stub.mjs`; `pnpm test:lighthouse:askbridge` (`lighthouserc.askbridge.cjs`, reports in `output/lighthouse-askbridge/`); `pnpm test:e2e:booking-page` (Playwright project `booking-page-settings`).

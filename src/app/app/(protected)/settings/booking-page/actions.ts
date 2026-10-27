@@ -37,10 +37,8 @@ export async function connectDomainAction(previous: SetupFormState<"hostname">, 
   }
   await auditSetupChange(admin, "booking_page.domain_connected", "garage_domain", result.domain.id, { hostname: result.domain.hostname, queued: result.queued });
   afterBookingPageChange(admin, [result.domain.hostname]);
-  return stateFor(previous, {
-    status: "saved",
-    message: `${result.domain.hostname} added. Now add the record below at your domain provider; we check for it every few minutes.`,
-  });
+  // The form gives way to the DNS records, so the confirmation is a flash on the page.
+  redirect(`${PATH}?done=${result.queued ? "domain_queued" : "domain_connected"}#own-address`);
 }
 
 function checkMessage(result: CheckNowResult): Omit<SetupFormState, "seq"> {
