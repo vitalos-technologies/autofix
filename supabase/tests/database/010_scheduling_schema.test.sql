@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(108);
+select plan(113);
 
 -- Scheduling schema (P2.1): tables, constraints, grants, RLS and the removal
 -- of the Cal.com leftovers. Slot maths is in 011, create_booking in 012.
@@ -206,6 +206,41 @@ select is(
   pg_get_function_arguments('public.available_slots(uuid,uuid,date,date,text)'::regprocedure),
   'p_garage_id uuid, p_service_id uuid, p_from date, p_to date, p_location_mode text DEFAULT NULL::text',
   'available_slots takes the contract arguments'
+);
+
+-- create_booking() (P2.3)
+select ok(
+  has_function_privilege('service_role', 'public.create_booking(uuid,jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'public.create_booking(uuid,jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.create_booking(uuid,jsonb)', 'execute'),
+  'create_booking is service-role only'
+);
+select ok(
+  (select bool_and(not has_function_privilege('service_role', signature, 'execute')
+                   and not has_function_privilege('authenticated', signature, 'execute')
+                   and not has_function_privilege('anon', signature, 'execute'))
+   from unnest(array[
+     'public.create_booking_at(uuid,jsonb,timestamptz)',
+     'public.booking_input_text(jsonb,text,integer)',
+     'public.booking_input_uuid(jsonb,text)',
+     'public.booking_result(public.bookings,boolean)'
+   ]) internal_function(signature)),
+  'the booking internals (clock-injectable create_booking_at) are not executable by any API role'
+);
+select is(
+  (select count(*)::integer from pg_proc
+   where oid = any(array['public.create_booking(uuid,jsonb)'::regprocedure, 'public.create_booking_at(uuid,jsonb,timestamptz)'::regprocedure])
+     and prosecdef and proconfig = array['search_path=""']),
+  2, 'create_booking and create_booking_at are security definer with an empty search_path'
+);
+select is(
+  (select provolatile::text from pg_proc where oid = 'public.create_booking(uuid,jsonb)'::regprocedure),
+  'v', 'create_booking is volatile'
+);
+select is(
+  pg_get_function_arguments('public.create_booking(uuid,jsonb)'::regprocedure),
+  'p_garage_id uuid, p_booking jsonb',
+  'create_booking takes the contract arguments'
 );
 
 select ok(

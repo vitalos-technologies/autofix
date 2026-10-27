@@ -44,12 +44,17 @@ const schedulingStatements = sqlStatements(schedulingMigration);
 const schedulingTables = ["resources", "opening_hours", "closures", "services", "bookings", "booking_events"];
 const engineFunctions = [
   "available_slots(uuid, uuid, date, date, text)",
+  "create_booking(uuid, jsonb)",
   "seed_garage_defaults(uuid)",
 ];
 const internalEngineFunctions = [
   "available_slots_at(uuid, uuid, date, date, text, timestamptz)",
+  "create_booking_at(uuid, jsonb, timestamptz)",
   "opening_window_starts(uuid, date, date, integer)",
   "booking_service_context(uuid, uuid, text)",
+  "booking_input_text(jsonb, text, integer)",
+  "booking_input_uuid(jsonb, text)",
+  "booking_result(public.bookings, boolean)",
   "maintain_booking_cancellation()",
   "log_booking_status_change()",
 ];
@@ -205,10 +210,12 @@ describe("scheduling migration invariants (P2.1-P2.3)", () => {
   });
 
   it("runs the engine as security definer with an empty search_path", () => {
-    for (const name of ["available_slots", "available_slots_at", "seed_garage_defaults"]) {
+    for (const name of ["available_slots", "available_slots_at", "create_booking", "create_booking_at", "seed_garage_defaults"]) {
       expect(functionDefinition(schedulingMigration, name), name).toMatch(/\nsecurity definer\nset search_path = ''\n/);
     }
     expect(functionDefinition(schedulingMigration, "available_slots")).toMatch(/\nstable\nsecurity definer\n/);
+    expect(functionDefinition(schedulingMigration, "create_booking")).toMatch(/\nvolatile\nsecurity definer\n/);
+    expect(functionDefinition(schedulingMigration, "create_booking_at")).toContain("when exclusion_violation then");
   });
 
   it("lets staff change only booking status and notes, never create bookings", () => {

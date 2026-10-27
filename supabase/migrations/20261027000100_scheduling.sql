@@ -752,6 +752,514 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 6. Booking (P2.3)
+-- ---------------------------------------------------------------------------
+
+-- Input helpers: a JSON string (trimmed, '' as null) or a uuid, raising
+-- INVALID_BOOKING naming the field.
+create function public.booking_input_text(p_value jsonb, p_field text, p_max_length integer)
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  value_text text;
+begin
+  if p_value is null or jsonb_typeof(p_value) = 'null' then
+    return null;
+  end if;
+  if jsonb_typeof(p_value) <> 'string' then
+    raise exception 'INVALID_BOOKING: % must be a string', p_field using errcode = 'P0001';
+  end if;
+  value_text := nullif(btrim(p_value #>> '{}'), '');
+  if char_length(value_text) > p_max_length then
+    raise exception 'INVALID_BOOKING: % is too long', p_field using errcode = 'P0001';
+  end if;
+  return value_text;
+end
+$$;
+
+create function public.booking_input_uuid(p_value jsonb, p_field text)
+returns uuid
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  value_text text := public.booking_input_text(p_value, p_field, 36);
+begin
+  if value_text is null then
+    return null;
+  end if;
+  if value_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'INVALID_BOOKING: % must be a uuid', p_field using errcode = 'P0001';
+  end if;
+  return value_text::uuid;
+end
+$$;
+
+create function public.booking_result(p_booking public.bookings, p_replayed boolean)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'booking_id', p_booking.id,
+    'reference', p_booking.reference,
+    'status', p_booking.status,
+    'starts_at', p_booking.starts_at,
+    'ends_at', p_booking.ends_at,
+    'customer_id', p_booking.customer_id,
+    'vehicle_id', p_booking.vehicle_id,
+    'replayed', p_replayed
+  )
+$$;
+
+-- create_booking() with an explicit clock (p_now). One transaction:
+--   1. same (garage, idempotency_key) -> the existing booking, replayed;
+--   2. validate the input (INVALID_BOOKING), the service (SERVICE_UNAVAILABLE),
+--      the mobile postcode district (OUTSIDE_SERVICE_AREA) and the start:
+--      an opening-window start on the slot step (else INVALID_BOOKING), not
+--      on a closure day and inside the notice window (else SLOT_UNAVAILABLE);
+--   3. upsert the customer by (garage, phone) and the vehicle by (garage,
+--      registration); consent is only ever added, never withdrawn: when the
+--      customer ticks the box and has no consent on record, consent_at,
+--      consent_source and consent_text are written together; an existing
+--      consent record and opted_out_at are never changed or cleared;
+--   4. take the least-busy free resource of the kind that day (booked minutes,
+--      then sort, then id) and insert; on no_overlap try the next free one,
+--      then SLOT_UNAVAILABLE;
+--   5. write the created event and return the booking.
+create function public.create_booking_at(p_garage_id uuid, p_booking jsonb, p_now timestamptz)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  idempotency uuid;
+  existing public.bookings%rowtype;
+  context record;
+  service_id uuid;
+  visit_mode text;
+  booking_source text;
+  booking_status text;
+  starts_text text;
+  booking_starts timestamptz;
+  booking_ends timestamptz;
+  booking_during tstzrange;
+  local_day date;
+  local_day_range tstzrange;
+  customer_input jsonb;
+  vehicle_input jsonb;
+  customer_name text;
+  customer_phone text;
+  customer_email text;
+  customer_channel text;
+  consent_given boolean;
+  consent_from text;
+  consent_wording text;
+  vehicle_registration text;
+  vehicle_make text;
+  vehicle_model text;
+  vehicle_colour text;
+  vehicle_fuel text;
+  vehicle_year integer;
+  vehicle_mot_expiry date;
+  vehicle_mileage integer;
+  mot_text text;
+  booking_postcode text;
+  compact_postcode text;
+  booking_address text;
+  booking_notes text;
+  booking_symptoms text[] := '{}'::text[];
+  manage_hash text;
+  reminder_send uuid;
+  matched_customer uuid;
+  matched_vehicle uuid;
+  tried uuid[] := '{}'::uuid[];
+  chosen_resource uuid;
+  created public.bookings%rowtype;
+begin
+  if p_garage_id is null or p_now is null then
+    raise exception 'INVALID_BOOKING: garage is required' using errcode = 'P0001';
+  end if;
+  if p_booking is null or jsonb_typeof(p_booking) <> 'object' then
+    raise exception 'INVALID_BOOKING: the booking must be a JSON object' using errcode = 'P0001';
+  end if;
+
+  -- 1. Idempotency
+  idempotency := public.booking_input_uuid(p_booking->'idempotency_key', 'idempotency_key');
+  if idempotency is not null then
+    perform pg_advisory_xact_lock(hashtextextended('public.create_booking:' || p_garage_id::text || ':' || idempotency::text, 0));
+    select booking.* into existing
+    from public.bookings booking
+    where booking.garage_id = p_garage_id
+      and booking.idempotency_key = idempotency;
+    if found then
+      return public.booking_result(existing, true);
+    end if;
+  end if;
+
+  -- 2. Validation
+  service_id := public.booking_input_uuid(p_booking->'service_id', 'service_id');
+  if service_id is null then
+    raise exception 'INVALID_BOOKING: service_id is required' using errcode = 'P0001';
+  end if;
+  visit_mode := public.booking_input_text(p_booking->'location_mode', 'location_mode', 20);
+  if visit_mode is not null and visit_mode not in ('workshop', 'mobile') then
+    raise exception 'INVALID_BOOKING: location_mode must be workshop or mobile' using errcode = 'P0001';
+  end if;
+  booking_source := coalesce(public.booking_input_text(p_booking->'source', 'source', 20), 'online');
+  if booking_source not in ('online', 'phone', 'walk_in', 'reminder', 'missed_call', 'ai_agent') then
+    raise exception 'INVALID_BOOKING: unknown source' using errcode = 'P0001';
+  end if;
+
+  starts_text := public.booking_input_text(p_booking->'starts_at', 'starts_at', 40);
+  if starts_text is null then
+    raise exception 'INVALID_BOOKING: starts_at is required' using errcode = 'P0001';
+  end if;
+  if starts_text !~* '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)$' then
+    raise exception 'INVALID_BOOKING: starts_at must be an ISO 8601 timestamp with a UTC offset' using errcode = 'P0001';
+  end if;
+  begin
+    booking_starts := starts_text::timestamptz;
+  exception
+    when others then
+      raise exception 'INVALID_BOOKING: starts_at is not a valid timestamp' using errcode = 'P0001';
+  end;
+
+  customer_input := p_booking->'customer';
+  if customer_input is null or jsonb_typeof(customer_input) <> 'object' then
+    raise exception 'INVALID_BOOKING: customer is required' using errcode = 'P0001';
+  end if;
+  customer_name := public.booking_input_text(customer_input->'name', 'customer.name', 120);
+  if customer_name is null or char_length(customer_name) < 2 then
+    raise exception 'INVALID_BOOKING: customer.name is required' using errcode = 'P0001';
+  end if;
+  customer_phone := public.booking_input_text(customer_input->'phone', 'customer.phone', 16);
+  if customer_phone is null or customer_phone !~ '^\+[1-9][0-9]{6,14}$' then
+    raise exception 'INVALID_BOOKING: customer.phone must be E.164' using errcode = 'P0001';
+  end if;
+  customer_email := lower(public.booking_input_text(customer_input->'email', 'customer.email', 254));
+  if customer_email is not null and customer_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+    raise exception 'INVALID_BOOKING: customer.email is not an email address' using errcode = 'P0001';
+  end if;
+  customer_channel := public.booking_input_text(customer_input->'channel', 'customer.channel', 10);
+  if customer_channel is not null and customer_channel not in ('sms', 'whatsapp', 'email') then
+    raise exception 'INVALID_BOOKING: customer.channel must be sms, whatsapp or email' using errcode = 'P0001';
+  end if;
+  if customer_channel = 'email' and customer_email is null then
+    raise exception 'INVALID_BOOKING: customer.email is required for the email channel' using errcode = 'P0001';
+  end if;
+  if customer_input->'reminder_consent' is not null and jsonb_typeof(customer_input->'reminder_consent') <> 'null' then
+    if jsonb_typeof(customer_input->'reminder_consent') <> 'boolean' then
+      raise exception 'INVALID_BOOKING: customer.reminder_consent must be true or false' using errcode = 'P0001';
+    end if;
+    consent_given := (customer_input->>'reminder_consent')::boolean;
+  end if;
+  consent_from := coalesce(public.booking_input_text(customer_input->'consent_source', 'customer.consent_source', 20), 'booking');
+  if consent_from not in ('booking', 'import', 'soft_opt_in', 'staff') then
+    raise exception 'INVALID_BOOKING: unknown customer.consent_source' using errcode = 'P0001';
+  end if;
+  consent_wording := public.booking_input_text(customer_input->'consent_text', 'customer.consent_text', 2000);
+
+  vehicle_input := p_booking->'vehicle';
+  if vehicle_input is null or jsonb_typeof(vehicle_input) <> 'object' then
+    raise exception 'INVALID_BOOKING: vehicle is required' using errcode = 'P0001';
+  end if;
+  vehicle_registration := upper(regexp_replace(
+    coalesce(public.booking_input_text(vehicle_input->'registration', 'vehicle.registration', 20), ''), '[^A-Za-z0-9]', '', 'g'));
+  if vehicle_registration !~ '^[A-Z0-9]{2,8}$' then
+    raise exception 'INVALID_BOOKING: vehicle.registration is not a registration' using errcode = 'P0001';
+  end if;
+  vehicle_make := public.booking_input_text(vehicle_input->'make', 'vehicle.make', 80);
+  vehicle_model := public.booking_input_text(vehicle_input->'model', 'vehicle.model', 120);
+  vehicle_colour := public.booking_input_text(vehicle_input->'colour', 'vehicle.colour', 50);
+  vehicle_fuel := public.booking_input_text(vehicle_input->'fuel', 'vehicle.fuel', 50);
+  if vehicle_input->'year' is not null and jsonb_typeof(vehicle_input->'year') <> 'null' then
+    if jsonb_typeof(vehicle_input->'year') <> 'number'
+       or (vehicle_input->>'year')::numeric <> trunc((vehicle_input->>'year')::numeric)
+       or (vehicle_input->>'year')::numeric not between 1900 and 2100 then
+      raise exception 'INVALID_BOOKING: vehicle.year must be a year' using errcode = 'P0001';
+    end if;
+    vehicle_year := (vehicle_input->>'year')::integer;
+  end if;
+  mot_text := public.booking_input_text(vehicle_input->'mot_expiry', 'vehicle.mot_expiry', 10);
+  if mot_text is not null then
+    if mot_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      raise exception 'INVALID_BOOKING: vehicle.mot_expiry must be a date (YYYY-MM-DD)' using errcode = 'P0001';
+    end if;
+    begin
+      vehicle_mot_expiry := mot_text::date;
+    exception
+      when others then
+        raise exception 'INVALID_BOOKING: vehicle.mot_expiry must be a date (YYYY-MM-DD)' using errcode = 'P0001';
+    end;
+  end if;
+  if vehicle_input->'last_mileage' is not null and jsonb_typeof(vehicle_input->'last_mileage') <> 'null' then
+    if jsonb_typeof(vehicle_input->'last_mileage') <> 'number'
+       or (vehicle_input->>'last_mileage')::numeric <> trunc((vehicle_input->>'last_mileage')::numeric)
+       or (vehicle_input->>'last_mileage')::numeric not between 0 and 2000000 then
+      raise exception 'INVALID_BOOKING: vehicle.last_mileage must be a whole number of miles' using errcode = 'P0001';
+    end if;
+    vehicle_mileage := (vehicle_input->>'last_mileage')::integer;
+  end if;
+
+  booking_postcode := public.booking_input_text(p_booking->'postcode', 'postcode', 10);
+  if booking_postcode is not null then
+    compact_postcode := upper(regexp_replace(booking_postcode, '[[:space:]]', '', 'g'));
+    if compact_postcode !~ '^[A-Z]{1,2}[0-9][A-Z0-9]?[0-9][A-Z]{2}$' then
+      raise exception 'INVALID_BOOKING: postcode is not a UK postcode' using errcode = 'P0001';
+    end if;
+    booking_postcode := left(compact_postcode, -3) || ' ' || right(compact_postcode, 3);
+  end if;
+  booking_address := public.booking_input_text(p_booking->'address', 'address', 300);
+  booking_notes := public.booking_input_text(p_booking->'notes', 'notes', 2000);
+  if p_booking->'symptoms' is not null and jsonb_typeof(p_booking->'symptoms') <> 'null' then
+    if jsonb_typeof(p_booking->'symptoms') <> 'array' or jsonb_array_length(p_booking->'symptoms') > 10 then
+      raise exception 'INVALID_BOOKING: symptoms must be a list of at most 10' using errcode = 'P0001';
+    end if;
+    if exists (
+      select 1 from jsonb_array_elements(p_booking->'symptoms') symptom
+      where jsonb_typeof(symptom) <> 'string' or char_length(btrim(symptom #>> '{}')) not between 1 and 80
+    ) then
+      raise exception 'INVALID_BOOKING: each symptom must be 1-80 characters' using errcode = 'P0001';
+    end if;
+    booking_symptoms := array(
+      select btrim(symptom.value #>> '{}')
+      from jsonb_array_elements(p_booking->'symptoms') with ordinality symptom(value, position)
+      order by symptom.position
+    );
+  end if;
+  manage_hash := public.booking_input_text(p_booking->'manage_token_hash', 'manage_token_hash', 64);
+  if manage_hash is not null and manage_hash !~ '^[0-9a-f]{64}$' then
+    raise exception 'INVALID_BOOKING: manage_token_hash must be 64 hex characters' using errcode = 'P0001';
+  end if;
+
+  -- TODO(P3.6): reminder_sends arrives with the reminders migration, which
+  -- adds the bookings.reminder_send_id foreign key and the attribution
+  -- (source = reminder, reminder_sends.booking_id in this transaction). Until
+  -- then no send can belong to the garage, so the id is accepted and dropped.
+  reminder_send := public.booking_input_uuid(p_booking->'reminder_send_id', 'reminder_send_id');
+  if reminder_send is not null then
+    if to_regclass('public.reminder_sends') is null then
+      reminder_send := null;
+    else
+      execute 'select reminder_send.id from public.reminder_sends reminder_send where reminder_send.garage_id = $1 and reminder_send.id = $2'
+      into reminder_send
+      using p_garage_id, reminder_send;
+    end if;
+  end if;
+
+  -- The service, in this garage, bookable online in this mode.
+  select * into context from public.booking_service_context(p_garage_id, service_id, visit_mode);
+  visit_mode := context.location_mode;
+
+  if visit_mode = 'mobile' then
+    if booking_postcode is null then
+      raise exception 'INVALID_BOOKING: postcode is required for mobile visits' using errcode = 'P0001';
+    end if;
+    if not exists (
+      select 1 from unnest(context.service_area) area
+      where upper(btrim(area)) = split_part(booking_postcode, ' ', 1)
+    ) then
+      raise exception 'OUTSIDE_SERVICE_AREA' using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- The start must be one the garage offers.
+  local_day := (booking_starts at time zone context.timezone)::date;
+  if not exists (
+    select 1
+    from public.opening_window_starts(p_garage_id, local_day, local_day, context.duration_min) window_start
+    where window_start.starts_at = booking_starts
+  ) then
+    raise exception 'INVALID_BOOKING: starts_at is not a bookable time for this service' using errcode = 'P0001';
+  end if;
+  if exists (
+    select 1 from public.closures closure
+    where closure.garage_id = p_garage_id
+      and local_day between closure.starts_on and closure.ends_on
+  )
+  or booking_starts < p_now + make_interval(hours => context.min_notice_h)
+  or booking_starts > p_now + make_interval(hours => context.max_days_ahead * 24) then
+    raise exception 'SLOT_UNAVAILABLE' using errcode = 'P0001';
+  end if;
+
+  -- 3. Customer and vehicle
+  insert into public.customers as customer (
+    garage_id, name, phone, email, preferred_contact, channel, reminder_consent, consent_at, consent_source, consent_text
+  )
+  values (
+    p_garage_id,
+    customer_name,
+    customer_phone,
+    customer_email,
+    case coalesce(customer_channel, 'sms') when 'sms' then 'phone' else coalesce(customer_channel, 'sms') end,
+    coalesce(customer_channel, 'sms'),
+    coalesce(consent_given, false),
+    case when consent_given then p_now end,
+    case when consent_given then consent_from end,
+    case when consent_given then consent_wording end
+  )
+  on conflict (garage_id, phone) do update
+  set name = excluded.name,
+      email = coalesce(excluded.email, customer.email),
+      channel = case when customer_channel is null then customer.channel else excluded.channel end,
+      preferred_contact = case when customer_channel is null then customer.preferred_contact else excluded.preferred_contact end,
+      reminder_consent = customer.reminder_consent or coalesce(consent_given, false),
+      consent_at = case when not customer.reminder_consent and consent_given then p_now else customer.consent_at end,
+      consent_source = case when not customer.reminder_consent and consent_given then consent_from else customer.consent_source end,
+      consent_text = case when not customer.reminder_consent and consent_given then consent_wording else customer.consent_text end
+  returning customer.id into matched_customer;
+
+  insert into public.vehicles as vehicle (
+    garage_id, customer_id, registration, make, model, colour, fuel, year, mot_expiry, mot_checked_at, last_mileage
+  )
+  values (
+    p_garage_id,
+    matched_customer,
+    vehicle_registration,
+    vehicle_make,
+    vehicle_model,
+    vehicle_colour,
+    vehicle_fuel,
+    vehicle_year,
+    vehicle_mot_expiry,
+    case when vehicle_mot_expiry is not null then p_now end,
+    vehicle_mileage
+  )
+  on conflict (garage_id, registration) do update
+  set customer_id = excluded.customer_id,
+      make = coalesce(excluded.make, vehicle.make),
+      model = coalesce(excluded.model, vehicle.model),
+      colour = coalesce(excluded.colour, vehicle.colour),
+      fuel = coalesce(excluded.fuel, vehicle.fuel),
+      year = coalesce(excluded.year, vehicle.year),
+      mot_expiry = coalesce(excluded.mot_expiry, vehicle.mot_expiry),
+      mot_checked_at = coalesce(excluded.mot_checked_at, vehicle.mot_checked_at),
+      last_mileage = greatest(excluded.last_mileage, vehicle.last_mileage)
+  returning vehicle.id into matched_vehicle;
+
+  -- 4. Resource. Bookings for one garage are allocated one at a time; the
+  -- exclusion constraint still guards every other writer.
+  perform pg_advisory_xact_lock(hashtextextended('public.create_booking:' || p_garage_id::text, 0));
+
+  booking_ends := booking_starts + make_interval(mins => context.duration_min);
+  booking_during := tstzrange(
+    booking_starts - make_interval(mins => context.travel_min),
+    booking_ends + make_interval(mins => context.buffer_min + context.travel_min),
+    '[)'
+  );
+  local_day_range := tstzrange(
+    local_day::timestamp at time zone context.timezone,
+    (local_day + 1)::timestamp at time zone context.timezone,
+    '[)'
+  );
+  booking_status := case
+    when context.needs_approval or context.approve_online or booking_source = 'ai_agent' then 'requested'
+    else 'confirmed'
+  end;
+
+  loop
+    select resource.id
+    into chosen_resource
+    from public.resources resource
+    where resource.garage_id = p_garage_id
+      and resource.active
+      and resource.kind = context.resource_kind
+      and resource.id <> all(tried)
+      and not exists (
+        select 1
+        from public.bookings booking
+        where booking.garage_id = p_garage_id
+          and booking.resource_id = resource.id
+          and booking.status not in ('cancelled', 'no_show')
+          and booking.during && booking_during
+      )
+    order by
+      (
+        select coalesce(sum(extract(epoch from upper(booking.during * local_day_range) - lower(booking.during * local_day_range))), 0)
+        from public.bookings booking
+        where booking.garage_id = p_garage_id
+          and booking.resource_id = resource.id
+          and booking.status not in ('cancelled', 'no_show')
+          and booking.during && local_day_range
+      ),
+      resource.sort,
+      resource.id
+    limit 1;
+
+    if chosen_resource is null then
+      raise exception 'SLOT_UNAVAILABLE' using errcode = 'P0001';
+    end if;
+
+    begin
+      insert into public.bookings (
+        garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during,
+        status, source, location_mode, postcode, address, symptoms, notes,
+        idempotency_key, manage_token_hash, reminder_send_id, price_pence
+      )
+      values (
+        p_garage_id, matched_customer, matched_vehicle, service_id, chosen_resource, booking_starts, booking_ends, booking_during,
+        booking_status, booking_source, visit_mode, booking_postcode, booking_address, booking_symptoms, booking_notes,
+        idempotency, manage_hash, reminder_send, context.price_pence
+      )
+      returning * into created;
+      exit;
+    exception
+      when exclusion_violation then
+        tried := tried || chosen_resource;
+        chosen_resource := null;
+    end;
+  end loop;
+
+  -- 5. Timeline
+  insert into public.booking_events (garage_id, booking_id, type, actor, data)
+  values (
+    p_garage_id,
+    created.id,
+    'created',
+    case booking_source
+      when 'ai_agent' then 'agent'
+      when 'phone' then 'staff'
+      when 'walk_in' then 'staff'
+      else 'customer'
+    end,
+    jsonb_build_object(
+      'source', booking_source,
+      'status', booking_status,
+      'service_id', service_id,
+      'resource_id', created.resource_id,
+      'location_mode', visit_mode,
+      'starts_at', booking_starts
+    )
+  );
+
+  return public.booking_result(created, false);
+end
+$$;
+
+-- Contract (ARCHITECTURE.md): create_booking(p_garage_id, p_booking jsonb)
+-- returns {booking_id, reference, status, starts_at, ends_at, customer_id,
+-- vehicle_id, replayed}; errors are P0001 with a message starting
+-- SLOT_UNAVAILABLE, SERVICE_UNAVAILABLE, OUTSIDE_SERVICE_AREA or
+-- INVALID_BOOKING.
+create function public.create_booking(p_garage_id uuid, p_booking jsonb)
+returns jsonb
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  select public.create_booking_at(p_garage_id, p_booking, now())
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 7. Garage defaults (sign-up, P4.4)
 -- ---------------------------------------------------------------------------
 -- Opening hours (Mon-Fri 08:00-17:30, Sat 08:30-13:00), 3 bays and a mobile
@@ -1728,14 +2236,20 @@ grant insert (garage_id, booking_id, type, actor, actor_id, data) on public.book
 grant select, insert, delete on public.booking_events to service_role;
 
 revoke all on function public.available_slots(uuid, uuid, date, date, text) from public, anon, authenticated;
+revoke all on function public.create_booking(uuid, jsonb) from public, anon, authenticated;
 revoke all on function public.seed_garage_defaults(uuid) from public, anon, authenticated;
 grant execute on function public.available_slots(uuid, uuid, date, date, text) to service_role;
+grant execute on function public.create_booking(uuid, jsonb) to service_role;
 grant execute on function public.seed_garage_defaults(uuid) to service_role;
 
 -- Internals and trigger functions: owner only.
 revoke all on function public.available_slots_at(uuid, uuid, date, date, text, timestamptz) from public, anon, authenticated, service_role;
+revoke all on function public.create_booking_at(uuid, jsonb, timestamptz) from public, anon, authenticated, service_role;
 revoke all on function public.opening_window_starts(uuid, date, date, integer) from public, anon, authenticated, service_role;
 revoke all on function public.booking_service_context(uuid, uuid, text) from public, anon, authenticated, service_role;
+revoke all on function public.booking_input_text(jsonb, text, integer) from public, anon, authenticated, service_role;
+revoke all on function public.booking_input_uuid(jsonb, text) from public, anon, authenticated, service_role;
+revoke all on function public.booking_result(public.bookings, boolean) from public, anon, authenticated, service_role;
 revoke all on function public.maintain_booking_cancellation() from public, anon, authenticated, service_role;
 revoke all on function public.log_booking_status_change() from public, anon, authenticated, service_role;
 

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(18);
+select plan(24);
 
 -- Service-role functions take the garage explicitly and never touch another
 -- garage's rows, whatever ids they are given.
@@ -57,6 +57,47 @@ select throws_ok(
 );
 
 set local role service_role;
+
+-- create_booking (next Monday 10:00 London; garage A is open every day)
+select is(
+  (public.create_booking('a8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000001',
+      'customer', jsonb_build_object('name', 'Intent Customer', 'phone', '+447700900300', 'email', 'Intent@Example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 int', 'make', 'Ford', 'model', 'Focus')))->>'replayed'),
+  'false', 'a booking is created in the garage'
+);
+select is(
+  (public.create_booking('a8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000001',
+      'customer', jsonb_build_object('name', 'Intent Customer', 'phone', '+447700900300', 'email', 'Intent@Example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 int', 'make', 'Ford', 'model', 'Focus')))->>'replayed'),
+  'true', 'the same idempotency key returns the existing booking'
+);
+select matches(
+  (select reference from public.bookings where idempotency_key = 'c8000000-0000-4000-8000-000000000001'),
+  '^SVA-[0-9]{4}$', 'the booking reference uses garage A''s prefix'
+);
+select is(
+  (select count(*)::integer from public.customers where garage_id = 'a8000000-0000-4000-8000-000000000001' and email = 'intent@example.test'),
+  1, 'the customer is created in garage A'
+);
+select throws_ok(
+  $$select public.create_booking('b8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000002',
+      'customer', jsonb_build_object('name', 'Cross Garage', 'phone', '+447700900301', 'email', 'cross@example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 crs', 'make', 'Ford', 'model', 'Focus')))$$,
+  'P0001', 'SERVICE_UNAVAILABLE', 'garage B cannot book garage A''s service'
+);
+select is(
+  (select count(*)::integer from public.bookings where garage_id = 'b8000000-0000-4000-8000-000000000001'),
+  0, 'the failed cross-garage booking left nothing behind in garage B'
+);
 
 -- Inbound email and unread counts
 select throws_ok(
@@ -155,6 +196,7 @@ reset role;
 
 select ok(
   not has_function_privilege('authenticated', 'public.apply_enquiry_retention(uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.create_booking(uuid,jsonb)', 'execute')
   and not has_function_privilege('authenticated', 'public.store_inbound_email_message(uuid,uuid,text,text,text,text,text,text,text,text,text,text[],timestamptz,text)', 'execute'),
   'signed-in staff cannot call the service-role functions'
 );
