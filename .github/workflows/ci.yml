@@ -107,7 +107,7 @@ jobs:
           retention-days: 7
       - name: Remove isolated local Supabase data
         if: always()
-        run: supabase stop --no-backup
+        run: scripts/ci/supabase-stop.sh
       - name: Report VM memory (lowest MemAvailable during this job)
         if: always()
         run: |
@@ -184,7 +184,7 @@ jobs:
           retention-days: 7
       - name: Remove isolated local Supabase data
         if: always()
-        run: supabase stop --no-backup
+        run: scripts/ci/supabase-stop.sh
 
   lighthouse:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
@@ -236,4 +236,4 @@ jobs:
           retention-days: 7
       - name: Remove isolated local Supabase data
         if: always()
-        run: supabase stop --no-backup
+        run: scripts/ci/supabase-stop.sh
