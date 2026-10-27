@@ -14,6 +14,8 @@ const harness = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+// getPlatformAdmin() waits for the request (connection()) so /admin is never prerendered.
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), connection: async () => {} }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { platformAccess } from "@/lib/platform/policy";
@@ -18,6 +19,9 @@ export type PlatformAdmin = {
  * else. Never uses the service role: is_platform_admin() answers for auth.uid().
  */
 export const getPlatformAdmin = cache(async (): Promise<PlatformAdmin | null> => {
+  // Always per request: without Supabase env at build time createClient() returns null before it
+  // reads cookies, and /admin would otherwise be prerendered as a 404.
+  await connection();
   const client = await createClient();
   if (!client) return null;
   const { data: { user } } = await client.auth.getUser();
