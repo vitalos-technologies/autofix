@@ -4,8 +4,24 @@ import { headers } from "next/headers";
 import { getBookingEngine, type OnlineService } from "@/lib/booking-engine";
 import type { BookingFlowMeta } from "@/lib/booking-engine/state";
 import { visibleServices } from "@/lib/booking-flow/steps";
+import { bookingCalendarDownloadUrl } from "@/lib/bookings/calendar";
 import type { Garage } from "@/lib/tenancy/garage";
 import { verifyTurnstile } from "@/lib/turnstile";
+
+/**
+ * The signed `.ics` link for a booking as a path on this host (booking pages are already on the
+ * garage's host). The signature binds garage and reference; the link holds no customer details.
+ */
+export function bookingCalendarPath(garage: Garage, reference: string): string | null {
+  const url = bookingCalendarDownloadUrl(garage, reference);
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return null;
+  }
+}
 
 /** The garage's online services as the booking page shows them (MOT only when switched on). */
 export async function loadBookingServices(garage: Pick<Garage, "id" | "motEnabled">): Promise<OnlineService[]> {

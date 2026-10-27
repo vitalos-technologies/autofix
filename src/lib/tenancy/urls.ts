@@ -35,7 +35,7 @@ export function garageBaseUrl(garage: GarageUrlSubject, env: UrlEnvironment = pr
   return `https://${freeLinkHost(garage.slug, env)}`;
 }
 
-/** An absolute link on the garage's booking site, e.g. `garageUrl(garage, "/manage-booking")`. */
+/** An absolute link on the garage's booking site, e.g. `garageUrl(garage, "/manage")`. */
 export function garageUrl(garage: GarageUrlSubject, path: string, env: UrlEnvironment = process.env): string {
   return new URL(path, `${garageBaseUrl(garage, env)}/`).toString();
 }

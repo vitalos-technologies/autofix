@@ -13,8 +13,8 @@ export type BookingSummaryBarProps = {
   /** Slot start (ISO). */
   start: string;
   timeZone?: string;
-  /** Step to go back to. */
-  editHref: string;
+  /** Step to go back to; no Edit link when omitted (e.g. the cancel confirmation). */
+  editHref?: string | null;
   /** Read-out name of the Edit link. */
   editLabel?: string;
   className?: string;
@@ -32,22 +32,24 @@ export function BookingSummaryBar({
   className,
 }: BookingSummaryBarProps) {
   return (
-    <div className={cn("flex items-center gap-3 rounded-card bg-navy-950 py-3.5 pr-1.5 pl-4 font-sans leading-[normal] text-white", className)}>
+    <div className={cn("flex items-center gap-3 rounded-card bg-navy-950 py-3.5 pl-4 font-sans leading-[normal] text-white", editHref ? "pr-1.5" : "pr-4", className)}>
       <PlateChip registration={registration} size="md" />
       <div className="flex min-w-0 grow flex-col gap-0.5">
         <p className="m-0 text-[14px] font-bold">{[service, mode].filter(Boolean).join(" · ")}</p>
         <p className="m-0 text-[12.5px] text-[#b8c4d4]">{formatSummaryWhen(start, timeZone)}</p>
       </div>
-      <Link
-        href={editHref}
-        aria-label={editLabel}
-        className={cn(
-          "-my-[5px] inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-input px-2 text-[13px] font-semibold text-[#9cc8ff] underline underline-offset-2 hover:text-white",
-          focusRingOnDark,
-        )}
-      >
-        Edit
-      </Link>
+      {editHref ? (
+        <Link
+          href={editHref}
+          aria-label={editLabel}
+          className={cn(
+            "-my-[5px] inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-input px-2 text-[13px] font-semibold text-[#9cc8ff] underline underline-offset-2 hover:text-white",
+            focusRingOnDark,
+          )}
+        >
+          Edit
+        </Link>
+      ) : null}
     </div>
   );
 }

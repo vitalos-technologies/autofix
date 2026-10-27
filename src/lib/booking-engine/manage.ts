@@ -149,16 +149,24 @@ type ManageBookingRow = {
   manage_token_hash: string | null;
   services: Related<{ id: string; name: string; needs_approval: boolean | null }>;
   resources: Related<{ kind: string }>;
-  customers: Related<{ name: string | null }>;
+  customers: Related<{ name: string | null; phone: string | null }>;
   vehicles: Related<{ registration: string | null; make: string | null; model: string | null }>;
 };
 
 type GarageSettingsRow = { id: string; timezone: string | null; cancellation_cutoff_h: number | null };
 
-/** A booking as the manage flow and the admin see it. `id` never goes to a customer. */
+/**
+ * A booking as the manage flow and the admin see it. `id` never goes to a customer; the full phone
+ * number and the customer's postcode stay on the server (the manage page shows them masked).
+ */
 export type ManagedBooking = PublicManagedBooking & {
   id: string;
   garageId: string;
+  customerName: string;
+  /** E.164, as stored on the customer. */
+  customerPhone: string | null;
+  /** The visit postcode (mobile bookings). */
+  postcode: string | null;
   serviceId: string;
   resourceId: string | null;
   resourceKind: string | null;
@@ -168,7 +176,7 @@ export type ManagedBooking = PublicManagedBooking & {
   manageTokenHash: string | null;
 };
 
-const bookingColumns = "id,garage_id,reference,status,starts_at,ends_at,during,location_mode,postcode,resource_id,service_id,idempotency_key,manage_token_hash,services(id,name,needs_approval),resources(kind),customers(name)";
+const bookingColumns = "id,garage_id,reference,status,starts_at,ends_at,during,location_mode,postcode,resource_id,service_id,idempotency_key,manage_token_hash,services(id,name,needs_approval),resources(kind),customers(name,phone)";
 const MANAGE_SELECT = `${bookingColumns},vehicles(registration,make,model)`;
 const MANAGE_SELECT_BY_REGISTRATION = `${bookingColumns},vehicles!inner(registration,make,model)`;
 
@@ -200,12 +208,16 @@ function toManagedBooking(row: ManageBookingRow, settings: { timeZone: string; c
   if (!startsAt || !endsAt) return null;
   const service = relation(row.services);
   const vehicle = relation(row.vehicles);
+  const customer = relation(row.customers);
   const deadline = new Date(Date.parse(startsAt) - settings.cutoffHours * 3_600_000);
   const statusAllows = customerChangeableStatuses.includes(row.status);
   const beforeCutoff = now.getTime() < deadline.getTime();
   return {
     id: row.id,
     garageId: row.garage_id,
+    customerName: (customer?.name ?? "").trim(),
+    customerPhone: customer?.phone ?? null,
+    postcode: row.postcode ?? null,
     reference: row.reference,
     status: row.status,
     startsAt,
@@ -217,7 +229,7 @@ function toManagedBooking(row: ManageBookingRow, settings: { timeZone: string; c
       make: vehicle?.make ?? null,
       model: vehicle?.model ?? null,
     },
-    customerFirstName: firstName(relation(row.customers)?.name),
+    customerFirstName: firstName(customer?.name),
     canChange: statusAllows && beforeCutoff,
     changeDeadline: deadline.toISOString(),
     blockedReason: !statusAllows ? "status" : !beforeCutoff ? "cutoff" : null,

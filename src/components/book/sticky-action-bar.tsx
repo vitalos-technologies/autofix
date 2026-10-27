@@ -28,18 +28,27 @@ export type StickyActionBarProps = ActionProps & {
   footnote?: ReactNode;
   /** Fixed to the bottom of the viewport (default). `false` renders it in place (component gallery). */
   fixed?: boolean;
+  /** `danger` for a destructive confirmation such as "Cancel booking" (red instead of the garage accent). */
+  tone?: "accent" | "danger";
   className?: string;
 };
 
-const buttonClass = cn(
-  "flex h-[54px] w-full items-center justify-center gap-2 rounded-control bg-accent px-4 text-[16px] font-bold text-accent-ink no-underline transition-colors",
-  "hover:bg-[color-mix(in_srgb,var(--garage-accent)_88%,black)] disabled:cursor-not-allowed disabled:bg-grey-300 disabled:text-grey-700",
+const buttonBase = cn(
+  "flex h-[54px] w-full items-center justify-center gap-2 rounded-control px-4 text-[16px] font-bold no-underline transition-colors",
+  "disabled:cursor-not-allowed disabled:bg-grey-300 disabled:text-grey-700",
   focusRing,
 );
 
+const buttonTones = {
+  accent: "bg-accent text-accent-ink hover:bg-[color-mix(in_srgb,var(--garage-accent)_88%,black)]",
+  // #b91c1c with white is 6.5:1.
+  danger: "bg-[#b91c1c] text-white hover:bg-[#991b1b]",
+} as const;
+
 /** White bar in the thumb zone with the 54px primary action. */
 export function StickyActionBar(props: StickyActionBarProps) {
-  const { label, showArrow = true, busy = false, footnote, fixed = true, className } = props;
+  const { label, showArrow = true, busy = false, footnote, fixed = true, tone = "accent", className } = props;
+  const buttonClass = cn(buttonBase, buttonTones[tone]);
   const content = (
     <>
       {busy ? <LoaderCircle size={18} strokeWidth={2} aria-hidden="true" className="animate-spin" /> : null}
