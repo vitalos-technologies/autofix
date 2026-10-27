@@ -6,10 +6,11 @@ import { BookingEngineError, bookingErrorCodeFromDatabase, bookingErrorMessages 
 import { deriveManageToken, hashManageToken } from "@/lib/booking-engine/manage";
 import { notifyBooking } from "@/lib/booking-engine/notify";
 import { isoInstant } from "@/lib/booking-engine/range";
-import { clearSlotCache, fetchAvailableSlots, findAlternativeSlots } from "@/lib/booking-engine/slots";
+import { clearSlotCache, fetchAvailableSlots, fetchStaffSlots, findAlternativeSlots } from "@/lib/booking-engine/slots";
 import {
   bookingStatuses,
   createBookingInputSchema,
+  staffBookingContextSchema,
   type BookingEngine,
   type BookingErrorCode,
   type CreateBookingInput,
@@ -21,6 +22,8 @@ import {
   type ServiceLocationMode,
   type Slot,
 } from "@/lib/booking-engine/types";
+
+type StaffRules = z.output<typeof staffBookingContextSchema>;
 import { toE164UK } from "@/lib/messaging/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -70,7 +73,7 @@ const SERVICE_COLUMNS = "id,name,description,duration_min,buffer_min,price_pence
 const RESULT_COLUMNS = "id,reference,status,starts_at,ends_at,customer_id,vehicle_id";
 /** Garage statuses that take bookings (the same ones whose booking site is served). */
 const BOOKABLE_GARAGE_STATUSES = new Set(["active", "onboarding"]);
-/** Sources recorded by staff may use services that are not offered online. */
+/** Sources recorded by staff (consent taken by staff; the only sources that may carry staff rules). */
 const STAFF_SOURCES = new Set(["phone", "walk_in"]);
 
 const createBookingResultSchema = z.object({
@@ -121,10 +124,19 @@ function serviceAllowsLocation(service: ServiceLocationMode, requested: Location
   return service === "both" || service === requested;
 }
 
-/** The booking `create_booking()` receives (docs/autofix/ARCHITECTURE.md lists every key). */
-export function createBookingPayload(input: CreateBookingInput, normalised: { phone: string; postcode: string | null }, manageTokenHash: string) {
+/**
+ * The booking `create_booking()` receives (docs/autofix/ARCHITECTURE.md lists every key). `staff`
+ * is only present for a member's phone / walk-in booking (A90), from the verified admin session.
+ */
+export function createBookingPayload(
+  input: CreateBookingInput,
+  normalised: { phone: string; postcode: string | null },
+  manageTokenHash: string,
+  staff?: StaffRules,
+) {
   const blank = (value: string | undefined) => (value && value.trim() ? value.trim() : null);
   return {
+    ...(staff ? { staff: { member_id: staff.memberId, override_hours: staff.overrideHours } } : {}),
     service_id: input.serviceId,
     starts_at: new Date(input.startsAt).toISOString(),
     location_mode: input.locationMode,
@@ -219,10 +231,21 @@ export function createSupabaseBookingEngine(options: SupabaseBookingEngineOption
       return fetchAvailableSlots(client(), query, now().getTime());
     },
 
-    async createBooking(garageId, rawInput) {
+    async getStaffSlots(query) {
+      return fetchStaffSlots(client(), query);
+    },
+
+    async createBooking(garageId, rawInput, options = {}) {
       const parsed = createBookingInputSchema.safeParse(rawInput);
       if (!parsed.success) return failure("INVALID_BOOKING");
       const input = parsed.data;
+      let staff: StaffRules | undefined;
+      if (options.staff !== undefined) {
+        const rules = staffBookingContextSchema.safeParse(options.staff);
+        // Staff rules belong to a member's phone or walk-in booking only (the SQL checks membership).
+        if (!rules.success || !STAFF_SOURCES.has(input.source)) return failure("INVALID_BOOKING");
+        staff = rules.data;
+      }
 
       const phone = toE164UK(input.customer.phone);
       if (!phone) return failure("INVALID_BOOKING", "Enter a UK mobile number so the garage can reach you.");
@@ -249,7 +272,8 @@ export function createSupabaseBookingEngine(options: SupabaseBookingEngineOption
         if (
           !service
           || service.deleted_at
-          || (!STAFF_SOURCES.has(input.source) && !service.online_enabled)
+          // Only a member's booking may use a service that is not offered online.
+          || (!staff && !service.online_enabled)
           || (service.is_mot && !garage.mot_enabled)
           || !serviceAllowsLocation(service.location_mode, input.locationMode)
         ) {
@@ -258,7 +282,7 @@ export function createSupabaseBookingEngine(options: SupabaseBookingEngineOption
 
         const { data, error } = await db.rpc("create_booking", {
           p_garage_id: garageId,
-          p_booking: createBookingPayload(input, { phone, postcode }, hashManageToken(manageToken)),
+          p_booking: createBookingPayload(input, { phone, postcode }, hashManageToken(manageToken), staff),
         });
 
         if (error) {
@@ -276,6 +300,7 @@ export function createSupabaseBookingEngine(options: SupabaseBookingEngineOption
               requestedStart: input.startsAt,
               timeZone: garage.timezone || "Europe/London",
               now: now(),
+              memberId: staff?.memberId,
             });
             return failure(code, bookingErrorMessages[code], alternatives);
           }

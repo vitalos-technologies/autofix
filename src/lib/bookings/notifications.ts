@@ -98,6 +98,8 @@ function appointmentParts(startValue: string, endValue: string | undefined, time
 /** What the customer is told: a new booking is either confirmed or waiting for the garage's OK. */
 export function bookingEmailKind(status: string, event: BookingNotificationEvent): BookingEmailType {
   if (event === "rescheduled" || event === "cancelled") return event;
+  // Staff accepted a request (A88): the customer hears it is confirmed.
+  if (event === "confirmed") return "confirmed";
   return status === "requested" ? "requested" : "confirmed";
 }
 
@@ -320,6 +322,8 @@ export async function sendBookingNotifications(notice: BookingNotice, options: S
   }
   if (!loaded) return [];
   const context = loaded;
+  // An acceptance that was undone before it went out (cancelled since) says nothing.
+  if (notice.type === "confirmed" && context.booking.status !== "confirmed") return [];
   const composed = composeBookingNotifications(context, notice.type, { previousStartsAt: notice.previousStartsAt, now: options.now });
   const outcomes: DeliveryOutcome[] = [];
 
@@ -345,7 +349,8 @@ export async function sendBookingNotifications(notice: BookingNotice, options: S
     const message = composed.customerEmail;
     tasks.push(run("customer_email", "", (key) => deliverEmail(context.garage.name, context.garage.id, message, key, env)));
   }
-  if (composed.staffEmail) {
+  // Staff accepted it themselves: no staff alert for a confirmation.
+  if (composed.staffEmail && notice.type !== "confirmed") {
     const message = composed.staffEmail;
     tasks.push(run("staff_email", ":internal", (key) => deliverEmail(context.garage.name, context.garage.id, message, key, env)));
   }

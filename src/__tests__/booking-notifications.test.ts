@@ -228,6 +228,26 @@ describe("sendBookingNotifications", () => {
     expect(getMockOutbox()).toEqual([]);
   });
 
+  it("A88: accepting a request confirms it to the customer by email and text, with no staff alert", async () => {
+    const fake = database();
+    const outcomes = await sendBookingNotifications({ type: "confirmed", garageId: garage.id, bookingId: BOOKING }, { client: fake.client, env: {} });
+    expect(outcomes.map((outcome) => `${outcome.kind}:${outcome.status}`).sort()).toEqual(["customer_email:sent", "sms:sent"]);
+    const outbox = getMockOutbox();
+    expect(outbox.map((entry) => `${entry.kind}:${entry.to}`).sort()).toEqual(["email:sam@example.com", "sms:+447700900123"]);
+    expect(outbox.find((entry) => entry.kind === "sms")!.body).toMatch(/^Hartley Road Motors: you're booked in for Full service on .+ Ref HRM-4821\./);
+    const keys = fake.queries.filter((query) => query.table === "booking_notification_events" && query.operation === "insert").map((query) => (query.values as { notification_key: string }).notification_key).sort();
+    // Its own keys, so the request's creation notice (`…:requested:once`) never blocks it.
+    expect(keys).toEqual([`${garage.id}:HRM-4821:confirmed:once`, `${garage.id}:HRM-4821:confirmed:once:sms`]);
+  });
+
+  it("A88: an acceptance undone before it went out says nothing, and an opt-out still stops the text", async () => {
+    expect(await sendBookingNotifications({ type: "confirmed", garageId: garage.id, bookingId: BOOKING }, { client: database({ booking: bookingRow({ status: "cancelled" }) }).client, env: {} })).toEqual([]);
+    expect(getMockOutbox()).toEqual([]);
+    const outcomes = await sendBookingNotifications({ type: "confirmed", garageId: garage.id, bookingId: BOOKING }, { client: database({ booking: bookingRow({}, { opted_out_at: "2026-11-18T08:00:00Z" }) }).client, env: {} });
+    expect(outcomes).toContainEqual({ kind: "sms", status: "skipped", code: "opted_out" });
+    expect(getMockOutbox().map((entry) => entry.kind)).toEqual(["email"]);
+  });
+
   it("does nothing for an unknown booking or without a database", async () => {
     expect(await sendBookingNotifications({ type: "created", garageId: garage.id, bookingId: BOOKING }, { client: database({ booking: null }).client, env: {} })).toEqual([]);
     expect(await sendBookingNotifications({ type: "created", garageId: garage.id, bookingId: BOOKING }, { client: null, env: {} })).toEqual([]);

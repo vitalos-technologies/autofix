@@ -90,4 +90,28 @@ describe("fake booking engine", () => {
     expect(await engine.createBooking(GARAGE, input(free!.startsAt, { serviceId: FAKE_SERVICE_IDS.fullService, locationMode: "mobile", idempotencyKey: "9f9619ff-8b86-4011-b42d-00c04fc964ff" }))).toMatchObject({ ok: false, code: "SERVICE_UNAVAILABLE" });
     expect(await engine.createBooking(GARAGE, { ...input(free!.startsAt), idempotencyKey: "not-a-uuid" })).toMatchObject({ ok: false, code: "INVALID_BOOKING" });
   });
+
+  it("gives a member the staff rules: today from opening, no approval, hours only with an explicit override (A90)", async () => {
+    const engine = createFakeBookingEngine({ now });
+    const member = "8b8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b";
+    const day = { garageId: GARAGE, serviceId: FAKE_SERVICE_IDS.brakes, from: "2026-10-27", to: "2026-10-27" };
+    expect((await engine.getAvailableSlots(day)).some((slot) => slot.startsAt === "2026-10-27T08:30:00.000Z")).toBe(false);
+    const staff = await engine.getStaffSlots({ ...day, memberId: member });
+    expect(staff[0]?.startsAt).toBe("2026-10-27T08:30:00.000Z");
+    expect(await engine.getStaffSlots({ ...day, from: "2026-10-26", to: "2026-10-26", memberId: member })).toEqual([]);
+
+    const free = staff.find((slot) => slot.freeCount > 0)!;
+    expect(await engine.createBooking(GARAGE, input(free.startsAt, { serviceId: FAKE_SERVICE_IDS.brakes, source: "phone" }), { staff: { memberId: member } }))
+      .toMatchObject({ ok: true, booking: { status: "confirmed" } });
+
+    const sunday = "2026-11-01T10:07:00.000Z";
+    const key = (n: number) => `6f9619ff-8b86-4011-b42d-00c04fc96${n}00`;
+    expect(await engine.createBooking(GARAGE, input(sunday, { source: "walk_in", idempotencyKey: key(1) }), { staff: { memberId: member } })).toMatchObject({ ok: false });
+    expect(await engine.createBooking(GARAGE, input(sunday, { source: "walk_in", idempotencyKey: key(2) }), { staff: { memberId: member, overrideHours: true } }))
+      .toMatchObject({ ok: true, booking: { status: "confirmed", startsAt: sunday } });
+    expect(await engine.createBooking(GARAGE, input(sunday, { source: "walk_in", idempotencyKey: key(3) }), { staff: { memberId: member, overrideHours: true } }))
+      .toMatchObject({ ok: false, code: "SLOT_UNAVAILABLE" });
+    expect(await engine.createBooking(GARAGE, input("2026-11-02T10:07:00.000Z", { idempotencyKey: key(4) }), { staff: { memberId: member, overrideHours: true } }))
+      .toMatchObject({ ok: false, code: "INVALID_BOOKING" });
+  });
 });

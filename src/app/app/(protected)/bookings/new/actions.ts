@@ -12,8 +12,9 @@ import { getBookingEngine } from "@/lib/booking-engine";
 import { bookingErrorMessages } from "@/lib/booking-engine/errors";
 import { locationModes } from "@/lib/booking-engine/types";
 
-// Staff phone / walk-in bookings. The garage is the member's selected garage;
-// nothing here reads a garage id from the form.
+// Staff phone / walk-in bookings. The garage is the member's selected garage
+// and the member is the signed-in user; nothing here reads a garage or member
+// id from the form. Both actions use the staff rules (src/lib/admin/staff-booking.ts).
 
 export type StaffBookingState = {
   status: "idle" | "error";
@@ -21,7 +22,7 @@ export type StaffBookingState = {
   fieldErrors?: Record<string, string>;
 };
 
-/** Free times for one day of a service (Book 3's grid, for staff). */
+/** Free times for one day of a service (Book 3's grid, for staff: no notice or booking window, services not offered online too). */
 export async function getStaffSlotsAction(serviceId: string, date: string, locationMode: string): Promise<{ ok: boolean; message?: string; slots: TimeSlot[] }> {
   const admin = await requireStaffWriter("/app/bookings/new");
   const service = z.string().uuid().safeParse(serviceId);
@@ -29,7 +30,14 @@ export async function getStaffSlotsAction(serviceId: string, date: string, locat
   const mode = z.enum(locationModes).safeParse(locationMode);
   if (!service.success || !day || !mode.success) return { ok: false, message: "Choose a service and a day.", slots: [] };
   try {
-    const slots = await getBookingEngine().getAvailableSlots({ garageId: admin.garage.id, serviceId: service.data, from: day, to: day, locationMode: mode.data });
+    const slots = await getBookingEngine().getStaffSlots({
+      garageId: admin.garage.id,
+      serviceId: service.data,
+      from: day,
+      to: day,
+      locationMode: mode.data,
+      memberId: admin.user.id,
+    });
     return { ok: true, slots: slots.map((slot) => ({ starts_at: slot.startsAt, ends_at: slot.endsAt, free_count: slot.freeCount })) };
   } catch {
     return { ok: false, message: "Times could not be loaded for this service. Try another service or day.", slots: [] };
@@ -58,6 +66,7 @@ export async function createStaffBookingAction(_previous: StaffBookingState, for
     customerEmail: text(formData, "customerEmail") ?? "",
     reminderConsent: formData.get("reminderConsent") === "on",
     notes: text(formData, "notes"),
+    overrideHours: formData.get("overrideHours") === "on",
     idempotencyKey: text(formData, "idempotencyKey"),
   });
   if (!parsed.success) {
@@ -69,7 +78,7 @@ export async function createStaffBookingAction(_previous: StaffBookingState, for
     return { status: "error", message: "Check the highlighted details.", fieldErrors };
   }
 
-  const result = await createStaffBooking(admin.garage.id, parsed.data);
+  const result = await createStaffBooking(admin.garage.id, admin.user.id, parsed.data);
   if (!result.ok) {
     if (result.code === "SLOT_UNAVAILABLE") {
       const timeZone = admin.garage.timezone || "Europe/London";

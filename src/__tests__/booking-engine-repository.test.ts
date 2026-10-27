@@ -20,6 +20,7 @@ const BOOKING = "55555555-5555-4555-8555-555555555555";
 const CUSTOMER = "66666666-6666-4666-8666-666666666666";
 const VEHICLE = "77777777-7777-4777-8777-777777777777";
 const KEY = "f5898238-32a1-4764-b57b-529fa953c941";
+const MEMBER = "88888888-8888-4888-8888-888888888888";
 const NOW = new Date("2026-11-18T09:00:00.000Z");
 
 type ServiceRow = Record<string, unknown> & { id: string };
@@ -209,6 +210,30 @@ describe("getAvailableSlots", () => {
   });
 });
 
+describe("getStaffSlots", () => {
+  const query = { garageId: GARAGE, serviceId: SERVICE, from: "2026-11-20", to: "2026-11-20", locationMode: "workshop" as const, memberId: MEMBER };
+
+  it("calls staff_available_slots for the member, uncached", async () => {
+    const rows = slotRows([slot("2026-11-20T10:00:00.000Z", 1), slot("2026-11-20T08:00:00.000Z", 0)]);
+    const { engine, fake } = engineFor(world({ rpc: () => ({ data: rows }) }));
+    expect(await engine.getStaffSlots(query)).toEqual([slot("2026-11-20T08:00:00.000Z", 0), slot("2026-11-20T10:00:00.000Z", 1)]);
+    await engine.getStaffSlots(query);
+    expect(fake.rpcs).toEqual([
+      { fn: "staff_available_slots", args: { p_garage_id: GARAGE, p_service_id: SERVICE, p_from: "2026-11-20", p_to: "2026-11-20", p_location_mode: "workshop", p_member_id: MEMBER } },
+      { fn: "staff_available_slots", args: { p_garage_id: GARAGE, p_service_id: SERVICE, p_from: "2026-11-20", p_to: "2026-11-20", p_location_mode: "workshop", p_member_id: MEMBER } },
+    ]);
+  });
+
+  it("rejects a bad member, more than 31 days, and maps raised codes", async () => {
+    const { engine, fake } = engineFor(world({ rpc: () => ({ error: { code: "P0001", message: "INVALID_BOOKING: staff.member_id is not a member of this garage" } }) }));
+    await expect(engine.getStaffSlots({ ...query, memberId: "user-1" })).rejects.toMatchObject({ code: "INVALID_BOOKING" });
+    await expect(engine.getStaffSlots({ ...query, to: "2026-12-22" })).rejects.toMatchObject({ code: "INVALID_BOOKING" });
+    expect(fake.rpcs).toHaveLength(0);
+    await expect(engine.getStaffSlots({ ...query, to: "2026-12-21" })).rejects.toMatchObject({ code: "INVALID_BOOKING" });
+    expect(fake.rpcs).toHaveLength(1);
+  });
+});
+
 describe("createBooking", () => {
   it("normalises the phone and registration, hashes the manage token and calls create_booking for the given garage", async () => {
     const { engine, fake } = engineFor(world());
@@ -323,9 +348,51 @@ describe("createBooking", () => {
     }
   });
 
-  it("lets staff sources book services that are not offered online", async () => {
-    const { engine } = engineFor(world({ services: [serviceRow({ online_enabled: false })] }));
-    expect(await engine.createBooking(GARAGE, input({ source: "phone" }))).toMatchObject({ ok: true });
+  it("lets a member's phone or walk-in booking use a service that is not offered online (A90)", async () => {
+    for (const source of ["phone", "walk_in"] as const) {
+      const { engine, fake } = engineFor(world({ services: [serviceRow({ online_enabled: false })] }));
+      expect(await engine.createBooking(GARAGE, input({ source }), { staff: { memberId: MEMBER } })).toMatchObject({ ok: true });
+      expect(fake.rpcs[0]?.args.p_booking).toMatchObject({ source, staff: { member_id: MEMBER, override_hours: false } });
+    }
+  });
+
+  it("keeps the online rules for a phone booking without a member, and sends no staff object", async () => {
+    const offline = engineFor(world({ services: [serviceRow({ online_enabled: false })] }));
+    expect(await offline.engine.createBooking(GARAGE, input({ source: "phone" }))).toMatchObject({ ok: false, code: "SERVICE_UNAVAILABLE" });
+    expect(offline.fake.rpcs).toHaveLength(0);
+    const online = engineFor(world());
+    await online.engine.createBooking(GARAGE, input({ source: "phone" }));
+    expect(online.fake.rpcs[0]?.args.p_booking).not.toHaveProperty("staff");
+  });
+
+  it("passes an explicit hours override and refuses staff rules on other sources or without a valid member", async () => {
+    const { engine, fake } = engineFor(world());
+    await engine.createBooking(GARAGE, input({ source: "walk_in" }), { staff: { memberId: MEMBER, overrideHours: true } });
+    expect(fake.rpcs[0]?.args.p_booking).toMatchObject({ staff: { member_id: MEMBER, override_hours: true } });
+    for (const [source, staff] of [
+      ["online", { memberId: MEMBER }],
+      ["reminder", { memberId: MEMBER }],
+      ["ai_agent", { memberId: MEMBER }],
+      ["phone", { memberId: "user-1" }],
+      ["phone", { memberId: MEMBER, garageId: OTHER_GARAGE }],
+    ] as const) {
+      const refused = engineFor(world());
+      const result = await refused.engine.createBooking(GARAGE, input({ source }), { staff: staff as { memberId: string } });
+      expect(result).toMatchObject({ ok: false, code: "INVALID_BOOKING" });
+      expect(refused.fake.rpcs).toHaveLength(0);
+    }
+  });
+
+  it("offers alternatives from the staff time grid when a member's slot was taken", async () => {
+    const { engine, fake } = engineFor(world({
+      rpc: (call) => (call.fn === "create_booking"
+        ? { error: { code: "P0001", message: "SLOT_UNAVAILABLE" } }
+        : { data: slotRows([slot("2026-11-20T09:00:00.000Z"), slot("2026-11-20T11:00:00.000Z")]) }),
+    }));
+    const result = await engine.createBooking(GARAGE, input({ source: "phone" }), { staff: { memberId: MEMBER } });
+    expect(result).toMatchObject({ ok: false, code: "SLOT_UNAVAILABLE", alternatives: [{ startsAt: "2026-11-20T09:00:00.000Z" }, { startsAt: "2026-11-20T11:00:00.000Z" }] });
+    expect(fake.rpcs.map((call) => call.fn)).toEqual(["create_booking", "staff_available_slots"]);
+    expect(fake.rpcs[1]?.args).toMatchObject({ p_garage_id: GARAGE, p_member_id: MEMBER, p_from: "2026-11-20", p_to: "2026-12-03" });
   });
 
   it("returns the existing booking for a repeated idempotency key without calling create_booking", async () => {

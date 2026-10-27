@@ -5,7 +5,8 @@ import { after } from "next/server";
 
 /** A booking change the customer and the garage hear about. */
 export type BookingNotice = {
-  type: "created" | "rescheduled" | "cancelled";
+  /** `confirmed`: staff accepted a requested booking (A88). */
+  type: "created" | "confirmed" | "rescheduled" | "cancelled";
   garageId: string;
   bookingId: string;
   /** Rescheduled only: the start before the move. */

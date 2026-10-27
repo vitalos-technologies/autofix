@@ -40,7 +40,8 @@ function isStatus(value: unknown): value is BookingStatus {
 /**
  * Moves a booking to `to` if staff may make that change from its current status. The update is
  * conditional on the status read a moment before, so two people pressing at once cannot skip a
- * step. Cancelling tells the customer (as the engine does); releasing the bay clears the slot cache.
+ * step. Cancelling tells the customer (as the engine does), so does accepting a request (A88);
+ * releasing the bay clears the slot cache.
  */
 export async function changeBookingStatus(
   actor: StaffActor,
@@ -76,6 +77,8 @@ export async function changeBookingStatus(
   if (!holdsResource(to)) clearSlotCache(garage.id);
   // Queued as a notifications.booking job (P3.7) before the response, as the engine does; never throws.
   if (to === "cancelled") await notifyBooking({ type: "cancelled", garageId: garage.id, bookingId });
+  // Accepting a request tells the customer it is confirmed (A88), by email and their text channel.
+  if (from === "requested" && to === "confirmed") await notifyBooking({ type: "confirmed", garageId: garage.id, bookingId });
   return { ok: true, from, to };
 }
 

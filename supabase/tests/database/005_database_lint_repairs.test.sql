@@ -22,13 +22,16 @@ select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), true, 
 select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), true, 'request at the limit is allowed');
 select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), false, 'request above the limit is rejected');
 
+-- The online form calls the four-argument context without offline services
+-- (staff bookings, 20261028002200, pass true; see 025).
 select matches(
-  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
-  'and service\.online_enabled',
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure)
+  || pg_get_functiondef('public.booking_service_context(uuid,uuid,text,boolean)'::regprocedure),
+  'booking_service_context\(p_garage_id, p_service_id, p_location_mode, false\).*and \(coalesce\(p_include_offline, false\) or service\.online_enabled\)',
   'bookings and slots only use services enabled for online booking'
 );
 select matches(
-  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text,boolean)'::regprocedure),
   'on service\.garage_id = garage\.id\s+and service\.id = p_service_id\s+.*where garage\.id = p_garage_id',
   'bookings and slots only use the garage''s own services'
 );

@@ -22,7 +22,7 @@ export const retentionPayload = z.object({ garageId: uuid.optional() }).strict()
 export const askbridgeSyncPayload = z.object({ garageId: uuid }).strict();
 export const notificationsBookingPayload = z
   .object({
-    type: z.enum(["created", "rescheduled", "cancelled"]),
+    type: z.enum(["created", "confirmed", "rescheduled", "cancelled"]),
     garageId: uuid,
     bookingId: uuid,
     previousStartsAt: z.string().datetime({ offset: true }).optional(),
