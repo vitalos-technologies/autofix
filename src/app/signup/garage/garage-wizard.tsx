@@ -39,7 +39,8 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
   const [placeId, setPlaceId] = useState("");
   const [hours, setHours] = useState<PlaceOpeningWindow[]>([]);
   const [useHours, setUseHours] = useState(true);
-  const [query, setQuery] = useState("");
+  // Uncontrolled: text typed before hydration (slow phones) stays in the box and is what Search sends.
+  const queryRef = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<PlaceSummary[] | null>(null);
   const [placesMessage, setPlacesMessage] = useState("");
   const [searching, startSearch] = useTransition();
@@ -77,7 +78,7 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
   function runSearch() {
     setPlacesMessage("");
     startSearch(async () => {
-      const result = await searchPlacesAction(query);
+      const result = await searchPlacesAction(queryRef.current?.value ?? "");
       if (!result.ok) {
         setResults(null);
         setPlacesMessage(result.message);
@@ -179,8 +180,8 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
                   <input
                     id="places-query"
                     type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                    ref={queryRef}
+                    defaultValue=""
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
