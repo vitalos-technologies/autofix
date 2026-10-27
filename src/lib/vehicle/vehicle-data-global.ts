@@ -1,7 +1,20 @@
+// Vehicle Data Global (UK) lookup client: SOB's original provider, now the
+// paid fallback in the composite provider (called only when make or model is
+// still missing after DVLA and DVSA).
+//
+// Docs: Vehicle Data Global's API reference sits behind the customer portal
+// (https://portal.vehicledataglobal.com/). https://vehicledataglobal.com/ was
+// checked on 26 Oct 2026 and publishes no public reference, so this client keeps
+// SOB's production integration: GET {base}/r2/lookup with ApiKey, PackageName
+// and Vrm query parameters; envelope ResponseInformation.{StatusCode,
+// StatusMessage, IsSuccessStatusCode}; data in Results.VehicleDetails and
+// Results.ModelDetails. The upstream URL carries the key and plate, so it is
+// never logged and fetch errors are replaced, not rethrown.
+
 import { titleCase } from "@/lib/utils";
 import type { VehicleDetails } from "@/types/domain";
 import { toIsoDate } from "./mot";
-import { VehicleLookupError, type VehicleLookupProvider } from "./provider";
+import { vehicleLookupError, VehicleLookupError, type VehicleLookupProvider } from "./provider";
 
 type VehicleDataGlobalResponse = {
   ResponseInformation?: {
@@ -71,6 +84,7 @@ export class VehicleDataGlobalProvider implements VehicleLookupProvider {
     private readonly baseUrl: string,
     private readonly packageName: string,
     private readonly timeoutMs = 6500,
+    private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
   async lookup(registration: string): Promise<VehicleDetails> {
@@ -83,26 +97,27 @@ export class VehicleDataGlobalProvider implements VehicleLookupProvider {
       url.searchParams.set("PackageName", this.packageName);
       url.searchParams.set("Vrm", registration);
 
-      const response = await fetch(url, { method: "GET", signal: controller.signal, cache: "no-store" });
-      if (response.status === 404) throw new VehicleLookupError("Vehicle not found", "not_found");
-      if (response.status === 400) throw new VehicleLookupError("Invalid registration", "invalid");
-      if (response.status === 429) throw new VehicleLookupError("Too many lookups", "rate_limited");
-      if (!response.ok) throw new VehicleLookupError("Vehicle service unavailable", "unavailable");
+      const response = await this.fetchImpl(url, { method: "GET", signal: controller.signal, cache: "no-store" });
+      const httpStatus = response.status;
+      if (httpStatus === 404) throw vehicleLookupError("not_found", { source: "vdg", status: httpStatus });
+      if (httpStatus === 400) throw vehicleLookupError("invalid", { source: "vdg", status: httpStatus });
+      if (httpStatus === 429) throw vehicleLookupError("rate_limited", { source: "vdg", status: httpStatus });
+      if (!response.ok) throw vehicleLookupError("unavailable", { source: "vdg", status: httpStatus });
 
       const payload = await response.json() as VehicleDataGlobalResponse;
       const status = payload.ResponseInformation;
       const vehicleStatus = payload.Results?.VehicleDetails;
       if (!status?.IsSuccessStatusCode || status.StatusCode !== 0 || !vehicleStatus || vehicleStatus.StatusCode !== 0) {
         const message = `${status?.StatusMessage || ""} ${vehicleStatus?.StatusMessage || ""}`.toLowerCase();
-        if (message.includes("not found") || message.includes("notfound")) throw new VehicleLookupError("Vehicle not found", "not_found");
-        if (message.includes("invalid")) throw new VehicleLookupError("Invalid registration", "invalid");
-        throw new VehicleLookupError("Vehicle service unavailable", "unavailable");
+        if (message.includes("not found") || message.includes("notfound")) throw vehicleLookupError("not_found", { source: "vdg" });
+        if (message.includes("invalid")) throw vehicleLookupError("invalid", { source: "vdg" });
+        throw vehicleLookupError("unavailable", { source: "vdg" });
       }
 
       return normalizeVehicleDataGlobal(payload, registration);
     } catch (error) {
       if (error instanceof VehicleLookupError) throw error;
-      throw new VehicleLookupError("Vehicle service unavailable", "unavailable");
+      throw vehicleLookupError("unavailable", { source: "vdg" });
     } finally {
       clearTimeout(timeout);
     }

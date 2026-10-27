@@ -1,0 +1,36 @@
+{
+  "RequestInformation": {
+    "PackageName": "VehicleDetails",
+    "SearchTerm": "AB12CDE",
+    "SearchType": "Vrm"
+  },
+  "ResponseInformation": {
+    "StatusCode": 0,
+    "StatusMessage": "Success",
+    "IsSuccessStatusCode": true,
+    "QueryTimeMs": 212,
+    "ResponseId": "00000000-0000-0000-0000-000000000000"
+  },
+  "Results": {
+    "VehicleDetails": {
+      "StatusCode": 0,
+      "StatusMessage": "Success",
+      "VehicleIdentification": {
+        "Vrm": "AB12CDE",
+        "Vin": "W0L0PXXXXXX000000",
+        "DvlaMake": "VAUXHALL",
+        "DvlaModel": "ASTRA SRI",
+        "YearOfManufacture": 2012,
+        "DvlaBodyType": "5 DOOR HATCHBACK",
+        "DvlaFuelType": "PETROL"
+      },
+      "VehicleHistory": { "ColourDetails": { "CurrentColour": "BLUE" } },
+      "DvlaTechnicalDetails": { "EngineCapacityCc": 1398 }
+    },
+    "ModelDetails": {
+      "ModelIdentification": { "Make": "VAUXHALL", "Model": "ASTRA", "ModelVariant": "SRI" },
+      "BodyDetails": { "BodyStyle": "HATCHBACK" },
+      "Powertrain": { "FuelType": "PETROL", "Transmission": { "TransmissionType": "MANUAL" } }
+    }
+  }
+}

@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { getBookingEnvironmentReadiness, getEnvironmentReadiness } from "@/lib/env";
 import { getBookingServiceReadiness } from "@/lib/bookings/services";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getVehicleLookupReadiness } from "@/lib/vehicle/configured-provider";
 
 export async function GET() {
   const readiness = getEnvironmentReadiness();
+  const vehicleLookup = getVehicleLookupReadiness();
   const bookingEnvironment = getBookingEnvironmentReadiness();
   const admin = createAdminClient();
   const [database, bookingServices] = await Promise.all([
@@ -32,6 +34,8 @@ export async function GET() {
         bookingManagement: Boolean(process.env.BOOKING_MANAGEMENT_SECRET) ? "configured" : "configuration_required",
         bookingWebhook: Boolean(process.env.CALCOM_WEBHOOK_SECRET) ? "configured" : "configuration_required",
         bookingServiceMappings: bookingServices.mappedServices,
+        // Source names only; never values or variable names.
+        vehicleLookup: { status: vehicleLookup.status, provider: vehicleLookup.provider, sources: vehicleLookup.sources, cache: vehicleLookup.cache },
       },
       missingIntegrations,
     },

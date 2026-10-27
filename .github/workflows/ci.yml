@@ -4,9 +4,19 @@ on:
   push:
   pull_request:
 
+# Pushes to the same branch replace each other's runs instead of queueing on the VM.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Jobs run on autofix's self-hosted runners on the AWS build VM (infrastructure/RUNNER.md). To go back to
+# GitHub-hosted runners, set the repository variable RUNS_ON to "ubuntu-24.04" (JSON, with the quotes).
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,10 +33,20 @@ jobs:
       - run: pnpm build
 
   database-tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
-    timeout-minutes: 25
+    timeout-minutes: 30
+    # Supabase uses fixed ports and container names, so only one database job runs on the VM at a time.
+    concurrency:
+      group: autofix-supabase-vm
+      cancel-in-progress: false
     steps:
+      - name: Sample VM memory during the job (shared build VM capacity check)
+        run: |
+          free -h
+          nohup bash -c 'while true; do echo "$(date +%s) $(awk "/MemAvailable/ {print \$2}" /proc/meminfo)" >> "$RUNNER_TEMP/mem.log"; sleep 5; done' >/dev/null 2>&1 &
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
@@ -40,7 +60,8 @@ jobs:
         with:
           version: 2.113.0
       - name: Start isolated local Supabase
-        run: supabase start
+        # Only the services the tests use; vector/logflare would mount the Docker socket, which rootless Docker doesn't expose.
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
       - name: Rebuild local database from migrations
         run: supabase db reset --local --no-seed
       - name: Run PostgreSQL policy and integrity tests
@@ -55,15 +76,23 @@ jobs:
       - name: Run PostgREST and concurrency tests
         run: pnpm exec vitest run --config vitest.integration.config.ts
       - name: Install Chromium for authenticated PDF tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
       - name: Run isolated authenticated PDF access tests
         run: pnpm test:e2e:local-invoicing
       - name: Remove isolated local Supabase data
         if: always()
         run: supabase stop --no-backup
+      - name: Report VM memory (lowest MemAvailable during this job)
+        if: always()
+        run: |
+          free -h
+          sort -k2 -n "$RUNNER_TEMP/mem.log" | head -1 | awk '{printf "Lowest available memory during the job: %.1f GiB\n", $2/1048576}'
+          awk 'NR==1{first=$2} {last=$2} END{printf "Available at start %.1f GiB, at end %.1f GiB, %d samples\n", first/1048576, last/1048576, NR}' "$RUNNER_TEMP/mem.log"
 
   browser-tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
     steps:
       - uses: actions/checkout@v4
@@ -75,11 +104,16 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install chromium
       - run: pnpm test:e2e --project=chromium
+        env:
+          # Jobs share the VM: each one that serves the app uses its own port.
+          PLAYWRIGHT_PORT: "3410"
 
   lighthouse:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +125,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install chromium
+      - name: Use Playwright's Chromium for Lighthouse (no system Chrome on the runner)
+        run: echo "CHROME_PATH=$(node -e 'console.log(require("@playwright/test").chromium.executablePath())')" >> "$GITHUB_ENV"
       - run: pnpm build
       - run: pnpm test:lighthouse
