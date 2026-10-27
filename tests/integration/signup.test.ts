@@ -64,7 +64,8 @@ describe("sign-up", () => {
     expect(await resolveHost(`${slug}.localhost:3000`, { env: {} })).toEqual({
       kind: "garage",
       via: "dev-garage",
-      garage: { id: garageId, slug, status: "onboarding" },
+      // A new garage has no embed sites and no Askbridge chat yet (P4.3/P4.6).
+      garage: { id: garageId, slug, status: "onboarding", embedOrigins: [], widgetEnabled: false },
     });
   });
 
