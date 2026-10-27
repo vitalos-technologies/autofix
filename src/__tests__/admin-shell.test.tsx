@@ -100,6 +100,7 @@ describe("shell navigation", () => {
       "/app/settings/branding",
       "/app/settings/booking-page",
       "/app/settings/team",
+      "/app/settings/agreements",
       "/app/settings",
       "/app/configuration/security",
     ]);

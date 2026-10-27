@@ -71,12 +71,9 @@ async function expectAccessibleAt(target: Page, widths: number[] = [390, 1440]) 
     await target.setViewportSize({ width, height: width < 600 ? 844 : 1000 });
     await expect(target).toHaveTitle(/\S/);
     await target.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
-    // Until P3.1 swaps in the new AdminShell, SOB's shell puts its own <main> inside the root layout's <main>.
-    // Only while that nesting exists are the three landmark rules it breaks left out; everything else is checked.
-    const nestedMain = await target.evaluate(() => document.querySelectorAll("main main").length > 0);
-    const axe = new AxeBuilder({ page: target });
-    if (nestedMain) axe.disableRules(["landmark-main-is-top-level", "landmark-no-duplicate-main", "landmark-unique"]);
-    const results = await axe.analyze();
+    // Every rule runs: the admin shell is the page's only <main> (P3.1), so A68's landmark exception is gone.
+    await expect(target.locator("main")).toHaveCount(1);
+    const results = await new AxeBuilder({ page: target }).analyze();
     expect(results.violations, `axe at ${width}px on ${new URL(target.url()).pathname}`).toEqual([]);
     await expect.poll(() => target.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), { message: `horizontal scroll at ${width}px` }).toBeLessThanOrEqual(1);
   }

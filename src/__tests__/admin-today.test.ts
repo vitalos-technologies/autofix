@@ -166,6 +166,25 @@ describe("Today page", () => {
     expect(page).toContain('label="Copy booking link"');
   });
 
+  it("keeps SOB's Recent activity, labelled by the audit helpers (P4.9 opt-outs and agreements)", async () => {
+    expect(page).toContain('title="Recent activity"');
+    expect(page).toContain("auditActionLabel(entry.action, entry.entityType)");
+    expect(page).toContain("loadRecentActivity(admin.client)");
+    const { loadRecentActivity } = await import("@/lib/admin/data");
+    const { createFakeSupabase } = await import("./support/fake-supabase");
+    const fake = createFakeSupabase({
+      from: () => ({ data: [{ id: 7, actor_id: null, action: "agreement.accepted", entity_type: "garage_agreement", detail: { kind: "dpa", version: "0.1" }, created_at: "2026-10-27T09:00:00Z" }] }),
+    });
+    await expect(loadRecentActivity(fake.client)).resolves.toEqual([
+      { id: 7, actorId: null, action: "agreement.accepted", entityType: "garage_agreement", detail: { kind: "dpa", version: "0.1" }, at: "2026-10-27T09:00:00Z" },
+    ]);
+    expect(fake.queries[0]).toMatchObject({ table: "admin_audit_log", operation: "select" });
+    const { auditActionLabel, auditEntityLabel } = await import("@/lib/admin/dashboard");
+    expect(`${auditActionLabel("agreement.accepted", "garage_agreement")} ${auditEntityLabel("garage_agreement", { kind: "dpa", version: "0.1" })}`).toBe("Accepted agreement DPA v0.1");
+    const failing = createFakeSupabase({ from: () => ({ error: { code: "42501", message: "denied" } }) });
+    await expect(loadRecentActivity(failing.client)).resolves.toBeNull();
+  });
+
   it("guards the P3.6 tables so Today works before they exist", () => {
     const data = readFileSync("src/lib/admin/data.ts", "utf8");
     expect(data).toContain('from("reminder_sends")');

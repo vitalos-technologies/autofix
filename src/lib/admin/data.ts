@@ -130,6 +130,29 @@ export async function loadMissedCalls(client: SupabaseClient, limit = 5): Promis
     .map((row) => ({ id: row.id, fromNumber: row.from_number as string, at: row.created_at }));
 }
 
+export type ActivityEntry = { id: number; actorId: string | null; action: string; entityType: string; detail: unknown; at: string };
+
+/**
+ * The garage's latest `admin_audit_log` rows (Recent activity on Today; P4.9's opt-outs and
+ * agreement acceptance land here). `null` when they cannot be read, so the panel can say so.
+ */
+export async function loadRecentActivity(client: SupabaseClient, limit = 6): Promise<ActivityEntry[] | null> {
+  const { data, error } = await client
+    .from("admin_audit_log")
+    .select("id,actor_id,action,entity_type,detail,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return null;
+  return ((data ?? []) as Array<{ id: number; actor_id: string | null; action: string; entity_type: string; detail: unknown; created_at: string }>).map((row) => ({
+    id: row.id,
+    actorId: row.actor_id,
+    action: row.action,
+    entityType: row.entity_type,
+    detail: row.detail,
+    at: row.created_at,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Bookings list
 // ---------------------------------------------------------------------------

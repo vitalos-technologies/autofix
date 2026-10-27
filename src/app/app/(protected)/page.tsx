@@ -20,16 +20,19 @@ import {
   type JobCardAction,
 } from "@/components/admin-ui";
 import { IN_WORKSHOP, quickActionLabel, quickStatusActions } from "@/lib/admin/booking-status";
+import { auditActionLabel, auditEntityLabel, formatRelativeTime } from "@/lib/admin/dashboard";
 import { bookingDetail, bookingHref, formatUkPhone, telLink, vehicleName, type AdminBooking } from "@/lib/admin/bookings";
 import {
   AdminDataError,
   loadBookingsStarting,
+  loadRecentActivity,
   loadMissedCalls,
   loadOpeningHours,
   loadOpenRequests,
   loadReminderWeek,
   loadResources,
   loadWonBack,
+  type ActivityEntry,
 } from "@/lib/admin/data";
 import { formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayRange, localWeekRange, monthStart } from "@/lib/admin/dates";
 import { formatWholePounds, shapeToday, todayChips, type MissedCall, type ReminderWeek } from "@/lib/admin/today";
@@ -88,6 +91,7 @@ export default async function TodayPage() {
       loadWonBack(admin.client, monthStart(dateKey), timeZone),
       loadReminderWeek(admin.client, week.from, week.to),
       loadMissedCalls(admin.client),
+      loadRecentActivity(admin.client),
     ]);
   } catch (error) {
     if (!(error instanceof AdminDataError)) throw error;
@@ -125,7 +129,7 @@ export default async function TodayPage() {
     );
   }
 
-  const [resources, today, requests, opening, wonBack, reminders, missedCalls] = loaded;
+  const [resources, today, requests, opening, wonBack, reminders, missedCalls, activity] = loaded;
   const view = shapeToday({
     today,
     requests: requests.rows,
@@ -221,6 +225,7 @@ export default async function TodayPage() {
             }
           />
         )}
+        <RecentActivityPanel id="activity-phone" entries={activity} userId={admin.user.id} now={now} className="mt-1.5" />
       </div>
 
       {/* Desktop (Admin-Dashboard) */}
@@ -246,28 +251,31 @@ export default async function TodayPage() {
         </KpiGrid>
 
         <div className={twoColumns}>
-          <DiaryGrid
-            className="min-w-0 flex-[999_1_560px]"
-            resources={resources}
-            bookings={view.diary}
-            date={dateKey}
-            timeZone={timeZone}
-            now={now}
-            startHour={view.hours.startHour}
-            endHour={view.hours.endHour}
-            emptyResources={
-              <EmptyState
-                icon={Warehouse}
-                title="No bays or vans set up yet"
-                description="Add the bays and vans you book work into, and today's bookings line up here."
-                action={
-                  <Link href="/app/settings/resources" className={buttonClass("secondary")}>
-                    Set up bays and vans
-                  </Link>
-                }
-              />
-            }
-          />
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-[18px]">
+            <DiaryGrid
+              className="min-w-0"
+              resources={resources}
+              bookings={view.diary}
+              date={dateKey}
+              timeZone={timeZone}
+              now={now}
+              startHour={view.hours.startHour}
+              endHour={view.hours.endHour}
+              emptyResources={
+                <EmptyState
+                  icon={Warehouse}
+                  title="No bays or vans set up yet"
+                  description="Add the bays and vans you book work into, and today's bookings line up here."
+                  action={
+                    <Link href="/app/settings/resources" className={buttonClass("secondary")}>
+                      Set up bays and vans
+                    </Link>
+                  }
+                />
+              }
+            />
+            <RecentActivityPanel id="activity" entries={activity} userId={admin.user.id} now={now} />
+          </div>
           <div className={sideColumn}>
             <Panel id="needs-ok" title="Needs your OK" count={requests.count + calls.length} countLabel={`${requests.count + calls.length} waiting`}>
               {waiting > 0 ? (
@@ -368,6 +376,32 @@ function RemindersPanel({ reminders }: { reminders: ReminderWeek | null }) {
       <Link href="/app/reminders" className={cn(textLinkClass, "self-start text-[14px]")}>
         Open reminders →
       </Link>
+    </Panel>
+  );
+}
+
+/** SOB's Recent activity (the garage's audit log), kept for P4.9's opt-out and agreement records. */
+function RecentActivityPanel({ id, entries, userId, now, className }: { id: string; entries: ActivityEntry[] | null; userId: string; now: Date; className?: string }) {
+  return (
+    <Panel id={id} title="Recent activity" className={className}>
+      {entries === null ? (
+        <p className="m-0 text-[14px] text-grey-600">Recent activity could not be loaded.</p>
+      ) : entries.length === 0 ? (
+        <p className="m-0 text-[14px] text-grey-600">Changes to bookings, invoices, settings and customers&apos; reminder choices show up here.</p>
+      ) : (
+        <ol className="m-0 flex list-none flex-col p-0">
+          {entries.map((entry) => (
+            <li key={entry.id} className="flex flex-col gap-0.5 border-t border-[#eef2f6] py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+              <p className="m-0 text-[14px] text-grey-800">
+                <strong className="font-semibold text-navy-950">{auditActionLabel(entry.action, entry.entityType)}</strong> {auditEntityLabel(entry.entityType, entry.detail)}
+              </p>
+              <p className="m-0 text-[12.5px] text-grey-600">
+                {entry.actorId ? (entry.actorId === userId ? "You" : "Staff") : "System"} · <time dateTime={entry.at}>{formatRelativeTime(entry.at, now)}</time>
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
     </Panel>
   );
 }
