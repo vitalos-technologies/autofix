@@ -4,7 +4,8 @@ import { brandUrl, type EmailBrand } from "@/lib/email/brand";
 import { adminUrl } from "@/lib/tenancy/urls";
 import { detailCard, detailsText, emailLayout, notice, plainTextFooter, plainTextHeader, type RenderedEmail, type StatusTone } from "./components";
 
-export type BookingEmailType = "confirmed" | "rescheduled" | "cancelled";
+/** `requested`: an online booking waiting for the garage's OK (it still holds the slot). */
+export type BookingEmailType = "confirmed" | "requested" | "rescheduled" | "cancelled";
 export type BookingEmailInput = {
   brand: EmailBrand;
   type: BookingEmailType;
@@ -21,9 +22,12 @@ export type BookingEmailInput = {
   previousAppointment?: string;
   googleCalendarUrl?: string;
   calendarUrl?: string;
+  /** The signed manage link; defaults to the plain `/manage` page (reference + registration). */
+  manageUrl?: string;
 };
 
 export type InternalBookingEmailInput = BookingEmailInput & {
+  /** Empty when the customer gave no email address. */
   customerEmail: string;
   customerPhone?: string;
   notes?: string;
@@ -32,6 +36,7 @@ export type InternalBookingEmailInput = BookingEmailInput & {
 function copyFor(type: BookingEmailType, garageName: string) {
   const copy = {
     confirmed: { status: "BOOKING CONFIRMED", title: "You're booked in.", intro: `Your ${garageName} appointment is confirmed.`, tone: "success" as StatusTone },
+    requested: { status: "BOOKING REQUESTED", title: "We've got your booking request.", intro: `${garageName} will check it and confirm your appointment shortly. The time is held for you.`, tone: "info" as StatusTone },
     rescheduled: { status: "BOOKING UPDATED", title: "Your appointment has been rescheduled.", intro: "The new appointment date and time are shown below.", tone: "warning" as StatusTone },
     cancelled: { status: "BOOKING CANCELLED", title: "Your appointment has been cancelled.", intro: "Here is a record of the cancelled appointment.", tone: "cancelled" as StatusTone },
   };
@@ -52,12 +57,14 @@ export function renderBookingEmail(input: BookingEmailInput): RenderedEmail {
     { label: "Booking reference", value: input.reference },
   ];
   const isCancelled = input.type === "cancelled";
-  const actionUrl = brandUrl(brand, isCancelled ? "/" : "/manage-booking");
+  const actionUrl = isCancelled ? brandUrl(brand, "/") : input.manageUrl ?? brandUrl(brand, "/manage");
   const actionLabel = isCancelled ? "Book another appointment" : "Manage booking";
   const item = copyFor(input.type, brand.name);
   const preheader = input.type === "confirmed"
     ? `Your ${brand.name} appointment is confirmed for ${input.date} at ${input.startTime}.`
-    : input.type === "rescheduled"
+    : input.type === "requested"
+      ? `${brand.name} has your booking request for ${input.date} at ${input.startTime}.`
+      : input.type === "rescheduled"
       ? `Your ${brand.name} appointment has a new date and time.`
       : `Your ${brand.name} appointment has been cancelled.`;
   return {
@@ -83,11 +90,16 @@ export function renderBookingEmail(input: BookingEmailInput): RenderedEmail {
 /** Staff alert for a booking event, sent to the garage's own address. */
 export function renderInternalBookingEmail(input: InternalBookingEmailInput): RenderedEmail {
   const { brand } = input;
-  const appointmentStatus = input.type === "confirmed" ? "NEW BOOKING" : input.type === "rescheduled" ? "BOOKING RESCHEDULED" : "BOOKING CANCELLED";
-  const title = input.type === "confirmed" ? "A customer has made a booking." : input.type === "rescheduled" ? "A customer booking has changed." : "A customer booking has been cancelled.";
+  const appointmentStatus = { confirmed: "NEW BOOKING", requested: "NEEDS YOUR OK", rescheduled: "BOOKING RESCHEDULED", cancelled: "BOOKING CANCELLED" }[input.type];
+  const title = {
+    confirmed: "A customer has made a booking.",
+    requested: "A customer has asked for a booking. Accept it or offer another time.",
+    rescheduled: "A customer booking has changed.",
+    cancelled: "A customer booking has been cancelled.",
+  }[input.type];
   const details = [
     { label: "Customer", value: input.customerName },
-    { label: "Customer email", value: input.customerEmail },
+    { label: "Customer email", value: input.customerEmail || undefined },
     { label: "Customer phone", value: input.customerPhone },
     { label: "Vehicle", value: input.vehicle },
     { label: "Service", value: input.service },
@@ -103,7 +115,7 @@ export function renderInternalBookingEmail(input: InternalBookingEmailInput): Re
       brand,
       preheader: `${appointmentStatus}: ${input.reference} for ${input.customerName}.`,
       status: appointmentStatus,
-      tone: input.type === "confirmed" ? "success" : input.type === "rescheduled" ? "warning" : "cancelled",
+      tone: input.type === "confirmed" ? "success" : input.type === "cancelled" ? "cancelled" : "warning",
       title,
       intro: `The booking is in your Autofix admin for ${brand.name}. The key details are included below.`,
       contentHtml: detailCard(details),

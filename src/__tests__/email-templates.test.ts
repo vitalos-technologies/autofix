@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { garageEmailBrand, platformEmailBrand } from "@/lib/email/brand";
-import { emailPreviewFixtures, platformEmailPreviewFixtures } from "@/lib/email/preview-fixtures";
+import { bookingNotificationPreviews, emailPreviewFixtures, platformEmailPreviewFixtures, previewGarage } from "@/lib/email/preview-fixtures";
 import { renderEnquiryReply } from "@/lib/email/templates/enquiries";
 import { otherTestGarage, testGarage } from "./support/garage";
 
@@ -59,9 +59,9 @@ describe("garage-branded transactional email templates", () => {
   });
 
   it("links customers to the garage's own booking host", () => {
-    expect(fixtures["booking-confirmed"].html).toContain('href="https://hartley-road.autofix.vitalos.co.uk/manage-booking"');
+    expect(fixtures["booking-confirmed"].html).toContain('href="https://hartley-road.autofix.vitalos.co.uk/manage?token=');
     const custom = emailPreviewFixtures(testGarage({ customDomain: "book.hartleyroad.co.uk" }));
-    expect(custom["booking-confirmed"].html).toContain('href="https://book.hartleyroad.co.uk/manage-booking"');
+    expect(custom["booking-confirmed"].html).toContain('href="https://book.hartleyroad.co.uk/manage?token=');
     expect(custom["enquiry-received"].html).toContain('href="https://book.hartleyroad.co.uk"');
   });
 
@@ -115,6 +115,11 @@ describe("garage-branded transactional email templates", () => {
     const output = process.env.EMAIL_PREVIEW_DIR;
     if (!output) return;
     mkdirSync(output, { recursive: true });
-    for (const [name, rendered] of Object.entries({ ...fixtures, ...platformFixtures })) writeFileSync(join(output, `${name}.html`), rendered.html);
+    // `pnpm email:preview`: the seeded demo garage (Hartley Road Motors), through the real booking notification composer.
+    for (const [name, rendered] of Object.entries({ ...emailPreviewFixtures(previewGarage), ...platformFixtures })) writeFileSync(join(output, `${name}.html`), rendered.html);
+    for (const [kind, composed] of Object.entries(bookingNotificationPreviews(previewGarage))) {
+      if (composed.calendar) writeFileSync(join(output, `booking-${kind}.ics`), composed.calendar);
+      if (composed.textMessage) writeFileSync(join(output, `booking-${kind}-${composed.textMessage.channel}.txt`), `${composed.textMessage.body}\n`);
+    }
   });
 });
