@@ -14,6 +14,7 @@ import {
   JobCard,
   KpiCard,
   MessagePreview,
+  MissedCallCard,
   STATUS_PILLS,
   StatusPill,
   Switch,
@@ -261,6 +262,51 @@ describe("Switch", () => {
     expect(screen.getByRole("link", { name: "Edit MOT due" })).toHaveAttribute("href", "/app/reminders/mot");
     expect(screen.getByText("SMS")).toBeInTheDocument();
   });
+
+  it("posts extra fields and can say View for read-only members", () => {
+    render(<AutomationRow name="Review request" description="The day after collection" channel="customer" enabled={false} fields={{ kind: "review" }} toggleAction="/x" editHref="/app/reminders?edit=review" editLabel="View" disabled />);
+    const toggle = screen.getByRole("switch", { name: "Review request" });
+    expect(toggle).toBeDisabled();
+    expect(toggle.closest("form")).toHaveFormValues({ kind: "review", enabled: "true" });
+    expect(screen.getByRole("link", { name: "View Review request" })).toBeInTheDocument();
+  });
+});
+
+describe("MissedCallCard", () => {
+  const call = {
+    id: "c1",
+    at: "2026-10-27T07:12:00Z",
+    callerName: "Sam Driver",
+    maskedNumber: "07••• •••123",
+    callBackHref: "tel:+447700900123",
+    voicemailHref: "/api/admin/calls/c1/voicemail",
+    voicemailSeconds: 42,
+    textedBack: true,
+  };
+
+  it("shows who called and when, the text-back, call back, voicemail on demand and mark handled", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<MissedCallCard call={call} timeZone="Europe/London" markHandledAction="/x" />);
+    const card = screen.getByRole("article", { name: /^Sam Driver\s*·\s*07/ });
+    expect(within(card).getByText("· 07:12")).toBeInTheDocument();
+    expect(within(card).getByText("Texted back")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "Call back Sam Driver" })).toHaveAttribute("href", "tel:+447700900123");
+    const mark = within(card).getByRole("button", { name: "Mark handled: call from Sam Driver" });
+    expect(mark.closest("form")).toHaveFormValues({ callId: "c1" });
+    expect(container.querySelector("audio")).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Play voicemail (0:42)" }));
+    const audio = container.querySelector("audio");
+    expect(audio).toHaveAttribute("src", "/api/admin/calls/c1/voicemail");
+    expect(audio).toHaveAttribute("controls");
+  });
+
+  it("handles a withheld number with no voicemail and no text-back", () => {
+    render(<MissedCallCard call={{ ...call, callerName: null, maskedNumber: null, callBackHref: null, voicemailHref: null, voicemailSeconds: null, textedBack: false }} timeZone="Europe/London" markHandledAction="/x" tone="navy" />);
+    expect(screen.getByRole("article", { name: "Withheld number" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText("Texted back")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Play voicemail/ })).toBeNull();
+  });
 });
 
 describe("TemplateEditor", () => {
@@ -294,9 +340,27 @@ describe("TemplateEditor", () => {
     field.setSelectionRange(6, 10);
     await user.click(screen.getByRole("button", { name: "{garage}" }));
     expect(field.value.startsWith("Hello {garage}.")).toBe(true);
-    expect(field).toHaveAttribute("aria-invalid", "true");
+    // Two texts cost more but are not an error: a warning, not aria-invalid.
+    expect(field).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("status")).toHaveTextContent(/This sends as 2 texts/);
     expect(field).toHaveAccessibleDescription(/characters · 2 texts/);
+  });
+
+  it("shows the checks it is given and marks the field invalid on an error (P3.10)", () => {
+    render(
+      <TemplateEditor
+        label="Message"
+        defaultValue="Hi {frist_name} {garage}"
+        sampleValues={sample}
+        placeholders={["first_name", "link", "garage"]}
+        errors={["{frist_name} isn't a placeholder this message can fill in."]}
+        warnings={["There is no {link}."]}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Message" });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/isn't a placeholder this message can fill in\. There is no \{link\}\./);
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["{first_name}", "{link}", "{garage}"]);
   });
 
   it("previews the rendered message with the opt-out line", () => {

@@ -181,14 +181,28 @@ describe("Today page", () => {
     expect(fake.queries[0]).toMatchObject({ table: "admin_audit_log", operation: "select" });
     const { auditActionLabel, auditEntityLabel } = await import("@/lib/admin/dashboard");
     expect(`${auditActionLabel("agreement.accepted", "garage_agreement")} ${auditEntityLabel("garage_agreement", { kind: "dpa", version: "0.1" })}`).toBe("Accepted agreement DPA v0.1");
+    expect(`${auditActionLabel("reminder_rule.disabled", "reminder_rule")} ${auditEntityLabel("reminder_rule", { kind: "service" })}`).toBe("Switched off Service due reminders");
+    expect(`${auditActionLabel("reminder.test_sent", "reminder_rule")} ${auditEntityLabel("reminder_rule", { kind: "mot", outcome: "sent" })}`).toBe("Sent a test of MOT due reminders");
+    expect(`${auditActionLabel("call.handled", "call")} ${auditEntityLabel("call", {})}`.trim()).toBe("Marked a missed call handled");
     const failing = createFakeSupabase({ from: () => ({ error: { code: "42501", message: "denied" } }) });
     await expect(loadRecentActivity(failing.client)).resolves.toBeNull();
   });
 
-  it("guards the P3.6 tables so Today works before they exist", () => {
+  it("reads missed calls through the P4.1 library and won-back figures through the shared month reader (P3.10)", () => {
     const data = readFileSync("src/lib/admin/data.ts", "utf8");
+    const page = readFileSync("src/app/app/(protected)/page.tsx", "utf8");
     expect(data).toContain('from("reminder_sends")');
-    expect(data).toContain('from("calls")');
-    expect(data).toContain("TODO(P3.6): switch to `reminder_won_back(");
+    // Today never reads `calls` itself: src/lib/calls/missed-calls.ts does (A164).
+    expect(data).not.toContain('from("calls")');
+    expect(page).not.toContain('from("calls")');
+    expect(page).toContain("listMissedCallsNeedingOk(admin.client, admin.garage.id, { limit: 10 })");
+    expect(page).toContain("countMissedCallsNeedingOk(admin.client, admin.garage.id)");
+    expect(page).toContain("markHandledAction={markMissedCallHandledAction}");
+    expect(page).toContain("loadReminderMonth(admin.client, admin.garage.id, monthStart(dateKey), timeZone)");
+    expect(todayChips({ carsToday: 2, stillToArrive: 0, inWorkshop: 0, waitingParts: 0, ready: 0, collected: 0, toApprove: 1 }, undefined, 2)).toEqual([
+      { label: "2 cars", tone: "navy" },
+      { label: "1 to approve", tone: "neutral", href: "#needs-ok-phone" },
+      { label: "2 missed calls", tone: "warning", href: "#needs-ok-phone" },
+    ]);
   });
 });
