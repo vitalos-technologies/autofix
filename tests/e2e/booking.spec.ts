@@ -1,332 +1,257 @@
+/**
+ * The 5-step booking flow on a garage host (P2.8): vehicle → service → time → details → confirmed.
+ * Runs under playwright.garage.config.ts against `pnpm build && pnpm start` with the demo seed
+ * (`pnpm db:seed`: hartley-road with MOT on, demo-b with MOT off), the mock vehicle provider and the
+ * in-memory booking engine (`BOOKING_ENGINE=fake`) until the scheduling tables land.
+ */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
-import type { BookingServiceOption } from "@/lib/bookings/types";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 
-// SOB's wizard is the home page of a garage booking host since P1.7, so this
-// spec runs in playwright.smoke.config.ts with baseURL
-// http://hartley-road.localhost:<port> (seeded garage, local Supabase), not on
-// the admin host. P2.8/P2.11 replace it with the 5-step journey.
-const BOOKING_PATH = "/";
+const port = Number(process.env.PLAYWRIGHT_PORT || "3430");
+const DEMO_B_ORIGIN = `http://demo-b.localhost:${port}`;
+const REGISTRATION = "AB12CDE";
 
-type BookingService = BookingServiceOption;
-
-type CreateBookingRequest = {
-  vehicle?: { registration?: string; make?: string; model?: string };
-  serviceKey?: string;
-  location?: { mode?: string; address?: string; postcode?: string };
-  customer?: { name?: string; email?: string; phone?: string };
-  appointmentStart?: string;
-  idempotencyKey?: string;
-  conditionalAnswers?: {
-    warningLight?: string;
-    issueTiming?: string;
-    vehicleAccessible?: string;
+/** Fails the test if any request URL (pages, data, assets) carries the registration. */
+function watchUrls(page: Page) {
+  const urls: string[] = [];
+  page.on("request", (request) => urls.push(request.url()));
+  return () => {
+    const leaks = urls.filter((url) => decodeURIComponent(url).toUpperCase().replace(/[^A-Z0-9]/g, "").includes(REGISTRATION));
+    expect(leaks, "registration in a URL").toEqual([]);
   };
-};
-
-const vehicle = {
-  registration: "AB12CDE",
-  make: "Vauxhall",
-  model: "Astra",
-  year: 2017,
-  fuelType: "Petrol",
-  transmission: "Manual",
-  colour: "Blue",
-};
-
-const diagnosticService: BookingService = {
-  key: "vehicle-diagnostics",
-  name: "Vehicle Diagnostics",
-  description: "System testing and fault investigation for warning lights and running concerns.",
-  locationMode: "both",
-  systemKey: "diagnostics-and-repairs",
-  systemName: "Diagnostics and repairs",
-  systemDescription: "Warning lights, faults and repairs.",
-};
-
-const servicingService: BookingService = {
-  key: "vehicle-servicing",
-  name: "Vehicle Servicing",
-  description: "Scheduled servicing and vehicle health checks at the SOB Autofix workshop.",
-  locationMode: "workshop",
-  systemKey: "servicing",
-  systemName: "Servicing",
-  systemDescription: "Scheduled servicing and health checks.",
-};
-
-async function setEssentialCookies(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("sob-autofix-consent-v1", JSON.stringify({ analytics: false, functional: false }));
-  });
 }
 
-async function seedConfirmedVehicle(page: Page) {
-  await page.addInitScript((storedVehicle) => {
-    sessionStorage.setItem("af-vehicle-session", JSON.stringify({ vehicle: storedVehicle, vehicleConfirmed: true }));
-  }, vehicle);
+async function expectAccessible(page: Page) {
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
 }
 
-async function mockServices(page: Page, services: BookingService[] = [diagnosticService, servicingService]) {
-  await page.route("**/api/bookings/services", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ services }),
-  }));
+async function expectOneVisibleH1(page: Page, name: string | RegExp) {
+  await expect(page.locator("h1:visible")).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 }
 
-async function mockVehicleLookup(page: Page, status = 200) {
-  await page.route("**/api/vehicle/lookup", (route) => route.fulfill({
-    status,
-    contentType: "application/json",
-    body: status === 200
-      ? JSON.stringify({ success: true, vehicle })
-      : JSON.stringify({ success: false, error: { code: "unavailable", message: "Vehicle lookup is unavailable." } }),
-  }));
+async function noHorizontalOverflow(page: Page) {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 }
 
-function futureDate(days = 7) {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function nextDate(value: string) {
-  const date = new Date(`${value}T12:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function ukTime(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/London",
-  }).format(new Date(value));
-}
-
-async function reachWorkshopAppointment(page: Page) {
-  await page.goto(BOOKING_PATH);
+async function findCar(page: Page, registration = "ab12 cde") {
+  await page.goto("/");
+  await page.getByLabel("Registration").fill(registration);
+  await page.getByRole("button", { name: "Find my car" }).click();
   await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("radio", { name: /Vehicle Servicing/ }).check();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("textbox", { name: "Tell us what is happening" }).fill("The vehicle is due for its scheduled service and health check.");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Bring vehicle to SOB Autofix", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Full name").fill("Test Customer");
-  await page.getByLabel("Phone number").fill("07123 456789");
-  await page.getByLabel("Email address").fill("test@example.com");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Choose an appointment" })).toBeVisible();
 }
 
-// The three journeys below are stale against SOB's current wizard, not
-// against the garage host: the service step now asks for a vehicle system
-// first and lists services as multi-select checkboxes (the spec still expects
-// service radios), and the problem field is optional. P2.8/P2.11 replace the
-// wizard and this journey with the 5-step flow, so they are fixme rather than
-// rewritten against UI that is about to go (checked 27 Oct 2026).
-const STALE_JOURNEY = "SOB wizard UI changed (system picker, service checkboxes); replaced by the 5-step flow in P2.8/P2.11";
+async function chooseService(page: Page, service: RegExp = /Diagnostics/) {
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.waitForURL(/\/service$/);
+  await page.getByRole("radio", { name: service }).check();
+  await page.getByRole("button", { name: "Choose a time" }).click();
+  await page.waitForURL(/\/time/);
+}
 
-test.describe("SOB Autofix booking wizard", () => {
-  test("serves an accessible first-party booking page without an iframe", async ({ page, isMobile }) => {
-    // Known defect, kept asserted: on phones the page's only h1 is
-    // `hidden lg:block` (src/app/%5Fsite/[garageId]/page.tsx), so there is no
-    // visible h1. Fix it in P2.8 and drop this line.
-    test.fail(isMobile, "booking home page hides its h1 below the lg breakpoint");
-    await setEssentialCookies(page);
-    await mockServices(page);
+/** Picks the first free time on the n-th open day and returns its label ("Thu 29 Oct, 09:15"). */
+async function pickTime(page: Page, dayIndex = 1) {
+  await page.getByRole("group", { name: "Choose a day" }).locator("button:not([disabled])").nth(dayIndex).click();
+  await page.locator("button[data-start]:not([disabled])").first().click();
+  const action = page.locator('button[form="time-form"]');
+  const label = (await action.innerText()).trim();
+  expect(label).toMatch(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d$/);
+  await action.click();
+  await page.waitForURL(/\/details$/);
+  return label;
+}
 
-    const response = await page.goto(BOOKING_PATH);
+async function fillDetails(page: Page, name = "Test Customer", phone = "07700 900412") {
+  await page.getByLabel("Full name").fill(name);
+  await page.getByLabel("Mobile number").fill(phone);
+}
 
+async function newPhonePage(browser: Browser) {
+  const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width: 390, height: 844 } });
+  return context.newPage();
+}
+
+test.describe("5-step booking flow", () => {
+  test("opens on the vehicle step with one visible h1 and no iframe", async ({ page }) => {
+    const response = await page.goto("/");
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole("heading", { level: 1, name: "Book your vehicle in" })).toBeVisible();
-    await expect(page.getByText("Step 1 of 7: Vehicle", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Vehicle registration")).toBeVisible();
+    await expectOneVisibleH1(page, "What are we booking in?");
+    await expect(page.getByText("Step 1 of 5")).toBeVisible();
+    await expect(page.getByLabel("Registration")).toHaveAttribute("autocomplete", "off");
     await expect(page.locator("iframe")).toHaveCount(0);
-
-    const accessibility = await new AxeBuilder({ page }).analyze();
-    expect(accessibility.violations).toEqual([]);
+    await expectAccessible(page);
   });
 
-  test("continues manually after lookup failure and shows service-aware questions", async ({ page }) => {
-    test.fixme(true, STALE_JOURNEY);
-    await setEssentialCookies(page);
-    await mockServices(page);
-    await mockVehicleLookup(page, 503);
-    await page.goto(BOOKING_PATH);
+  test("books a car end to end without the registration in any URL", async ({ page, context }) => {
+    const checkUrls = watchUrls(page);
 
-    await page.getByLabel("Vehicle registration").fill("ab12 cde");
-    await page.getByRole("button", { name: "Find vehicle" }).click();
-    await expect(page.getByRole("heading", { name: "We couldn't load the vehicle details." })).toBeVisible();
-    await page.getByRole("button", { name: "Enter vehicle manually" }).click();
-    await expect(page.getByLabel("Vehicle registration")).toHaveValue("AB12CDE");
-    await page.getByLabel("Make").fill("Vauxhall");
-    await page.getByLabel("Model").fill("Astra");
-    await page.getByRole("button", { name: /Continue with these details/ }).click();
+    await findCar(page);
+    await expect(page.getByText("MOT due 31 Mar 2027")).toBeVisible();
+    await expectAccessible(page);
+    const draft = (await context.cookies()).find((cookie) => cookie.name === "af_booking");
+    expect(draft).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
+    expect(draft?.value).not.toMatch(/AB12/i);
 
-    await page.getByRole("radio", { name: /Vehicle Servicing/ }).check();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByLabel("Current mileage (optional)")).toBeVisible();
-    await expect(page.getByLabel(/Which warning light/)).toHaveCount(0);
-  });
+    await page.waitForURL(/\/service$/);
+    await expectOneVisibleH1(page, "What does it need?");
+    await expect(page.getByText("Vauxhall Astra · AB12 CDE")).toBeVisible();
+    await page.getByRole("radio", { name: /Diagnostics/ }).check();
+    await page.getByRole("button", { name: "Warning light" }).click();
+    await expect(page.getByRole("button", { name: "Warning light" })).toHaveAttribute("aria-pressed", "true");
+    await expectAccessible(page);
+    await page.getByRole("button", { name: "Choose a time" }).click();
 
-  test("creates only after explicit review confirmation and shows the SOB reference", async ({ page }) => {
-    test.fixme(true, STALE_JOURNEY);
-    await setEssentialCookies(page);
-    await mockServices(page);
-    await mockVehicleLookup(page);
-    const date = futureDate();
-    const end = nextDate(date);
-    const slotStart = `${date}T08:00:00.000Z`;
-    let createCalls = 0;
-    let slotRequest: Record<string, unknown> | undefined;
-    let createRequest: CreateBookingRequest | undefined;
+    await page.waitForURL(/\/time/);
+    await expectOneVisibleH1(page, "Pick a time");
+    await expect(page.getByText("Live from the diary")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Choose a time" })).toBeDisabled();
+    await page.getByRole("group", { name: "Choose a day" }).locator("button:not([disabled])").nth(1).click();
+    await expect(page).toHaveURL(/\/time\?date=\d{4}-\d{2}-\d{2}$/);
+    await page.locator("button[data-start]:not([disabled])").first().click();
+    await expect(page.getByText(/^Drop off at \d\d:\d\d\. Expected ready around \d\d:\d\d\./)).toBeVisible();
+    await expectAccessible(page);
+    const when = (await page.locator('button[form="time-form"]').innerText()).trim();
+    await page.locator('button[form="time-form"]').click();
 
-    await page.route("**/api/bookings/slots", async (route) => {
-      slotRequest = route.request().postDataJSON() as Record<string, unknown>;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ slots: [{ start: slotStart }], timeZone: "Europe/London" }),
-      });
-    });
-    await page.route("**/api/bookings", async (route) => {
-      createCalls += 1;
-      createRequest = route.request().postDataJSON() as CreateBookingRequest;
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({
-          booking: {
-            reference: "SOB-482715",
-            status: "confirmed",
-            appointmentStart: slotStart,
-            service: diagnosticService.name,
-            vehicle: "Vauxhall Astra",
-            location: "12 Test Street, Doncaster, DN1 1AA",
-            email: "customer@example.com",
-          },
-        }),
-      });
-    });
-
-    await page.goto(BOOKING_PATH);
-    await page.getByLabel("Vehicle registration").fill("AB12 CDE");
-    await page.getByRole("button", { name: "Find vehicle" }).click();
-    await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /Yes, this is my vehicle/ }).click();
-    await page.getByRole("radio", { name: /Vehicle Diagnostics/ }).check();
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await expect(page.getByLabel(/Which warning light/)).toBeVisible();
-    await expect(page.getByLabel(/When does the issue happen/)).toBeVisible();
-    await page.getByRole("textbox", { name: "Tell us what is happening" }).fill("The engine warning light appears intermittently while driving.");
-    await page.getByLabel(/Which warning light/).fill("Engine management light");
-    await page.getByLabel(/When does the issue happen/).selectOption("intermittently");
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await page.getByRole("radio", { name: /Mobile service/ }).check();
-    await expect(page.getByLabel("Vehicle address")).toBeVisible();
-    await page.getByLabel("Vehicle address").fill("12 Test Street, Doncaster");
-    await page.getByLabel("Postcode").fill("DN1 1AA");
-    await page.getByRole("radio", { name: "No / not sure" }).check();
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await page.getByLabel("Full name").fill("Test Customer");
-    await page.getByLabel("Phone number").fill("+44 7123 456789");
-    await page.getByLabel("Email address").fill("customer@example.com");
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByLabel("Appointment date").fill(date);
-    await page.getByRole("button", { name: "Check available times" }).click();
-    await page.getByRole("button", { name: ukTime(slotStart) }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await expect(page.getByRole("heading", { name: "Review your booking" })).toBeVisible();
-    expect(createCalls).toBe(0);
-    await expect(page.getByText("SOB-482715")).toHaveCount(0);
+    await page.waitForURL(/\/details$/);
+    await expectOneVisibleH1(page, "Who's dropping it off?");
+    await expect(page.getByText("Diagnostics · Workshop")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /Remind me when the MOT and service are due/ })).not.toBeChecked();
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await expect(page.getByText("Enter your full name.")).toBeVisible();
+    await expect(page.getByLabel("Full name")).toBeFocused();
+    await fillDetails(page);
+    await page.getByRole("button", { name: "WhatsApp" }).click();
+    await expectAccessible(page);
     await page.getByRole("button", { name: "Confirm booking" }).click();
 
-    await expect(page.getByRole("heading", { name: "Booking confirmed" })).toBeVisible();
-    await expect(page.getByText("SOB-482715")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Manage this booking/ })).toHaveAttribute("href", "/manage-booking");
-    expect(createCalls).toBe(1);
-    expect(slotRequest).toMatchObject({
-      serviceKey: diagnosticService.key,
-      locationMode: "mobile",
-      start: date,
-      end,
-    });
-    expect(createRequest).toMatchObject({
-      vehicle: { registration: "AB12CDE", make: "Vauxhall", model: "Astra" },
-      serviceKey: diagnosticService.key,
-      location: { mode: "mobile", address: "12 Test Street, Doncaster", postcode: "DN1 1AA" },
-      customer: { name: "Test Customer", email: "customer@example.com", phone: "+44 7123 456789" },
-      appointmentStart: slotStart,
-      conditionalAnswers: {
-        warningLight: "Engine management light",
-        issueTiming: "intermittently",
-        vehicleAccessible: "no_or_unsure",
-      },
-    });
-    expect(createRequest?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+    await page.waitForURL(/\/confirmed\/[A-Z]+-\d{4,6}$/);
+    await expectOneVisibleH1(page, "You're booked in");
+    const reference = page.url().split("/").pop()!;
+    await expect(page.getByText(reference, { exact: true })).toBeVisible();
+    await expect(page.getByText(when, { exact: true })).toBeVisible();
+    await expect(page.getByText("Vauxhall Astra · AB12 CDE")).toBeVisible();
+    await expect(page.getByText(/We'll send your confirmation on WhatsApp to 07••• •••412/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage-booking");
+    await expectAccessible(page);
+    expect((await context.cookies()).find((cookie) => cookie.name === "af_booking")).toBeUndefined();
+    checkUrls();
+
+    // The reference alone shows nothing: another browser gets the "find your booking" page.
+    const other = await newPhonePage(page.context().browser()!);
+    await other.goto(`/confirmed/${reference}`);
+    await expectOneVisibleH1(other, "Find your booking");
+    await expect(other.getByText(/AB12|Astra/)).toHaveCount(0);
+    await other.context().close();
   });
 
-  test("shows outage and empty-availability recovery without fake time slots", async ({ page }) => {
-    test.fixme(true, STALE_JOURNEY);
-    await setEssentialCookies(page);
-    await seedConfirmedVehicle(page);
-    await mockServices(page, [servicingService]);
-    const date = futureDate();
-    let availabilityCalls = 0;
-    let createCalls = 0;
-
-    await page.route("**/api/bookings/slots", (route) => {
-      availabilityCalls += 1;
-      return route.fulfill(availabilityCalls === 1 ? {
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({ error: { code: "provider_unavailable", message: "Availability is unavailable." } }),
-      } : {
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ slots: [], timeZone: "Europe/London" }),
-      });
-    });
-    await page.route("**/api/bookings", (route) => {
-      createCalls += 1;
-      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "unexpected_create" } }) });
-    });
-
-    await reachWorkshopAppointment(page);
-    await page.getByLabel("Appointment date").fill(date);
-    await page.getByRole("button", { name: "Check available times" }).click();
-
-    await expect(page.getByRole("heading", { name: /Online appointment availability is temporarily unavailable/ })).toBeVisible();
-    await expect(page.locator("button[aria-pressed]")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /Call 07469/ })).toHaveAttribute("href", /^tel:/);
-    await page.getByRole("button", { name: "Try again" }).click();
-
-    await expect(page.getByRole("heading", { name: "No appointments on this date" })).toBeVisible();
-    await expect(page.locator("button[aria-pressed]")).toHaveCount(0);
-    expect(availabilityCalls).toBe(2);
-    expect(createCalls).toBe(0);
+  test("sends a customer who skips ahead back to the first incomplete step", async ({ page }) => {
+    await page.goto("/details");
+    await expect(page).toHaveURL(/\/$/);
+    await findCar(page);
+    await page.goto("/time");
+    await expect(page).toHaveURL(/\/service$/);
   });
 
-  test("has no horizontal overflow on a mobile booking journey", async ({ page, isMobile }) => {
-    test.skip(!isMobile, "Mobile-project coverage");
-    await setEssentialCookies(page);
-    await seedConfirmedVehicle(page);
-    await mockServices(page, [diagnosticService, servicingService]);
-    await page.goto(BOOKING_PATH);
-    await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
-
-    const overflow = async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    await expect.poll(overflow).toBeLessThanOrEqual(1);
+  test("continues with a car entered by hand", async ({ page }) => {
+    await page.goto("/");
+    await page.getByLabel("Registration").fill("cd34 efg");
+    await page.getByRole("button", { name: "Enter details manually" }).click();
+    await expect(page.getByLabel("Make")).toBeFocused();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("heading", { name: "What does your vehicle need?" })).toBeVisible();
-    await expect.poll(overflow).toBeLessThanOrEqual(1);
+    await expect(page.getByText("Enter the make, for example Ford.")).toBeVisible();
+    await page.getByLabel("Make").fill("Ford");
+    await page.getByLabel("Model").fill("Focus");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL(/\/service$/);
+    await expect(page.getByText("Ford Focus · CD34 EFG")).toBeVisible();
+  });
+
+  test("forgets the car on Not your car?", async ({ page }) => {
+    await findCar(page);
+    await page.getByRole("button", { name: "Not your car?" }).click();
+    await expect(page.getByLabel("Registration")).toHaveValue("");
+    await expect(page.getByLabel("Registration")).toBeFocused();
+    await expect(page.getByText("Vauxhall Astra", { exact: true })).toHaveCount(0);
+  });
+
+  test("asks for a postcode in the service area for a mobile visit", async ({ page }) => {
+    await findCar(page);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL(/\/service$/);
+    await page.getByRole("radio", { name: /Diagnostics/ }).check();
+    await page.getByRole("button", { name: "Mobile visit" }).click();
+    await page.getByRole("button", { name: "Choose a time" }).click();
+    await expect(page.getByText(/Enter the postcode where the car will be/)).toBeVisible();
+    await page.getByLabel("Postcode for the visit").fill("S6 1AA");
+    await page.getByRole("button", { name: "Choose a time" }).click();
+    await expect(page.getByText(/don't cover S6/)).toBeVisible();
+    await page.getByLabel("Postcode for the visit").fill("dn1 1aa");
+    await page.getByRole("button", { name: "Choose a time" }).click();
+    await page.waitForURL(/\/time/);
+    await expect(page.getByText("Diagnostics · 1 hr · Mobile visit")).toBeVisible();
+  });
+
+  test("offers the nearest free times when someone else takes the slot first", async ({ page, browser }) => {
+    await findCar(page);
+    await chooseService(page);
+    const when = await pickTime(page, 3);
+    await fillDetails(page);
+
+    const rival = await newPhonePage(browser);
+    await findCar(rival, "ef56 ghj");
+    await chooseService(rival);
+    expect(await pickTime(rival, 3)).toBe(when);
+    await fillDetails(rival, "Rival Customer", "07700 900999");
+    await rival.getByRole("button", { name: "Confirm booking" }).click();
+    await rival.waitForURL(/\/confirmed\//);
+    await rival.context().close();
+
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await page.waitForURL(/\/time\?date=\d{4}-\d{2}-\d{2}$/);
+    // Filtered: Next.js has its own (empty) route announcer with role="alert".
+    const alert = page.getByRole("alert").filter({ hasText: "has just been booked" });
+    await expect(alert).toContainText(`Sorry, ${when} has just been booked by someone else.`);
+    await expectAccessible(page);
+    await alert.getByRole("button").first().click();
+    await page.locator('button[form="time-form"]').click();
+    await page.waitForURL(/\/details$/);
+    await fillDetails(page);
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await page.waitForURL(/\/confirmed\//);
+    await expectOneVisibleH1(page, "You're booked in");
+  });
+
+  test("hides MOT for a garage that has it switched off", async ({ page }) => {
+    await page.goto(`${DEMO_B_ORIGIN}/`);
+    await page.getByLabel("Registration").fill("AB12CDE");
+    await page.getByRole("button", { name: "Find my car" }).click();
+    await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
+    await expect(page.getByText(/MOT due/)).toHaveCount(0);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL(/\/service$/);
+    await expect(page.getByRole("radio", { name: /Diagnostics/ })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /^MOT/ })).toHaveCount(0);
+  });
+
+  test("has no horizontal overflow at any step on a phone", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "Mobile-project coverage");
+    await findCar(page);
+    await noHorizontalOverflow(page);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL(/\/service$/);
+    await noHorizontalOverflow(page);
+    await page.getByRole("radio", { name: /Diagnostics/ }).check();
+    await page.getByRole("button", { name: "Choose a time" }).click();
+    await page.waitForURL(/\/time/);
+    await noHorizontalOverflow(page);
+    await pickTime(page, 2);
+    await noHorizontalOverflow(page);
+    await fillDetails(page);
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await page.waitForURL(/\/confirmed\//);
+    await noHorizontalOverflow(page);
   });
 });
