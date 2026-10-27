@@ -42,6 +42,42 @@ export async function createTotpMember(
   return { id: created.user.id, email, secret: enrollment.totp.secret, lastWindow: window };
 }
 
+/**
+ * A Vitalos platform admin (P4.5): a confirmed Auth user in `platform_admins` with a verified TOTP factor and
+ * no garage. They sign in at /app/login and verify at /admin/verify (`signInAsPlatformAdmin`).
+ */
+export async function createTotpPlatformAdmin(service: SupabaseClient, label: string): Promise<TotpMember> {
+  const email = `${label}-${randomUUID().slice(0, 8)}@example.test`;
+  const { data: created, error: createError } = await service.auth.admin.createUser({ email, password: localTestPassword, email_confirm: true });
+  if (createError || !created.user) throw new Error(`Could not create local platform admin: ${createError?.message}`);
+  const { error: adminError } = await service.from("platform_admins").insert({ user_id: created.user.id });
+  if (adminError) throw new Error(`Could not add local platform admin: ${adminError.message}`);
+  await service.from("admin_profiles").upsert({ user_id: created.user.id, display_name: "Vitalos support" });
+
+  const auth = createLocalClient(getLocalSupabaseConfig().publishableKey);
+  const { error: signInError } = await auth.auth.signInWithPassword({ email, password: localTestPassword });
+  if (signInError) throw new Error(`Could not sign in local platform admin: ${signInError.message}`);
+  const { data: enrollment, error: enrollmentError } = await auth.auth.mfa.enroll({ factorType: "totp", friendlyName: `${label} e2e` });
+  if (enrollmentError || !enrollment || enrollment.type !== "totp") throw new Error(`Could not enrol TOTP: ${enrollmentError?.message}`);
+  const window = currentWindow();
+  const { error: verifyError } = await auth.auth.mfa.challengeAndVerify({ factorId: enrollment.id, code: totp(enrollment.totp.secret, window) });
+  if (verifyError) throw new Error(`Could not verify TOTP: ${verifyError.message}`);
+  return { id: created.user.id, email, secret: enrollment.totp.secret, lastWindow: window };
+}
+
+/** Signs a platform admin in at /app/login, then verifies the TOTP code at /admin/verify, and waits for /admin. */
+export async function signInAsPlatformAdmin(page: Page, adminOrigin: string, member: TotpMember) {
+  await page.goto(`${adminOrigin}/app/login`);
+  await page.getByLabel("Email").fill(member.email);
+  await page.getByLabel("Password").fill(localTestPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/verify$/);
+  const window = await nextUnusedWindow(member);
+  await page.getByLabel("Verification code").fill(totp(member.secret, window));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+}
+
 /** Signs in at `<adminOrigin>/app/login` with the password, then the TOTP code, and waits for the admin home. */
 export async function signInWithTotp(page: Page, adminOrigin: string, member: TotpMember) {
   await page.goto(`${adminOrigin}/app/login`);

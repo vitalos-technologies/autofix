@@ -91,6 +91,7 @@ describe("admin password reset authorization", () => {
         signOut: authSignOut,
         mfa: { getAuthenticatorAssuranceLevel: vi.fn() },
       },
+      rpc: vi.fn(async () => ({ data: false, error: null })),
     });
     harness.loadMemberships.mockResolvedValue([]);
     const formData = new FormData();
@@ -101,6 +102,27 @@ describe("admin password reset authorization", () => {
     });
     expect(authSignOut).toHaveBeenCalledOnce();
     expect(harness.redirect).not.toHaveBeenCalled();
+  });
+
+  it("sends a platform admin with no garage to /admin (P4.5), which runs its own MFA step", async () => {
+    const authSignOut = vi.fn(async () => ({ error: null }));
+    const rpc = vi.fn(async () => ({ data: true, error: null }));
+    harness.createClient.mockResolvedValue({
+      auth: {
+        signInWithPassword: vi.fn(async () => ({ data: { user: { id: "platform-id" } }, error: null })),
+        signOut: authSignOut,
+        mfa: { getAuthenticatorAssuranceLevel: vi.fn() },
+      },
+      rpc,
+    });
+    harness.loadMemberships.mockResolvedValue([]);
+    const formData = new FormData();
+    formData.set("email", "staff@vitalos.co.uk");
+    formData.set("password", "correct-password");
+    await expect(loginWithPassword({ message: "" }, formData)).rejects.toThrow();
+    expect(rpc).toHaveBeenCalledWith("is_platform_admin");
+    expect(harness.redirect).toHaveBeenCalledWith("/admin");
+    expect(authSignOut).not.toHaveBeenCalled();
   });
 
   it("denies anonymous and ordinary AAL1 direct action calls", async () => {

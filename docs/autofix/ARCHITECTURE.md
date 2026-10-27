@@ -16,7 +16,7 @@ Core tables (migration `<ts>_tenancy.sql`):
 SQL helpers (all `stable`, `security definer`, `search_path = ''`):
 
 - `public.request_garage_id() → uuid`: the `x-garage-id` request header (PostgREST `request.headers`), or `null` if absent/invalid.
-- `public.garage_role(p_garage_id uuid) → text`: `auth.uid()`'s role in that garage, or `null`.
+- `public.garage_role(p_garage_id uuid) → text`: `auth.uid()`'s role in that garage, or `null`. Since P4.5 also `'owner'` for the garage of the caller's open super-admin impersonation, in read-only transactions only (see "Super admin").
 - `public.current_garage_id() → uuid`: `request_garage_id()` when the caller is `service_role` or a member of it; otherwise `null`.
 - `public.current_garage_role() → text`: role in `current_garage_id()`.
 - `public.is_platform_admin() → boolean`.
@@ -225,4 +225,43 @@ SQL: `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` 
 | `src/lib/agent-api/tokens.ts` | `generateAgentToken()`, `hashAgentToken(token)`, `bearerToken(header)`, `agentTokenHashesMatch()` (constant time), `tokenAllows(scopes, tool)` |
 | `src/lib/agent-api/store.ts` | `AgentApiStore` (`findToken`, `recordCall`, `garageProfile`, `findBooking`), `getAgentApiStore()` / `setAgentApiStoreForTests()`, `issueAgentToken({garageId, name, scopes})` → raw token once |
 | `src/lib/agent-api/handler.ts` | `handleAgentToolRequest(tool, request)`: token → garage status → scope → rate limits → body → tool (booking engine, vehicle provider with MOT only when `mot_enabled`, `findBookingForManage`) → `agent_call_log` row + `agent_api.call` log line |
+
+## Super admin (Phase 4, P4.5)
+
+### As built (DECISIONS A120–A129)
+
+Migration `20261028000500_platform_admin.sql`; pgTAP `021_platform_admin.test.sql`; integration `tests/integration/platform-admin.test.ts`; Playwright `tests/e2e/super-admin.spec.ts` (project `super-admin` in `playwright.garage.config.ts`, `pnpm test:e2e:super-admin`).
+
+| Table | Columns | Access |
+| --- | --- | --- |
+| `platform_impersonations` | `garage_id` (not null, cascade), `admin_user_id → auth.users`, `reason` (5–500), `started_at`, `expires_at` (≤ 2 h after start), `ended_at`, `end_reason` (`ended`/`replaced`/`expired`); one open row per admin | service role only (RLS on, no policies); exempt from the 007 default/select-policy rules like `jobs` |
+| `platform_audit_log` | `actor_id`, `action` (`platform.*`), `target_garage_id` (set null on delete), `entity_type`, `entity_id`, `reason`, `detail jsonb`, `created_at` | append-only, service role select/insert only |
+
+SQL (security definer, `search_path = ''`):
+
+- Internal (no API grant): `platform_admin_allowed()` (platform admin + `aal2`), `require_platform_admin()` (42501 `PLATFORM_ADMIN_REQUIRED`), `impersonated_garage_id()` (open, unexpired session; read-only transaction; AAL2), `record_platform_action()` (platform log + the garage's `admin_audit_log`), `clean_platform_reason()`, `close_expired_impersonations_for(uuid)`.
+- `garage_role(uuid)` replaced: member role, else `'owner'` for `impersonated_garage_id()`.
+- `authenticated` (each checks platform admin + AAL2): `platform_garages(p_search, p_status, p_plan, p_limit, p_offset)` (members, bookings in 30 days, last booking, custom domain + status, `total_count`), `platform_garage(id) → jsonb`, `platform_update_garage(id, plan, status, reason)`, `platform_audit_entries(garage_id?, limit)`, `platform_start_impersonation(garage_id, reason, minutes)`, `platform_end_impersonation()` (platform admin, no AAL2 needed), `current_impersonation()`, `log_impersonation_event(action, path)`, `platform_job_health() → jsonb`, `platform_retry_job(id, reason)`.
+- `service_role`: `close_expired_impersonations() → integer`.
+
+App:
+
+| Module / route | What |
+| --- | --- |
+| `src/lib/platform/policy.ts` | Pure rules: `platformAccess()`, `isReadRequest()` / `isPrefetch()`, `toImpersonation()`, `cleanReason()`, `redactJobError()`, plan/status lists, `IMPERSONATION_COOKIE` (`af_impersonation`) |
+| `src/lib/platform/access.ts` | `getPlatformAdmin()` (cached; `is_platform_admin()` + assurance on the user's own client), `requirePlatformAdmin()` (pages: `notFound()` / redirect `/admin/verify`), `getAllowedPlatformAdmin()` |
+| `src/lib/platform/store.ts` | Typed RPC wrappers (`listGarages`, `getGarage`, `updateGarage`, `listAuditEntries`, `startImpersonation`, `endImpersonation`, `currentImpersonation`, `getJobHealth` (redacts), `retryJob`), `PlatformError` |
+| `src/lib/platform/actions.ts` | Server actions: `updateGarageAction`, `startImpersonationAction` (sets the hint cookie, redirects to `/app`), `endImpersonationAction`, `retryJobAction`, `verifyPlatformMfaAction`, `startPlatformEnrolmentAction`, `signOutPlatformAction` |
+| `src/lib/platform/api.ts` | `withPlatformAdmin()` (404 for non-admins, same-origin JSON for mutations, error mapping) |
+| `src/lib/platform/jobs.ts` | `platformCloseImpersonationsHandler` for job kind `platform.close_impersonations` (to be registered in `src/lib/jobs`) |
+| `src/components/platform/impersonation-banner.tsx` | `ImpersonationBanner({ impersonation, surface })`: "Viewing <garage> as Vitalos support. Read-only … Ends at HH:MM" + End impersonation |
+| `src/lib/tenancy/request-headers.ts` | `x-autofix-method`, `x-autofix-path`, set by `src/proxy.ts` on every admin-host request (client values overwritten) |
+| `src/lib/tenancy/admin.ts` | `AdminContext.impersonation`; with the hint cookie and an open session the impersonated garage is the only membership (role `owner`); server actions and non-GET requests get `null` and are logged as blocked writes; GETs are logged as page views (not prefetches) |
+| `/admin` | Garages list: search name/slug, filter status/plan, 25 a page (GET form; `?q=&status=&plan=&page=`) |
+| `/admin/garages/[garageId]` | Counts, plan + status with reason, "View as support" (reason, minutes), domains, support sessions, platform history |
+| `/admin/jobs` | Job health: counts by kind/status, oldest queued, expired locks, recent failures (redacted) with Retry, reminder sends skipped/failed per garage in 7 days |
+| `/admin/verify` | TOTP challenge or enrolment for platform admins |
+| `/api/platform/garages` (GET), `/api/platform/garages/[garageId]` (GET, PATCH), `/api/platform/impersonation` (GET, POST, DELETE), `/api/platform/health` (GET), `/api/platform/jobs/[jobId]/retry` (POST) | JSON mirrors of the pages; 404 for everyone but platform admins at AAL2 |
+
+`/admin` has its own layout (navy platform bar, no garage shell) and shows the banner while the admin has an open session. **The garage admin layout must mount the banner**: in `src/app/app/(protected)/layout.tsx`, render `{admin.impersonation ? <ImpersonationBanner impersonation={admin.impersonation} /> : null}` above the shell content (lead / UI lane). `/app/login` sends platform admins with no garage to `/admin`.
 

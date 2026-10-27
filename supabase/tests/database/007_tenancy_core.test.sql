@@ -11,17 +11,19 @@ select plan(47);
 
 -- jobs (P3.6) is the platform job queue: service role only, and its garage_id
 -- is optional (platform-wide jobs have none), so it is exempt from the
--- not-null/default and select-policy rules but not from RLS.
+-- not-null/default and select-policy rules but not from RLS. So is
+-- platform_impersonations (P4.5): service role only, garage_id not null with
+-- no default (the platform admin names the garage).
 select is(
   (select count(*)::integer
    from information_schema.columns column_info
    join pg_class class on class.relname = column_info.table_name and class.relnamespace = 'public'::regnamespace
    where column_info.table_schema = 'public'
      and column_info.column_name = 'garage_id'
-     and ((column_info.table_name <> 'jobs'
+     and ((column_info.table_name not in ('jobs', 'platform_impersonations')
            and (column_info.is_nullable <> 'NO' or column_info.column_default is distinct from 'current_garage_id()'))
           or not class.relrowsecurity)),
-  0, 'every garage_id column is not null, defaults to current_garage_id() and sits on an RLS table (jobs: RLS only)'
+  0, 'every garage_id column is not null, defaults to current_garage_id() and sits on an RLS table (jobs, platform_impersonations: RLS only)'
 );
 select is(
   (select count(*)::integer
@@ -59,9 +61,9 @@ select is(
    from information_schema.columns column_info
    where column_info.table_schema = 'public'
      and column_info.column_name = 'garage_id'
-     and column_info.table_name not in ('invoice_number_sequences', 'jobs')
+     and column_info.table_name not in ('invoice_number_sequences', 'jobs', 'platform_impersonations')
      and not exists (select 1 from pg_policies policy where policy.schemaname = 'public' and policy.tablename = column_info.table_name and policy.cmd in ('SELECT', 'ALL'))),
-  0, 'every tenant table except invoice_number_sequences and jobs (service role only) has a select policy'
+  0, 'every tenant table except invoice_number_sequences, jobs and platform_impersonations (service role only) has a select policy'
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname in ('public', 'storage') and roles && array['anon', 'public']::name[]),
@@ -71,7 +73,7 @@ select is(
   (select count(*)::integer
    from unnest(array['rate_limit_buckets', 'resend_webhook_events', 'inbound_email_events',
                      'admin_mfa_policy', 'admin_mfa_recovery_codes', 'admin_mfa_recovery_sessions', 'admin_trusted_devices',
-                     'platform_admins', 'jobs', 'vehicle_facts', 'twilio_webhook_events']) as platform_table(name)
+                     'platform_admins', 'jobs', 'vehicle_facts', 'twilio_webhook_events', 'platform_audit_log', 'platform_impersonations']) as platform_table(name)
    where has_table_privilege('authenticated', 'public.' || platform_table.name, 'select')),
   0, 'service-role-only platform tables are not readable by signed-in users'
 );
