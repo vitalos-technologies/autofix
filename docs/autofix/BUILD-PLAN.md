@@ -5,7 +5,8 @@
 | Phase | Gate | Date | Last commit | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | **passed** | 27 Oct 2026 | eb8dfd8 | All P1 tasks ticked; Gate 1 green in CI (run 40429708549: verify, database-tests incl. 1614 tenancy tests, browser-tests, lighthouse) on self-hosted runners `autofix-azure-*` |
-| 2 | in progress | 27 Oct 2026 | 48f7b8a | P2.1–P2.8 and P2.10 merged; P2.9 (manage page) and P2.11 (Gate 2) running in this session |
+| 2 | **passed** | 27 Oct 2026 | 7db956d | All P2 tasks ticked; Gate 2 green in CI run 40468968919 (verify, database-tests incl. 100-way concurrency, browser-tests incl. booking 27/27 + manage 5/5 + axe, lighthouse) |
+| 3 | in progress | 27 Oct 2026 | 7db956d | P3.5, P3.8 library and admin UI components done early; P3.6 (data), P3.1–P3.3 (ui) and P3.4 (ui) running here; P3.11 in a separate session |
 | 3/4 (spun off) | n/a | 27 Oct 2026 | 48f7b8a | Separate cloud sessions, each on its own branch, merged by the lead when done: P4.2 agent tool API → `claude/autofix-p4-2-agent-api` (migration `20261028000100`), P3.11 customers + CSV import → `claude/autofix-p3-11-customers-import` (`20261028000200`), P4.8/P4.9 launch checklist + legal copy → `claude/autofix-p4-8-p4-9-launch-legal` (`20261028000300`). Later migrations (P3.6 reminders) start at `20261028001000` |
 
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
@@ -57,7 +58,7 @@ Gate 1: **cross-garage tests return zero rows** for every tenant table, for sele
 
 ## Phase 2 · Booking engine (days 4–7)
 
-Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (`tests/integration/booking-concurrency.test.ts`), and the 5-step flow passes Playwright on a 390px viewport with axe clean.
+Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (`tests/integration/booking-concurrency.test.ts`), and the 5-step flow passes Playwright on a 390px viewport with axe clean. **Passed 27 Oct 2026** in CI run 40468968919 (self-hosted `autofix-azure-*`): `booking-concurrency.test.ts` 5/5 (100 parallel `create_booking` calls on 3 bays, zero overlapping `during` per resource; proven to fail with `no_overlap` and the allocation lock removed), 5-step booking journey 27/27 on the real engine at desktop, Pixel 5 and 390×844 with axe clean on every step, manage journey 5/5, pgTAP 548/548, integration 1813/1813, `pnpm verify` and Lighthouse green.
 
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
