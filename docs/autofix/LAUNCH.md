@@ -8,7 +8,7 @@ Status key: **Todo** (not started) · **Ready** (agent work done, waiting on you
 
 | # | Step | Owner | Status | How to verify |
 | --- | --- | --- | --- | --- |
-| 0.1 | `main` is green: CI (lint, typecheck, unit, pgTAP, integration incl. tenancy, Playwright booking + legal) on the commit you deploy | Agent | Todo | GitHub Actions run for that commit is green |
+| 0.1 | The build is merged into `main` (it is on `claude/modest-mayer-9yzmr0` until you approve the PR) and `main` is green: CI (lint, typecheck, unit, pgTAP, integration incl. tenancy, every Playwright project incl. Gate 3, Lighthouse) on the commit you deploy | Temitope (approve the PR), then Agent | Todo | GitHub Actions run for that commit is green |
 | 0.2 | Gates 1 to 4 ticked in [BUILD-PLAN.md](BUILD-PLAN.md) (`/gate 4`) | Agent | Todo | `/status` shows every phase gate ticked |
 
 ## 1. Vercel project and plan
@@ -120,6 +120,7 @@ Never set in production: a `http://127.0.0.1` `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`
 | 4.4 | Auth: Site URL `https://autofix.vitalos.co.uk`, redirect URLs `https://autofix.vitalos.co.uk/auth/confirm`; SMTP through Resend (domain from 5.1) so password emails come from Autofix | Temitope | Todo | A password reset email arrives from the Autofix address |
 | 4.4a | Sign-up (P4.4): Authentication → Providers → Email: **Confirm email on**; Email templates → "Confirm signup": subject "Confirm your Autofix account", body from `supabase/templates/confirmation.html` (its link is `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/signup/garage`) | Temitope | Todo | Sign up at `/signup` with your own address: the email arrives, its button opens "Confirm your email address" and continues to "Find your garage" |
 | 4.5 | `btree_gist` is enabled by the scheduling migration; confirm no migration errors | Agent | Todo | `select extname from pg_extension` lists `btree_gist` |
+| 4.6 | Platform admins (P4.5): each Vitalos admin signs up or signs in once, then in the SQL editor: `insert into public.platform_admins (user_id) select id from auth.users where email = '<their email>';`. On the first visit `/admin` asks for TOTP | Temitope | Todo | `/admin` lists the garages for that admin and is a 404 for everyone else |
 
 ## 5. Email
 
@@ -163,10 +164,10 @@ Never set in production: a `http://127.0.0.1` `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`
 | --- | --- | --- | --- | --- |
 | 9.1 | The owner signs up at `https://autofix.vitalos.co.uk/signup` (P4.4): confirm email, find the garage on Google (needs `GOOGLE_PLACES_API_KEY`, else enter by hand), booking link, MFA, services and MOT, DPA, invite staff, "Finish and go live" | Garage owner (agent on a call) | Todo | The Done screen shows `https://<slug>.autofix.vitalos.co.uk` and "Book a test" opens the garage's booking page; `/app/settings/team` lists the invited staff |
 | 9.2 | Set up services, prices, opening hours, closures, resources (bays/van), MOT on or off, accent colour, logo | Garage owner with agent help | Todo | Book 2 lists the right services; Book 3 shows the right hours |
-| 9.3 | **Customer CSV import** (P3.11 when shipped): the owner ticks the import declaration (consent wording draft); check retention will not anonymise imported customers (DECISIONS A37) before importing | Agent + garage owner | Todo | Imported count matches the file; a sample customer has the right consent source |
+| 9.3 | **Customer CSV import** (`/app/customers/import`, P3.11): the owner ticks the import declaration (consent wording draft, A80); imported customers with consent are kept by retention (A81). Cars are filled in from DVSA in the background (`customers.enrich`) | Agent + garage owner | Todo | Imported count matches the file; a sample customer has `consent_source = import`; its car shows make, model and MOT date |
 | 9.4 | **Smoke test in mock mode** (`MESSAGING_MODE=mock`): book a car end to end on the free link with your own details; check the booking in `/app/bookings`, the manage link, cancel, and that no text/email left Twilio/Resend | Agent | Todo | Booking visible in admin; Twilio and Resend logs show nothing sent |
 | 9.5 | **Smoke test live** (after 6.3): repeat 9.4 with your own mobile and email only; open the email's "Stop reminders" link, then "Turn reminders back on" | Temitope | Todo | Confirmation text and email arrive; unsubscribe and resubscribe show in Recent activity |
-| 9.6 | Reminder test send (P3, when shipped): send one reminder to your own number in mock, then live, inside 09:00–19:00 Mon–Sat | Agent then Temitope | Todo | Mock outbox shows the message; live text arrives with "Reply STOP to opt out." |
+| 9.6 | Reminder test send: `/app/reminders` → "Send me a test" goes to the signed-in member's own mobile (else email); first in mock, then live, inside 09:00–19:00 Mon–Sat. Check the Automations switches (MOT only when MOT is on; review requests stay off until the PECR review) | Agent then Temitope | Todo | Mock outbox shows the message; live text arrives with "Reply STOP to opt out." and fits one text (A169) |
 | 9.7 | Custom domain (3.3), Lighthouse ≥ 90 perf / 100 a11y on the live booking page (P4.7) | Agent | Todo | Lighthouse report in `output/` |
 
 ## 10. Rollback
