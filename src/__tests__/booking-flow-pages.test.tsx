@@ -191,7 +191,7 @@ describe("confirmation page", () => {
     expect(screen.getByText("HRM-4821")).toBeInTheDocument();
     expect(screen.getByText("Vauxhall Astra · AB12 CDE")).toBeInTheDocument();
     expect(screen.getByText("Wed 28 Oct, 09:15")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage-booking");
+    expect(screen.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage");
     expect(screen.getByRole("link", { name: "Message the garage on WhatsApp" })).toHaveAttribute("href", "https://wa.me/447700900101");
     expect(screen.getByRole("link", { name: /Add to calendar/ }).getAttribute("href")).toMatch(/^\/api\/bookings\/calendar\/HRM-4821\?signature=/);
   });
@@ -205,7 +205,7 @@ describe("confirmation page", () => {
       setup();
       const { container } = render((await ConfirmedPage({ params: params({ reference: "HRM-4821" }) })) as ReactElement);
       expect(screen.getByRole("heading", { level: 1, name: "Find your booking" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Find your booking/ })).toHaveAttribute("href", "/manage-booking");
+      expect(screen.getByRole("link", { name: /Find your booking/ })).toHaveAttribute("href", "/manage");
       expect(container.textContent).not.toMatch(/AB12|Astra|412|Diagnostics/);
       cleanup();
     }

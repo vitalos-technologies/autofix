@@ -13,7 +13,7 @@ import { getLocalSupabaseConfig } from "../helpers/local-supabase";
 const port = Number(process.env.PLAYWRIGHT_PORT || "3430");
 const DEMO_B_ORIGIN = `http://demo-b.localhost:${port}`;
 // The same local-only key playwright.garage.config.ts gives the server.
-const SIGNING_KEY = process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-management-key-not-a-secret";
+const SIGNING_KEY = process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret";
 const PHONE = "+447700900977";
 const PHONE_TYPED = "07700 900977";
 const UNKNOWN_PHONE_TYPED = "07700 900976";

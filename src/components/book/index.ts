@@ -1,3 +1,4 @@
+export { BookingStatusChip, type BookingStatusChipProps, type BookingStatusChipTone } from "./booking-status-chip";
 export { BookingSummaryBar, type BookingSummaryBarProps } from "./booking-summary-bar";
 export { ConfirmationCard, type ConfirmationCardProps } from "./confirmation-card";
 export {

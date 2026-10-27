@@ -39,3 +39,20 @@ export const initialVehicleFormState: VehicleFormState = { seq: 0, status: "idle
 export const initialServiceFormState: ServiceFormState = { seq: 0 };
 export const initialTimeFormState: TimeFormState = { seq: 0 };
 export const initialDetailsFormState: DetailsFormState = { seq: 0 };
+
+// Manage booking (`/manage`, `/manage/reschedule`, `/manage/cancel`).
+
+export type ManageLookupFormState = Base & {
+  fieldErrors?: FieldErrors<"reference" | "registration">;
+};
+
+export type ManageRescheduleFormState = Base & {
+  /** The time picked had just gone: the nearest free times to offer instead. */
+  alternatives?: ReadonlyArray<{ startsAt: string; endsAt: string }>;
+};
+
+export type ManageCancelFormState = Base;
+
+export const initialManageLookupFormState: ManageLookupFormState = { seq: 0 };
+export const initialManageRescheduleFormState: ManageRescheduleFormState = { seq: 0 };
+export const initialManageCancelFormState: ManageCancelFormState = { seq: 0 };

@@ -5,9 +5,9 @@ import { ConfirmationCard, GarageHeader, formatRegistrationDisplay, formatSlotLa
 import { focusRingOnDark } from "@/components/book/styles";
 import { readJustBooked, type JustBooked } from "@/lib/booking-engine/state";
 import { lastDigits } from "@/lib/booking-flow/copy";
-import { bookingCalendarDownloadUrl } from "@/lib/bookings/calendar";
+import { bookingCalendarPath } from "@/lib/booking-flow/server";
 import { whatsappHref } from "@/lib/tenancy/contact";
-import { requireSiteGarage, type Garage } from "@/lib/tenancy/garage";
+import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
 import { BOOKING_COLUMN, BookingScreen } from "../../_components/booking-screen";
 
@@ -23,18 +23,6 @@ function decodeReference(raw: string) {
     return decodeURIComponent(raw).trim().slice(0, 40);
   } catch {
     return "";
-  }
-}
-
-/** The signed `.ics` link as a path on this host (the page is already on the garage's host). */
-function calendarPath(garage: Garage, reference: string) {
-  const url = bookingCalendarDownloadUrl(garage, reference);
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return `${parsed.pathname}${parsed.search}`;
-  } catch {
-    return null;
   }
 }
 
@@ -73,7 +61,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
             everything you need, or you can look the booking up with its reference and your registration.
           </p>
           <Link
-            href="/manage-booking"
+            href="/manage"
             className="mt-3 inline-flex h-[54px] items-center justify-center gap-2 rounded-control bg-accent px-4 text-[16px] font-bold text-accent-ink no-underline hover:bg-[color-mix(in_srgb,var(--garage-accent)_88%,black)]"
           >
             <Search size={18} strokeWidth={2} aria-hidden="true" />
@@ -115,8 +103,8 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
             vehicle={car}
             service={booked.serviceName}
             location={booked.where}
-            calendarHref={requested ? null : calendarPath(garage, booked.reference)}
-            manageHref="/manage-booking"
+            calendarHref={requested ? null : bookingCalendarPath(garage, booked.reference)}
+            manageHref="/manage"
           />
         </div>
         <div className="mt-auto flex flex-col items-center gap-3.5 px-6 pt-10 pb-7">

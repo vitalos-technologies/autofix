@@ -31,7 +31,7 @@ describe("garageBaseUrl", () => {
   });
 
   it("builds absolute links on the garage host", () => {
-    expect(garageUrl({ slug: "hartley-road" }, "/manage-booking", production)).toBe("https://hartley-road.autofix.vitalos.co.uk/manage-booking");
+    expect(garageUrl({ slug: "hartley-road" }, "/manage", production)).toBe("https://hartley-road.autofix.vitalos.co.uk/manage");
     expect(garageUrl({ slug: "hartley-road", customDomain: "book.hartleyroad.co.uk" }, "/api/bookings/calendar/HRM-4821?signature=a%2Bb", production))
       .toBe("https://book.hartleyroad.co.uk/api/bookings/calendar/HRM-4821?signature=a%2Bb");
   });

@@ -1,27 +1,213 @@
 /**
- * The 5-step booking flow on a garage host (P2.8): vehicle → service → time → details → confirmed.
- * Runs under playwright.garage.config.ts against `pnpm build && pnpm start` with the demo seed
- * (`pnpm db:seed`: hartley-road with MOT on, demo-b with MOT off), the mock vehicle provider and the
- * in-memory booking engine (`BOOKING_ENGINE=fake`) until the scheduling tables land.
+ * Gate 2 (P2.8, P2.11): the 5-step booking flow on a garage host, vehicle → service → time → details → confirmed,
+ * on the real booking engine (`BOOKING_ENGINE=supabase`: `available_slots()` / `create_booking()` in local Supabase).
+ * Runs under playwright.garage.config.ts against `pnpm build && pnpm start` with the demo seed (`pnpm db:seed`:
+ * hartley-road with MOT on and 3 bays, demo-b with MOT off) and the mock vehicle provider, on desktop, Pixel 5 and
+ * an explicit 390×844 phone.
+ *
+ * Every test fails if any request or navigation URL in any of its browser contexts carries a registration, or if a
+ * document loses its <title>. On each of the 5 steps and on the "slot taken" state, the server-rendered HTML must
+ * have a non-empty <title> in <head> and axe must report no violations. Bookings are read back through the service
+ * role to prove they are real rows. The spec uses its own customer numbers (07700 900461/462), works with whatever
+ * the diary already holds (it always takes the first free time) and deletes the bookings it made, so repeated runs
+ * do not depend on each other.
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test as base, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { fillSlot, seededGarage } from "../helpers/booking-fixtures";
+import { createLocalClient, getLocalSupabaseConfig } from "../helpers/local-supabase";
 
 const port = Number(process.env.PLAYWRIGHT_PORT || "3430");
 const DEMO_B_ORIGIN = `http://demo-b.localhost:${port}`;
 const REGISTRATION = "AB12CDE";
+const RIVAL_REGISTRATION = "EF56GHJ";
+const MANUAL_REGISTRATION = "CD34EFG";
+const REGISTRATIONS = [REGISTRATION, RIVAL_REGISTRATION, MANUAL_REGISTRATION];
+/** Ofcom drama-range mobiles used only by this spec (the seed uses 9001xx and 9002xx). */
+const CUSTOMER_PHONE = "07700 900461";
+const RIVAL_PHONE = "07700 900462";
+const SPEC_PHONES = ["+447700900461", "+447700900462"];
 
-/** Fails the test if any request URL (pages, data, assets) carries the registration. */
-function watchUrls(page: Page) {
-  const urls: string[] = [];
-  page.on("request", (request) => urls.push(request.url()));
-  return () => {
-    const leaks = urls.filter((url) => decodeURIComponent(url).toUpperCase().replace(/[^A-Z0-9]/g, "").includes(REGISTRATION));
-    expect(leaks, "registration in a URL").toEqual([]);
-  };
+const db = createLocalClient(getLocalSupabaseConfig().secretKey);
+
+// ---------------------------------------------------------------------------
+// Checked for every context a test opens, from first request to the end of the test:
+//   - no registration in any request or navigation URL;
+//   - the document never loses its <title> once it has one (a streamed title used to vanish for a moment
+//     after a server action, and axe's document-title rule caught it on slow CI runners).
+// ---------------------------------------------------------------------------
+
+declare global {
+  interface Window {
+    __bookingSpecTitleGap?: (path: string) => void;
+  }
+}
+
+class PageGuard {
+  private readonly urls = new Set<string>();
+  readonly titleGaps: string[] = [];
+
+  async watch(context: BrowserContext) {
+    context.on("request", (request) => this.urls.add(request.url()));
+    context.on("page", (page) => page.on("framenavigated", (frame) => this.urls.add(frame.url())));
+    for (const page of context.pages()) page.on("framenavigated", (frame) => this.urls.add(frame.url()));
+
+    await context.exposeFunction("__bookingSpecTitleGap", (path: string) => this.titleGaps.push(path));
+    await context.addInitScript(() => {
+      let hadTitle = false;
+      const check = () => {
+        if (document.querySelector("title")?.textContent?.trim()) hadTitle = true;
+        else if (hadTitle) void window.__bookingSpecTitleGap?.(location.pathname);
+      };
+      new MutationObserver(check).observe(document, { subtree: true, childList: true, characterData: true });
+    });
+  }
+
+  leaks() {
+    return [...this.urls].filter((url) => {
+      let decoded = url;
+      try {
+        decoded = decodeURIComponent(url);
+      } catch {
+        // Keep the raw URL.
+      }
+      const compact = decoded.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return REGISTRATIONS.some((registration) => compact.includes(registration));
+    });
+  }
+}
+
+/**
+ * Each browser context is a different customer, so it gets its own client address (documentation ranges, one per
+ * project) instead of the whole suite sharing one: the booking pages rate-limit lookups and bookings per IP.
+ */
+const CLIENT_NETWORKS = ["192.0.2", "198.51.100", "203.0.113"];
+let clientNumber = 0;
+function nextClientIp() {
+  const info = test.info();
+  const projectIndex = Math.max(0, info.config.projects.findIndex((project) => project.name === info.project.name));
+  clientNumber = (clientNumber % 250) + 1;
+  return `${CLIENT_NETWORKS[projectIndex % CLIENT_NETWORKS.length]}.${clientNumber}`;
+}
+
+const test = base.extend<{ guard: PageGuard }>({
+  guard: [
+    async ({ context }, use) => {
+      const guard = new PageGuard();
+      await context.setExtraHTTPHeaders({ "x-forwarded-for": nextClientIp() });
+      await guard.watch(context);
+      await use(guard);
+      expect(guard.leaks(), "registration in a URL").toEqual([]);
+      expect(guard.titleGaps, "document without a <title> after it had one").toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+
+// ---------------------------------------------------------------------------
+// Database (service role): the seeded garage and the rows this spec creates.
+// ---------------------------------------------------------------------------
+
+type Garage = { id: string; timezone: string };
+let garage: Garage;
+let diagnosticsId: string;
+const createdReferences = new Set<string>();
+const createdBookingIds = new Set<string>();
+
+/**
+ * Bookings this spec made: the ones it noted (including the bays `fillSlot()` took), and leftovers of an
+ * interrupted run (its own phones and cars only, so other specs' bookings are never touched).
+ */
+async function deleteSpecBookings() {
+  const [customers, cars] = await Promise.all([
+    db.from("customers").select("id").eq("garage_id", garage.id).in("phone", SPEC_PHONES),
+    db.from("vehicles").select("id").eq("garage_id", garage.id).in("registration", [REGISTRATION, RIVAL_REGISTRATION]),
+  ]);
+  const lookupError = customers.error ?? cars.error;
+  if (lookupError) throw new Error(`Could not read this spec's customers and cars: ${lookupError.message}`);
+  const customerIds = (customers.data ?? []).map((row) => row.id as string);
+  const vehicleIds = (cars.data ?? []).map((row) => row.id as string);
+  if (customerIds.length && vehicleIds.length) {
+    const { error } = await db.from("bookings").delete().eq("garage_id", garage.id).in("customer_id", customerIds).in("vehicle_id", vehicleIds);
+    if (error) throw new Error(`Could not delete this spec's bookings: ${error.message}`);
+  }
+  if (createdReferences.size) {
+    const { error } = await db.from("bookings").delete().eq("garage_id", garage.id).in("reference", [...createdReferences]);
+    if (error) throw new Error(`Could not delete bookings by reference: ${error.message}`);
+  }
+  if (createdBookingIds.size) {
+    const { error } = await db.from("bookings").delete().eq("garage_id", garage.id).in("id", [...createdBookingIds]);
+    if (error) throw new Error(`Could not delete bookings by id: ${error.message}`);
+  }
+  createdReferences.clear();
+  createdBookingIds.clear();
+}
+
+test.beforeAll(async () => {
+  const found = await db.from("garages").select("id,timezone").eq("slug", "hartley-road").single();
+  if (found.error || !found.data) throw new Error(`hartley-road is not seeded (pnpm db:seed): ${found.error?.message}`);
+  garage = found.data as Garage;
+  const service = await db.from("services").select("id").eq("garage_id", garage.id).eq("name", "Diagnostics").is("deleted_at", null).single();
+  if (service.error || !service.data) throw new Error(`hartley-road has no Diagnostics service: ${service.error?.message}`);
+  diagnosticsId = service.data.id as string;
+  // Leftovers of an interrupted run.
+  await deleteSpecBookings();
+});
+
+test.afterAll(async () => {
+  await deleteSpecBookings();
+});
+
+function localDate(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: garage.timezone }).format(new Date(iso));
+}
+
+async function freeCountAt(startsAt: string) {
+  const day = localDate(startsAt);
+  const { data, error } = await db.rpc("available_slots", { p_garage_id: garage.id, p_service_id: diagnosticsId, p_from: day, p_to: day });
+  if (error) throw new Error(`available_slots failed: ${error.message}`);
+  return (data as { starts_at: string; free_count: number }[]).find((slot) => Date.parse(slot.starts_at) === Date.parse(startsAt))?.free_count ?? 0;
+}
+
+/** The booking behind a confirmation page, with its customer and vehicle. */
+async function storedBooking(reference: string) {
+  const booking = await db
+    .from("bookings")
+    .select("status,source,location_mode,symptoms,starts_at,manage_token_hash,customer_id,vehicle_id,service_id")
+    .eq("garage_id", garage.id)
+    .eq("reference", reference)
+    .single();
+  if (booking.error || !booking.data) throw new Error(`No booking ${reference}: ${booking.error?.message}`);
+  const [customer, vehicle] = await Promise.all([
+    db.from("customers").select("phone,channel,reminder_consent").eq("id", booking.data.customer_id).single(),
+    db.from("vehicles").select("registration,make,model").eq("id", booking.data.vehicle_id).single(),
+  ]);
+  return { ...booking.data, customer: customer.data, vehicle: vehicle.data };
+}
+
+// ---------------------------------------------------------------------------
+// Page helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * The step as the server renders it (same cookies as the page) has a non-empty <title> in <head>: blocking
+ * metadata (next.config.ts htmlLimitedBots), not a title streamed into <body> after the first paint.
+ */
+async function expectServerRenderedTitle(page: Page) {
+  const path = new URL(page.url()).pathname;
+  // Fetched by the page itself: garage hosts (*.localhost) resolve only inside the browser, and it sends the cookies.
+  const { status, html } = await page.evaluate(async () => {
+    const response = await fetch(location.href, { cache: "no-store" });
+    return { status: response.status, html: await response.text() };
+  });
+  expect(status, `GET ${path}`).toBe(200);
+  expect(html.slice(0, html.indexOf("</head>")), `<title> in the server-rendered <head> of ${path}`).toMatch(/<title>[^<]*\S[^<]*<\/title>/);
 }
 
 async function expectAccessible(page: Page) {
+  await expectServerRenderedTitle(page);
+  // Belt and braces: the title is in the first HTML (above) and PageGuard fails the test if it ever goes missing.
+  await expect(page).toHaveTitle(/\S/);
   // Let colour transitions on just-pressed buttons finish so axe measures the final colours.
   await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const results = await new AxeBuilder({ page }).analyze();
@@ -30,7 +216,8 @@ async function expectAccessible(page: Page) {
 
 async function expectOneVisibleH1(page: Page, name: string | RegExp) {
   await expect(page.locator("h1:visible")).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+  // Exact: a substring match would let "Your booking" pass on "Find your booking" before the page changes.
+  await expect(page.getByRole("heading", { level: 1, name, exact: typeof name === "string" })).toBeVisible();
 }
 
 async function noHorizontalOverflow(page: Page) {
@@ -52,30 +239,49 @@ async function chooseService(page: Page, service: RegExp = /Diagnostics/) {
   await page.waitForURL(/\/time/);
 }
 
-/** Picks the first free time on the n-th open day and returns its label ("Thu 29 Oct, 09:15"). */
+/** Picks the first free time on the n-th open day: its label ("Thu 29 Oct, 09:15") and instant. */
 async function pickTime(page: Page, dayIndex = 1) {
   await page.getByRole("group", { name: "Choose a day" }).locator("button:not([disabled])").nth(dayIndex).click();
-  await page.locator("button[data-start]:not([disabled])").first().click();
+  const slot = page.locator("button[data-start]:not([disabled])").first();
+  const startsAt = (await slot.getAttribute("data-start"))!;
+  await slot.click();
   const action = page.locator('button[form="time-form"]');
   const label = (await action.innerText()).trim();
   expect(label).toMatch(/^\w{3} \d{1,2} \w{3}, \d\d:\d\d$/);
   await action.click();
   await page.waitForURL(/\/details$/);
-  return label;
+  return { label, startsAt };
 }
 
-async function fillDetails(page: Page, name = "Test Customer", phone = "07700 900412") {
+async function fillDetails(page: Page, name = "Test Customer", phone = CUSTOMER_PHONE) {
   await page.getByLabel("Full name").fill(name);
   await page.getByLabel("Mobile number").fill(phone);
 }
 
-async function newPhonePage(browser: Browser) {
-  const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width: 390, height: 844 } });
+/** Waits for the confirmation page and remembers the booking for clean-up. */
+async function confirmed(page: Page) {
+  await page.waitForURL(/\/confirmed\/[A-Z]+-\d{4,6}$/);
+  const reference = page.url().split("/").pop()!;
+  createdReferences.add(reference);
+  return reference;
+}
+
+async function newPhonePage(browser: Browser, guard: PageGuard) {
+  const context = await browser.newContext({
+    baseURL: test.info().project.use.baseURL,
+    viewport: { width: 390, height: 844 },
+    extraHTTPHeaders: { "x-forwarded-for": nextClientIp() },
+  });
+  await guard.watch(context);
   return context.newPage();
 }
 
+// ---------------------------------------------------------------------------
+// Journeys
+// ---------------------------------------------------------------------------
+
 test.describe("5-step booking flow", () => {
-  test("opens on the vehicle step with one visible h1 and no iframe", async ({ page }) => {
+  test("opens on the vehicle step with one visible h1, a title and no iframe", async ({ page }) => {
     const response = await page.goto("/");
     expect(response?.status()).toBe(200);
     await expectOneVisibleH1(page, "What are we booking in?");
@@ -85,9 +291,7 @@ test.describe("5-step booking flow", () => {
     await expectAccessible(page);
   });
 
-  test("books a car end to end without the registration in any URL", async ({ page, context }) => {
-    const checkUrls = watchUrls(page);
-
+  test("books a car end to end on the real engine without the registration in any URL", async ({ page, context, guard }) => {
     await findCar(page);
     await expect(page.getByText("MOT due 31 Mar 2027")).toBeVisible();
     await expectAccessible(page);
@@ -111,7 +315,9 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByRole("button", { name: "Choose a time" })).toBeDisabled();
     await page.getByRole("group", { name: "Choose a day" }).locator("button:not([disabled])").nth(1).click();
     await expect(page).toHaveURL(/\/time\?date=\d{4}-\d{2}-\d{2}$/);
-    await page.locator("button[data-start]:not([disabled])").first().click();
+    const slot = page.locator("button[data-start]:not([disabled])").first();
+    const startsAt = (await slot.getAttribute("data-start"))!;
+    await slot.click();
     await expect(page.getByText(/^Drop off at \d\d:\d\d\. Expected ready around \d\d:\d\d\./)).toBeVisible();
     await expectAccessible(page);
     const when = (await page.locator('button[form="time-form"]').innerText()).trim();
@@ -129,20 +335,32 @@ test.describe("5-step booking flow", () => {
     await expectAccessible(page);
     await page.getByRole("button", { name: "Confirm booking" }).click();
 
-    await page.waitForURL(/\/confirmed\/[A-Z]+-\d{4,6}$/);
+    const reference = await confirmed(page);
     await expectOneVisibleH1(page, "You're booked in");
-    const reference = page.url().split("/").pop()!;
     await expect(page.getByText(reference, { exact: true })).toBeVisible();
     await expect(page.getByText(when, { exact: true })).toBeVisible();
     await expect(page.getByText("Vauxhall Astra · AB12 CDE")).toBeVisible();
-    await expect(page.getByText(/We'll send your confirmation on WhatsApp to 07••• •••412/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage-booking");
+    await expect(page.getByText(/We'll send your confirmation on WhatsApp to 07••• •••461/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage");
     await expectAccessible(page);
     expect((await context.cookies()).find((cookie) => cookie.name === "af_booking")).toBeUndefined();
-    checkUrls();
+
+    // A real row in the garage's diary, written by create_booking().
+    const stored = await storedBooking(reference);
+    expect(stored).toMatchObject({
+      status: "confirmed",
+      source: "online",
+      location_mode: "workshop",
+      symptoms: ["Warning light"],
+      service_id: diagnosticsId,
+      customer: { phone: "+447700900461", channel: "whatsapp", reminder_consent: false },
+      vehicle: { registration: REGISTRATION, make: "Vauxhall", model: "Astra" },
+    });
+    expect(Date.parse(stored.starts_at)).toBe(Date.parse(startsAt));
+    expect(stored.manage_token_hash).toMatch(/^[0-9a-f]{64}$/);
 
     // The reference alone shows nothing: another browser gets the "find your booking" page.
-    const other = await newPhonePage(page.context().browser()!);
+    const other = await newPhonePage(page.context().browser()!, guard);
     await other.goto(`/confirmed/${reference}`);
     await expectOneVisibleH1(other, "Find your booking");
     await expect(other.getByText(/AB12|Astra/)).toHaveCount(0);
@@ -196,20 +414,25 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByText("Diagnostics · 1 hr · Mobile visit")).toBeVisible();
   });
 
-  test("offers the nearest free times when someone else takes the slot first", async ({ page, browser }) => {
+  test("offers the nearest free times when someone else takes the slot first", async ({ page, browser, guard }) => {
     await findCar(page);
     await chooseService(page);
-    const when = await pickTime(page, 3);
+    const { label: when, startsAt } = await pickTime(page, 3);
     await fillDetails(page);
 
-    const rival = await newPhonePage(browser);
+    // While this customer types, a rival books the same time through the booking pages ...
+    expect(await freeCountAt(startsAt), `free bays at ${when}`).toBeGreaterThan(0);
+    const rival = await newPhonePage(browser, guard);
     await findCar(rival, "ef56 ghj");
     await chooseService(rival);
-    expect(await pickTime(rival, 3)).toBe(when);
-    await fillDetails(rival, "Rival Customer", "07700 900999");
+    expect((await pickTime(rival, 3)).label).toBe(when);
+    await fillDetails(rival, "Rival Customer", RIVAL_PHONE);
     await rival.getByRole("button", { name: "Confirm booking" }).click();
-    await rival.waitForURL(/\/confirmed\//);
+    await confirmed(rival);
     await rival.context().close();
+    // ... and the garage takes phone bookings for every bay still free then (hartley-road has three).
+    for (const id of await fillSlot(await seededGarage(), startsAt)) createdBookingIds.add(id);
+    expect(await freeCountAt(startsAt)).toBe(0);
 
     await page.getByRole("button", { name: "Confirm booking" }).click();
     await page.waitForURL(/\/time\?date=\d{4}-\d{2}-\d{2}$/);
@@ -222,8 +445,9 @@ test.describe("5-step booking flow", () => {
     await page.waitForURL(/\/details$/);
     await fillDetails(page);
     await page.getByRole("button", { name: "Confirm booking" }).click();
-    await page.waitForURL(/\/confirmed\//);
+    const reference = await confirmed(page);
     await expectOneVisibleH1(page, "You're booked in");
+    expect(Date.parse((await storedBooking(reference)).starts_at)).not.toBe(Date.parse(startsAt));
   });
 
   test("hides MOT for a garage that has it switched off", async ({ page }) => {
@@ -238,7 +462,7 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByRole("radio", { name: /^MOT/ })).toHaveCount(0);
   });
 
-  test("has no horizontal overflow at any step (Pixel 5 and desktop)", async ({ page }) => {
+  test("has no horizontal overflow at any step", async ({ page }) => {
     await findCar(page);
     await noHorizontalOverflow(page);
     await page.getByRole("button", { name: "Continue" }).click();
@@ -252,7 +476,7 @@ test.describe("5-step booking flow", () => {
     await noHorizontalOverflow(page);
     await fillDetails(page);
     await page.getByRole("button", { name: "Confirm booking" }).click();
-    await page.waitForURL(/\/confirmed\//);
+    await confirmed(page);
     await noHorizontalOverflow(page);
   });
 });

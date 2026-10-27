@@ -7,8 +7,12 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // values are inlined at build time).
 //   pnpm test:e2e:smoke    smoke.spec.ts    host routing (garage hosts, unknown hosts, admin login)
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
-//                          (in-memory booking engine unless BOOKING_ENGINE is set to something else)
-//   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe on the same host, at 390px (also part of test:e2e:booking)
+//                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
+//   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
+// Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
+// books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
+// src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
+//   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -18,7 +22,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["smoke.spec.ts", "booking.spec.ts", "legal.spec.ts"],
+  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts", "legal.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -47,12 +51,13 @@ export default defineConfig({
       DEV_TENANT_ROOT_DOMAIN: `localhost:${port}`,
       PLAYWRIGHT_TEST: "true",
       VEHICLE_LOOKUP_PROVIDER: "mock",
-      // The fake engine (src/lib/booking-engine/fake.ts) until the scheduling tables and repository land.
-      BOOKING_ENGINE: process.env.BOOKING_ENGINE || "fake",
-      // Production builds refuse to seal the booking cookies without a key; this one is local-only, not a secret.
+      // Gate 2 runs on the real engine, whatever the shell exports (see the header).
+      BOOKING_ENGINE: "supabase",
+      // Production builds refuse to seal the booking cookies or sign manage links without keys. CI generates its
+      // own per job; these fallbacks are for local runs only and are not secrets.
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
-      // Signs manage and unsubscribe links; legal.spec.ts signs its own test link with the same local-only key.
-      BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-management-key-not-a-secret",
+      // tests/helpers/booking-fixtures.ts and tests/e2e/legal.spec.ts derive link tokens with the same value.
+      BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
     },
@@ -61,6 +66,18 @@ export default defineConfig({
     { name: "smoke-chromium", testMatch: "smoke.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "booking-chromium", testMatch: "booking.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: bookingOrigin } },
     { name: "booking-mobile", testMatch: "booking.spec.ts", use: { ...devices["Pixel 5"], browserName: "chromium", baseURL: bookingOrigin } },
+    // Phone first: 390 x 844 (the design's frame).
+    {
+      name: "booking-390",
+      testMatch: "booking.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
+    },
+    // The manage spec also checks 1440 for horizontal scroll.
+    {
+      name: "manage-mobile",
+      testMatch: "manage.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
+    },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });
