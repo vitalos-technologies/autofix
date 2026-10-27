@@ -48,6 +48,8 @@ export default defineConfig({
       VEHICLE_LOOKUP_PROVIDER: "mock",
       // The fake engine (src/lib/booking-engine/fake.ts) until the scheduling tables and repository land.
       BOOKING_ENGINE: process.env.BOOKING_ENGINE || "fake",
+      // Production builds refuse to seal the booking cookies without a key; this one is local-only, not a secret.
+      BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
     },

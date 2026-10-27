@@ -22,6 +22,8 @@ function watchUrls(page: Page) {
 }
 
 async function expectAccessible(page: Page) {
+  // Let colour transitions on just-pressed buttons finish so axe measures the final colours.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 }
@@ -236,8 +238,7 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByRole("radio", { name: /^MOT/ })).toHaveCount(0);
   });
 
-  test("has no horizontal overflow at any step on a phone", async ({ page, isMobile }) => {
-    test.skip(!isMobile, "Mobile-project coverage");
+  test("has no horizontal overflow at any step (Pixel 5 and desktop)", async ({ page }) => {
     await findCar(page);
     await noHorizontalOverflow(page);
     await page.getByRole("button", { name: "Continue" }).click();
