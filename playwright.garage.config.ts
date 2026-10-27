@@ -7,7 +7,7 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // values are inlined at build time).
 //   pnpm test:e2e:smoke    smoke.spec.ts    host routing (garage hosts, unknown hosts, admin login)
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
-//                          (in-memory booking engine unless BOOKING_ENGINE is set to something else)
+//                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -46,10 +46,12 @@ export default defineConfig({
       DEV_TENANT_ROOT_DOMAIN: `localhost:${port}`,
       PLAYWRIGHT_TEST: "true",
       VEHICLE_LOOKUP_PROVIDER: "mock",
-      // The fake engine (src/lib/booking-engine/fake.ts) until the scheduling tables and repository land.
-      BOOKING_ENGINE: process.env.BOOKING_ENGINE || "fake",
-      // Production builds refuse to seal the booking cookies without a key; this one is local-only, not a secret.
+      // Gate 2 runs on the real engine (available_slots() / create_booking()); booking.spec.ts reads the rows back.
+      BOOKING_ENGINE: "supabase",
+      // Production builds refuse to seal the booking cookies or sign manage links without keys. CI generates its
+      // own per job; these fallbacks are for local runs only and are not secrets.
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
+      BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-management-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
     },
@@ -58,5 +60,11 @@ export default defineConfig({
     { name: "smoke-chromium", testMatch: "smoke.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "booking-chromium", testMatch: "booking.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: bookingOrigin } },
     { name: "booking-mobile", testMatch: "booking.spec.ts", use: { ...devices["Pixel 5"], browserName: "chromium", baseURL: bookingOrigin } },
+    // The design's phone width (design/DESIGN.md): exactly 390x844.
+    {
+      name: "booking-390",
+      testMatch: "booking.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
+    },
   ],
 });

@@ -83,7 +83,8 @@ jobs:
         run: |
           pnpm db:seed
           pnpm db:seed
-      - name: Run PostgREST, tenancy (Gate 1) and concurrency tests
+      # tests/integration/**/*.test.ts: includes booking-concurrency.test.ts (Gate 2: 100 parallel create_booking() on 3 bays).
+      - name: Run PostgREST, tenancy (Gate 1) and booking concurrency (Gate 2) tests
         run: pnpm exec vitest run --config vitest.integration.config.ts
       - name: Install Chromium for browser tests
         run: pnpm exec playwright install chromium
@@ -147,12 +148,25 @@ jobs:
         run: supabase db reset --local --no-seed
       - name: Export local-only API credentials
         run: bash scripts/ci/supabase-env.sh
+      # The booking pages seal the af_booking cookie and sign manage links; production builds refuse to without keys.
+      # Throwaway per-job values, never stored anywhere.
+      - name: Generate this job's booking keys
+        run: |
+          state_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          manage_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$state_key"
+          echo "::add-mask::$manage_key"
+          {
+            echo "BOOKING_STATE_SECRET=$state_key"
+            echo "BOOKING_MANAGEMENT_SECRET=$manage_key"
+          } >> "$GITHUB_ENV"
       - name: Seed demo data
         run: pnpm db:seed
       - run: pnpm exec playwright install chromium
       - name: Build against local Supabase
         run: pnpm build
-      - name: Booking wizard on the seeded garage host (desktop and Pixel 5)
+      # Gate 2. playwright.garage.config.ts pins BOOKING_ENGINE=supabase (create_booking() in this job's Supabase).
+      - name: 5-step booking flow on the real engine (desktop, Pixel 5, 390x844; axe on every step)
         run: pnpm test:e2e:booking
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium

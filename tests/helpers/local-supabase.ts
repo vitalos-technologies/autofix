@@ -154,41 +154,70 @@ export async function provisionLocalTestUsers(): Promise<LocalTestUsers> {
   };
 }
 
-export function executeLocalOwnerSql(sql: string, variables: Record<string, string> = {}) {
+function runLocalOwnerPsql(sql: string, variables: Record<string, string>, extraArguments: string[]) {
   getLocalSupabaseConfig();
   const variableArguments = Object.entries(variables).flatMap(([name, value]) => {
     if (!/^[a-z][a-z0-9_]*$/i.test(name)) throw new Error(`Invalid local SQL variable name: ${name}`);
     return ["--set", `${name}=${value}`];
   });
 
+  return execFileSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      "--env",
+      "PGPASSWORD=postgres",
+      localDatabaseContainer(),
+      "psql",
+      "--host",
+      "127.0.0.1",
+      "--username",
+      "postgres",
+      "--dbname",
+      "postgres",
+      "--no-psqlrc",
+      "--quiet",
+      "--set",
+      "ON_ERROR_STOP=1",
+      ...extraArguments,
+      ...variableArguments,
+    ],
+    { input: sql, encoding: "utf8", timeout: 15_000, windowsHide: true },
+  );
+}
+
+export function executeLocalOwnerSql(sql: string, variables: Record<string, string> = {}) {
   try {
-    execFileSync(
-      "docker",
-      [
-        "exec",
-        "-i",
-        "--env",
-        "PGPASSWORD=postgres",
-        localDatabaseContainer(),
-        "psql",
-        "--host",
-        "127.0.0.1",
-        "--username",
-        "postgres",
-        "--dbname",
-        "postgres",
-        "--no-psqlrc",
-        "--quiet",
-        "--set",
-        "ON_ERROR_STOP=1",
-        ...variableArguments,
-      ],
-      { input: sql, encoding: "utf8", timeout: 15_000, windowsHide: true },
-    );
+    runLocalOwnerPsql(sql, variables, []);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not seed the isolated local Supabase database as owner: ${detail}`);
   }
+}
+
+/**
+ * Runs one read-only query as the database owner (psql in the local DB
+ * container, bypassing PostgREST and RLS) and returns its rows. `sql` is a
+ * single SELECT; psql variables are referenced as `:'name'`.
+ */
+export function queryLocalOwnerSql<T = Record<string, unknown>>(sql: string, variables: Record<string, string> = {}): T[] {
+  const select = sql.trim().replace(/;\s*$/, "");
+  if (!/^(select|with)\b/i.test(select)) throw new Error("queryLocalOwnerSql takes a single SELECT");
+  let output: string;
+  try {
+    output = runLocalOwnerPsql(
+      `begin read only;\nselect coalesce(jsonb_agg(to_jsonb(result)), '[]'::jsonb) from (\n${select}\n) result;\ncommit;\n`,
+      variables,
+      ["--tuples-only", "--no-align"],
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not query the local Supabase database as owner: ${detail}`);
+  }
+  const json = output.split("\n").map((line) => line.trim()).find((line) => line.startsWith("["));
+  if (!json) throw new Error(`Owner query returned no JSON: ${output.slice(0, 200)}`);
+  return JSON.parse(json) as T[];
 }
 
 export function invoiceDraftPayload(issueDate: string, suffix = randomUUID().slice(0, 8)) {
