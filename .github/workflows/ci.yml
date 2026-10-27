@@ -11,6 +11,11 @@ concurrency:
 
 # Jobs run on autofix's self-hosted runners on the AWS build VM (infrastructure/RUNNER.md). To go back to
 # GitHub-hosted runners, set the repository variable RUNS_ON to "ubuntu-24.04" (JSON, with the quotes).
+#
+# Several runners share one machine and one user. Every job that starts Supabase or serves the app runs
+# scripts/ci/supabase-isolate.sh first: it gives the job its own Supabase project (autofix-ci-<N>, ports
+# shifted by N*100) and its own app ports (3400 + N*10 + 1..4), N being the runner's number. Each runner
+# runs one job at a time, so stacks and ports never collide and no shared concurrency group is needed.
 
 jobs:
   verify:
@@ -34,16 +39,14 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # pgTAP, the PostgREST suites (incl. the Gate 1 tenancy suite), the demo seed, the host-routing
+  # smoke and the invoice PDF access tests.
   database-tests:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
     # Never run code from forks on the self-hosted VM.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
-    timeout-minutes: 30
-    # Supabase uses fixed ports and container names, so only one database job runs on the VM at a time.
-    concurrency:
-      group: autofix-supabase-vm
-      cancel-in-progress: false
+    timeout-minutes: 35
     steps:
       - name: Sample VM memory during the job (shared build VM capacity check)
         run: |
@@ -63,6 +66,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
       - name: Start isolated local Supabase
         # Only the services the tests use; vector/logflare would mount the Docker socket, which rootless Docker doesn't expose.
         run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
@@ -71,18 +78,32 @@ jobs:
       - name: Run PostgreSQL policy and integrity tests
         run: supabase test db --local supabase/tests/database
       - name: Export local-only API credentials
-        shell: bash
+        run: bash scripts/ci/supabase-env.sh
+      - name: Seed demo data (twice, to prove it is idempotent)
         run: |
-          eval "$(supabase status -o env)"
-          echo "INTEGRATION_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "INTEGRATION_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}" >> "$GITHUB_ENV"
-          echo "INTEGRATION_SUPABASE_SECRET_KEY=${SECRET_KEY:-$SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
-      - name: Run PostgREST and concurrency tests
+          pnpm db:seed
+          pnpm db:seed
+      - name: Run PostgREST, tenancy (Gate 1) and concurrency tests
         run: pnpm exec vitest run --config vitest.integration.config.ts
-      - name: Install Chromium for authenticated PDF tests
+      - name: Install Chromium for browser tests
         run: pnpm exec playwright install chromium
+      - name: Build against local Supabase
+        run: pnpm build
+      - name: Host-routing smoke against the production build
+        run: PLAYWRIGHT_PORT="$PLAYWRIGHT_SMOKE_PORT" pnpm test:e2e:smoke
+      # Runs `pnpm dev`, so it comes after the production build.
       - name: Run isolated authenticated PDF access tests
         run: pnpm test:e2e:local-invoicing
+      - name: Keep Playwright reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-tests-playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Remove isolated local Supabase data
         if: always()
         run: supabase stop --no-backup
@@ -93,11 +114,14 @@ jobs:
           sort -k2 -n "$RUNNER_TEMP/mem.log" | head -1 | awk '{printf "Lowest available memory during the job: %.1f GiB\n", $2/1048576}'
           awk 'NR==1{first=$2} {last=$2} END{printf "Available at start %.1f GiB, at end %.1f GiB, %d samples\n", first/1048576, last/1048576, NR}' "$RUNNER_TEMP/mem.log"
 
+  # Booking pages live on garage hosts (http://hartley-road.localhost:<port>/), which resolve through the
+  # database, so browser tests run against a seeded Supabase too.
   browser-tests:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
     # Never run code from forks on the self-hosted VM.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -110,17 +134,48 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
+      - name: Start isolated local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
+      - name: Rebuild local database from migrations
+        run: supabase db reset --local --no-seed
+      - name: Export local-only API credentials
+        run: bash scripts/ci/supabase-env.sh
+      - name: Seed demo data
+        run: pnpm db:seed
       - run: pnpm exec playwright install chromium
-      - run: pnpm test:e2e --project=chromium
-        env:
-          # Jobs share the VM: each one that serves the app uses its own port.
-          PLAYWRIGHT_PORT: "3410"
+      - name: Build against local Supabase
+        run: pnpm build
+      - name: Booking wizard on the seeded garage host (desktop and Pixel 5)
+        run: pnpm test:e2e:booking
+      - name: Admin-host browser tests
+        run: pnpm test:e2e --project=chromium
+      - name: Keep Playwright reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-tests-playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove isolated local Supabase data
+        if: always()
+        run: supabase stop --no-backup
 
   lighthouse:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
     # Never run code from forks on the self-hosted VM.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -133,8 +188,36 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
+      - name: Start isolated local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
+      - name: Rebuild local database from migrations
+        run: supabase db reset --local --no-seed
+      - name: Export local-only API credentials
+        run: bash scripts/ci/supabase-env.sh
+      - name: Seed demo data
+        run: pnpm db:seed
       - run: pnpm exec playwright install chromium
       - name: Use Playwright's Chromium for Lighthouse (no system Chrome on the runner)
         run: echo "CHROME_PATH=$(node -e 'console.log(require("@playwright/test").chromium.executablePath())')" >> "$GITHUB_ENV"
-      - run: pnpm build
-      - run: pnpm test:lighthouse
+      - name: Build against local Supabase
+        run: pnpm build
+      - name: Lighthouse (mobile) on http://hartley-road.localhost:$LIGHTHOUSE_PORT/
+        run: pnpm test:lighthouse
+      - name: Keep Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove isolated local Supabase data
+        if: always()
+        run: supabase stop --no-backup
