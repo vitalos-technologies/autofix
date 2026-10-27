@@ -57,6 +57,8 @@ jobs:
           TWILIO_MESSAGING_SERVICE_SID: ${{ secrets.TWILIO_MESSAGING_SERVICE_SID }}
           # Resend and Cloudflare DNS (zone vitalos.co.uk)
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # Full-access key for managing domains (the app's RESEND_API_KEY may be send-only)
+          RESEND_ADMIN_API_KEY: ${{ secrets.RESEND_ADMIN_API_KEY }}
           RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
