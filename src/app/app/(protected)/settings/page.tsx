@@ -2,11 +2,8 @@ import { Bell, Building2, Clock3, Contact, HeartPulse, MapPin } from "lucide-rea
 import Link from "next/link";
 import { saveSettings } from "../actions";
 import { AdminField } from "@/components/admin/admin-field";
-import { OpeningHoursEditor } from "@/components/admin/opening-hours-editor";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { formatPhoneForDisplay } from "@/lib/tenancy/contact";
-
-const emptyOpeningHours = { monday: "", tuesday: "", wednesday: "", thursday: "", friday: "", saturday: "", sunday: "", bankHolidays: "" };
 
 const errorMessages: Record<string, string> = {
   owner_only: "Only a garage owner can change these details.",
@@ -16,14 +13,15 @@ const errorMessages: Record<string, string> = {
 };
 
 // Garage profile for the admin's selected garage. Facts come from `garages`;
-// opening-hours text lives in that garage's `site_settings` row until P3.4.
+// the map link from its `site_settings` row. Opening hours, services, bays and
+// branding are the Setup pages (/app/settings/{hours,services,resources,branding}).
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
   const admin = await getAdminContext({ allowTrustedDevice: true });
   const { saved, error } = await searchParams;
   const { data } = admin
     ? await admin.client.from("site_settings").select("value").eq("garage_id", admin.garage.id).maybeSingle()
     : { data: null };
-  const stored = (data?.value || {}) as { openingHours?: Partial<typeof emptyOpeningHours>; googleMapsUrl?: string };
+  const stored = (data?.value || {}) as { googleMapsUrl?: string };
   const garage = admin?.garage;
   const current = {
     name: garage?.name ?? "",
@@ -33,7 +31,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     whatsapp: formatPhoneForDisplay(garage?.whatsapp),
     email: garage?.email ?? "",
     address: { line1: garage?.address.line1 ?? "", line2: garage?.address.line2 ?? "", town: garage?.address.town ?? "", postcode: garage?.address.postcode ?? "" },
-    openingHours: { ...emptyOpeningHours, ...(stored.openingHours || {}) },
     googleMapsUrl: typeof stored.googleMapsUrl === "string" ? stored.googleMapsUrl : "",
   };
   const canEdit = admin?.role === "owner";
@@ -58,7 +55,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <SettingsLink href="#business-profile" label="Business profile" icon={<Building2 />} active />
           <SettingsLink href="#contact-details" label="Contact details" icon={<Contact />} />
           <SettingsLink href="#location" label="Location" icon={<MapPin />} />
-          <SettingsLink href="#opening-hours" label="Opening hours" icon={<Clock3 />} />
+          <SettingsLink href="#setup" label="Hours, services and branding" icon={<Clock3 />} />
 
           <p className="mt-4 px-3 pb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.16em] text-[#8794A3]">Operations</p>
           <SettingsLink href="#notification-settings" label="Notifications" icon={<Bell />} />
@@ -87,16 +84,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <AdminField label="Google Maps URL"><input name="googleMapsUrl" type="url" defaultValue={current.googleMapsUrl} /></AdminField>
             </SettingsSection>
 
-            <SettingsSection id="opening-hours" icon={<Clock3 />} title="Opening hours" description="Leave an entry blank when the hours are not confirmed; blank hours are not published.">
-              <OpeningHoursEditor initialHours={current.openingHours} />
-            </SettingsSection>
-
             <div className="sticky bottom-4 z-10 flex justify-end rounded-2xl border border-[#D7E0E9] bg-white/95 p-4 shadow-[0_12px_35px_rgba(7,17,39,0.12)] backdrop-blur">
               <button disabled={!canEdit} className="min-h-12 w-full rounded-xl bg-[#1974E2] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Save all settings</button>
             </div>
           </form>
 
           <div className="mt-6 grid gap-6">
+            <ManagementSection id="setup" icon={<Clock3 />} title="Hours, services and branding" description="Opening hours and closures, services and prices, bays and vans, your logo and colour, and MOT on or off." href="/app/settings/hours" action="Open setup" />
             <ManagementSection id="notification-settings" icon={<Bell />} title="Notifications" description="Review new enquiries, pending messages and email delivery issues requiring attention." href="/app/notifications" action="Review notifications" />
             <ManagementSection id="system-settings" icon={<HeartPulse />} title="System health" description="Check integration readiness for the database, email, booking and vehicle lookup." href="/app#system-health" action="View system health" />
           </div>
