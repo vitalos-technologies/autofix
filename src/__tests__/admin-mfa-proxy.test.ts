@@ -51,6 +51,18 @@ describe("admin MFA proxy enforcement", () => {
     expect(response.headers.get("location")).toBe("http://localhost/app/mfa/enroll");
   });
 
+  it("leaves onboarding to its own MFA step while enrolment is mandatory (P4.4)", async () => {
+    harness.policy = { mandatory_mfa_enabled: true };
+    const response = await proxy(new NextRequest("http://localhost/app/onboarding/security"));
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("still sends an enrolled but unverified session on onboarding pages to the challenge", async () => {
+    harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
+    const response = await proxy(new NextRequest("http://localhost/app/onboarding/services"));
+    expect(response.headers.get("location")).toBe("http://localhost/app/mfa?returnTo=%2Fapp%2Fonboarding%2Fservices");
+  });
+
   it("blocks direct protected access until the enrolled factor is verified", async () => {
     harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
     const response = await proxy(new NextRequest("http://localhost/app/enquiries?status=new"));

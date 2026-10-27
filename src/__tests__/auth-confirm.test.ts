@@ -107,3 +107,45 @@ describe("recovery auth confirmation callback", () => {
     expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
   });
 });
+
+describe("sign-up email confirmation (P4.4)", () => {
+  const signupUrl = "https://autofix.vitalos.co.uk/auth/confirm?token_hash=signup-hash&type=email&next=/signup/garage";
+  const signupPost = (overrides: Record<string, string> = {}, origin = "https://autofix.vitalos.co.uk") => new NextRequest("https://autofix.vitalos.co.uk/auth/confirm", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", origin },
+    body: new URLSearchParams({ token_hash: "signup-hash", type: "email", next: "/signup/garage", ...overrides }),
+  });
+
+  beforeEach(() => {
+    authMocks.verifyOtp.mockReset();
+  });
+
+  it("shows a click-through page on GET and does not use the token", async () => {
+    const response = await GET(new NextRequest(signupUrl));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Confirm and continue");
+    expect(html).toContain('name="next" value="/signup/garage"');
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("verifies on a same-origin POST and continues the wizard", async () => {
+    authMocks.verifyOtp.mockResolvedValue({ error: null });
+    const response = await POST(signupPost());
+    expect(authMocks.verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "signup-hash" });
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/signup/garage");
+  });
+
+  it("sends a used link to sign-in-and-continue", async () => {
+    authMocks.verifyOtp.mockResolvedValue({ error: new Error("expired") });
+    const response = await POST(signupPost());
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/signup/garage?link=invalid");
+  });
+
+  it("refuses other destinations and cross-origin posts", async () => {
+    expect((await POST(signupPost({ next: "/app" }))).headers.get("location")).toContain("/app/login?error=invalid-link");
+    expect((await POST(signupPost({}, "https://evil.example"))).headers.get("location")).toContain("/app/login?error=invalid-link");
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
+  });
+});

@@ -81,7 +81,7 @@ export async function proxy(request: NextRequest) {
     response.cookies.delete(DEV_GARAGE_COOKIE);
     return response;
   }
-  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth")) return adminSession(request);
+  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth") || hasPrefix(pathname, "/signup")) return adminSession(request);
   return NextResponse.next();
 }
 
@@ -127,7 +127,9 @@ async function adminSession(request: NextRequest) {
       response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
       return redirectResponse;
     }
-    if (assurance?.currentLevel === "aal1" && assurance.nextLevel === "aal1" && await isMandatoryAdminMfaEnabled(trustedClient)) {
+    // Onboarding (P4.4) runs its own, stricter rule: every step after Security needs MFA verified, and
+    // the Security step sends the owner to /app/mfa/enroll and back.
+    if (assurance?.currentLevel === "aal1" && assurance.nextLevel === "aal1" && !hasPrefix(pathname, "/app/onboarding") && await isMandatoryAdminMfaEnabled(trustedClient)) {
       const enrollmentUrl = request.nextUrl.clone();
       enrollmentUrl.pathname = "/app/mfa/enroll";
       enrollmentUrl.search = "";

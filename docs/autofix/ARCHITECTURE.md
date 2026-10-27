@@ -188,3 +188,54 @@ SQL: `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` 
 | `src/lib/agent-api/store.ts` | `AgentApiStore` (`findToken`, `recordCall`, `garageProfile`, `findBooking`), `getAgentApiStore()` / `setAgentApiStoreForTests()`, `issueAgentToken({garageId, name, scopes})` → raw token once |
 | `src/lib/agent-api/handler.ts` | `handleAgentToolRequest(tool, request)`: token → garage status → scope → rate limits → body → tool (booking engine, vehicle provider with MOT only when `mot_enabled`, `findBookingForManage`) → `agent_call_log` row + `agent_api.call` log line |
 
+
+## Sign-up and onboarding (Phase 4, P4.4)
+
+As built (`20261028000400_signup.sql`; DECISIONS A100–A112). Done when a new garage is live on its free link in under 15 minutes: `tests/e2e/signup.spec.ts` records about 45 s locally.
+
+### Routes (admin host)
+
+| Route | What |
+| --- | --- |
+| `/signup` | Step 0: account (name, email, password ≥ 12). `signUpAction` (`src/app/signup/actions.ts`): Turnstile when both keys are set, 5 sign-ups per IP and 3 per email per hour, `supabase.auth.signUp` with `emailRedirectTo` `/auth/confirm?next=/signup/garage` and `user_metadata.display_name` |
+| `/signup/check-email` | "Check your email" (no address in the page or URL) |
+| `/auth/confirm?token_hash=…&type=email&next=/signup/garage` | GET shows a click-through page; POST (same origin) verifies the token and answers 303 to `/signup/garage` (`?link=invalid` on failure) |
+| `/signup/garage` | Steps 1–2 (signed in, email confirmed; otherwise "Sign in to continue"): `GarageWizard` with `searchPlacesAction`, `placeDetailsAction`, `checkSlugAction`, `createGarageAction` (`src/app/signup/garage/actions.ts`) |
+| `/app/onboarding` | Redirects to the next step. Outside the admin shell; `requireOnboardingOwner(path, {mfa})` (`src/app/app/onboarding/context.ts`) = owner of the selected garage, MFA verified for steps 4–6 and Done |
+| `/app/onboarding/security` | Step 3: link to `/app/mfa/enroll?returnTo=/app/onboarding/security` |
+| `/app/onboarding/services` | Step 4: MOT yes/no (`garages.mot_enabled`) and the seeded services to keep (others archived) — `saveOnboardingServicesAction` |
+| `/app/onboarding/agreement` | Step 5: `DpaAcceptance` + `acceptDpaAction` (P4.9) |
+| `/app/onboarding/team` | Step 6: `InviteForm`, pending invites, "Finish and go live" (`finishOnboardingAction` → `complete_garage_onboarding()`) |
+| `/app/onboarding/done` | Booking link (copy), "Book a test", next steps |
+| `/signup/invite/[token]` | Route handler: token → httpOnly `af_invite` cookie (path `/signup/invite`, 1 h), 303 to `/signup/invite` |
+| `/signup/invite` | Accept: join (right account), sign out (wrong account), password (existing account) or name + password (new account, created confirmed with the service role) — `src/app/signup/invite/actions.ts` |
+| `/app/settings/team` | Members (owners: change role, remove), invite form and pending invites (owners/managers: send again, withdraw) |
+
+Proxy: `/signup/*` gets the session refresh `/app` gets (no MFA rules there); the mandatory-enrolment redirect skips `/app/onboarding/*`, which enforces MFA itself. `/app/mfa/enroll` honours `returnTo` and stays (with Continue) for 5 minutes after a factor is verified, so the recovery codes are shown.
+
+### Schema and SQL
+
+| Object | |
+| --- | --- |
+| `garage_members.role` | + `front_desk` (technician's rights for now) |
+| `garage_invites` (tenant) | `email` (lower case), `role` (`manager`/`technician`/`front_desk`), `token_hash` (hex SHA-256, unique), `invited_by`, `expires_at` (7 days from the last send), `accepted_at`, `accepted_by`, `revoked_at`, `sent_count`, `last_sent_at`. One open invite per (`garage_id`, `email`). RLS select policy for owners/managers as a backstop; no staff grants |
+| `create_garage(p_user_id uuid, p_garage jsonb) → jsonb` | Service role. Keys `name`, `slug`, `phone` (E.164), `email`, `website`, `google_place_id`, `address {line1, line2, town, postcode}`, `opening_hours [{weekday, opens, closes}]`. Returns `{garage_id, slug, status, opening_hours_from_places, seeded}`. Errors `P0001`: `USER_NOT_FOUND`, `EMAIL_NOT_CONFIRMED`, `INVALID_GARAGE: <field>`, `SLUG_RESERVED`, `SLUG_TAKEN`, `GARAGE_LIMIT_REACHED` (3 per user per 24 h) |
+| `complete_garage_onboarding() → text` | Owner of the selected garage (`garage_actor_allowed()`); `DPA_NOT_ACCEPTED` until a DPA row exists; sets `active` and `settings.onboarding.completed_at`; idempotent |
+| `create_garage_invite(p_email, p_role, p_token_hash) → jsonb`, `resend_garage_invite(p_invite_id, p_token_hash) → jsonb`, `revoke_garage_invite(p_invite_id) → boolean`, `list_garage_invites() → table` | Owners/managers of the selected garage (`garage_actor_allowed()`); `INVITE_ALREADY_MEMBER`, `INVALID_INVITE: <field>`, `INVITE_NOT_FOUND`; audited `invite.created/resent/revoked` |
+| `accept_garage_invite(p_token_hash) → jsonb` | Any signed-in user whose email is the invited one: `{garage_id, role, already_member}`; `INVITE_NOT_FOUND`, `INVITE_EXPIRED`, `INVITE_EMAIL_MISMATCH`, `GARAGE_UNAVAILABLE`; audited `invite.accepted` |
+| `list_garage_team() → table (user_id, email, display_name, role, joined_at, is_self)` | Members of the selected garage; emails only for owners/managers (and yourself) |
+| `reserved_garage_slugs()`, `garage_booking_prefix(name)`, `auth_email_exists(email)`, `garage_invite_expiry()` | Helpers; service role only |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/signup/slug.ts` (client-safe) | `slugify`, `slugProblem`, `slugAlternatives`, `SLUG_PROBLEM_MESSAGES` |
+| `src/lib/signup/schema.ts` (client-safe) | `parseAccountForm`, `parseGarageDetails`, `parseSlug`, `parseOpeningHours`, `parseGarageForm`, `createGaragePayload`, `parseInviteForm`, `INVITE_ROLES`, `ROLE_LABELS`, `ROLE_DESCRIPTIONS`, `PASSWORD_MIN_LENGTH` |
+| `src/lib/signup/server.ts` | `getSignupSession`, `checkSlugAvailability`, `createGarageForUser` (RPC, admin profile, `af_garage` cookie, host cache cleared), `createGarageError`, `requestIp`, `passSignupHumanCheck`, `onboardingBookingUrl` |
+| `src/lib/signup/invite-token.ts` | `generateInviteToken`, `hashInviteToken`, `isInviteToken`, `inviteUrl`, `INVITE_COOKIE` |
+| `src/lib/places/*` | `types.ts` (`PlaceSummary`, `PlaceDetails`, `PlacesProvider`), `map.ts` (`mapPlaceDetails`, `placeOpeningHours`, `placeAddress`, `placePhone`, `describeOpeningHours`), `fixtures.ts`, `provider.ts` (`getPlacesProvider`, `resolvePlacesMode`, `createGooglePlacesProvider`, `createMockPlacesProvider`) |
+| `src/lib/team/server.ts`, `src/lib/team/actions.ts` | `listTeam`, `listPendingInvites`, `createInvite`, `resendInvite`, `revokeInvite`, `previewInvite`, `composeInviteEmail`; actions `inviteStaffAction`, `resendInviteAction`, `revokeInviteAction`, `changeMemberRoleAction`, `removeMemberAction` |
+| `src/components/onboarding/*`, `src/components/team/*` | `OnboardingFrame`, `OnboardingProgress`, `TextField`, `Notice`, `ONBOARDING_STEPS`/`ONBOARDING_PATHS`; `InviteForm`, `ResendInviteButton`, `MemberList`, `PendingInviteList` |
+
+No background job kinds: invite emails are sent inline through `getChannel("email")`.

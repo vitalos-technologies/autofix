@@ -16,6 +16,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
 //   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
+//   pnpm test:e2e:signup   signup.spec.ts   sign-up → email confirmation (local Mailpit) → onboarding → the new
+//                          garage's booking page on <slug>.localhost, timed (< 15 min), axe at 390 and 1440
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -54,6 +56,8 @@ export default defineConfig({
       DEV_TENANT_ROOT_DOMAIN: `localhost:${port}`,
       PLAYWRIGHT_TEST: "true",
       VEHICLE_LOOKUP_PROVIDER: "mock",
+      // Sign-up's Google Places search uses the recorded fixtures (src/lib/places/fixtures.ts).
+      PLACES_PROVIDER: "mock",
       // Gate 2 runs on the real engine, whatever the shell exports (see the header).
       BOOKING_ENGINE: "supabase",
       // Production builds refuse to seal the booking cookies or sign manage links without keys. CI generates its
@@ -83,6 +87,8 @@ export default defineConfig({
     },
     // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // Sign-up and onboarding (admin host, its own garage and users); the spec checks 390 and 1440 itself.
+    { name: "signup", testMatch: "signup.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });
