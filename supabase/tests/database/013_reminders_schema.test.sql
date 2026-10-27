@@ -152,8 +152,12 @@ select ok(
                    and not has_table_privilege('authenticated', 'public.' || name, 'delete'))
    from unnest(array['reminder_sends', 'messages', 'calls']) read_table(name))
   and not has_any_column_privilege('authenticated', 'public.reminder_sends', 'update')
-  and not has_any_column_privilege('authenticated', 'public.messages', 'update'),
-  'staff read reminder sends, messages and calls; jobs and webhooks write them'
+  -- Messages inbox (20261028003000): staff may only mark inbound messages read.
+  and has_column_privilege('authenticated', 'public.messages', 'read_at', 'update')
+  and has_column_privilege('authenticated', 'public.messages', 'read_by', 'update')
+  and not has_column_privilege('authenticated', 'public.messages', 'body', 'update')
+  and not has_column_privilege('authenticated', 'public.messages', 'status', 'update'),
+  'staff read reminder sends, messages and calls; jobs and webhooks write them (staff only mark messages read)'
 );
 select ok(
   has_column_privilege('authenticated', 'public.calls', 'handled_at', 'update')
@@ -257,8 +261,8 @@ select policies_are('public', 'reminder_rules', array[
 ], 'reminder_rules: staff read, owners and managers manage');
 select policies_are('public', 'reminder_sends', array['garage members read reminder sends'],
   'reminder_sends: staff read; service-role jobs write');
-select policies_are('public', 'messages', array['garage members read messages'],
-  'messages: staff read; webhooks and jobs write');
+select policies_are('public', 'messages', array['garage members read messages', 'garage members mark inbound messages read'],
+  'messages: staff read and mark inbound read; webhooks, jobs and claim_staff_reply() write');
 select policies_are('public', 'calls', array['garage members read calls', 'garage members mark calls handled'],
   'calls: staff read and mark them handled');
 select policies_are('public', 'garage_phone_numbers', array[

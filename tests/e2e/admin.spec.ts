@@ -11,7 +11,10 @@
  *   - a manager of two garages switches garage (and Demo Garage B, no MOTs, has no MOT reminders);
  *   - a missed call on Today's "Needs your OK": text-back badge, call back, voicemail, mark handled (P4.1 data);
  *   - Reminders (P3.10): this month, the automations, what's due, review requests only after the
- *     consent note, the editor refusing unknown placeholders, "Send me a test", read only for technicians.
+ *     consent note, the editor refusing unknown placeholders, "Send me a test", read only for technicians;
+ *   - Messages & calls: conversations with unread counts, a thread (labels, delivery, STOP as a system line)
+ *     that marks messages read, a reply through the mock outbox, the opted-out and read-only reply boxes, and
+ *     the Calls tab with voicemail and Mark handled.
  * Each run makes its own staff users (with TOTP), bookings, customers, cars, reminder sends and calls,
  * removes them afterwards and puts hartley-road's reminder rules back as they were.
  * axe runs on every screen with zero violations allowed.
@@ -19,6 +22,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
+  createAnsweredCall,
+  createConversations,
   createDueReminders,
   createMissedCall,
   createOfflineService,
@@ -33,6 +38,7 @@ import {
   nextCode,
   restoreReminderRules,
   snapshotReminderRules,
+  type ConversationFixture,
   type DueFixture,
   type StaffUser,
   type TodayFixture,
@@ -55,6 +61,7 @@ const urls: string[] = [];
 const reminderCleanup = emptyCleanup();
 let rulesBefore: Awaited<ReturnType<typeof snapshotReminderRules>> = [];
 let due: { consenting: DueFixture; declined: DueFixture };
+let conversations: { open: ConversationFixture; optedOut: ConversationFixture };
 
 function compact(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -106,6 +113,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
   bookings.push(...Object.values(fixtures).map((fixture) => fixture.id));
   rulesBefore = await snapshotReminderRules(hartley.id);
   due = await createDueReminders(hartley, reminderCleanup);
+  conversations = await createConversations(hartley, reminderCleanup);
 
   context = await browser.newContext(options);
   page = await context.newPage();
@@ -457,6 +465,75 @@ test("the editor refuses placeholders the sender can't fill, saves good wording 
   expect(leaks, "registration in a URL").toEqual([]);
 });
 
+test("Messages & calls lists conversations, and a thread marks them read and takes a reply", async () => {
+  test.setTimeout(60_000);
+  const { open, optedOut } = conversations;
+  await page.goto("/app/messages");
+  await expect(page.getByRole("heading", { level: 1, name: "Messages & calls" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Messages and calls" }).getByRole("link", { name: /^Messages/ })).toHaveAttribute("aria-current", "page");
+  const row = page.getByRole("link", { name: new RegExp(`^${open.name}`) });
+  await expect(row).toContainText("Can I bring it in Thursday morning?");
+  await expect(row).toContainText("1 unread");
+  await expect(page.getByRole("link", { name: new RegExp(`^${optedOut.name}`) })).toContainText("Opted out");
+  await expectAccessible(page);
+
+  await row.click();
+  await expect(page).toHaveURL(new RegExp(`/app/messages/${open.customerId}$`));
+  await expect(page.getByRole("heading", { level: 1, name: open.name })).toBeVisible();
+  const thread = page.getByRole("list", { name: "Messages, oldest first" });
+  await expect(thread.getByRole("listitem").filter({ hasText: "MOT reminder" })).toContainText("Delivered");
+  await expect(thread.getByRole("listitem").filter({ hasText: "Can I bring it in Thursday morning?" })).toContainText("New");
+  await expect(page.getByText(`07••• •••${open.phone.slice(-3)}`)).toBeVisible();
+  await expect
+    .poll(async () => (await serviceClient().from("messages").select("read_by").eq("customer_id", open.customerId).eq("direction", "inbound").single()).data?.read_by)
+    .toBe(owner.id);
+  await expectAccessible(page);
+
+  await page.getByLabel(`Reply to ${open.name.split(" ")[0]}`).fill("Yes, Thursday at 9 is fine.");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Reply made\. Messaging is in test mode/ })).toBeVisible();
+  await expect(thread.getByRole("listitem").filter({ hasText: "Yes, Thursday at 9 is fine." })).toBeVisible();
+  const { data: reply } = await serviceClient().from("messages").select("garage_id,direction,channel,status,to_address,provider").eq("customer_id", open.customerId).eq("body", "Yes, Thursday at 9 is fine.").single();
+  expect(reply).toMatchObject({ garage_id: hartley.id, direction: "outbound", channel: "sms", to_address: open.phone, provider: "mock" });
+  expect(["queued", "sent", "delivered"]).toContain(reply?.status);
+  await expect(page.getByLabel(`Reply to ${open.name.split(" ")[0]}`)).toHaveValue("");
+
+  // Back on the list the conversation has nothing unread.
+  await page.goto("/app/messages");
+  await expect(page.getByRole("link", { name: new RegExp(`^${open.name}`) })).not.toContainText("unread");
+  const leaks = urls.filter((url) => [open, optedOut].some((fixture) => decodeURIComponent(url).includes(fixture.phone.slice(1)) || compact(decodeURIComponent(url)).includes(compact(fixture.registration))));
+  expect(leaks, "number or registration in a URL").toEqual([]);
+});
+
+test("an opted-out customer's thread shows the STOP and says why there's no reply", async () => {
+  const { optedOut } = conversations;
+  await page.goto(`/app/messages/${optedOut.customerId}`);
+  await expect(page.getByRole("heading", { level: 1, name: optedOut.name })).toBeVisible();
+  await expect(page.getByText("Opted out by replying STOP. No more texts go to them until they send START.")).toBeVisible();
+  await expect(page.getByText(/^Otto opted out on \d{1,2} [A-Z][a-z]{2}, so you can't text them\. They can text START to opt back in\.$/)).toBeVisible();
+  await expect(page.getByLabel("Reply to Otto")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Send reply" })).toBeDisabled();
+  await expectAccessible(page);
+});
+
+test("the Calls tab lists answered and missed calls, with voicemail and Mark handled", async () => {
+  const missed = await createMissedCall(hartley, "Cara Callstest", reminderCleanup);
+  await createAnsweredCall(hartley, missed.fromNumber, reminderCleanup);
+  await page.goto("/app/messages/calls");
+  await expect(page.getByRole("navigation", { name: "Messages and calls" }).getByRole("link", { name: /^Calls/ })).toHaveAttribute("aria-current", "page");
+  const cards = page.getByRole("article", { name: new RegExp(`^${missed.callerName}`) });
+  await expect(cards).toHaveCount(2);
+  const missedCard = cards.filter({ hasText: "Missed" });
+  await expect(missedCard).toContainText("Texted back");
+  await expect(missedCard.getByRole("button", { name: "Play voicemail (0:42)" })).toBeVisible();
+  await expect(cards.filter({ hasText: "Answered" })).toContainText("2 min");
+  await expectAccessible(page);
+  await missedCard.getByRole("button", { name: `Mark handled: call from ${missed.callerName}` }).click();
+  await expect(missedCard.getByText("Handled", { exact: true })).toBeVisible();
+  const { data } = await serviceClient().from("calls").select("handled_by").eq("id", missed.id).single();
+  expect(data?.handled_by).toBe(owner.id);
+});
+
 test("technicians see reminders but can't change them", async ({ browser }) => {
   const origin = String(options.baseURL ?? "http://localhost:3430");
   const technician = await createStaffUser("tech", "Tess Tech", [{ garageId: hartley.id, role: "technician" }], origin);
@@ -474,6 +551,12 @@ test("technicians see reminders but can't change them", async ({ browser }) => {
     const viewer = techPage.getByRole("region", { name: "Service due" });
     await expect(viewer.getByRole("textbox", { name: "Message" })).toBeDisabled();
     await expect(viewer.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+    await expectAccessible(techPage);
+
+    // Messages: technicians read, they don't reply.
+    await techPage.goto(`/app/messages/${conversations.open.customerId}`);
+    await expect(techPage.getByText("You can read messages. Owners, managers and front desk can reply.")).toBeVisible();
+    await expect(techPage.getByRole("button", { name: "Send reply" })).toBeDisabled();
     await expectAccessible(techPage);
   } finally {
     await techContext.close();

@@ -12,9 +12,8 @@
  *
  * The sweep reads the links from the shell itself (sidebar, header, account menu and bell at 1440; tab bar and
  * header at 390), so a page added to the nav is checked without editing this file. It must find at least
- * `SHELL_PAGES`. Pages in `NOT_BUILT_YET` are in the nav before they exist and may answer 404 (the shell's or the
- * root not-found page, axe-checked like the rest); every other page must answer 200 without sending the owner to
- * sign in again.
+ * `SHELL_PAGES`. Every page must answer 200 without sending the owner to sign in again and must not be the admin's
+ * soft not-found page (A189). Messages & calls was the last one in the nav ahead of its page (A190, built with A196).
  */
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
@@ -59,8 +58,6 @@ const SHELL_PAGES = [
   "/app/trash",
   "/app/more",
 ];
-/** In the nav ahead of its page (Messages & calls has no task in BUILD-PLAN yet). */
-const NOT_BUILT_YET = new Set(["/app/messages"]);
 
 const CUSTOMER = { name: "Priya Sweep", phone: "+447700900478", email: `priya-${localRunId}@example.test`, registration: randomRegistration() };
 
@@ -191,12 +188,9 @@ test("every page the shell links to answers and passes axe at 390 and 1440", asy
   for (const path of found) {
     const response = await page.goto(`${adminOrigin}${path}`);
     const status = response?.status();
-    if (NOT_BUILT_YET.has(path)) expect([200, 404], `status of ${path}`).toContain(status);
-    else {
-      expect(status, `status of ${path}`).toBe(200);
-      // The admin's notFound() is a soft 404 (status 200, A189), so look for its page too.
-      await expect(page.getByRole("heading", { level: 1, name: "Not found" }), `${path} is not the admin's not-found page`).toHaveCount(0);
-    }
+    expect(status, `status of ${path}`).toBe(200);
+    // The admin's notFound() is a soft 404 (status 200, A189), so look for its page too.
+    await expect(page.getByRole("heading", { level: 1, name: "Not found" }), `${path} is not the admin's not-found page`).toHaveCount(0);
     expect(new URL(page.url()).pathname, `${path} kept the owner signed in`).not.toMatch(/^\/app\/(login|mfa)/);
     await expectAccessibleAt(page);
   }

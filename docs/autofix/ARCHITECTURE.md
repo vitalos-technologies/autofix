@@ -267,6 +267,18 @@ Also on the admin host: `/app/more` (phone "More" tab: every section, the garage
 | `src/lib/admin/staff-times.ts` (pure) | `checkOverrideTime(value, { today, timeZone })` (5-minute marks, today to +730 days, the spring-forward gap refused), `OVERRIDE_HOURS_HINT`; `zonedInstant()` in `src/lib/admin/dates.ts` |
 | `src/components/admin-ui` | `MissedCallCard` (`listMissedCallsNeedingOk` rows; Call back `tel:`, Mark handled → `markMissedCallHandledAction`, Texted back badge), `VoicemailPlayer` (fetches `/api/admin/calls/[id]/voicemail` only when pressed), `TemplateEditor` `errors` / `warnings` props, `AutomationRow` `fields` / `editLabel` props |
 
+### Messages & calls (as built; DECISIONS A196–A205)
+
+Routes: `/app/messages` (conversations), `/app/messages/[customerId]` (thread + reply), `/app/messages/calls` (calls). Migration `20261028003000_messages_inbox.sql`: `messages.read_at` / `read_by` (staff column grant + policy "garage members mark inbound messages read"), `claim_staff_reply(uuid, uuid, uuid, text, text)` (service role). pgTAP `026_messages_inbox`.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/messages/view.ts` (pure) | `shapeConversations`, `countUnread`, `threadItems` (day lines, labels, delivery, STOP/START system lines), `messageLabel`, `deliveryStatus`, `replyBlock` (the reply box's reason, mirroring `claim_staff_reply()`), `maskedAddress`, `shortWhen`, `CHANNEL_NAMES` |
+| `src/lib/messages/inbox.ts` (server, RLS client + explicit `garage_id`) | `loadInbox(client, garageId)` → `{ conversations, unknown, unreadTotal }`, `loadThread(client, garageId, customerId)`, `hasMessagingNumber`, `countUnreadMessages`, `markThreadRead(client, garageId, customerId, userId)` |
+| `src/lib/messages/reply.ts` (server; service role for the claim and the record only) | `sendStaffReply({ garage, member, customerId, body })`, `canReply(role)` (owner, manager, front desk), `REPLY_MAX_LENGTH` (1000), `REPLY_RATE_LIMIT` (20 / 10 min) |
+| `src/lib/calls/recent-calls.ts` (server, RLS) | `listRecentCalls(client, garageId, { limit })` → `RecentCall` (the `MissedCallCard` shape + missed, handled, duration) |
+| `src/app/app/(protected)/messages/actions.ts` | `replyAction` (useActionState; `requireStaffWriter`, form `customerId`, `body`), `markThreadReadAction(customerId)` (any member, from the thread page once shown), `markCallHandledAction` (P4.1's `markMissedCallHandled`, then refreshes the Calls tab) |
+
 Setup pages (P3.4, as built): `/app/settings/services` (+ `/new`, `/[id]`), `/app/settings/hours`, `/app/settings/resources`, `/app/settings/branding`. Rules shared by forms and actions: `src/lib/settings/setup.ts` (client-safe: `canManageSetup(role)` owner/manager, `canChangeGarage(role)` owner, `parseServiceForm`, `parseOpeningHoursForm` + `diffOpeningWindows`, `parseClosureForm`, `parseBookingRulesForm`, `parseServiceArea`, `parseResourceForm`, `chooseAccent`, `sniffLogoType`, `logoPath`). Server plumbing: `src/lib/settings/server.ts` (`requireSetupContext(returnTo)` = `getAdminContext()` with MFA, `roleAllows`, `databaseProblem`, `afterSetupChange(garageId, paths)` clears the slot cache and revalidates). Server actions sit next to each page (`settings/*/actions.ts`), write only through `admin.client` with `garage_id`/`id = admin.garage.id`, and return `SetupFormState` (`useActionState`) or redirect with `?done=`/`?error=` codes. The logo goes to `public-media/<garage_id>/logo.<ext>` through the RLS client's storage API.
 
 ## Agent tool API (Phase 4, P4.2)
