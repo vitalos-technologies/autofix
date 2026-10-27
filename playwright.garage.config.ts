@@ -15,6 +15,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
+//   pnpm test:e2e:super-admin super-admin.spec.ts /admin (P4.5) for a platform admin signed in with password + TOTP: 404 for everyone else,
+//                        garages, plan/status, read-only impersonation, job health; axe at 390 and 1440
 //   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
@@ -83,6 +85,8 @@ export default defineConfig({
     },
     // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // Super admin: its own garage, owner and platform admin; the spec checks 390 and 1440 itself.
+    { name: "super-admin", testMatch: "super-admin.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

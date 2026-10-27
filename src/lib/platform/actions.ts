@@ -103,9 +103,9 @@ export async function retryJobAction(_: PlatformFormState, formData: FormData): 
   } catch {
     return { status: "error", message: "The job could not be retried. Try again." };
   }
-  revalidatePath("/admin/jobs");
+  // No revalidate: the row keeps its confirmation until the next visit, when the job has left the failures.
   return retried
-    ? { status: "saved", message: "Queued again with fresh attempts." }
+    ? { status: "saved", message: "Queued again with fresh attempts. Reload to refresh the list." }
     : { status: "error", message: "Only failed jobs can be retried. It may have been retried already." };
 }
 

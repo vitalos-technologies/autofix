@@ -65,14 +65,14 @@ export default async function PlatformGaragePage({ params }: { params: Promise<{
         <KpiCard label="MOT" value={garage.mot_enabled ? "On" : "Off"} context={garage.timezone} />
       </KpiGrid>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Plan and status">
+        <Panel id="plan-status" title="Plan and status">
           <p className="m-0 text-[14px] text-grey-700">
             Suspended and cancelled garages stop taking bookings: the booking site answers &ldquo;page not found&rdquo; (within a minute), the
             agent API refuses calls and no new slots are offered. Cancelled garages also disappear from their team&apos;s admin.
           </p>
           <GarageChangeForm garageId={garage.id} plan={garage.plan} status={garage.status} />
         </Panel>
-        <Panel title="View as support">
+        <Panel id="view-as-support" title="View as support">
           <p className="m-0 text-[14px] text-grey-700">
             Opens this garage&apos;s admin for you, read-only, for a limited time. Every page you open is listed in the garage&apos;s
             own audit log with your reason, and the owners can see it.
