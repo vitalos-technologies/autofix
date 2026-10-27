@@ -104,6 +104,7 @@ Measured by the `database-tests` job's own memory sampler (`MemAvailable` every 
 | Run | Machine | Total | Available at start | Lowest during the job | Used by the job (peak) |
 | --- | --- | --- | --- | --- | --- |
 | 27 Oct 2026, run 40425245004 | Azure `autofix-ci` (`autofix-azure-4`) | 31 GiB | 29.8 GiB | 25.3 GiB | about 4.5 GiB (Supabase stack + Playwright PDF test) |
+| 27 Oct 2026, run 40429708549 (first all-green run) | Azure `autofix-ci` (`autofix-azure-1`), with browser-tests and lighthouse each running their own Supabase stack on the same machine | 31 GiB | 29.2 GiB | 24.1 GiB | about 5 GiB for three concurrent Supabase jobs |
 
 Four runners each running a database-sized job would need about 18 GiB, which fits in 31 GiB. On the shared 16 GiB AWS VM,
 keep one autofix runner (the agents and workforce's runners need the rest; cut further if available memory drops under
