@@ -70,9 +70,7 @@ export async function readVerifiedTwilioRequest(request: Request, env: Messaging
   return { ok: true, form: parseTwilioForm(rawBody), rawBody };
 }
 
-export function escapeXml(value: string) {
-  return value.replace(/[<>&'"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[character] ?? character);
-}
+export { escapeXml } from "@/lib/calls/twiml";
 
 /** A TwiML answer. `<Response/>` (the default) tells Twilio to do nothing more, e.g. send no auto-reply. */
 export function twimlResponse(inner = "", status = 200) {

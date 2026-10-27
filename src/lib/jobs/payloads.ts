@@ -26,7 +26,9 @@ export const notificationsBookingPayload = z
     previousStartsAt: z.string().datetime({ offset: true }).optional(),
   })
   .strict();
-/** An automatic answer to an inbound text (HELP for now; P4.1 adds missed-call text-back). */
+/** P4.1: the text-back to a missed caller. */
+export const callsTextBackPayload = z.object({ garageId: uuid, callId: uuid }).strict();
+/** An automatic answer to an inbound text (HELP). */
 export const messagesReplyPayload = z.object({ garageId: uuid, inboundMessageId: uuid, kind: z.literal("help") }).strict();
 
 export function parsePayload<T extends z.ZodType>(schema: T, payload: unknown, job?: Pick<JobRow, "garage_id">): z.infer<T> {
