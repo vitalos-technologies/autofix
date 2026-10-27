@@ -34,6 +34,8 @@ Removed: `CALCOM_*`, `NEXT_PUBLIC_TAWK_*`, `NEXT_PUBLIC_GOOGLE_MAPS_URL`, `GOOGL
 
 Email (P1.3): `RESEND_FROM_EMAIL` is the platform sender address (the display name is replaced by the garage's name per message); `RESEND_REPLY_TO` is optional and only a fallback when a garage has no email; `ENQUIRY_REPLY_DOMAIN` (e.g. `reply.autofix.vitalos.co.uk`) carries enquiry reply tokens.
 
+Agent tool API (P4.2): `AGENT_TOKEN_PEPPER` (32+ random characters, Sensitive; keys the HMAC of agent tokens, so rotating it invalidates every issued token).
+
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
 
 ## Local development

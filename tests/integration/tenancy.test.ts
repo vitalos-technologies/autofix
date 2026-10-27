@@ -25,7 +25,7 @@
  * garage (service role or the proper RPC) and a harmless update probe. Until
  * it has one, this suite fails with "no fixture for table <name>".
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -268,6 +268,18 @@ class GarageRows {
     missed: true,
   }, "id")).id));
 
+  /** An agent API token issued through the service-role function (only a hash is stored). */
+  agentToken = () => this.once("agentToken", async () => {
+    const { data, error } = await service.rpc("issue_agent_token", {
+      p_garage_id: this.garage.id,
+      p_name: `Tenancy agent ${this.key}`,
+      p_scopes: null,
+      p_token_hash: createHash("sha256").update(this.tag("agent-token")).digest("hex"),
+    });
+    if (error || !data) throw new Error(`fixture agent token (garage ${this.key}): ${error?.message ?? "no row returned"}`);
+    return String((data as { id: string }).id);
+  });
+
   enquiry = () => this.once("enquiry", async () => String((await this.insert("enquiries", {
     type: "general",
     customer_id: await this.customer(),
@@ -331,6 +343,17 @@ type Fixture = {
 };
 
 const FIXTURES: Record<string, Fixture> = {
+  agent_call_log: {
+    create: async (rows) => rows.insert("agent_call_log", {
+      token_id: await rows.agentToken(),
+      tool: "list_services",
+      outcome: "OK",
+      http_status: 200,
+      latency_ms: 12,
+    }),
+    patch: { outcome: "TAMPERED" },
+  },
+  agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },

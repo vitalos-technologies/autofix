@@ -1,0 +1,597 @@
+openapi: 3.1.0
+info:
+  title: Autofix agent tool API
+  version: 1.0.0
+  summary: Garage-scoped tools for the Workforce voice/WhatsApp agent and Askbridge chat.
+  description: |
+    Every call is `POST` with a JSON body (an empty body counts as `{}`) and a
+    per-garage service token in `Authorization: Bearer afat_…`. The garage is
+    the token's: no request carries a garage id, and unknown body fields are
+    rejected (422). Registrations travel only in request bodies, never in URLs.
+
+    The agent can look things up and ask for a booking. It cannot confirm,
+    move or cancel one: `create_booking` always stores `status = requested`
+    with `source = ai_agent`, and garage staff confirm it. Prices come only
+    from the garage's published services; never estimate a quote. Always offer
+    a callback from the garage when a tool returns `UNAVAILABLE`.
+
+    Every authenticated call is audited (garage, token, tool, outcome,
+    latency). Limits: 120 calls/minute per token, 600/minute per garage;
+    `create_booking` and `get_booking` 30 per 10 minutes per token;
+    `lookup_vehicle` 300 per 10 minutes per garage.
+
+    Errors are `{ code, message }` with fixed wording, plus `issues` on 422
+    and `alternatives` on `SLOT_UNAVAILABLE`.
+  contact:
+    name: Vitalos Technologies
+    url: https://vitalos.co.uk
+servers:
+  - url: https://autofix.vitalos.co.uk/api/agent/v1
+    description: Production (admin host only; garage booking hosts answer 404)
+  - url: http://localhost:3000/api/agent/v1
+    description: Local development
+security:
+  - agentToken: []
+tags:
+  - name: vehicles
+  - name: bookings
+  - name: garage
+paths:
+  /lookup_vehicle:
+    post:
+      operationId: lookup_vehicle
+      tags: [vehicles]
+      summary: Registration to make, model and (when the garage offers MOTs) MOT status.
+      description: Same lookup chain as the booking page (DVLA, DVSA MOT History, Vehicle Data Global). MOT fields appear only when the garage has MOT switched on.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LookupVehicleRequest" }
+            example: { registration: "AB12 CDE" }
+      responses:
+        "200":
+          description: Vehicle found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LookupVehicleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+  /list_services:
+    post:
+      operationId: list_services
+      tags: [bookings]
+      summary: Online-bookable services with durations and published prices.
+      description: Use `priceText` when telling the customer a price. `pricePence` is null for quoted work; never invent a figure.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmptyRequest" }
+            example: {}
+      responses:
+        "200":
+          description: The garage's services, in the garage's order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListServicesResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+  /available_slots:
+    post:
+      operationId: available_slots
+      tags: [bookings]
+      summary: Free start times for a service over up to 14 local days.
+      description: Same engine as the booking page. Dates are local dates in the garage's time zone (inclusive); times are returned as UTC instants. Only free starts are listed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvailableSlotsRequest" }
+            example: { serviceId: "33333333-3333-4333-8333-333333333333", from: "2026-11-02", to: "2026-11-06" }
+      responses:
+        "200":
+          description: Free starts, earliest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvailableSlotsResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+  /create_booking:
+    post:
+      operationId: create_booking
+      tags: [bookings]
+      summary: Ask for a booking. Always `requested`; staff confirm it.
+      description: |
+        Re-send the same `idempotencyKey` (a UUID per booking attempt) on retries:
+        the same key returns the same booking (200, `replayed: true`). On
+        `SLOT_UNAVAILABLE` (409) offer one of `alternatives`. The customer gets
+        a "request received" message on their channel; reminder consent is
+        never recorded through the agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBookingRequest" }
+            example:
+              serviceId: "33333333-3333-4333-8333-333333333333"
+              startsAt: "2026-11-03T10:00:00.000Z"
+              locationMode: workshop
+              symptoms: ["Warning light"]
+              customer: { name: "Sam Patel", phone: "07700 900123", channel: sms }
+              vehicle: { registration: "AB12 CDE", make: Vauxhall, model: Astra }
+              idempotencyKey: "f5898238-32a1-4764-b57b-529fa953c941"
+      responses:
+        "201":
+          description: Booking requested.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateBookingResponse" }
+        "200":
+          description: Replay of an earlier call with the same idempotency key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateBookingResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The time is taken. `alternatives` holds up to three nearby free starts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SlotUnavailableError" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+  /get_booking:
+    post:
+      operationId: get_booking
+      tags: [bookings]
+      summary: A booking's status by reference plus registration. Read only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GetBookingRequest" }
+            example: { reference: "HRM-4821", registration: "AB12 CDE" }
+      responses:
+        "200":
+          description: The booking.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GetBookingResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+  /garage_profile:
+    post:
+      operationId: garage_profile
+      tags: [garage]
+      summary: Hours, address, closures, policies and FAQs. Read only.
+      description: Answer questions from this and the garage's FAQs only; no diagnosis or repair advice beyond them.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmptyRequest" }
+            example: {}
+      responses:
+        "200":
+          description: The garage profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GarageProfileResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    agentToken:
+      type: http
+      scheme: bearer
+      bearerFormat: afat_<43 base64url characters>
+      description: Per-garage service token. Issued once by Vitalos; only its HMAC is stored. Scopes limit which tools it may call.
+  responses:
+    Unauthorized:
+      description: Missing, malformed, unknown or revoked token (`UNAUTHORIZED`).
+      headers:
+        WWW-Authenticate: { schema: { type: string } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The token's scopes do not include this tool (`FORBIDDEN`), or the garage is not taking bookings (`GARAGE_INACTIVE`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No booking matches (`NOT_FOUND`), or the vehicle is unknown (`VEHICLE_NOT_FOUND`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Invalid:
+      description: The body does not match the tool's schema (`INVALID_REQUEST` / `INVALID_BOOKING`), or the booking cannot be made (`SERVICE_UNAVAILABLE`, `OUTSIDE_SERVICE_AREA`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many calls (`RATE_LIMITED`).
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unavailable:
+      description: A dependency is down (`UNAVAILABLE`). Offer a callback.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Error:
+      description: Any other error (`INVALID_JSON` 400, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    ErrorCode:
+      type: string
+      enum:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - GARAGE_INACTIVE
+        - NOT_FOUND
+        - VEHICLE_NOT_FOUND
+        - SLOT_UNAVAILABLE
+        - INVALID_REQUEST
+        - INVALID_BOOKING
+        - SERVICE_UNAVAILABLE
+        - OUTSIDE_SERVICE_AREA
+        - INVALID_JSON
+        - PAYLOAD_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - RATE_LIMITED
+        - UNAVAILABLE
+    Issue:
+      type: object
+      additionalProperties: false
+      required: [path, message]
+      properties:
+        path: { type: string, description: "Dotted field path, e.g. customer.phone" }
+        message: { type: string }
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: { $ref: "#/components/schemas/ErrorCode" }
+        message: { type: string }
+        issues:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/Issue" }
+        alternatives:
+          type: array
+          items: { $ref: "#/components/schemas/Slot" }
+    SlotUnavailableError:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required: [code, alternatives]
+          properties:
+            code: { const: SLOT_UNAVAILABLE }
+            alternatives:
+              type: array
+              maxItems: 3
+    Uuid:
+      type: string
+      format: uuid
+    LocalDate:
+      type: string
+      format: date
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    Instant:
+      type: string
+      format: date-time
+      description: ISO 8601 instant in UTC, e.g. 2026-11-03T10:00:00.000Z.
+    Registration:
+      type: string
+      minLength: 2
+      maxLength: 12
+      description: UK registration in any spacing or case (normalised server side). Never put it in a URL.
+    LocationMode:
+      type: string
+      enum: [workshop, mobile]
+    ServiceLocationMode:
+      type: string
+      enum: [workshop, mobile, both]
+    BookingStatus:
+      type: string
+      enum: [requested, confirmed, arrived, in_progress, waiting_parts, ready, collected, cancelled, no_show]
+    Slot:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt]
+      properties:
+        startsAt: { $ref: "#/components/schemas/Instant" }
+        endsAt: { $ref: "#/components/schemas/Instant" }
+    EmptyRequest:
+      type: object
+      additionalProperties: false
+      maxProperties: 0
+    LookupVehicleRequest:
+      type: object
+      additionalProperties: false
+      required: [registration]
+      properties:
+        registration: { $ref: "#/components/schemas/Registration" }
+    Vehicle:
+      type: object
+      additionalProperties: false
+      required: [registration, make, model, derivative, year, colour, fuelType]
+      properties:
+        registration: { type: string, description: "Formatted, e.g. AB12 CDE" }
+        make: { type: [string, "null"] }
+        model: { type: [string, "null"] }
+        derivative: { type: [string, "null"] }
+        year: { type: [integer, "null"] }
+        colour: { type: [string, "null"] }
+        fuelType: { type: [string, "null"] }
+        motStatus: { type: [string, "null"], description: "Only when the garage has MOT switched on." }
+        motExpiry:
+          type: [string, "null"]
+          format: date
+          description: Only when the garage has MOT switched on.
+    LookupVehicleResponse:
+      type: object
+      additionalProperties: false
+      required: [vehicle]
+      properties:
+        vehicle: { $ref: "#/components/schemas/Vehicle" }
+    Service:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, durationMin, priceMode, pricePence, priceText, locationMode, isMot, minNoticeHours, maxDaysAhead]
+      properties:
+        id: { $ref: "#/components/schemas/Uuid" }
+        name: { type: string }
+        description: { type: string }
+        durationMin: { type: integer, minimum: 1 }
+        priceMode: { type: string, enum: [fixed, from, quote] }
+        pricePence:
+          type: [integer, "null"]
+          minimum: 0
+          description: Published price in pence; null when the garage quotes.
+        priceText: { type: string, description: "What to tell the customer, e.g. £45.00, from £45.00, Price on quote" }
+        locationMode: { $ref: "#/components/schemas/ServiceLocationMode" }
+        isMot: { type: boolean }
+        minNoticeHours: { type: integer, minimum: 0 }
+        maxDaysAhead: { type: integer, minimum: 0 }
+    ListServicesResponse:
+      type: object
+      additionalProperties: false
+      required: [services]
+      properties:
+        services:
+          type: array
+          items: { $ref: "#/components/schemas/Service" }
+    AvailableSlotsRequest:
+      type: object
+      additionalProperties: false
+      required: [serviceId, from, to]
+      properties:
+        serviceId: { $ref: "#/components/schemas/Uuid" }
+        from: { $ref: "#/components/schemas/LocalDate" }
+        to:
+          allOf:
+            - $ref: "#/components/schemas/LocalDate"
+          description: On or after `from`, at most 13 days later.
+        locationMode:
+          allOf:
+            - $ref: "#/components/schemas/LocationMode"
+          description: Defaults to mobile for mobile-only services, otherwise workshop.
+    AvailableSlotsResponse:
+      type: object
+      additionalProperties: false
+      required: [timezone, slots]
+      properties:
+        timezone: { type: string, examples: [Europe/London] }
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/Slot" }
+    BookingCustomer:
+      type: object
+      additionalProperties: false
+      required: [name, phone]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        phone: { type: string, minLength: 7, maxLength: 30, description: "UK mobile in any format; stored as E.164" }
+        email: { type: string, format: email, maxLength: 254 }
+        channel: { type: string, enum: [sms, whatsapp, email], default: sms, description: "email needs an email address" }
+    BookingVehicle:
+      type: object
+      additionalProperties: false
+      required: [registration]
+      properties:
+        registration: { $ref: "#/components/schemas/Registration" }
+        make: { type: string, maxLength: 80 }
+        model: { type: string, maxLength: 120 }
+        colour: { type: string, maxLength: 50 }
+        fuel: { type: string, maxLength: 50 }
+        year: { type: integer, minimum: 1900, maximum: 2100 }
+        engine: { type: string, maxLength: 80 }
+        motExpiry: { $ref: "#/components/schemas/LocalDate" }
+        lastMileage: { type: integer, minimum: 0, maximum: 2000000 }
+    CreateBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [serviceId, startsAt, customer, vehicle, idempotencyKey]
+      properties:
+        serviceId: { $ref: "#/components/schemas/Uuid" }
+        startsAt:
+          type: string
+          format: date-time
+          description: One of the `startsAt` values from available_slots.
+        locationMode:
+          allOf:
+            - $ref: "#/components/schemas/LocationMode"
+          default: workshop
+        postcode: { type: string, maxLength: 10, description: "Required for mobile visits" }
+        address: { type: string, maxLength: 300, description: "Required for mobile visits" }
+        symptoms:
+          type: array
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 80 }
+        notes: { type: string, maxLength: 2000 }
+        customer: { $ref: "#/components/schemas/BookingCustomer" }
+        vehicle: { $ref: "#/components/schemas/BookingVehicle" }
+        idempotencyKey: { $ref: "#/components/schemas/Uuid" }
+    CreatedBooking:
+      type: object
+      additionalProperties: false
+      required: [reference, status, startsAt, endsAt]
+      properties:
+        reference: { type: string, pattern: "^[A-Z]{2,4}-\\d{4,6}$" }
+        status:
+          allOf:
+            - $ref: "#/components/schemas/BookingStatus"
+          description: "`requested` for a new booking; a replay returns the booking's current status."
+        startsAt: { $ref: "#/components/schemas/Instant" }
+        endsAt: { $ref: "#/components/schemas/Instant" }
+    CreateBookingResponse:
+      type: object
+      additionalProperties: false
+      required: [booking, replayed]
+      properties:
+        booking: { $ref: "#/components/schemas/CreatedBooking" }
+        replayed: { type: boolean }
+    GetBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [reference, registration]
+      properties:
+        reference: { type: string, description: "e.g. HRM-4821" }
+        registration: { $ref: "#/components/schemas/Registration" }
+    BookingStatusView:
+      type: object
+      additionalProperties: false
+      required: [reference, status, startsAt, endsAt, locationMode, service, vehicle, customerFirstName, canChangeOnline, changeDeadline]
+      properties:
+        reference: { type: string }
+        status: { $ref: "#/components/schemas/BookingStatus" }
+        startsAt: { $ref: "#/components/schemas/Instant" }
+        endsAt: { $ref: "#/components/schemas/Instant" }
+        locationMode: { $ref: "#/components/schemas/LocationMode" }
+        service:
+          type: object
+          additionalProperties: false
+          required: [name]
+          properties:
+            name: { type: string }
+        vehicle:
+          type: object
+          additionalProperties: false
+          required: [make, model]
+          properties:
+            make: { type: [string, "null"] }
+            model: { type: [string, "null"] }
+        customerFirstName: { type: string }
+        canChangeOnline: { type: boolean, description: "The customer can still change it themselves with the link in their confirmation." }
+        changeDeadline: { $ref: "#/components/schemas/Instant" }
+    GetBookingResponse:
+      type: object
+      additionalProperties: false
+      required: [booking]
+      properties:
+        booking: { $ref: "#/components/schemas/BookingStatusView" }
+    GarageProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [garage, openingHours, closures, policies, faqs]
+      properties:
+        garage:
+          type: object
+          additionalProperties: false
+          required: [name, phone, whatsapp, email, address, timezone, bookingUrl, motEnabled]
+          properties:
+            name: { type: string }
+            phone: { type: [string, "null"] }
+            whatsapp: { type: [string, "null"] }
+            email: { type: [string, "null"] }
+            address:
+              type: object
+              additionalProperties: false
+              required: [line1, line2, town, postcode]
+              properties:
+                line1: { type: [string, "null"] }
+                line2: { type: [string, "null"] }
+                town: { type: [string, "null"] }
+                postcode: { type: [string, "null"] }
+            timezone: { type: string }
+            bookingUrl: { type: string, format: uri }
+            motEnabled: { type: boolean }
+        openingHours:
+          type: array
+          description: One entry per opening window; a weekday with none is closed.
+          items:
+            type: object
+            additionalProperties: false
+            required: [weekday, day, opens, closes]
+            properties:
+              weekday: { type: integer, minimum: 1, maximum: 7, description: "ISO weekday, 1 = Monday" }
+              day: { type: string, enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday] }
+              opens: { type: string, pattern: "^\\d{2}:\\d{2}$" }
+              closes: { type: string, pattern: "^\\d{2}:\\d{2}$" }
+        closures:
+          type: array
+          description: Current and upcoming closures (inclusive local dates).
+          items:
+            type: object
+            additionalProperties: false
+            required: [startsOn, endsOn, reason]
+            properties:
+              startsOn: { $ref: "#/components/schemas/LocalDate" }
+              endsOn: { $ref: "#/components/schemas/LocalDate" }
+              reason: { type: [string, "null"] }
+        policies:
+          type: object
+          additionalProperties: false
+          required: [cancellationCutoffHours, agentBookingsNeedConfirmation, onlineBookingsNeedApproval, mobileServiceArea, humanCallbackAvailable]
+          properties:
+            cancellationCutoffHours: { type: integer, minimum: 0 }
+            agentBookingsNeedConfirmation: { const: true }
+            onlineBookingsNeedApproval: { type: boolean }
+            mobileServiceArea:
+              type: array
+              description: Postcode districts covered by mobile visits; empty means no limit.
+              items: { type: string }
+            humanCallbackAvailable: { const: true }
+        faqs:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [question, answer]
+            properties:
+              question: { type: string }
+              answer: { type: string }
