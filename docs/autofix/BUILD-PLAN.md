@@ -104,8 +104,8 @@ Gate 4: **first garage live on its own domain**: `book.<garage>.co.uk` serves it
 | P4.5 | ui | Super admin `/admin`: garages list, plan, status, impersonate (logged), job queue health | Platform admins only |
 | P4.6 | integrations | Askbridge: embed widget on booking layout; knowledge sync webhook on profile/services/FAQ change | Widget loads without hurting Lighthouse |
 | P4.7 | qa | Lighthouse mobile on booking routes ≥ 90 perf / 100 a11y; full Playwright suite; load test slots endpoint (50 rps for 60 s, p95 < 300 ms) | Reports in `output/` |
-| P4.9 | api | Wire legal copy: privacy notice per garage (from `docs/autofix/legal/`), consent wording in Book 4, unsubscribe page, DPA acceptance at garage sign-up | Copy matches the reviewed drafts |
-| P4.8 | api | Launch checklist in `docs/autofix/LAUNCH.md`: env vars set in Vercel, domains attached, crons, Supabase backups, Sentry, DPA/privacy copy, first garage data import | Checklist ready for Temitope |
+| [x] P4.9 | api | Wire legal copy: privacy notice per garage (from `docs/autofix/legal/`), consent wording in Book 4, unsubscribe page, DPA acceptance at garage sign-up | Copy matches the reviewed drafts — done `5b0fd8b`. `/privacy`, `/unsubscribe`, `/unsubscribe/[token]` on garage hosts; `/app/settings/agreements`; migration `20261028000300_dpa_acceptance.sql` (`garage_agreements`, `opt_out_customer()`, `resume_customer_reminders()`); copy-equality tests, pgTAP 013, `tests/e2e/legal.spec.ts`. Drafts still await solicitor review (pages flag it); DECISIONS A44–A48 |
+| [x] P4.8 | api | Launch checklist in `docs/autofix/LAUNCH.md`: env vars set in Vercel, domains attached, crons, Supabase backups, Sentry, DPA/privacy copy, first garage data import | Checklist ready for Temitope — done `5b0fd8b`: [LAUNCH.md](LAUNCH.md) |
 
 ---
 
