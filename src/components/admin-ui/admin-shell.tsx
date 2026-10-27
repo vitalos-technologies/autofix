@@ -20,8 +20,11 @@ export type AdminShellProps = {
   switchGarageAction?: FormAction;
   /** Sidebar groups; `defaultAdminNav()` gives Workshop / Customers / Setup. */
   nav: AdminNavGroup[];
-  /** Current path, for `aria-current="page"` in the sidebar and tab bar. */
-  activeHref: string;
+  /**
+   * Current path, for `aria-current="page"` in the sidebar and tab bar. Omit it in a layout: the
+   * links then follow the browser's path (layouts do not re-render on client navigation).
+   */
+  activeHref?: string;
   user: AdminUser;
   /** The garage's public booking page (opens in a new tab). */
   bookingPageUrl?: string | null;
@@ -36,10 +39,12 @@ export type AdminShellProps = {
   /** Phone tabs; DEFAULT_ADMIN_TABS when absent. */
   tabs?: AdminTabItem[];
   /**
-   * Element for the content area. `main` (default) is the page's main landmark; use `div` when an
-   * outer layout already renders `<main>` (today the root layout does).
+   * Element for the content area. `main` (default) is the page's main landmark; use `div` only when
+   * an outer layout already renders `<main>` (the root layout does not).
    */
   contentElement?: "main" | "div";
+  /** Rendered once outside the content, e.g. a client component that refreshes counts. */
+  extras?: ReactNode;
   children: ReactNode;
   className?: string;
 };
@@ -80,6 +85,7 @@ export function AdminShell({
   accountLinks,
   tabs,
   contentElement = "main",
+  extras,
   children,
   className,
 }: AdminShellProps) {
@@ -147,13 +153,14 @@ export function AdminShell({
           <Content
             id="admin-main"
             tabIndex={-1}
-            className={cn("w-full max-w-[1240px] min-w-0 px-4 pt-0 outline-none lg:px-7 lg:pt-[26px]", adminTabBarPadding)}
+            className={cn("w-full max-w-[1240px] min-w-0 px-4 pt-4 outline-none lg:px-7 lg:pt-[26px]", adminTabBarPadding)}
           >
             {children}
           </Content>
         </div>
 
         <AdminTabBar tabs={tabs} activeHref={activeHref} />
+        {extras}
       </div>
     </AdminShellProvider>
   );

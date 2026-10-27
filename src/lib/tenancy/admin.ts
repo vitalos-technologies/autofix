@@ -23,7 +23,15 @@ export const GARAGE_COOKIE_OPTIONS = {
 };
 
 export type GarageRole = "owner" | "manager" | "technician";
-export type GarageMembership = { garageId: string; name: string; role: GarageRole };
+export type GarageMembership = {
+  garageId: string;
+  name: string;
+  role: GarageRole;
+  /** `garages.accent`, for the switcher tile (the only garage branding in the admin). */
+  accent?: string | null;
+  /** `garages.plan` (`trial`/`growth`/`front_desk`). */
+  plan?: string | null;
+};
 export type AdminProfile = { user_id: string; display_name: string };
 type AssuranceLevel = NonNullable<AuthMFAGetAuthenticatorAssuranceLevelResponse["data"]>;
 type TrustedDevice = Awaited<ReturnType<typeof findValidTrustedDevice>>;
@@ -58,11 +66,13 @@ export type AdminContextOptions = {
 const ROLES = new Set<GarageRole>(["owner", "manager", "technician"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+type MembershipGarage = { id: string; name: string; status: string; accent?: string | null; plan?: string | null };
+
 type MembershipRow = {
   garage_id: string;
   role: string;
   created_at?: string | null;
-  garage: { id: string; name: string; status: string } | Array<{ id: string; name: string; status: string }> | null;
+  garage: MembershipGarage | MembershipGarage[] | null;
 };
 
 /**
@@ -98,14 +108,14 @@ function displayNameFor(user: User, profile: { display_name?: string | null } | 
 export async function loadMemberships(client: SupabaseClient, userId: string): Promise<GarageMembership[]> {
   const { data, error } = await client
     .from("garage_members")
-    .select("garage_id,role,created_at,garage:garages!inner(id,name,status)")
+    .select("garage_id,role,created_at,garage:garages!inner(id,name,status,accent,plan)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (error || !data) return [];
   return (data as unknown as MembershipRow[]).flatMap((row) => {
     const garage = relation(row.garage);
     if (!garage || garage.status === "cancelled" || !ROLES.has(row.role as GarageRole)) return [];
-    return [{ garageId: String(row.garage_id).toLowerCase(), name: garage.name, role: row.role as GarageRole }];
+    return [{ garageId: String(row.garage_id).toLowerCase(), name: garage.name, role: row.role as GarageRole, accent: garage.accent ?? null, plan: garage.plan ?? null }];
   });
 }
 

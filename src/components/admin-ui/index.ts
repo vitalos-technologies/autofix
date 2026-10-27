@@ -1,5 +1,5 @@
 export { AccountMenu, type AccountMenuProps } from "./account-menu";
-export { AdminNavGroups, defaultAdminNav, resolveActiveHref, type AdminNavGroupsProps } from "./admin-nav";
+export { AdminNavGroups, defaultAdminNav, resolveActiveHref, type AdminNavGroupsProps, type AdminNavOptions } from "./admin-nav";
 export { ADMIN_SEARCH_FIELD, AdminSearch, DEFAULT_SEARCH_PLACEHOLDER, type AdminSearchProps } from "./admin-search";
 export { AdminShell, type AdminShellProps } from "./admin-shell";
 export { AdminShellProvider, useAdminShell, type AdminShellChrome } from "./admin-shell-context";
@@ -51,6 +51,8 @@ export { GARAGE_SWITCH_FIELD, GarageSwitcher, type GarageSwitcherProps } from ".
 export { JobCard, type JobCardAction, type JobCardProps } from "./job-card";
 export { KpiCard, KpiGrid, type KpiCardProps, type KpiTrend } from "./kpi-card";
 export { describeSegments, MessagePreview, type MessagePreviewProps, type PreviewChannel } from "./message-preview";
+export { NavLink, type NavLinkProps } from "./nav-link";
+export { NotificationRefresher, type NotificationRefresherProps } from "./notification-refresher";
 export { PageHeader, type PageHeaderProps } from "./page-header";
 export { Panel, StepNumber, type PanelProps, type StepNumberProps } from "./panel";
 export {

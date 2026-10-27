@@ -17,9 +17,8 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-GB" data-scroll-behavior="smooth" className={fontVariables}>
-      <body>
-        <main>{children}</main>
-      </body>
+      {/* No main landmark here: the admin shell, the booking site layout and each standalone page render their own. */}
+      <body>{children}</body>
     </html>
   );
 }

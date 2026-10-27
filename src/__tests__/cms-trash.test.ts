@@ -21,7 +21,7 @@ describe("CMS trash", () => {
   it("shows a separated trash section for every record-based admin module", () => {
     const page = read("src/app/app/(protected)/trash/page.tsx");
     const actions = read("src/app/app/(protected)/trash/actions.ts");
-    const navigation = read("src/components/admin/admin-navigation.tsx");
+    const navigation = read("src/app/app/(protected)/layout.tsx");
     for (const entity of ["enquiries", "bookings", "invoices"]) {
       expect(page).toContain(`entity: "${entity}"`);
     }

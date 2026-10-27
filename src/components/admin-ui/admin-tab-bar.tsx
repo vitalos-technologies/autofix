@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { CalendarDays, Ellipsis, LayoutDashboard, Plus, UserRound, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { resolveActiveHref } from "./admin-nav";
 import { formatCount } from "./format";
+import { NavLink } from "./nav-link";
 import { focusRing } from "./styles";
 
 export type AdminTabItem = {
@@ -33,8 +32,8 @@ export const adminTabBarPadding = "pb-[calc(96px+env(safe-area-inset-bottom))] l
 
 export type AdminTabBarProps = {
   tabs?: AdminTabItem[];
-  /** Current path; the matching tab gets `aria-current="page"`. */
-  activeHref: string;
+  /** Current path; the matching tab gets `aria-current="page"`. Omit it to follow the browser path. */
+  activeHref?: string;
   /** Landmark name. Default "Main". */
   label?: string;
   /** Fixed to the bottom of the viewport on phones (default). `false` renders it in place. */
@@ -44,10 +43,7 @@ export type AdminTabBarProps = {
 
 /** Phone navigation: five tabs fixed to the bottom, hidden from 1024px where the sidebar shows. */
 export function AdminTabBar({ tabs = DEFAULT_ADMIN_TABS, activeHref, label = "Main", fixed = true, className }: AdminTabBarProps) {
-  const current = resolveActiveHref(
-    tabs.map((tab) => tab.href),
-    activeHref,
-  );
+  const hrefs = tabs.map((tab) => tab.href);
 
   return (
     <nav
@@ -60,18 +56,16 @@ export function AdminTabBar({ tabs = DEFAULT_ADMIN_TABS, activeHref, label = "Ma
     >
       <ul className="m-0 grid list-none p-0" style={{ gridTemplateColumns: `repeat(${Math.max(tabs.length, 1)}, minmax(0, 1fr))` }}>
         {tabs.map((tab) => {
-          const active = tab.href === current;
           const Icon = tab.icon;
           return (
             <li key={`${tab.label}-${tab.href}`} className="flex">
-              <Link
+              <NavLink
                 href={tab.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex min-h-11 w-full flex-col items-center gap-1 rounded-[10px] py-1.5 text-[11px] no-underline",
-                  active ? "font-bold text-accent" : "font-semibold text-grey-600 hover:text-navy-950",
-                  focusRing,
-                )}
+                hrefs={hrefs}
+                activeHref={activeHref}
+                className={cn("relative flex min-h-11 w-full flex-col items-center gap-1 rounded-[10px] py-1.5 text-[11px] no-underline", focusRing)}
+                activeClassName="font-bold text-accent"
+                inactiveClassName="font-semibold text-grey-600 hover:text-navy-950"
               >
                 {tab.primary ? (
                   <span aria-hidden="true" className="-mt-0.5 flex h-[30px] w-11 items-center justify-center rounded-[10px] bg-accent text-accent-ink">
@@ -95,7 +89,7 @@ export function AdminTabBar({ tabs = DEFAULT_ADMIN_TABS, activeHref, label = "Ma
                     <span className="sr-only">, {tab.badge} new</span>
                   </span>
                 ) : null}
-              </Link>
+              </NavLink>
             </li>
           );
         })}

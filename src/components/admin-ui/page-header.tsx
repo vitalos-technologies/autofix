@@ -50,8 +50,9 @@ export function PageHeader({ eyebrow, phoneEyebrow, title, phoneTitle, descripti
   return (
     <header
       className={cn(
-        "-mx-4 flex flex-col gap-3.5 border-b border-grey-200 bg-white px-[18px] pt-4 pb-3.5 font-sans leading-[normal]",
-        "lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0",
+        // The shell pads its content by 16px on phones; the white band sits flush against the top edge.
+        "-mx-4 -mt-4 flex flex-col gap-3.5 border-b border-grey-200 bg-white px-[18px] pt-4 pb-3.5 font-sans leading-[normal]",
+        "lg:mx-0 lg:mt-0 lg:border-0 lg:bg-transparent lg:p-0",
         className,
       )}
     >

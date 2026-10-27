@@ -11,5 +11,5 @@ export default async function ResetPasswordPage() {
     redirect("/app/mfa?returnTo=%2Fapp%2Freset-password&stepUp=1");
   }
   if (!canChangeAdminPassword(admin.assurance)) redirect("/app/login?error=invalid-link");
-  return <section className="hero-grid grid min-h-screen place-items-center p-5"><div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl"><Logo /><h1 className="mt-9 text-4xl font-extrabold text-[#071127]">Choose a new password</h1><p className="mt-3 text-sm leading-6 text-[#586575]">Set a strong password for your Autofix account.</p><ResetPasswordForm /></div></section>;
+  return <main className="hero-grid grid min-h-screen place-items-center p-5"><div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl"><Logo /><h1 className="mt-9 text-4xl font-extrabold text-[#071127]">Choose a new password</h1><p className="mt-3 text-sm leading-6 text-[#586575]">Set a strong password for your Autofix account.</p><ResetPasswordForm /></div></main>;
 }
