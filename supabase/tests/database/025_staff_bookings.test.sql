@@ -4,11 +4,12 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 set local timezone to 'UTC';
 
-select plan(69);
+select plan(71);
 
 -- Staff bookings (A90 follow-up, migration 20261028002200, DECISIONS
 -- A176-A185). Online bookings keep every rule. Phone and walk-in bookings
--- made by a member of the garage (create_booking_at's `staff` object) may
+-- made by a member of the garage (owner, manager, technician or front desk;
+-- create_booking_at's `staff` object) may
 -- ignore online_enabled, the notice period, the booking window and approval,
 -- but never opening hours or closures unless the member overrides them, and
 -- never the service area, the MOT switch, another garage or a bay that is
@@ -24,6 +25,7 @@ select plan(69);
 insert into auth.users (id, email, raw_user_meta_data) values
   ('12500000-0000-4000-8000-0000000000a1', 'staff-owner-s@pgtap.test', '{}'::jsonb),
   ('12500000-0000-4000-8000-0000000000a2', 'staff-technician-s@pgtap.test', '{}'::jsonb),
+  ('12500000-0000-4000-8000-0000000000a3', 'staff-front-desk-s@pgtap.test', '{}'::jsonb),
   ('12500000-0000-4000-8000-0000000000b1', 'staff-owner-o@pgtap.test', '{}'::jsonb),
   ('12500000-0000-4000-8000-0000000000c1', 'not-a-member@pgtap.test', '{}'::jsonb);
 
@@ -34,6 +36,7 @@ insert into public.garages (id, slug, name, booking_prefix, mot_enabled, service
 insert into public.garage_members (garage_id, user_id, role) values
   ('a2500000-0000-4000-8000-000000000001', '12500000-0000-4000-8000-0000000000a1', 'owner'),
   ('a2500000-0000-4000-8000-000000000001', '12500000-0000-4000-8000-0000000000a2', 'technician'),
+  ('a2500000-0000-4000-8000-000000000001', '12500000-0000-4000-8000-0000000000a3', 'front_desk'),
   ('b2500000-0000-4000-8000-000000000001', '12500000-0000-4000-8000-0000000000b1', 'owner');
 
 insert into public.opening_hours (garage_id, weekday, opens, closes)
@@ -64,6 +67,7 @@ create function pg_temp.s() returns text language sql as $$ select 'a2500000-000
 create function pg_temp.o() returns text language sql as $$ select 'b2500000-0000-4000-8000-000000000001' $$;
 create function pg_temp.owner() returns text language sql as $$ select '12500000-0000-4000-8000-0000000000a1' $$;
 create function pg_temp.tech() returns text language sql as $$ select '12500000-0000-4000-8000-0000000000a2' $$;
+create function pg_temp.front_desk() returns text language sql as $$ select '12500000-0000-4000-8000-0000000000a3' $$;
 create function pg_temp.o_owner() returns text language sql as $$ select '12500000-0000-4000-8000-0000000000b1' $$;
 create function pg_temp.stranger() returns text language sql as $$ select '12500000-0000-4000-8000-0000000000c1' $$;
 create function pg_temp.diag() returns text language sql as $$ select 'a2500000-0000-4000-8000-000000000201' $$;
@@ -228,6 +232,11 @@ select pg_temp.book('staff-today', pg_temp.s(), pg_temp.payload(pg_temp.diag(), 
 select is(pg_temp.status_of('staff-today'), 'confirmed', 'a technician can book a walk-in later today, inside the notice period');
 select pg_temp.book('staff-earlier', pg_temp.s(), pg_temp.payload(pg_temp.diag(), '2026-10-28T09:00:00Z', 12, 'walk_in') || pg_temp.staff(pg_temp.tech()));
 select is(pg_temp.status_of('staff-earlier'), 'confirmed', 'a walk-in that came in earlier today can still be recorded');
+select pg_temp.book('staff-front-desk', pg_temp.s(), pg_temp.payload(pg_temp.offline(), '2026-11-05T11:00:00Z', 18, 'walk_in') || pg_temp.staff(pg_temp.front_desk()));
+select is(
+  (select pg_temp.status_of('staff-front-desk') || '|' || event.actor_id::text from pg_temp.event_of('staff-front-desk') event),
+  'confirmed|12500000-0000-4000-8000-0000000000a3', 'a front-desk member takes phone and walk-in bookings with the staff rules'
+);
 select is(pg_temp.book_error(pg_temp.s(), pg_temp.payload(pg_temp.diag(), '2026-10-27T10:00:00Z', 13, 'walk_in') || pg_temp.staff(pg_temp.tech())),
   'P0001 SLOT_UNAVAILABLE', 'but not on a day that has gone');
 select pg_temp.book('staff-far', pg_temp.s(), pg_temp.payload(pg_temp.diag(), '2026-12-01T10:00:00Z', 14, 'phone') || pg_temp.staff(pg_temp.owner()));
@@ -357,6 +366,8 @@ select is(
 );
 select is((select count(*)::integer from pg_temp.grid(pg_temp.diag(), '2026-12-01', '2026-12-01')),
   35, 'the staff grid reaches beyond the online booking window');
+select is((select count(*)::integer from pg_temp.grid(pg_temp.offline(), '2026-10-28', '2026-10-28', pg_temp.front_desk())),
+  35, 'front desk sees the staff grid too');
 select is((select count(*)::integer from pg_temp.grid(pg_temp.diag(), '2026-10-20', '2026-10-27')),
   0, 'the staff grid starts today');
 select is(

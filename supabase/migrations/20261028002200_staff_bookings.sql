@@ -14,8 +14,9 @@
 --      3-argument form (online rules) now calls it with false.
 --   2. create_booking_at(): an optional `staff: {member_id, override_hours}`
 --      object. Honoured only for source phone / walk_in and only when
---      member_id is a member of p_garage_id (garage_members); anything else
---      is INVALID_BOOKING. The created event records the member as actor_id
+--      member_id is a member of p_garage_id (garage_members: owner, manager,
+--      technician or front_desk, 20261028000400); anything else is
+--      INVALID_BOOKING. The created event records the member as actor_id
 --      and `staff_rules` / `hours_override` in its data. create_booking()
 --      (service role only) is unchanged and passes p_booking through.
 --   3. staff_available_slots(garage, service, from, to, mode, member): the
@@ -242,7 +243,7 @@ begin
       select 1 from public.garage_members member
       where member.garage_id = p_garage_id
         and member.user_id = staff_member
-        and member.role in ('owner', 'manager', 'technician')
+        and member.role in ('owner', 'manager', 'technician', 'front_desk')
     ) then
       raise exception 'INVALID_BOOKING: staff.member_id is not a member of this garage' using errcode = 'P0001';
     end if;
@@ -654,7 +655,7 @@ begin
     select 1 from public.garage_members member
     where member.garage_id = p_garage_id
       and member.user_id = p_member_id
-      and member.role in ('owner', 'manager', 'technician')
+      and member.role in ('owner', 'manager', 'technician', 'front_desk')
   ) then
     raise exception 'INVALID_BOOKING: staff.member_id is not a member of this garage' using errcode = 'P0001';
   end if;

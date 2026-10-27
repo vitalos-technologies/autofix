@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getLocalSupabaseConfig, provisionLocalTestUsers, type LocalTestUsers } from "../helpers/local-supabase";
+import { createLocalIdentity, getLocalSupabaseConfig, localRunId, provisionLocalTestUsers, type LocalTestUsers } from "../helpers/local-supabase";
 
 // Staff bookings (A90 follow-up, migration 20261028002200, DECISIONS
 // A176-A185) through the real engine against local Supabase: a member's phone
@@ -141,6 +141,15 @@ describe.skipIf(!configured).sequential("staff bookings against local Supabase",
     if (sameSlot.ok) throw new Error("expected a conflict");
     // Alternatives come from the staff grid (the online window ends before this day).
     expect(sameSlot.alternatives?.length).toBeGreaterThan(0);
+  });
+
+  it("lets a front-desk member take a walk-in with the staff rules", async () => {
+    const config = getLocalSupabaseConfig();
+    const frontDesk = await createLocalIdentity(service, config.publishableKey, `garage-a-front-desk-${localRunId}@example.test`);
+    const { error } = await service.from("garage_members").insert({ garage_id: users.garageA.id, user_id: frontDesk.id, role: "front_desk" });
+    if (error) throw new Error(`Could not add the front-desk member: ${error.message}`);
+    const created = await engine().createBooking(users.garageA.id, bookingInput({ startsAt: at(far, "12:00"), source: "walk_in" }), { staff: { memberId: frontDesk.id } });
+    expect(created).toMatchObject({ ok: true, booking: { status: "confirmed" } });
   });
 
   it("never lets another garage's member, or a non-member, book with staff rules", async () => {
