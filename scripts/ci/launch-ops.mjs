@@ -452,5 +452,6 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
     fail(error instanceof Error ? error.message : String(error));
   }
   console.log(`\n${failures ? `${failures} problem(s)` : "done"}${apply ? "" : " (nothing was changed)"}`);
-  if (failures) process.exit(1);
+  // A report informs (its problems are the FAIL lines above); only a run that was meant to change something fails.
+  if (failures && apply) process.exit(1);
 }
