@@ -21,19 +21,25 @@ insert into public.garage_members (garage_id, user_id, role) values
   ('a8000000-0000-4000-8000-000000000001', '18000000-0000-4000-8000-0000000000ab', 'manager'),
   ('b8000000-0000-4000-8000-000000000001', '18000000-0000-4000-8000-0000000000ab', 'owner');
 
-insert into public.booking_service_types (id, garage_id, service_key, display_name, provider_event_type_id, online_booking_enabled, location_mode) values
-  ('98000000-0000-4000-8000-00000000000a', 'a8000000-0000-4000-8000-000000000001', 'diagnostics', 'Diagnostics', 101, true, 'workshop');
+insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode) values
+  ('98000000-0000-4000-8000-00000000000a', 'a8000000-0000-4000-8000-000000000001', 'Diagnostics', 60, 4500, 'from');
+insert into public.resources (id, garage_id, name) values
+  ('99000000-0000-4000-8000-00000000000a', 'a8000000-0000-4000-8000-000000000001', 'Bay 1');
+insert into public.opening_hours (garage_id, weekday, opens, closes)
+select 'a8000000-0000-4000-8000-000000000001'::uuid, weekday::smallint, time '08:00', time '17:30' from generate_series(1, 7) weekday;
 
 -- Enquiries: an open one in each garage, and old closed ones with attachments.
 insert into public.customers (id, garage_id, name, email, phone, preferred_contact) values
-  ('68000000-0000-4000-8000-0000000000a1', 'a8000000-0000-4000-8000-000000000001', 'Open enquiry A', 'open-a@example.test', '07000000201', 'email'),
-  ('68000000-0000-4000-8000-0000000000a2', 'a8000000-0000-4000-8000-000000000001', 'Closed enquiry A', 'closed-a@example.test', '07000000202', 'email'),
-  ('68000000-0000-4000-8000-0000000000a3', 'a8000000-0000-4000-8000-000000000001', 'Booking-only A', 'booking-a@example.test', '07000000203', 'email'),
-  ('68000000-0000-4000-8000-0000000000b2', 'b8000000-0000-4000-8000-000000000001', 'Closed enquiry B', 'closed-b@example.test', '07000000204', 'email');
+  ('68000000-0000-4000-8000-0000000000a1', 'a8000000-0000-4000-8000-000000000001', 'Open enquiry A', 'open-a@example.test', '+447700900201', 'email'),
+  ('68000000-0000-4000-8000-0000000000a2', 'a8000000-0000-4000-8000-000000000001', 'Closed enquiry A', 'closed-a@example.test', '+447700900202', 'email'),
+  ('68000000-0000-4000-8000-0000000000a3', 'a8000000-0000-4000-8000-000000000001', 'Booking-only A', 'booking-a@example.test', '+447700900203', 'email'),
+  ('68000000-0000-4000-8000-0000000000b2', 'b8000000-0000-4000-8000-000000000001', 'Closed enquiry B', 'closed-b@example.test', '+447700900204', 'email');
 insert into public.vehicles (id, garage_id, customer_id, registration) values
   ('78000000-0000-4000-8000-0000000000a3', 'a8000000-0000-4000-8000-000000000001', '68000000-0000-4000-8000-0000000000a3', 'SV12BKG');
-insert into public.bookings (garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start) values
-  ('a8000000-0000-4000-8000-000000000001', '68000000-0000-4000-8000-0000000000a3', '78000000-0000-4000-8000-0000000000a3', 'Old booking', '2020-01-01T09:00:00Z', '2020-01-01T09:00:00Z');
+insert into public.bookings (garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source) values
+  ('a8000000-0000-4000-8000-000000000001', '68000000-0000-4000-8000-0000000000a3', '78000000-0000-4000-8000-0000000000a3',
+   '98000000-0000-4000-8000-00000000000a', '99000000-0000-4000-8000-00000000000a',
+   '2020-01-01T09:00:00Z', '2020-01-01T10:00:00Z', '[2020-01-01T09:00:00Z,2020-01-01T10:00:00Z)', 'collected', 'phone');
 insert into public.enquiries (id, garage_id, type, customer_id, status, closed_at) values
   ('58000000-0000-4000-8000-0000000000a1', 'a8000000-0000-4000-8000-000000000001', 'general', '68000000-0000-4000-8000-0000000000a1', 'new', null),
   ('58000000-0000-4000-8000-0000000000a2', 'a8000000-0000-4000-8000-000000000001', 'general', '68000000-0000-4000-8000-0000000000a2', 'closed', now() - interval '13 months'),
@@ -52,23 +58,27 @@ select throws_ok(
 
 set local role service_role;
 
--- create_booking_intent
+-- create_booking (next Monday 10:00 London; garage A is open every day)
 select is(
-  (select created from public.create_booking_intent(
-    'a8000000-0000-4000-8000-000000000001', 'c8000000-0000-4000-8000-000000000001', 'Intent Customer', 'Intent@Example.test', '07000000300',
-    'sv12 int', 'Ford', 'Focus', 2019, 'Blue', 'Petrol', 'Manual', '98000000-0000-4000-8000-00000000000a', 'diagnostics', 'Diagnostics',
-    'Rattle', '[]'::jsonb, '{}'::jsonb, 'workshop', 'Workshop', null, null, '2090-01-01T09:00:00Z', 'Europe/London')),
-  true, 'a booking intent is created in the garage'
+  (public.create_booking('a8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000001',
+      'customer', jsonb_build_object('name', 'Intent Customer', 'phone', '+447700900300', 'email', 'Intent@Example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 int', 'make', 'Ford', 'model', 'Focus')))->>'replayed'),
+  'false', 'a booking is created in the garage'
 );
 select is(
-  (select created from public.create_booking_intent(
-    'a8000000-0000-4000-8000-000000000001', 'c8000000-0000-4000-8000-000000000001', 'Intent Customer', 'Intent@Example.test', '07000000300',
-    'sv12 int', 'Ford', 'Focus', 2019, 'Blue', 'Petrol', 'Manual', '98000000-0000-4000-8000-00000000000a', 'diagnostics', 'Diagnostics',
-    'Rattle', '[]'::jsonb, '{}'::jsonb, 'workshop', 'Workshop', null, null, '2090-01-01T09:00:00Z', 'Europe/London')),
-  false, 'the same idempotency key returns the existing booking'
+  (public.create_booking('a8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000001',
+      'customer', jsonb_build_object('name', 'Intent Customer', 'phone', '+447700900300', 'email', 'Intent@Example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 int', 'make', 'Ford', 'model', 'Focus')))->>'replayed'),
+  'true', 'the same idempotency key returns the existing booking'
 );
 select matches(
-  (select booking_reference from public.bookings where idempotency_key = 'c8000000-0000-4000-8000-000000000001'),
+  (select reference from public.bookings where idempotency_key = 'c8000000-0000-4000-8000-000000000001'),
   '^SVA-[0-9]{4}$', 'the booking reference uses garage A''s prefix'
 );
 select is(
@@ -76,15 +86,17 @@ select is(
   1, 'the customer is created in garage A'
 );
 select throws_ok(
-  $$select * from public.create_booking_intent(
-    'b8000000-0000-4000-8000-000000000001', 'c8000000-0000-4000-8000-000000000002', 'Cross Garage', 'cross@example.test', '07000000301',
-    'sv12 crs', 'Ford', 'Focus', 2019, 'Blue', 'Petrol', 'Manual', '98000000-0000-4000-8000-00000000000a', 'diagnostics', 'Diagnostics',
-    'Rattle', '[]'::jsonb, '{}'::jsonb, 'workshop', 'Workshop', null, null, '2090-01-01T09:00:00Z', 'Europe/London')$$,
-  'P0001', 'BOOKING_SERVICE_NOT_AVAILABLE', 'garage B cannot book garage A''s service'
+  $$select public.create_booking('b8000000-0000-4000-8000-000000000001', jsonb_build_object(
+      'service_id', '98000000-0000-4000-8000-00000000000a',
+      'starts_at', to_char(((date_trunc('week', (now() at time zone 'Europe/London')::date + 7))::date + time '10:00') at time zone 'Europe/London', 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+      'idempotency_key', 'c8000000-0000-4000-8000-000000000002',
+      'customer', jsonb_build_object('name', 'Cross Garage', 'phone', '+447700900301', 'email', 'cross@example.test'),
+      'vehicle', jsonb_build_object('registration', 'sv12 crs', 'make', 'Ford', 'model', 'Focus')))$$,
+  'P0001', 'SERVICE_UNAVAILABLE', 'garage B cannot book garage A''s service'
 );
 select is(
   (select count(*)::integer from public.bookings where garage_id = 'b8000000-0000-4000-8000-000000000001'),
-  0, 'the failed cross-garage intent left nothing behind in garage B'
+  0, 'the failed cross-garage booking left nothing behind in garage B'
 );
 
 -- Inbound email and unread counts
@@ -184,7 +196,7 @@ reset role;
 
 select ok(
   not has_function_privilege('authenticated', 'public.apply_enquiry_retention(uuid)', 'execute')
-  and not has_function_privilege('authenticated', 'public.create_booking_intent(uuid,uuid,text,text,text,text,text,text,integer,text,text,text,uuid,text,text,text,jsonb,jsonb,text,text,text,text,timestamptz,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.create_booking(uuid,jsonb)', 'execute')
   and not has_function_privilege('authenticated', 'public.store_inbound_email_message(uuid,uuid,text,text,text,text,text,text,text,text,text,text[],timestamptz,text)', 'execute'),
   'signed-in staff cannot call the service-role functions'
 );

@@ -18,8 +18,9 @@
  *     B owner, and one user who is a manager in both garages.
  *   - site_settings rows, sample customers and vehicles (fictional names, UK
  *     mobiles in Ofcom's 07700 900xxx drama range) and a few enquiries.
- *   - Scheduling data (resources, opening hours, closures, services). Those
- *     tables arrive with P2.1; until then each step says it skipped.
+ *   - Scheduling data (P2.1): 3 bays + 1 mobile van, opening hours
+ *     (Mon-Fri 08:00-17:30, Sat 08:30-13:00), closures and six services per
+ *     garage; the MOT service only at hartley-road (MOT on).
  *
  * Environment
  *   Supabase URL and secret key, first match wins:
@@ -263,19 +264,8 @@ function check(result, what) {
   return result.data;
 }
 
-/** PostgREST reports a table it does not know as PGRST205 (or 42P01 from Postgres). */
-async function tableExists(supabase, table) {
-  const { error } = await supabase.from(table).select("*").limit(0);
-  if (!error) return true;
-  if (error.code === "PGRST205" || error.code === "42P01") return false;
-  throw new Error(`Could not check table ${table}: ${error.message}`);
-}
-
-async function skipUnlessTable(supabase, table, step) {
-  if (await tableExists(supabase, table)) return false;
-  console.log(`  - ${step}: skipped, table public.${table} does not exist yet (P2.1)`);
-  return true;
-}
+/** customers.channel (how reminders reach them) from SOB's preferred contact. */
+const CHANNEL_FOR_CONTACT = { phone: "sms", whatsapp: "whatsapp", email: "email" };
 
 // ---------------------------------------------------------------------------
 // Steps
@@ -375,8 +365,17 @@ async function seedCustomersAndVehicles(supabase, garages) {
     for (const [name, phone, preferredContact, vehicles] of customers) {
       const customerId = seedUuid(`customer:${garage.slug}:${phone}`);
       const email = `${name.toLowerCase().replaceAll(" ", ".")}@example.com`;
-      customerRows.push({ id: customerId, garage_id: garage.id, name, phone, email, preferred_contact: preferredContact, anonymised_at: null });
-      for (const [registration, make, model, year, colour, fuelType] of vehicles) {
+      customerRows.push({
+        id: customerId,
+        garage_id: garage.id,
+        name,
+        phone,
+        email,
+        preferred_contact: preferredContact,
+        channel: CHANNEL_FOR_CONTACT[preferredContact],
+        anonymised_at: null,
+      });
+      for (const [registration, make, model, year, colour, fuel] of vehicles) {
         vehicleRows.push({
           id: seedUuid(`vehicle:${garage.slug}:${registration}`),
           garage_id: garage.id,
@@ -386,7 +385,7 @@ async function seedCustomersAndVehicles(supabase, garages) {
           model,
           year,
           colour,
-          fuel_type: fuelType,
+          fuel,
         });
       }
     }
@@ -448,12 +447,9 @@ async function seedEnquiries(supabase, garages) {
   console.log(`  - enquiries: ${count} (with conversations and first messages)`);
 }
 
-// --- Scheduling (P2.1). The data lane fills in the column names once the
-// --- tables exist; the intended data lives in RESOURCES, OPENING_HOURS,
-// --- CLOSURES and SERVICES above.
+// --- Scheduling (P2.1): RESOURCES, OPENING_HOURS, CLOSURES and SERVICES above.
 
 async function seedResources(supabase, garages) {
-  if (await skipUnlessTable(supabase, "resources", "resources")) return;
   const rows = Object.values(garages).flatMap((garage) => RESOURCES.map((resource) => ({
     id: seedUuid(`resource:${garage.slug}:${resource.name}`),
     garage_id: garage.id,
@@ -467,7 +463,6 @@ async function seedResources(supabase, garages) {
 }
 
 async function seedOpeningHours(supabase, garages) {
-  if (await skipUnlessTable(supabase, "opening_hours", "opening hours")) return;
   const rows = Object.values(garages).flatMap((garage) => OPENING_HOURS.map((window) => ({
     id: seedUuid(`opening-hours:${garage.slug}:${window.weekday}:${window.opens}`),
     garage_id: garage.id,
@@ -478,7 +473,6 @@ async function seedOpeningHours(supabase, garages) {
 }
 
 async function seedClosures(supabase, garages) {
-  if (await skipUnlessTable(supabase, "closures", "closures")) return;
   const rows = Object.values(garages).flatMap((garage) => CLOSURES.map((closure) => ({
     id: seedUuid(`closure:${garage.slug}:${closure.starts_on}`),
     garage_id: garage.id,
@@ -489,7 +483,6 @@ async function seedClosures(supabase, garages) {
 }
 
 async function seedServices(supabase, garages) {
-  if (await skipUnlessTable(supabase, "services", "services")) return;
   const rows = Object.values(garages).flatMap((garage) => SERVICES
     .filter((service) => !service.is_mot || garage.mot_enabled)
     .map(({ key, ...service }, index) => ({

@@ -23,14 +23,14 @@ select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), true, 
 select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), false, 'request above the limit is rejected');
 
 select matches(
-  pg_get_functiondef('public.create_booking_intent(uuid,uuid,text,text,text,text,text,text,integer,text,text,text,uuid,text,text,text,jsonb,jsonb,text,text,text,text,timestamptz,text)'::regprocedure),
-  'service\.display_name = p_service_name',
-  'booking intent validates the caller-supplied service name'
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
+  'and service\.online_enabled',
+  'bookings and slots only use services enabled for online booking'
 );
 select matches(
-  pg_get_functiondef('public.create_booking_intent(uuid,uuid,text,text,text,text,text,text,integer,text,text,text,uuid,text,text,text,jsonb,jsonb,text,text,text,text,timestamptz,text)'::regprocedure),
-  'service\.garage_id = p_garage_id',
-  'booking intent only uses the garage''s own services'
+  pg_get_functiondef('public.booking_service_context(uuid,uuid,text)'::regprocedure),
+  'on service\.garage_id = garage\.id\s+and service\.id = p_service_id\s+.*where garage\.id = p_garage_id',
+  'bookings and slots only use the garage''s own services'
 );
 select matches(
   pg_get_functiondef('public.get_invoice_dashboard_without_payments(text,text,date,integer,integer)'::regprocedure),

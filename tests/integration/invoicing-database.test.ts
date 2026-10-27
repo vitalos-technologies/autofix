@@ -199,11 +199,13 @@ describe.sequential("local Supabase invoice authorization", () => {
     const customerId = randomUUID();
     const vehicleId = randomUUID();
     const bookingId = randomUUID();
+    const serviceId = randomUUID();
+    const resourceId = randomUUID();
     const fixtureSuffix = randomUUID().replaceAll("-", "").slice(0, 8);
     const customer = {
       name: "Duplicate Booking Customer",
       email: `duplicate-booking-${fixtureSuffix}@example.test`,
-      phone: "07111111111",
+      phone: "+447700900111",
     };
     const vehicle = { registration: `DB${fixtureSuffix}`.toUpperCase(), make: "Test", model: "Booking" };
     const appointmentStart = "2092-05-10T09:00:00.000Z";
@@ -214,11 +216,16 @@ describe.sequential("local Supabase invoice authorization", () => {
         values (:'customer_id'::uuid, :'garage_id'::uuid, :'customer_name', :'customer_email', :'customer_phone', 'email');
         insert into public.vehicles (id, garage_id, customer_id, registration, make, model)
         values (:'vehicle_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'registration', :'make', :'model');
+        insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode)
+        values (:'service_id'::uuid, :'garage_id'::uuid, 'Persisted booking service', 60, 5000, 'fixed');
+        insert into public.resources (id, garage_id, name)
+        values (:'resource_id'::uuid, :'garage_id'::uuid, 'Invoice test bay');
         insert into public.bookings (
-          id, garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Persisted booking service', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
@@ -231,6 +238,8 @@ describe.sequential("local Supabase invoice authorization", () => {
         registration: vehicle.registration,
         make: vehicle.make,
         model: vehicle.model,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: bookingId,
         appointment_start: appointmentStart,
       },
@@ -286,7 +295,7 @@ describe.sequential("local Supabase invoice authorization", () => {
     executeLocalOwnerSql(
       `
         insert into public.customers (id, garage_id, name, email, phone, preferred_contact)
-        values (:'customer_id'::uuid, :'garage_id'::uuid, 'Unrelated local customer', :'customer_email', '07222222222', 'email');
+        values (:'customer_id'::uuid, :'garage_id'::uuid, 'Unrelated local customer', :'customer_email', '+447700900222', 'email');
       `,
       { garage_id: users.garageA.id, customer_id: unrelatedCustomerId, customer_email: `unrelated-${fixtureSuffix}@example.test` },
     );
@@ -303,14 +312,17 @@ describe.sequential("local Supabase invoice authorization", () => {
     executeLocalOwnerSql(
       `
         insert into public.bookings (
-          id, garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Raced persisted booking', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
         garage_id: users.garageA.id,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: racedBookingId,
         customer_id: customerId,
         vehicle_id: vehicleId,
@@ -346,14 +358,17 @@ describe.sequential("local Supabase invoice authorization", () => {
     executeLocalOwnerSql(
       `
         insert into public.bookings (
-          id, garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Relationship drift', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
         garage_id: users.garageA.id,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: changedBookingId,
         customer_id: customerId,
         vehicle_id: vehicleId,
@@ -854,7 +869,7 @@ describe.sequential("local Supabase garage isolation", () => {
 
     const customer = await users.otherGarageAdmin
       .from("customers")
-      .insert({ name: "Isolation customer", phone: "07000000555", preferred_contact: "phone" })
+      .insert({ name: "Isolation customer", phone: "+447700900555", preferred_contact: "phone" })
       .select("garage_id")
       .single();
     expect(customer.error).toBeNull();
@@ -862,12 +877,12 @@ describe.sequential("local Supabase garage isolation", () => {
 
     const planted = await users.otherGarageAdmin
       .from("customers")
-      .insert({ garage_id: users.garageA.id, name: "Planted customer", phone: "07000000556", preferred_contact: "phone" });
+      .insert({ garage_id: users.garageA.id, name: "Planted customer", phone: "+447700900556", preferred_contact: "phone" });
     expect(planted.error?.code).toBe("42501");
 
     const serviceWithoutGarage = await users.service
       .from("customers")
-      .insert({ name: "No garage", phone: "07000000557", preferred_contact: "phone" });
+      .insert({ name: "No garage", phone: "+447700900557", preferred_contact: "phone" });
     expect(serviceWithoutGarage.error?.code).toBe("23502");
   });
 });

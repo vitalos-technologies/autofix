@@ -30,7 +30,7 @@ values (
   'a6000000-0000-4000-8000-000000000001',
   'Booking Thread Test Customer',
   'booking-thread@example.test',
-  '07000000000',
+  '+447700900000',
   'email'
 );
 
@@ -44,38 +44,52 @@ values (
   'Vehicle'
 );
 
+insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode) values
+  ('10000000-0000-4000-8000-000000000004', 'a6000000-0000-4000-8000-000000000001', 'Vehicle diagnostics', 60, 4500, 'from'),
+  ('10000000-0000-4000-8000-000000000006', 'b6000000-0000-4000-8000-000000000001', 'Garage B diagnostics', 60, 4500, 'from');
+insert into public.resources (id, garage_id, name) values
+  ('10000000-0000-4000-8000-000000000005', 'a6000000-0000-4000-8000-000000000001', 'Bay 1'),
+  ('10000000-0000-4000-8000-000000000007', 'b6000000-0000-4000-8000-000000000001', 'Bay B1');
+
 insert into public.bookings (
   id,
   garage_id,
   customer_id,
   vehicle_id,
-  service_name,
-  service_key,
-  problem_description,
-  appointment_start,
-  original_appointment_start
+  service_id,
+  resource_id,
+  starts_at,
+  ends_at,
+  during,
+  status,
+  source,
+  symptoms
 )
 values (
   '10000000-0000-4000-8000-000000000003',
   'a6000000-0000-4000-8000-000000000001',
   '10000000-0000-4000-8000-000000000001',
   '10000000-0000-4000-8000-000000000002',
-  'Vehicle diagnostics',
-  'vehicle-diagnostics',
-  'Intermittent warning light',
+  '10000000-0000-4000-8000-000000000004',
+  '10000000-0000-4000-8000-000000000005',
   '2026-10-05 09:00:00+01',
-  '2026-10-05 09:00:00+01'
+  '2026-10-05 10:00:00+01',
+  '[2026-10-05 09:00:00+01,2026-10-05 10:00:00+01)',
+  'confirmed',
+  'online',
+  array['Intermittent warning light']
 );
 
 select matches(
-  (select booking_reference from public.bookings where id = '10000000-0000-4000-8000-000000000003'),
+  (select reference from public.bookings where id = '10000000-0000-4000-8000-000000000003'),
   '^THA-[0-9]{4}$',
   'a new booking gets a reference with its garage''s prefix'
 );
 select throws_ok(
-  $$insert into public.bookings (garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start)
+  $$insert into public.bookings (garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source)
     values ('b6000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002',
-            'Cross-garage booking', now(), now())$$,
+            '10000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000007',
+            '2026-10-06 09:00+00', '2026-10-06 10:00+00', '[2026-10-06 09:00+00,2026-10-06 10:00+00)', 'confirmed', 'phone')$$,
   '23503', null, 'a booking cannot use another garage''s customer and vehicle'
 );
 

@@ -64,7 +64,7 @@ select is(
 );
 select is(
   (select count(*)::integer
-   from unnest(array['rate_limit_buckets', 'resend_webhook_events', 'inbound_email_events', 'provider_webhook_events',
+   from unnest(array['rate_limit_buckets', 'resend_webhook_events', 'inbound_email_events',
                      'admin_mfa_policy', 'admin_mfa_recovery_codes', 'admin_mfa_recovery_sessions', 'admin_trusted_devices',
                      'platform_admins']) as platform_table(name)
    where has_table_privilege('authenticated', 'public.' || platform_table.name, 'select')),
@@ -98,8 +98,8 @@ insert into public.garage_members (garage_id, user_id, role) values
   ('b7000000-0000-4000-8000-000000000001', '17000000-0000-4000-8000-0000000000ab', 'manager');
 
 insert into public.customers (id, garage_id, name, phone, preferred_contact) values
-  ('67000000-0000-4000-8000-00000000000a', 'a7000000-0000-4000-8000-000000000001', 'Customer of A', '07000000101', 'phone'),
-  ('67000000-0000-4000-8000-00000000000b', 'b7000000-0000-4000-8000-000000000001', 'Customer of B', '07000000102', 'phone');
+  ('67000000-0000-4000-8000-00000000000a', 'a7000000-0000-4000-8000-000000000001', 'Customer of A', '+447700900101', 'phone'),
+  ('67000000-0000-4000-8000-00000000000b', 'b7000000-0000-4000-8000-000000000001', 'Customer of B', '+447700900102', 'phone');
 
 create function pg_temp.act_as(p_user uuid, p_garage uuid)
 returns void
@@ -276,11 +276,11 @@ select pg_temp.act_as('17000000-0000-4000-8000-0000000000b1', 'b7000000-0000-400
 set local role authenticated;
 select results_eq('select name from public.customers', array['Customer of B'], 'owner B reads only garage B customers');
 select throws_ok(
-  $$insert into public.customers (garage_id, name, phone, preferred_contact) values ('a7000000-0000-4000-8000-000000000001', 'Planted', '07000000999', 'phone')$$,
+  $$insert into public.customers (garage_id, name, phone, preferred_contact) values ('a7000000-0000-4000-8000-000000000001', 'Planted', '+447700900999', 'phone')$$,
   '42501', null, 'owner B cannot insert into garage A'
 );
 select lives_ok(
-  $$insert into public.customers (name, phone, preferred_contact) values ('Defaulted', '07000000998', 'phone')$$,
+  $$insert into public.customers (name, phone, preferred_contact) values ('Defaulted', '+447700900998', 'phone')$$,
   'a row without garage_id lands in the selected garage'
 );
 select results_eq(
