@@ -122,3 +122,26 @@ SQL: `claim_jobs(p_kind text, p_limit int) returns setof jobs` (`for update skip
 | `src/lib/reminders/*` | scheduling (rules × vehicles → `reminder_sends`), sending (consent + opt-out re-check, quiet hours, render, token), link tokens (`/r/{token}`: 32 random bytes base64url, SHA-256 hash stored, 30-day expiry) |
 
 Routes: `GET /api/cron/[job]` (`Authorization: Bearer CRON_SECRET`; enqueues then drains for up to 20 s — Vercel Hobby only runs daily crons), `POST /api/jobs/drain` (same secret), `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` (signature on the raw body, `webhook_events` first), `GET /r/[token]` on the garage host. Admin pages on the admin host under `/app`: `/app` (Today), `/app/diary`, `/app/bookings`, `/app/bookings/[id]`, `/app/customers`, `/app/customers/[id]`, `/app/customers/import`, `/app/reminders`, `/app/messages`, `/app/settings/{services,hours,resources,branding,booking-page,team}`.
+
+## Agent tool API (Phase 4, P4.2)
+
+Contract: `docs/autofix/agent-api.yaml` (OpenAPI 3.1) for Workforce and Askbridge. `POST /api/agent/v1/{lookup_vehicle,list_services,available_slots,create_booking,get_booking,garage_profile}` on the admin host, `Authorization: Bearer afat_…`, strict JSON bodies (no garage id, no `source`, registrations only in bodies). Errors `{code, message, issues?, alternatives?}`: 401 `UNAUTHORIZED`, 403 `FORBIDDEN`/`GARAGE_INACTIVE`, 404 `NOT_FOUND`/`VEHICLE_NOT_FOUND`, 409 `SLOT_UNAVAILABLE` (+ up to 3 `alternatives`), 422 `INVALID_REQUEST`/`INVALID_BOOKING`/`SERVICE_UNAVAILABLE`/`OUTSIDE_SERVICE_AREA`, 429 `RATE_LIMITED`, 503 `UNAVAILABLE` (+ 400/413/415 for bad bodies).
+
+### Schema (`20261028000100_agent_tokens.sql`)
+
+| Table | Columns |
+| --- | --- |
+| `agent_tokens` (tenant) | `name`, `token_hash` (hex HMAC-SHA-256 with `AGENT_TOKEN_PEPPER`, unique), `scopes text[]` (tool names, default all six), `last_used_at`, `revoked_at`. No staff grants; select policy for owners/managers as a backstop |
+| `agent_call_log` (tenant) | `token_id` (composite FK, set null), `tool`, `outcome` (`OK` or the error code), `http_status`, `latency_ms`, `booking_id` (composite FK, set null). Staff read; service role writes. Never phone numbers, registrations or tokens |
+
+SQL: `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` (service role; never returns the hash), `list_agent_tokens()` and `revoke_agent_token(p_token_id) → boolean` (authenticated owners/managers of the selected garage, security definer).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/agent-api/schemas.ts` | `agentTools`, `agentInputSchemas` (zod, one per tool), error codes/status/messages, response types matching the OpenAPI components |
+| `src/lib/agent-api/tokens.ts` | `generateAgentToken()`, `hashAgentToken(token)`, `bearerToken(header)`, `agentTokenHashesMatch()` (constant time), `tokenAllows(scopes, tool)` |
+| `src/lib/agent-api/store.ts` | `AgentApiStore` (`findToken`, `recordCall`, `garageProfile`, `findBooking`), `getAgentApiStore()` / `setAgentApiStoreForTests()`, `issueAgentToken({garageId, name, scopes})` → raw token once |
+| `src/lib/agent-api/handler.ts` | `handleAgentToolRequest(tool, request)`: token → garage status → scope → rate limits → body → tool (booking engine, vehicle provider with MOT only when `mot_enabled`, `findBookingForManage`) → `agent_call_log` row + `agent_api.call` log line |
+
