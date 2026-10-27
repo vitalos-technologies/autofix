@@ -47,12 +47,17 @@ $$;
 
 -- Garage A has a customer, a vehicle, a booking and a draft invoice.
 insert into public.customers (id, garage_id, name, email, phone, preferred_contact) values
-  ('62000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', 'Garage A customer', 'a-customer@example.test', '07000000001', 'email');
+  ('62000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', 'Garage A customer', 'a-customer@example.test', '+447700900001', 'email');
 insert into public.vehicles (id, garage_id, customer_id, registration, make, model) values
   ('72000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', '62000000-0000-4000-8000-00000000000a', 'mn12 aaa', 'Test', 'A');
-insert into public.bookings (id, garage_id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start) values
+insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode) values
+  ('92000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', 'Garage A service', 60, 5000, 'fixed');
+insert into public.resources (id, garage_id, name) values
+  ('93000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', 'Bay 1');
+insert into public.bookings (id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source) values
   ('82000000-0000-4000-8000-00000000000a', 'a2000000-0000-4000-8000-000000000001', '62000000-0000-4000-8000-00000000000a',
-   '72000000-0000-4000-8000-00000000000a', 'Garage A service', '2081-01-01T09:00:00Z', '2081-01-01T09:00:00Z');
+   '72000000-0000-4000-8000-00000000000a', '92000000-0000-4000-8000-00000000000a', '93000000-0000-4000-8000-00000000000a',
+   '2081-01-01T09:00:00Z', '2081-01-01T10:00:00Z', '[2081-01-01T09:00:00Z,2081-01-01T10:00:00Z)', 'confirmed', 'phone');
 
 insert into public.invoices (id, garage_id, status, source_type, customer_name, created_by, updated_by)
 values (

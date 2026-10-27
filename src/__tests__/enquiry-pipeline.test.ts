@@ -30,9 +30,20 @@ describe("enquiry persistence and notification pipeline", () => {
     const events: string[] = [];
     const inserts: Array<{ table: string; payload: Record<string, unknown> }> = [];
     const updateFilters: Array<[string, unknown]> = [];
+    const lookups: Array<[string, string, unknown]> = [];
     const adminClient = {
       from(table: string) {
         return {
+          select() {
+            const chain = {
+              eq(field: string, value: unknown) {
+                lookups.push([table, field, value]);
+                return chain;
+              },
+              maybeSingle: async () => ({ data: null, error: null }),
+            };
+            return chain;
+          },
           insert(payload: Record<string, unknown>) {
             events.push(`${table}:insert`);
             inserts.push({ table, payload });
@@ -83,6 +94,9 @@ describe("enquiry persistence and notification pipeline", () => {
     // Every service-role insert names the garage explicitly.
     for (const insert of inserts) expect(insert.payload, insert.table).toMatchObject({ garage_id: garage.id });
     expect(updateFilters).toContainEqual(["garage_id", garage.id]);
+    // The customer is looked up by E.164 phone within the garage, then created.
+    expect(lookups).toEqual([["customers", "garage_id", garage.id], ["customers", "phone", "+447700900123"]]);
+    expect(inserts.find((insert) => insert.table === "customers")?.payload).toMatchObject({ phone: "+447700900123" });
     expect(createInitialEnquiryMessage).toHaveBeenCalledWith(garage, "enquiry-id", expect.objectContaining({ description: "The vehicle has an intermittent warning light." }));
     expect(sendTransactionalEmail).toHaveBeenNthCalledWith(1, expect.objectContaining({
       senderName: "Hartley Road Motors",
@@ -106,6 +120,7 @@ describe("enquiry persistence and notification pipeline", () => {
   it("skips the staff alert for a garage without an email address", async () => {
     const adminClient = {
       from: () => ({
+        select: () => { const chain = { eq: () => chain, maybeSingle: async () => ({ data: null, error: null }) }; return chain; },
         insert: (payload: Record<string, unknown>) => ({ select: () => ({ single: async () => ({ data: { id: `${String(payload.type ?? "row")}-id` }, error: null }) }), then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve) }),
         update: () => { const chain = { eq: () => chain, then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve) }; return chain; },
       }),
@@ -123,5 +138,39 @@ describe("enquiry persistence and notification pipeline", () => {
     });
     expect(sendTransactionalEmail).toHaveBeenCalledTimes(1);
     expect(sendTransactionalEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "customer@example.com" }));
+  });
+
+  it("reuses the garage's customer and vehicle and never deletes them when the enquiry fails", async () => {
+    const events: string[] = [];
+    const adminClient = {
+      from(table: string) {
+        return {
+          select() {
+            const chain = { eq: () => chain, maybeSingle: async () => ({ data: { id: `existing-${table}` }, error: null }) };
+            return chain;
+          },
+          insert(payload: Record<string, unknown>) {
+            events.push(`${table}:insert`);
+            return { select: () => ({ single: async () => ({ data: { id: `${table}-id`, ...payload }, error: null }) }) };
+          },
+          delete() {
+            events.push(`${table}:delete`);
+            const chain = { eq: () => chain, then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve) };
+            return chain;
+          },
+        };
+      },
+    };
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as never);
+    vi.mocked(createInitialEnquiryMessage).mockRejectedValue(new Error("thread failed"));
+
+    await expect(createEnquiry(garage, {
+      type: "repair",
+      contact: { name: "Returning Customer", email: "customer@example.com", phone: "+44 7700 900123", preferredContact: "phone" },
+      vehicle: { registration: "YD19KXT" },
+      description: "Grinding noise from the front brakes.",
+      turnstileToken: "test-token",
+    })).rejects.toThrow("Could not create the enquiry conversation");
+    expect(events).toEqual(["enquiries:insert", "enquiries:delete"]);
   });
 });

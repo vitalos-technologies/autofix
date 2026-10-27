@@ -219,25 +219,31 @@ class GarageRows {
     model: `Garage ${this.key}`,
   }, "id")).id));
 
-  catalogueSystem = () => this.once("catalogueSystem", async () => String((await this.insert("service_catalogue_systems", {
-    system_key: "tenancy-probe",
-    display_name: `Tenancy probe ${this.key}`,
+  resource = () => this.once("resource", async () => String((await this.insert("resources", {
+    name: `Tenancy bay ${this.key}`,
+    kind: "bay",
+    sort: 1,
   }, "id")).id));
 
-  bookingService = () => this.once("bookingService", async () => String((await this.insert("booking_service_types", {
-    system_id: await this.catalogueSystem(),
-    service_key: "tenancy-probe",
-    display_name: `Tenancy probe ${this.key}`,
-    location_mode: "workshop",
+  service = () => this.once("service", async () => String((await this.insert("services", {
+    name: `Tenancy probe ${this.key}`,
+    duration_min: 60,
+    buffer_min: 15,
+    price_pence: 4500,
+    price_mode: "fixed",
   }, "id")).id));
 
+  /** A booking written directly by the service role (create_booking() is covered by pgTAP 012). */
   booking = () => this.once("booking", async () => String((await this.insert("bookings", {
     customer_id: await this.customer(),
     vehicle_id: await this.vehicle(),
-    service_type_id: await this.bookingService(),
-    service_name: `Tenancy probe ${this.key}`,
-    appointment_start: "2096-04-01T09:00:00.000Z",
-    original_appointment_start: "2096-04-01T09:00:00.000Z",
+    service_id: await this.service(),
+    resource_id: await this.resource(),
+    starts_at: "2096-04-02T09:00:00.000Z",
+    ends_at: "2096-04-02T10:00:00.000Z",
+    during: "[2096-04-02T09:00:00.000Z,2096-04-02T10:15:00.000Z)",
+    status: "confirmed",
+    source: "phone",
   }, "id")).id));
 
   enquiry = () => this.once("enquiry", async () => String((await this.insert("enquiries", {
@@ -319,8 +325,21 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { status: "failed" },
   },
-  booking_service_types: { create: (rows) => rows.bookingService(), patch: { display_name: "Tampered" } },
+  booking_events: {
+    create: async (rows) => rows.insert("booking_events", {
+      booking_id: await rows.booking(),
+      type: "note",
+      actor: "staff",
+      actor_id: rows.ownerId,
+      data: { text: `Tenancy probe ${rows.key}` },
+    }),
+    patch: { data: { tampered: true } },
+  },
   bookings: { create: (rows) => rows.booking(), patch: { notes: "Tampered" } },
+  closures: {
+    create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
+    patch: { reason: "Tampered" },
+  },
   customers: { create: (rows) => rows.customer(), patch: { name: "Tampered" } },
   enquiries: { create: (rows) => rows.enquiry(), patch: { description: "Tampered" } },
   enquiry_attachments: {
@@ -369,6 +388,10 @@ const FIXTURES: Record<string, Fixture> = {
     create: (rows) => rows.insert("offers", { title: `Probe offer ${rows.key}`, description: "Tenancy probe" }),
     patch: { title: "Tampered" },
   },
+  opening_hours: {
+    create: (rows) => rows.insert("opening_hours", { weekday: 1, opens: "08:00", closes: "17:30" }),
+    patch: { closes: "18:00" },
+  },
   reviews: {
     create: (rows) => rows.insert("reviews", {
       provider_review_id: `tenancy-${rows.key}-${localRunId}`,
@@ -379,7 +402,8 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { text: "Tampered" },
   },
-  service_catalogue_systems: { create: (rows) => rows.catalogueSystem(), patch: { display_name: "Tampered" } },
+  resources: { create: (rows) => rows.resource(), patch: { name: "Tampered" } },
+  services: { create: (rows) => rows.service(), patch: { name: "Tampered" } },
   service_prices: {
     create: (rows) => rows.insert("service_prices", { service_slug: "tenancy-probe", minimum: 1000, maximum: 2000, label: `Probe ${rows.key}` }),
     patch: { label: "Tampered" },

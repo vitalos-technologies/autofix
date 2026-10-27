@@ -5,6 +5,7 @@ import { garageEmailBrand } from "@/lib/email/brand";
 import { isValidEmailAddress } from "@/lib/email/identity";
 import { getResendConfig, sendTransactionalEmail } from "@/lib/email/resend";
 import { renderBusinessEnquiryNotification, renderEnquiryReceived } from "@/lib/email/templates/enquiries";
+import { toE164UK } from "@/lib/messaging/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { Garage } from "@/lib/tenancy/garage";
 import { createInitialEnquiryMessage, getEnquiryReplyAddress } from "./thread-repository";
@@ -14,6 +15,37 @@ import type { EnquiryRequest } from "./schema";
 // every insert carries that garage_id and every read is filtered by it.
 
 type NotificationInput = Omit<EnquiryRequest, "turnstileToken">;
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
+
+/**
+ * The garage's row with this key (customers by E.164 phone, vehicles by
+ * normalised registration: both unique per garage), or a new one. `created`
+ * says whether this request made it, so a failed enquiry only removes rows it
+ * added.
+ */
+async function findOrCreateRow(
+  admin: AdminClient,
+  table: "customers" | "vehicles",
+  garageId: string,
+  key: { column: "phone" | "registration"; value: string },
+  values: Record<string, unknown>,
+): Promise<{ id: string; created: boolean }> {
+  const find = async () => {
+    const { data, error } = await admin.from(table).select("id").eq("garage_id", garageId).eq(key.column, key.value).maybeSingle();
+    if (error) throw new Error(`Could not look up ${table}`);
+    return (data?.id as string | undefined) ?? null;
+  };
+  const existing = await find();
+  if (existing) return { id: existing, created: false };
+  const { data, error } = await admin.from(table).insert({ garage_id: garageId, [key.column]: key.value, ...values }).select("id").single();
+  if (!error && data) return { id: data.id as string, created: true };
+  // Another request created it first.
+  if (error?.code === "23505") {
+    const raced = await find();
+    if (raced) return { id: raced, created: false };
+  }
+  throw new Error(`Could not save ${table}`);
+}
 
 export async function createEnquiry(garage: Garage, input: EnquiryRequest) {
   const admin = createAdminClient();
@@ -22,34 +54,30 @@ export async function createEnquiry(garage: Garage, input: EnquiryRequest) {
     return { id: randomUUID(), persisted: false, notificationStatus: "skipped" as const };
   }
 
-  const { data: customer, error: customerError } = await admin.from("customers").insert({
-    garage_id: garage.id,
+  const phone = toE164UK(input.contact.phone, { allowLandline: true });
+  if (!phone) throw new Error("Could not save customer details");
+  const customer = await findOrCreateRow(admin, "customers", garage.id, { column: "phone", value: phone }, {
     name: input.contact.name,
     email: input.contact.email || null,
-    phone: input.contact.phone,
     preferred_contact: input.contact.preferredContact,
-  }).select("id").single();
-  if (customerError) throw new Error("Could not save customer details");
+  });
 
-  let vehicleId: string | null = null;
+  let vehicle: { id: string; created: boolean } | null = null;
   if (input.vehicle) {
-    const { data: vehicle, error } = await admin.from("vehicles").insert({
-      garage_id: garage.id,
+    vehicle = await findOrCreateRow(admin, "vehicles", garage.id, { column: "registration", value: input.vehicle.registration }, {
       customer_id: customer.id,
-      registration: input.vehicle.registration,
       make: input.vehicle.make || null,
       model: input.vehicle.model || null,
       derivative: input.vehicle.derivative || null,
       year: input.vehicle.year || null,
       colour: input.vehicle.colour || null,
-      fuel_type: input.vehicle.fuelType || null,
+      fuel: input.vehicle.fuelType || null,
       transmission: input.vehicle.transmission || null,
       engine_capacity_cc: input.vehicle.engineCapacityCc || null,
       body_type: input.vehicle.bodyType || null,
-    }).select("id").single();
-    if (error) throw new Error("Could not save vehicle details");
-    vehicleId = vehicle.id;
+    });
   }
+  const vehicleId = vehicle?.id ?? null;
 
   const { data: enquiry, error: enquiryError } = await admin.from("enquiries").insert({
     garage_id: garage.id,
@@ -67,8 +95,9 @@ export async function createEnquiry(garage: Garage, input: EnquiryRequest) {
     await createInitialEnquiryMessage(garage, enquiry.id, { type: input.type, customerName: input.contact.name, customerEmail: input.contact.email, description: input.description });
   } catch {
     await admin.from("enquiries").delete().eq("garage_id", garage.id).eq("id", enquiry.id);
-    if (vehicleId) await admin.from("vehicles").delete().eq("garage_id", garage.id).eq("id", vehicleId);
-    await admin.from("customers").delete().eq("garage_id", garage.id).eq("id", customer.id);
+    // Only rows this request created; an existing customer or vehicle stays.
+    if (vehicle?.created) await admin.from("vehicles").delete().eq("garage_id", garage.id).eq("id", vehicle.id);
+    if (customer.created) await admin.from("customers").delete().eq("garage_id", garage.id).eq("id", customer.id);
     throw new Error("Could not create the enquiry conversation");
   }
 
@@ -137,14 +166,14 @@ type RetryRow = {
   location_postcode: string | null;
   driveable: boolean | null;
   customers: { name: string; email: string | null; phone: string; preferred_contact: NotificationInput["contact"]["preferredContact"] } | null;
-  vehicles: { registration: string | null; make: string | null; model: string | null; derivative: string | null; year: number | null; colour: string | null; fuel_type: string | null; transmission: string | null; engine_capacity_cc: number | null; body_type: string | null } | null;
+  vehicles: { registration: string | null; make: string | null; model: string | null; derivative: string | null; year: number | null; colour: string | null; fuel: string | null; transmission: string | null; engine_capacity_cc: number | null; body_type: string | null } | null;
 };
 
 /** Admin retry for one enquiry of the admin's selected garage. */
 export async function retryEnquiryNotifications(garage: Garage, enquiryId: string) {
   const admin = createAdminClient();
   if (!admin) throw new Error("Notification service is not configured");
-  const { data, error } = await admin.from("enquiries").select("id,type,service_slug,description,location_postcode,driveable,customers(name,email,phone,preferred_contact),vehicles(registration,make,model,derivative,year,colour,fuel_type,transmission,engine_capacity_cc,body_type)").eq("garage_id", garage.id).eq("id", enquiryId).single();
+  const { data, error } = await admin.from("enquiries").select("id,type,service_slug,description,location_postcode,driveable,customers(name,email,phone,preferred_contact),vehicles(registration,make,model,derivative,year,colour,fuel,transmission,engine_capacity_cc,body_type)").eq("garage_id", garage.id).eq("id", enquiryId).single();
   if (error || !data) throw new Error("Enquiry could not be loaded");
   const row = data as unknown as RetryRow;
   if (!row.customers) throw new Error("Customer details are unavailable");
@@ -163,7 +192,7 @@ export async function retryEnquiryNotifications(garage: Garage, enquiryId: strin
       derivative: row.vehicles.derivative || undefined,
       year: row.vehicles.year || undefined,
       colour: row.vehicles.colour || undefined,
-      fuelType: row.vehicles.fuel_type || undefined,
+      fuelType: row.vehicles.fuel || undefined,
       transmission: row.vehicles.transmission || undefined,
       engineCapacityCc: row.vehicles.engine_capacity_cc || undefined,
       bodyType: row.vehicles.body_type || undefined,

@@ -23,14 +23,14 @@ select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), true, 
 select is(public.consume_rate_limit('pgtap-lint-repair', 'pgtap', 2, 60), false, 'request above the limit is rejected');
 
 select matches(
-  pg_get_functiondef('public.create_booking_intent(uuid,uuid,text,text,text,text,text,text,integer,text,text,text,uuid,text,text,text,jsonb,jsonb,text,text,text,text,timestamptz,text)'::regprocedure),
-  'service\.display_name = p_service_name',
-  'booking intent validates the caller-supplied service name'
+  pg_get_functiondef('public.seed_garage_defaults(uuid)'::regprocedure),
+  'where garage\.id = p_garage_id for update',
+  'garage defaults lock the garage they are given'
 );
 select matches(
-  pg_get_functiondef('public.create_booking_intent(uuid,uuid,text,text,text,text,text,text,integer,text,text,text,uuid,text,text,text,jsonb,jsonb,text,text,text,text,timestamptz,text)'::regprocedure),
-  'service\.garage_id = p_garage_id',
-  'booking intent only uses the garage''s own services'
+  pg_get_functiondef('public.seed_garage_defaults(uuid)'::regprocedure),
+  'where hours\.garage_id = p_garage_id',
+  'garage defaults only look at that garage''s rows'
 );
 select matches(
   pg_get_functiondef('public.get_invoice_dashboard_without_payments(text,text,date,integer,integer)'::regprocedure),

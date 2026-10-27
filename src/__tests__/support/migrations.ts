@@ -12,6 +12,9 @@ export const baselineMigration = readFileSync(join(directory, "20261026000000_ba
 /** Garages, garage_id on every tenant table and garage-scoped RLS (P1.4, P1.5). */
 export const tenancyMigration = readFileSync(join(directory, "20261026000100_tenancy.sql"), "utf8");
 
+/** Scheduling engine: resources, services, bookings with no_overlap, available_slots(), create_booking() (P2.1-P2.3). */
+export const schedulingMigration = readFileSync(join(directory, "20261027000100_scheduling.sql"), "utf8");
+
 /** All migrations concatenated, for checks that must hold across the whole history. */
 export const allMigrations = migrationFiles.map((file) => readFileSync(join(directory, file), "utf8")).join("\n");
 

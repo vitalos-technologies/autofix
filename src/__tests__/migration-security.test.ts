@@ -4,10 +4,14 @@ import {
   baselineMigration,
   functionDefinition,
   migrationFiles,
+  schedulingMigration,
   sqlStatements,
   tenancyMigration,
 } from "./support/migrations";
 
+// Tables the tenancy migration (P1.4) scoped by garage. booking_service_types,
+// service_catalogue_systems and provider_webhook_events were dropped again by
+// the scheduling migration (asserted below).
 const tenantTables = [
   "customers", "vehicles", "bookings", "booking_service_types", "service_catalogue_systems", "booking_audit_log",
   "booking_notification_events", "enquiries", "enquiry_attachments", "enquiry_conversations", "enquiry_messages",
@@ -36,6 +40,15 @@ const serviceRoleFunctions = [
   "fail_invoice_email_send(uuid, bigint, uuid, text, boolean, text)",
 ];
 const tenancyStatements = sqlStatements(tenancyMigration);
+const schedulingStatements = sqlStatements(schedulingMigration);
+const schedulingTables = ["resources", "opening_hours", "closures", "services", "bookings", "booking_events"];
+const engineFunctions = [
+  "seed_garage_defaults(uuid)",
+];
+const internalEngineFunctions = [
+  "maintain_booking_cancellation()",
+  "log_booking_status_change()",
+];
 
 describe("Supabase migration security invariants", () => {
   it("starts from one SOB baseline followed by the tenancy migration", () => {
@@ -127,5 +140,85 @@ describe("Supabase migration security invariants", () => {
     expect(tenancyMigration).toContain("where booking_id is not null");
     expect(functionDefinition(tenancyMigration, "create_booking_enquiry_thread")).toContain("security invoker");
     expect(tenancyMigration).toContain("grant execute on function public.create_booking_enquiry_thread(uuid, uuid, uuid) to service_role;");
+  });
+});
+
+describe("scheduling migration invariants (P2.1-P2.3)", () => {
+  it("follows the tenancy migrations", () => {
+    expect(migrationFiles.slice(0, 4)).toEqual([
+      "20261026000000_baseline.sql",
+      "20261026000100_tenancy.sql",
+      "20261026000200_tenancy_test_support.sql",
+      "20261027000100_scheduling.sql",
+    ]);
+    expect(schedulingMigration).toMatch(/^-- Autofix scheduling engine[\s\S]*-- Rollback notes/);
+  });
+
+  it("guards bookings with the no_overlap exclusion constraint", () => {
+    expect(schedulingMigration).toContain("create extension if not exists btree_gist with schema extensions;");
+    expect(schedulingMigration).toContain(
+      "constraint no_overlap exclude using gist (resource_id with =, during with &&)\n    where (status not in ('cancelled', 'no_show'))",
+    );
+    expect(schedulingMigration).toContain("  during tstzrange not null,");
+  });
+
+  it.each(schedulingTables)("creates %s as a garage-scoped tenant table with RLS and documented policies", (table) => {
+    expect(schedulingMigration).toMatch(new RegExp(
+      `create table public\\.${table} \\(\\n  id uuid primary key default gen_random_uuid\\(\\),\\n  garage_id uuid not null default public\\.current_garage_id\\(\\) references public\\.garages\\(id\\) on delete cascade,`,
+    ));
+    expect(schedulingMigration).toContain(`alter table public.${table} enable row level security;`);
+    expect(schedulingMigration, table).toMatch(new RegExp(`\\n-- ${table}\\n--   "`));
+    const policies = schedulingStatements.filter((statement) => statement.startsWith("create policy") && statement.includes(` on public.${table}\n`));
+    expect(policies.length).toBeGreaterThan(0);
+    for (const policy of policies) {
+      expect(policy).toContain("to authenticated");
+      expect(policy).toContain("(select public.current_garage_id())");
+    }
+  });
+
+  it("drops the Cal.com leftovers", () => {
+    for (const statement of [
+      "drop function public.create_booking_intent(",
+      "drop table public.bookings;",
+      "drop table public.booking_service_types;",
+      "drop table public.service_catalogue_systems;",
+      "drop table public.provider_webhook_events;",
+      "drop type public.booking_status;",
+    ]) expect(schedulingMigration).toContain(statement);
+    const createdBookings = schedulingMigration.slice(schedulingMigration.indexOf("create table public.bookings ("));
+    expect(createdBookings.slice(0, createdBookings.indexOf("\n);"))).not.toMatch(/provider_|booking_reference|appointment_start|service_type_id/);
+  });
+
+  it.each(engineFunctions)("keeps %s service-role only", (signature) => {
+    expect(schedulingMigration).toContain(`revoke all on function public.${signature} from public, anon, authenticated;`);
+    const grants = schedulingStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`));
+    expect(grants).toEqual([`grant execute on function public.${signature} to service_role`]);
+  });
+
+  it.each(internalEngineFunctions)("grants %s to no API role", (signature) => {
+    expect(schedulingMigration).toContain(`revoke all on function public.${signature} from public, anon, authenticated, service_role;`);
+    expect(schedulingStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`))).toEqual([]);
+  });
+
+  it("runs the engine as security definer with an empty search_path", () => {
+    for (const name of ["seed_garage_defaults"]) {
+      expect(functionDefinition(schedulingMigration, name), name).toMatch(/\nsecurity definer\nset search_path = ''\n/);
+    }
+  });
+
+  it("lets staff change only booking status and notes, never create bookings", () => {
+    expect(schedulingMigration).toContain("grant update (status, notes, admin_seen_at, cancellation_reason) on public.bookings to authenticated;");
+    const staffBookingGrants = schedulingStatements.filter((statement) => /^grant [^;]* on public\.bookings to authenticated/.test(statement));
+    expect(staffBookingGrants.map((statement) => statement.replace(/\s+/g, " "))).toEqual([
+      "grant select on public.bookings to authenticated",
+      "grant update (status, notes, admin_seen_at, cancellation_reason) on public.bookings to authenticated",
+    ]);
+  });
+
+  it("gives anon nothing", () => {
+    const grants = schedulingStatements.filter((statement) => /^grant /i.test(statement));
+    expect(grants.filter((statement) => /\b(anon|public)\b(?!\.)/.test(statement.replace(/public\.\w+/g, "")))).toEqual([]);
+    const policies = schedulingStatements.filter((statement) => /^create policy/i.test(statement));
+    expect(policies.filter((statement) => /\bto (anon|public)\b/i.test(statement))).toEqual([]);
   });
 });
