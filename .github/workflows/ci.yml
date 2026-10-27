@@ -170,6 +170,8 @@ jobs:
         run: pnpm test:e2e:booking
       - name: Manage booking on the seeded garage host (390px)
         run: pnpm test:e2e:manage
+      - name: Setup pages for a TOTP owner on its own garage, checked on its booking site (axe at 390 and 1440)
+        run: pnpm test:e2e:settings
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports

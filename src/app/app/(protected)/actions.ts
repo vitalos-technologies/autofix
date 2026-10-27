@@ -7,7 +7,6 @@ import { z } from "zod";
 import { recordAdminAudit } from "@/lib/admin/audit";
 import { retryEnquiryNotifications } from "@/lib/enquiries/repository";
 import { addInternalNote, markEnquiryThreadRead, sendEnquiryReply, type ReplyState } from "@/lib/enquiries/thread-repository";
-import { formatOpeningHours } from "@/lib/settings/opening-hours";
 import { safeAdminReturnTo } from "@/lib/auth/mfa";
 import { toE164UK } from "@/lib/messaging/phone";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -117,7 +116,8 @@ const settingsSchema = z.object({
 
 /**
  * Saves the selected garage's profile (owners only, enforced by RLS) and its
- * opening-hours text. The garage is the admin's selected garage, never a form field.
+ * map link. Opening hours live in `opening_hours` (Setup → Opening hours, P3.4).
+ * The garage is the admin's selected garage, never a form field.
  */
 export async function saveSettings(formData: FormData) {
   const { auth, client } = await requireAdmin();
@@ -140,11 +140,6 @@ export async function saveSettings(formData: FormData) {
   const whatsapp = parsed.data.whatsapp ? toE164UK(parsed.data.whatsapp) : null;
   if ((parsed.data.phone && !phone) || (parsed.data.whatsapp && !whatsapp)) redirect("/app/settings?error=phone");
 
-  const openingHours = Object.fromEntries(
-    ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "bankHolidays"]
-      .map((day) => [day, formatOpeningHours(formData.get(`${day}Open`), formData.get(`${day}Close`))] as const)
-      .filter(([, hours]) => hours.length > 0),
-  );
   const address = Object.fromEntries(
     Object.entries({ line1: parsed.data.line1, line2: parsed.data.line2, town: parsed.data.town, postcode: parsed.data.postcode }).filter(([, value]) => value),
   );
@@ -161,7 +156,7 @@ export async function saveSettings(formData: FormData) {
   if (garageError || !updated) redirect("/app/settings?error=save_failed");
 
   const { error: settingsError } = await client.from("site_settings").upsert(
-    { garage_id: auth.garage.id, value: { openingHours, googleMapsUrl: parsed.data.googleMapsUrl || "" }, updated_by: auth.user.id },
+    { garage_id: auth.garage.id, value: { googleMapsUrl: parsed.data.googleMapsUrl || "" }, updated_by: auth.user.id },
     { onConflict: "garage_id" },
   );
   if (settingsError) redirect("/app/settings?error=save_failed");

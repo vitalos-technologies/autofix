@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { manageBookingUrl } from "@/lib/booking-engine/manage";
 import type { BookingNotice } from "@/lib/booking-engine/notify";
+import { unsubscribeUrl } from "@/lib/consent/unsubscribe-token";
 import { garageEmailBrand } from "@/lib/email/brand";
 import { isValidEmailAddress } from "@/lib/email/identity";
 import { sendTransactionalEmail } from "@/lib/email/resend";
@@ -12,6 +13,7 @@ import { getChannel } from "@/lib/messaging/channel";
 import { getMessagingMode, type MessagingEnv } from "@/lib/messaging/config";
 import { resendIdempotencyKey } from "@/lib/messaging/email";
 import { isE164 } from "@/lib/messaging/phone";
+import { isValidAlphanumericSenderId } from "@/lib/messaging/results";
 import { DEFAULT_TEMPLATES, renderTemplate } from "@/lib/messaging/templates";
 import { createAdminClient } from "@/lib/supabase/server";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
@@ -39,7 +41,8 @@ export type EmailMessage = {
   attachments?: Array<{ filename: string; content: Buffer }>;
 };
 
-export type TextMessage = { channel: "sms" | "whatsapp"; to: string; body: string };
+/** `senderId`: an alphanumeric SMS sender; the body then ends with the unsubscribe link instead of "Reply STOP" (A13). */
+export type TextMessage = { channel: "sms" | "whatsapp"; to: string; body: string; senderId?: string };
 
 export type ComposedBookingNotifications = {
   kind: BookingEmailType;
@@ -119,7 +122,16 @@ function staffSubjectFor(kind: BookingEmailType, reference: string) {
 export function composeBookingNotifications(
   context: BookingNotificationContext,
   event: BookingNotificationEvent,
-  options: { previousStartsAt?: string; now?: Date } = {},
+  options: {
+    previousStartsAt?: string;
+    now?: Date;
+    /**
+     * Send the SMS from this alphanumeric sender (DECISIONS A13: booking updates
+     * only). Unset today (A41: booking texts use the two-way number); without a
+     * signed unsubscribe link the two-way number is used instead.
+     */
+    smsSenderId?: string | null;
+  } = {},
 ): ComposedBookingNotifications {
   const { garage, booking, customer, service } = context;
   const kind = bookingEmailKind(booking.status, event);
@@ -129,6 +141,7 @@ export function composeBookingNotifications(
   const appointment = appointmentParts(booking.startsAt, booking.endsAt, timeZone);
   const vehicle = [formatRegistration(context.vehicle.registration), [context.vehicle.make, context.vehicle.model].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
   const manageUrl = manageBookingUrl(garage, context.manageToken);
+  const optOutUrl = unsubscribeUrl(garage, customer.id) ?? undefined;
   const cancelled = kind === "cancelled";
   const durationMs = Date.parse(booking.endsAt) - Date.parse(booking.startsAt);
   const previous = options.previousStartsAt && kind === "rescheduled" ? appointmentParts(options.previousStartsAt, new Date(Date.parse(options.previousStartsAt) + durationMs).toISOString(), timeZone) : null;
@@ -166,6 +179,7 @@ export function composeBookingNotifications(
     googleCalendarUrl: cancelled ? undefined : buildGoogleCalendarUrl(calendarDetails),
     calendarUrl: cancelled ? undefined : bookingCalendarDownloadUrl(garage, booking.reference) ?? undefined,
     manageUrl,
+    unsubscribeUrl: optOutUrl,
   };
 
   const customerEmailAddress = isValidEmailAddress(customer.email) ? customer.email! : null;
@@ -185,6 +199,7 @@ export function composeBookingNotifications(
   else if (!isE164(customer.phone)) textSkipReason = "no_mobile";
   else {
     const channel = customer.channel;
+    const senderId = channel === "sms" && optOutUrl && options.smsSenderId && isValidAlphanumericSenderId(options.smsSenderId) ? options.smsSenderId : undefined;
     const { text } = renderTemplate(BOOKING_TEXT_TEMPLATES[kind], {
       garage: garage.name,
       service: service.name,
@@ -193,8 +208,8 @@ export function composeBookingNotifications(
       reference: booking.reference,
       manage_link: manageUrl,
       link: garageBaseUrl(garage),
-    }, { channel });
-    textMessage = { channel, to: customer.phone!, body: text };
+    }, { channel, optOutLink: senderId ? optOutUrl : undefined });
+    textMessage = { channel, to: customer.phone!, body: text, ...(senderId ? { senderId } : {}) };
   }
 
   return {
@@ -337,8 +352,14 @@ export async function sendBookingNotifications(notice: BookingNotice, options: S
   if (composed.textMessage) {
     const message = composed.textMessage;
     tasks.push(run(message.channel, `:${message.channel}`, async (key) => {
-      // No alphanumeric sender: replies (including STOP) must reach the garage's two-way number (DECISIONS A13).
-      const result = await getChannel(message.channel, env).send({ garageId: context.garage.id, to: message.to, body: message.body, idempotencyKey: key });
+      // Two-way number unless compose chose an alphanumeric sender, whose body then carries the unsubscribe link (DECISIONS A13).
+      const result = await getChannel(message.channel, env).send({
+        garageId: context.garage.id,
+        to: message.to,
+        body: message.body,
+        idempotencyKey: key,
+        ...(message.senderId ? { senderId: message.senderId } : {}),
+      });
       return result.ok ? { ok: true } : { ok: false, code: result.code };
     }));
   } else if (composed.textSkipReason === "opted_out") {

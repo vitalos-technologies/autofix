@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Phone } from "lucide-react";
 import { GarageHeader, StepProgress, stickyActionBarPadding, type GarageHeaderBack } from "@/components/book";
+import { focusRing } from "@/components/book/styles";
 import { formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import type { Garage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
@@ -36,8 +38,25 @@ export function BookingScreen({ garage, step, subtitle, back, withActionBar = tr
       <div className={cn(BOOKING_COLUMN, "flex grow flex-col", withActionBar && stickyActionBarPadding)}>
         {step ? <StepProgress step={step} className="px-5 pt-4" /> : null}
         {children}
+        <BookingFooter />
       </div>
     </div>
+  );
+}
+
+const footerLink = cn("inline-flex min-h-[44px] items-center px-1 text-grey-600 underline underline-offset-2 hover:text-navy-950", focusRing);
+
+/** Every booking page: the garage's privacy notice and the reminder opt-out (docs/autofix/legal/README.md). */
+export function BookingFooter() {
+  return (
+    <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-3 px-5 pt-6 pb-2 text-[13px]">
+      <Link href="/privacy" className={footerLink}>
+        Privacy notice
+      </Link>
+      <Link href="/unsubscribe" className={footerLink}>
+        Stop reminders
+      </Link>
+    </footer>
   );
 }
 

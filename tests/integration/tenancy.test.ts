@@ -25,7 +25,7 @@
  * garage (service role or the proper RPC) and a harmless update probe. Until
  * it has one, this suite fails with "no fixture for table <name>".
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -268,6 +268,18 @@ class GarageRows {
     missed: true,
   }, "id")).id));
 
+  /** An agent API token issued through the service-role function (only a hash is stored). */
+  agentToken = () => this.once("agentToken", async () => {
+    const { data, error } = await service.rpc("issue_agent_token", {
+      p_garage_id: this.garage.id,
+      p_name: `Tenancy agent ${this.key}`,
+      p_scopes: null,
+      p_token_hash: createHash("sha256").update(this.tag("agent-token")).digest("hex"),
+    });
+    if (error || !data) throw new Error(`fixture agent token (garage ${this.key}): ${error?.message ?? "no row returned"}`);
+    return String((data as { id: string }).id);
+  });
+
   enquiry = () => this.once("enquiry", async () => String((await this.insert("enquiries", {
     type: "general",
     customer_id: await this.customer(),
@@ -284,6 +296,21 @@ class GarageRows {
     text_body: `Internal note for garage ${this.key}`,
     delivery_status: "note",
   }, "id")).id));
+
+  /** A customer import through the staff RPCs (P3.11), with one imported row. */
+  customerImport = () => this.once("customerImport", async () => {
+    const importId = String(await this.rpc("start_customer_import", {
+      p_file_name: `${this.tag("import")}.csv`,
+      p_summary: { total_rows: 1, valid_rows: 1 },
+      p_declaration_text: `Tenancy probe declaration ${this.key}`,
+    }));
+    await this.rpc("import_customer_rows", {
+      p_import_id: importId,
+      p_rows: [{ name: `Imported ${this.key}`, phone: this.key === "A" ? "+447700900911" : "+447700900912", email: null, registration: null, consent: true }],
+    });
+    await this.rpc("finish_customer_import", { p_import_id: importId, p_status: "completed" });
+    return importId;
+  });
 
   /** An issued invoice (also creates invoice_items and invoice_number_sequences). */
   issuedInvoice = () => this.once("issuedInvoice", async () => {
@@ -331,6 +358,17 @@ type Fixture = {
 };
 
 const FIXTURES: Record<string, Fixture> = {
+  agent_call_log: {
+    create: async (rows) => rows.insert("agent_call_log", {
+      token_id: await rows.agentToken(),
+      tool: "list_services",
+      outcome: "OK",
+      http_status: 200,
+      latency_ms: 12,
+    }),
+    patch: { outcome: "TAMPERED" },
+  },
+  agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },
@@ -362,6 +400,8 @@ const FIXTURES: Record<string, Fixture> = {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
     patch: { reason: "Tampered" },
   },
+  // Written only by the import RPCs; staff have no update grant, so the probe is refused.
+  customer_imports: { create: (rows) => rows.customerImport(), patch: { file_name: "tampered.csv" } },
   customers: { create: (rows) => rows.customer(), patch: { name: "Tampered" } },
   enquiries: { create: (rows) => rows.enquiry(), patch: { description: "Tampered" } },
   enquiry_attachments: {
@@ -383,6 +423,17 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { subject: "Tampered subject" },
   },
   enquiry_messages: { create: (rows) => rows.enquiryMessage(), patch: { text_body: "Tampered" } },
+  garage_agreements: {
+    create: (rows) => rows.insert("garage_agreements", {
+      kind: "dpa",
+      version: "0.1",
+      text_hash: "a".repeat(64),
+      accepted_by: rows.ownerId,
+      accepted_by_name: `Tenancy owner ${rows.key}`,
+      accepted_by_role: "owner",
+    }),
+    patch: { version: "9.9" },
+  },
   garage_domains: {
     create: async (rows) => {
       await rows.insert("garage_domains", { hostname: `book.${rows.garage.slug}.example`, kind: "custom", status: "pending_dns" });

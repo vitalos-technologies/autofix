@@ -206,7 +206,85 @@ export function getConfiguredVehicleProvider(env: VehicleLookupEnv = process.env
 /** Test hook: drop the memoised provider. */
 export function resetConfiguredVehicleProviderForTests() {
   memo = undefined;
+  enrichmentMemo = undefined;
   motMemo = undefined;
+}
+
+/** What background enrichment needs from a vehicle source: MOT expiry, mileage and basic facts. */
+export type EnrichmentFacts = {
+  motExpiry?: string;
+  lastMileage?: number;
+  make?: string;
+  model?: string;
+  colour?: string;
+  fuel?: string;
+  year?: number;
+};
+
+export type EnrichmentLookup = {
+  source: "mock" | "dvsa" | "dvla";
+  lookup(registration: string): Promise<EnrichmentFacts>;
+};
+
+const KM_PER_MILE = 1.609344;
+let enrichmentMemo: { key: string; lookup: EnrichmentLookup } | undefined;
+
+/**
+ * The free source background enrichment (P3.11) uses, never the paid Vehicle
+ * Data Global: `mock` in mock mode; DVSA MOT History (expiry and mileage)
+ * whenever its credentials are set; otherwise DVLA VES (expiry only) when
+ * configured. Null when none is available. The DVSA client paces itself below
+ * DVSA's rate limit and is reused across calls.
+ */
+export function getConfiguredEnrichmentLookup(env: VehicleLookupEnv = process.env): EnrichmentLookup | null {
+  const readiness = getVehicleLookupReadiness(env);
+  if (readiness.status === "configuration_required") return null;
+  if (readiness.provider === "mock") {
+    return {
+      source: "mock",
+      async lookup(registration) {
+        const vehicle = await mockVehicleProvider.lookup(registration);
+        return { motExpiry: vehicle.motExpiry, make: vehicle.make, model: vehicle.model, fuel: vehicle.fuelType, year: vehicle.year };
+      },
+    };
+  }
+  const dvsa = readDvsa(env).config;
+  const dvla = readDvla(env).config;
+  if (!dvsa && !dvla) return null;
+  const key = createHash("sha256").update(JSON.stringify(["enrichment", dvsa, dvla])).digest("hex");
+  if (enrichmentMemo?.key === key) return enrichmentMemo.lookup;
+
+  let lookup: EnrichmentLookup;
+  if (dvsa) {
+    const client = new DvsaMotHistoryClient(dvsa);
+    lookup = {
+      source: "dvsa",
+      async lookup(registration) {
+        const vehicle = await client.getMotHistory(registration);
+        const mileage = vehicle.mot.lastMileage;
+        return {
+          motExpiry: vehicle.mot.motExpiry,
+          lastMileage: mileage === undefined ? undefined : Math.round(vehicle.mot.mileageUnit === "km" ? mileage / KM_PER_MILE : mileage),
+          make: vehicle.make,
+          model: vehicle.model,
+          colour: vehicle.colour,
+          fuel: vehicle.fuelType,
+          year: vehicle.year,
+        };
+      },
+    };
+  } else {
+    const provider = new DvlaProvider(dvla!);
+    lookup = {
+      source: "dvla",
+      async lookup(registration) {
+        const vehicle = await provider.lookup(registration);
+        return { motExpiry: vehicle.motExpiry, make: vehicle.make, colour: vehicle.colour, fuel: vehicle.fuelType, year: vehicle.year };
+      },
+    };
+  }
+  enrichmentMemo = { key, lookup };
+  return lookup;
 }
 
 // ---------------------------------------------------------------------------------------------

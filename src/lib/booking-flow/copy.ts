@@ -47,15 +47,13 @@ export function postcodeDistrict(postcode: string | null | undefined): string {
 }
 
 /**
- * Whether a postcode is inside the garage's mobile service area (`garages.service_area`: outward
- * codes or areas such as `DN1`, `DN`, `S6`). An empty list means no restriction.
+ * Whether a postcode is inside the garage's mobile service area (`garages.service_area`: postcode
+ * districts such as `DN1`, `S6`). Same rule as `create_booking()`: the district must be listed
+ * exactly, and an empty list means the garage offers no mobile visits.
  */
 export function inServiceArea(postcode: string, serviceArea: readonly string[]): boolean {
-  const areas = serviceArea.map((area) => area.trim().toUpperCase().replace(/\s+/g, "")).filter(Boolean);
-  if (areas.length === 0) return true;
   const district = postcodeDistrict(postcode);
-  const letters = district.replace(/\d.*$/, "");
-  return areas.some((area) => area === district || (/^[A-Z]+$/.test(area) && area === letters));
+  return Boolean(district) && serviceArea.some((area) => area.trim().toUpperCase().replace(/\s+/g, "") === district);
 }
 
 /** "Workshop, DN4" / "Mobile visit, DN1" for the confirmation card. */

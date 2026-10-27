@@ -10,9 +10,12 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
 //                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
+//   pnpm test:e2e:settings settings.spec.ts setup pages (/app/settings/*) for an owner signed in with password +
+//                          TOTP, checked on its own garage's booking site (<slug>.localhost), axe at 390 and 1440
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
+//   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
@@ -56,7 +59,7 @@ export default defineConfig({
       // Production builds refuse to seal the booking cookies or sign manage links without keys. CI generates its
       // own per job; these fallbacks are for local runs only and are not secrets.
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
-      // tests/helpers/booking-fixtures.ts derives link tokens with the same value.
+      // tests/helpers/booking-fixtures.ts and tests/e2e/legal.spec.ts derive link tokens with the same value.
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
@@ -78,5 +81,8 @@ export default defineConfig({
       testMatch: "manage.spec.ts",
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
     },
+    // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
+    { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

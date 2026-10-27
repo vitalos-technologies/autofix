@@ -44,7 +44,10 @@ function header(brand: EmailBrand) {
   return `<span style="display:inline-block;color:#FFFFFF;font-size:22px;font-weight:700;line-height:28px;letter-spacing:.3px;">${escapeHtml(brand.name)}</span>`;
 }
 
-function footerHtml(brand: EmailBrand) {
+/** Links under the garage's details in the footer (privacy notice, stop reminders). */
+export type FooterLink = { label: string; url: string };
+
+function footerHtml(brand: EmailBrand, links: FooterLink[] = []) {
   const contact = [
     brand.phone && brand.phoneHref ? `<a href="${escapeHtml(brand.phoneHref)}" style="color:#9CCBFF;text-decoration:none;">${escapeHtml(brand.phone)}</a>` : "",
     brand.email ? `<a href="mailto:${escapeHtml(brand.email)}" style="color:#9CCBFF;text-decoration:none;">${escapeHtml(brand.email)}</a>` : "",
@@ -56,6 +59,7 @@ function footerHtml(brand: EmailBrand) {
     `<a href="${escapeHtml(brand.baseUrl)}" style="color:#9CCBFF;text-decoration:none;">${escapeHtml(brand.website)}</a>`,
     brand.address ? escapeHtml(brand.address) : "",
     brand.companyNumber ? `Company no. ${escapeHtml(brand.companyNumber)}` : "",
+    links.length ? links.map((link) => `<a href="${escapeHtml(link.url)}" style="color:#9CCBFF;text-decoration:underline;">${escapeHtml(link.label)}</a>`).join(" &nbsp;&middot;&nbsp; ") : "",
     `<span style="color:#B8C6D6;">${escapeHtml(onBehalfLine(brand))}</span>`,
   ].filter(Boolean).join("<br>");
 }
@@ -72,6 +76,7 @@ export function emailLayout(input: {
   secondaryCtas?: Array<{ label: string; url: string }>;
   afterCta?: string;
   compact?: boolean;
+  footerLinks?: FooterLink[];
 }) {
   const { brand } = input;
   const accent = escapeHtml(brand.accent);
@@ -100,7 +105,7 @@ export function emailLayout(input: {
 ${intro}${input.contentHtml}${button}${secondaryButtons}${afterCta}
 </td></tr>
 <tr><td class="email-footer" style="padding:27px 32px;background:#071127;color:#DCE6F2;text-align:center;font-size:12px;line-height:19px;">
-${footerHtml(brand)}
+${footerHtml(brand, input.footerLinks)}
 </td></tr></table></td></tr></table></body></html>`;
 }
 
@@ -109,7 +114,7 @@ export function plainTextHeader(brand: Pick<EmailBrand, "name">) {
   return brand.name.toUpperCase();
 }
 
-export function plainTextFooter(brand: EmailBrand) {
+export function plainTextFooter(brand: EmailBrand, links: FooterLink[] = []) {
   return [
     "",
     brand.legalName,
@@ -117,6 +122,7 @@ export function plainTextFooter(brand: EmailBrand) {
     [brand.phone, brand.email].filter(Boolean).join(" · "),
     brand.website,
     brand.address,
+    ...links.map((link) => `${link.label}: ${link.url}`),
     onBehalfLine(brand),
   ].filter((line, index) => index === 0 || line !== "").join("\n");
 }

@@ -314,9 +314,10 @@ insert into public.closures (garage_id, starts_on, ends_on, reason) values
 insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode) values
   ('a1000000-0000-4000-8000-000000000201', 'a1000000-0000-4000-8000-000000000001', 'Diagnostics', 60, 4500, 'from'),
   ('b1000000-0000-4000-8000-000000000201', 'b1000000-0000-4000-8000-000000000001', 'B Diagnostics', 60, 4000, 'fixed');
-insert into public.customers (id, garage_id, name, phone, preferred_contact) values
-  ('a1000000-0000-4000-8000-000000000301', 'a1000000-0000-4000-8000-000000000001', 'Schedule Customer', '+447700900301', 'phone'),
-  ('a1000000-0000-4000-8000-000000000302', 'a1000000-0000-4000-8000-000000000001', 'Lonely Customer', '+447700900303', 'phone');
+-- The lonely customer has had no activity for 25 months (retention, A37).
+insert into public.customers (id, garage_id, name, phone, preferred_contact, created_at, updated_at) values
+  ('a1000000-0000-4000-8000-000000000301', 'a1000000-0000-4000-8000-000000000001', 'Schedule Customer', '+447700900301', 'phone', now(), now()),
+  ('a1000000-0000-4000-8000-000000000302', 'a1000000-0000-4000-8000-000000000001', 'Lonely Customer', '+447700900303', 'phone', now() - interval '25 months', now() - interval '25 months');
 insert into public.vehicles (id, garage_id, customer_id, registration) values
   ('a1000000-0000-4000-8000-000000000401', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000301', 'sg12 abc');
 insert into public.bookings (id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source) values
@@ -571,7 +572,7 @@ reset role;
 set local role service_role;
 select is(
   public.apply_enquiry_retention('a1000000-0000-4000-8000-000000000001'),
-  1, 'retention anonymises the customer with no enquiry, booking or invoice'
+  1, 'retention anonymises the customer with no enquiry, booking, invoice or consent for 24 months'
 );
 reset role;
 select is(
