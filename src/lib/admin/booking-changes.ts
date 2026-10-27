@@ -74,7 +74,8 @@ export async function changeBookingStatus(
     await client.from("bookings").update({ admin_seen_at: (options.now ?? new Date()).toISOString() }).eq("garage_id", garage.id).eq("id", bookingId).is("admin_seen_at", null);
   }
   if (!holdsResource(to)) clearSlotCache(garage.id);
-  if (to === "cancelled") notifyBooking({ type: "cancelled", garageId: garage.id, bookingId });
+  // Queued as a notifications.booking job (P3.7) before the response, as the engine does; never throws.
+  if (to === "cancelled") await notifyBooking({ type: "cancelled", garageId: garage.id, bookingId });
   return { ok: true, from, to };
 }
 
