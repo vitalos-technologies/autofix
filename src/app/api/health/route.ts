@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBookingEnvironmentReadiness, getEnvironmentReadiness } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getVehicleLookupReadiness } from "@/lib/vehicle/configured-provider";
 
 /**
  * Platform readiness for uptime checks. Reports booleans and statuses only:
@@ -8,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/server";
  */
 export async function GET() {
   const readiness = getEnvironmentReadiness();
+  const vehicleLookup = getVehicleLookupReadiness();
   const bookingEnvironment = getBookingEnvironmentReadiness();
   const admin = createAdminClient();
   const supabaseConfigured = Boolean(
@@ -35,6 +37,8 @@ export async function GET() {
         email: readiness.ready ? "operational" : "configuration_required",
         bookingManagement: Boolean(process.env.BOOKING_MANAGEMENT_SECRET) ? "configured" : "configuration_required",
         bookingWebhook: Boolean(process.env.CALCOM_WEBHOOK_SECRET) ? "configured" : "configuration_required",
+        // Source names only; never values or variable names.
+        vehicleLookup: { status: vehicleLookup.status, provider: vehicleLookup.provider, sources: vehicleLookup.sources, cache: vehicleLookup.cache },
       },
       missingIntegrations,
     },

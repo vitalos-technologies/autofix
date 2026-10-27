@@ -77,11 +77,11 @@ Gate 3: **a reminder link produces a booking credited to that reminder end to en
 
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
-| P3.1 | ui | AdminShell (desktop sidebar + phone tab bar), garage switcher for multi-garage users | Matches `Admin-Dashboard.png` / `Admin-Today-Phone.png` |
+| P3.1 | ui | AdminShell (desktop sidebar + phone tab bar), garage switcher for multi-garage users | Matches `Admin-Dashboard.png` / `Admin-Today-Phone.png` — components ready `3dbf7ad` (`src/components/admin-ui`, gallery `/dev/admin-components`); wiring open: drop the root layout `<main>` (AdminShell has its own), delete SOB `src/components/admin/admin-shell.tsx`/`admin-navigation.tsx`, add `/app/more` and `/app/bookings/new` |
 | P3.2 | ui | Today: KPI cards, DiaryGrid by resource, Needs your OK (accept / offer another time / call back), Reminders this week | Live data from seed |
 | P3.3 | ui | Diary (week view, drag to move later), Bookings list + detail with status changes and booking_events timeline | Status changes write `booking_events` |
 | P3.4 | ui | Setup: Services & prices, Opening hours & closures, Resources (bays/vans), Branding (logo, accent with contrast check), MOT on/off | CRUD + validation |
-| P3.5 | integrations | `CompositeProvider`: DVLA VES + DVSA MOT History (OAuth client credentials) + VDG fallback; `vehicle_facts` 24 h cache; mock provider for dev | Provider tests with recorded fixtures |
+| [x] P3.5 | integrations | `CompositeProvider`: DVLA VES + DVSA MOT History (OAuth client credentials) + VDG fallback; `vehicle_facts` 24 h cache; mock provider for dev | Provider tests with recorded fixtures — done `f93b5b5` (`vehicle_facts` table lands with P3.6) |
 | P3.6 | data | Migration `0003_reminders`: `reminder_rules` (seeded defaults on garage create), `reminder_sends`, `messages`, `calls`, `jobs` (+ `claim_jobs(kind, n)` using `for update skip locked`) | Migration |
 | P3.7 | api | Job runner: `/api/cron/[job]` (CRON_SECRET) enqueues; worker route drains with retries + backoff; jobs `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention` | Unit tests per job |
 | P3.8 | integrations | `MessageChannel` interface + Twilio SMS/WhatsApp adapters + status webhook + STOP handling; Resend email adapter; sandbox/mock mode by default | Signature verification tests — library layer done `693cfef` (channels, Twilio adapters, signatures, templates, quiet hours, STOP keywords); webhook routes open |
@@ -98,7 +98,7 @@ Gate 4: **first garage live on its own domain**: `book.<garage>.co.uk` serves it
 | --- | --- | --- | --- |
 | P4.1 | api | Missed calls: `/api/webhooks/twilio/voice` (garage by called number), TwiML message + voicemail, text-back within 60 s, `calls` row, Needs your OK card | Webhook tests |
 | P4.2 | api | Agent tool API `/api/agent/v1/*` (lookup_vehicle, list_services, available_slots, create_booking[requested], get_booking, garage_profile); `agent_tokens` hashed; per-call audit; OpenAPI file `docs/autofix/agent-api.yaml` for Workforce/Askbridge | Contract tests |
-| P4.3 | ui | Booking page & domain settings: free link, connect domain (DNS table, status steps), embed snippets, QR code | Matches `Admin-Domain.png`; drives P1.8 |
+| P4.3 | ui | Booking page & domain settings: free link, connect domain (DNS table, status steps), embed snippets, QR code | Matches `Admin-Domain.png`; drives P1.8 — components ready `3dbf7ad` (DnsRecordTable, DomainStatusSteps, EmbedSnippet); the embed needs `frame-ancestors` per garage instead of the global `X-Frame-Options: SAMEORIGIN` |
 | P4.4 | ui | Sign-up / onboarding: create garage (name, slug, phone, address), pull details from Google Places (SOB has `GOOGLE_PLACES_API_KEY`), seed services/hours/rules, invite staff, MFA enrolment | New garage live on its free link in < 15 min |
 | P4.5 | ui | Super admin `/admin`: garages list, plan, status, impersonate (logged), job queue health | Platform admins only |
 | P4.6 | integrations | Askbridge: embed widget on booking layout; knowledge sync webhook on profile/services/FAQ change | Widget loads without hurting Lighthouse |

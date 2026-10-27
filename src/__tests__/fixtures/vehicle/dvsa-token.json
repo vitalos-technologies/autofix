@@ -1,0 +1,6 @@
+{
+  "token_type": "Bearer",
+  "expires_in": 1199,
+  "ext_expires_in": 1199,
+  "access_token": "fake-dvsa-access-token-for-tests-only"
+}

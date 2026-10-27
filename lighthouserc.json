@@ -1,11 +1,11 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "pnpm start",
+      "startServerCommand": "pnpm start -p 3420",
       "startServerReadyPattern": "Ready",
       "url": [
-        "http://localhost:3000/book",
-        "http://localhost:3000/manage-booking"
+        "http://localhost:3420/book",
+        "http://localhost:3420/manage-booking"
       ],
       "numberOfRuns": 1,
       "settings": {

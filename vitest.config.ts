@@ -16,5 +16,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     maxWorkers: 1,
+    // userEvent-heavy component tests take ~4 s locally and longer on the shared CI VM; 5 s (the default) was too tight.
+    testTimeout: 20_000,
   },
 });
