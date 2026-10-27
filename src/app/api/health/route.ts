@@ -36,7 +36,6 @@ export async function GET() {
         },
         email: readiness.ready ? "operational" : "configuration_required",
         bookingManagement: Boolean(process.env.BOOKING_MANAGEMENT_SECRET) ? "configured" : "configuration_required",
-        bookingWebhook: Boolean(process.env.CALCOM_WEBHOOK_SECRET) ? "configured" : "configuration_required",
         // Source names only; never values or variable names.
         vehicleLookup: { status: vehicleLookup.status, provider: vehicleLookup.provider, sources: vehicleLookup.sources, cache: vehicleLookup.cache },
       },

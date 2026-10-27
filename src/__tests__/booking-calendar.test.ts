@@ -59,9 +59,20 @@ describe("garage booking calendars", () => {
     expect(calendar).toContain("SUMMARY:Vehicle Diagnostics — Hartley Road Motors\r\n");
     expect(calendar).toContain("ORGANIZER;CN=Hartley Road Motors:mailto:bookings@hartleyroad.example\r\n");
     expect(calendar).toContain("ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:customer@example.com\r\n");
-    expect(calendar).toContain("URL:https://hartley-road.autofix.vitalos.co.uk/manage-booking\r\n");
+    expect(calendar).toContain("URL:https://hartley-road.autofix.vitalos.co.uk/manage\r\n");
     expect(calendar).not.toContain("Cal.com");
     expect(calendar).not.toMatch(/SOB|sobautofix/i);
+  });
+
+  it("marks bookings waiting for the garage's OK as tentative and never puts a link token in the file", () => {
+    const calendar = buildBookingCalendar({ ...booking, status: "requested" });
+    expect(calendar).toContain("STATUS:TENTATIVE\r\n");
+    expect(calendar).toContain("METHOD:REQUEST\r\n");
+    expect(calendar).not.toContain("token=");
+  });
+
+  it("omits the attendee line when the customer gave no email address", () => {
+    expect(buildBookingCalendar({ ...booking, customerEmail: null })).not.toContain("ATTENDEE");
   });
 
   it("omits the organiser line for a garage with no email address", () => {
@@ -82,7 +93,7 @@ describe("garage booking calendars", () => {
     expect(url.searchParams.get("dates")).toBe("20260820T083000Z/20260820T093000Z");
     expect(url.searchParams.get("ctz")).toBe("Europe/London");
     expect(url.searchParams.get("details")).toContain("HRM-4821");
-    expect(url.searchParams.get("details")).toContain("https://hartley-road.autofix.vitalos.co.uk/manage-booking");
+    expect(url.searchParams.get("details")).toContain("https://hartley-road.autofix.vitalos.co.uk/manage");
     expect(url.toString()).not.toContain("cal.com");
   });
 

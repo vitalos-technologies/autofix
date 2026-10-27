@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: vi.fn(() => null) }));
-vi.mock("@/lib/bookings/services", () => ({
-  getBookingServiceReadiness: vi.fn(async () => ({ configured: false, mappedServices: 0 })),
-}));
 
 import { GET } from "@/app/api/health/route";
 

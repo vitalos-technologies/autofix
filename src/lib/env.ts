@@ -31,10 +31,9 @@ export const requiredProductionVariables = [
   "CRON_SECRET",
 ] as const;
 
+// The booking engine runs in our own database; it only needs the secret that
+// signs manage links, manage sessions and calendar downloads.
 export const requiredBookingVariables = [
-  "CALCOM_API_KEY",
-  "CALCOM_WEBHOOK_SECRET",
-  "CALCOM_DEFAULT_TIMEZONE",
   "BOOKING_MANAGEMENT_SECRET",
 ] as const;
 

@@ -20,6 +20,7 @@ import {
   formatRelativeTime,
   type HealthState,
 } from "@/lib/admin/dashboard";
+import type { BookingStatus } from "@/lib/booking-engine/types";
 import { emptyInvoiceDashboard, loadInvoiceDashboard, normalizeInvoiceDashboardFilters } from "@/lib/invoices/dashboard";
 import { formatPence } from "@/lib/invoices/money";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -47,10 +48,12 @@ type AuditEntry = {
 
 type BookingSummary = {
   id: string;
-  status: string;
-  appointment_start: string;
-  provider_sync_state: string;
+  status: BookingStatus;
+  starts_at: string;
 };
+
+/** Bookings that still hold their slot and are not finished. */
+const openStatuses = new Set<BookingStatus>(["requested", "confirmed", "arrived", "in_progress", "waiting_parts", "ready"]);
 
 const emptyResult = { data: [], count: 0, error: null };
 
@@ -66,8 +69,8 @@ export default async function DashboardPage() {
         client.from("enquiries").select("id,type,service_slug,status,created_at,customers(name),vehicles(registration,make,model)").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
         client.from("enquiries").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("notification_status", "failed"),
         client.from("admin_audit_log").select("id,actor_id,action,entity_type,entity_id,detail,created_at").order("created_at", { ascending: false }).limit(6),
-        client.from("bookings").select("id,status,appointment_start,provider_sync_state").is("deleted_at", null).order("appointment_start", { ascending: true }).limit(500),
-        client.from("booking_service_types").select("id", { count: "exact", head: true }).not("system_id", "is", null).is("deleted_at", null).eq("online_booking_enabled", true).not("provider_event_type_id", "is", null),
+        client.from("bookings").select("id,status,starts_at").is("deleted_at", null).gte("starts_at", new Date(now.getTime() - 86_400_000).toISOString()).order("starts_at", { ascending: true }).limit(500),
+        client.from("services").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("online_enabled", true),
         admin
           ? loadInvoiceDashboard(admin.client, normalizeInvoiceDashboardFilters({}))
           : { ...emptyInvoiceDashboard, error: new Error("Admin session is unavailable") },
@@ -88,10 +91,11 @@ export default async function DashboardPage() {
   ].some((result) => result.error);
 
   const todayKey = londonDateKey(now);
-  const todayAppointments = bookingRows.filter((booking) => londonDateKey(new Date(booking.appointment_start)) === todayKey && !["cancelled", "completed"].includes(booking.status)).length;
-  const upcomingBookings = bookingRows.filter((booking) => new Date(booking.appointment_start) > now && !["cancelled", "completed"].includes(booking.status)).length;
-  const bookingAttention = bookingRows.filter((booking) => booking.provider_sync_state === "failed").length;
-  const bookingConfigured = Boolean(process.env.CALCOM_API_KEY && process.env.CALCOM_WEBHOOK_SECRET && process.env.BOOKING_MANAGEMENT_SECRET && (bookingServicesResult.count || 0) > 0);
+  const todayAppointments = bookingRows.filter((booking) => londonDateKey(new Date(booking.starts_at)) === todayKey && openStatuses.has(booking.status)).length;
+  const upcomingBookings = bookingRows.filter((booking) => new Date(booking.starts_at) > now && openStatuses.has(booking.status)).length;
+  // Online requests waiting for the garage's OK.
+  const bookingAttention = bookingRows.filter((booking) => booking.status === "requested").length;
+  const bookingConfigured = Boolean(process.env.BOOKING_MANAGEMENT_SECRET && (bookingServicesResult.count || 0) > 0);
 
   const systemHealth = createSystemHealthChecks({
     websiteReady: isWebsiteReady(),
@@ -298,17 +302,17 @@ function BookingPanel({ configured, today, upcoming, attention }: { configured: 
         </span>
         <div>
           <h2 id="appointments-heading" className="text-lg font-bold text-[#071127]">Upcoming appointments</h2>
-          <p className="mt-1 text-sm leading-6 text-[#667586]">Local booking records keep this overview fast and independent of a live provider request.</p>
+          <p className="mt-1 text-sm leading-6 text-[#667586]">Bookings made online, by phone and from reminders, straight from your diary.</p>
         </div>
       </div>
       <div className={cn("mt-5 rounded-xl border p-4 text-sm", configured ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900")}>
         <strong className="block">{configured ? "Online booking is configured" : "Online booking needs configuration"}</strong>
-        <span className="mt-1 block text-xs leading-5">{configured ? "Availability, management security and service mappings are present." : "Add the calendar credentials, webhook secret and at least one verified service mapping."}</span>
+        <span className="mt-1 block text-xs leading-5">{configured ? "Online services and booking management security are in place." : "Switch on at least one online service and set the booking management secret."}</span>
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
         <MiniMetric label="Today" value={today} />
         <MiniMetric label="Upcoming" value={upcoming} />
-        <MiniMetric label="Attention" value={attention} />
+        <MiniMetric label="Needs your OK" value={attention} />
       </dl>
       <Link href="/app/bookings" className="mt-4 inline-flex min-h-10 items-center gap-2 font-bold text-[#1974E2] hover:text-[#1446A5]">
         Manage bookings <ArrowRight size={15} aria-hidden="true" />

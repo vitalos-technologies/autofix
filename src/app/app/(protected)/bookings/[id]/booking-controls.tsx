@@ -4,7 +4,7 @@ import { CalendarClock, LoaderCircle, RefreshCw, TriangleAlert, XCircle } from "
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import type { BookingStatus } from "@/lib/bookings/types";
+import type { BookingStatus } from "@/lib/booking-engine/types";
 import { cn } from "@/lib/utils";
 import {
   cancelAdminBookingAction,
@@ -31,7 +31,7 @@ export function AdminBookingControls({
   const [message, setMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const rescheduleDialog = useRef<HTMLDialogElement>(null);
   const cancelDialog = useRef<HTMLDialogElement>(null);
-  const canModify = status === "pending" || status === "confirmed" || status === "rescheduled";
+  const canModify = status === "requested" || status === "confirmed";
   const slotGroups = useMemo(() => groupSlots(slots), [slots]);
 
   function loadSlots() {
@@ -93,7 +93,7 @@ export function AdminBookingControls({
     return (
       <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 sm:p-6" aria-labelledby="booking-actions-heading">
         <h2 id="booking-actions-heading" className="text-xl font-extrabold text-[#071127]">Booking actions</h2>
-        <p className="mt-2 text-sm leading-6 text-[#667586]">{status === "cancelled" ? "This booking has been cancelled and cannot be changed." : "This appointment is complete and cannot be changed."}</p>
+        <p className="mt-2 text-sm leading-6 text-[#667586]">{status === "cancelled" ? "This booking has been cancelled and cannot be changed." : "This booking is under way or finished, so it can no longer be moved or cancelled here."}</p>
       </section>
     );
   }
@@ -104,7 +104,7 @@ export function AdminBookingControls({
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><CalendarClock size={19} aria-hidden="true" /></span>
         <div>
           <h2 id="booking-actions-heading" className="text-xl font-extrabold text-[#071127]">Booking actions</h2>
-          <p className="mt-1 text-sm leading-6 text-[#667586]">Reschedule or cancel here so the calendar, local record and customer update stay together.</p>
+          <p className="mt-1 text-sm leading-6 text-[#667586]">Reschedule or cancel here so the diary and the customer update stay together.</p>
         </div>
       </div>
 

@@ -13,27 +13,33 @@ import { AdminBulkActions, AdminItemCheckbox } from "@/components/admin/admin-bu
 import { AdminLoadingLink } from "@/components/admin/admin-loading-link";
 import { AdminListFilters, AdminPagination } from "@/components/admin/admin-list-controls";
 import { ADMIN_LIST_PAGE_SIZE, positiveAdminPage } from "@/lib/admin/pagination";
-import type { BookingStatus, ProviderSyncState } from "@/lib/bookings/types";
+import { bookingStatuses, type BookingStatus } from "@/lib/booking-engine/types";
 import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { manageTrashAction } from "../trash/actions";
+import { bookingStatusLabel, bookingStatusTone } from "./status";
+
+// Kept simple until the bookings list is rebuilt (P3.3).
+
+type Related<T> = T | T[] | null;
 
 type AdminBookingListRow = {
   id: string;
-  booking_reference: string;
+  reference: string;
   status: BookingStatus;
-  service_name: string;
   created_at: string;
-  appointment_start: string;
+  starts_at: string;
   location_mode: "workshop" | "mobile" | null;
-  location: string | null;
-  provider_sync_state: ProviderSyncState;
-  customers: { name: string; email: string | null } | Array<{ name: string; email: string | null }> | null;
-  vehicles: { registration: string | null; make: string | null; model: string | null } | Array<{ registration: string | null; make: string | null; model: string | null }> | null;
+  services: Related<{ name: string }>;
+  customers: Related<{ name: string; email: string | null }>;
+  vehicles: Related<{ registration: string | null; make: string | null; model: string | null }>;
 };
 
-const activeStatuses: BookingStatus[] = ["pending", "confirmed", "rescheduled"];
+/** Booked and still to happen. */
+const activeStatuses: BookingStatus[] = ["requested", "confirmed"];
+/** Released statuses do not count towards today's diary. */
+const releasedStatuses: BookingStatus[] = ["cancelled", "no_show"];
 const bookingViews = ["today", "upcoming", "attention", "completed", "cancelled"] as const;
 type BookingView = typeof bookingViews[number];
 const pageSize = ADMIN_LIST_PAGE_SIZE;
@@ -41,7 +47,7 @@ const pageSize = ADMIN_LIST_PAGE_SIZE;
 export default async function AdminBookingsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; view?: string; page?: string }> }) {
   const params = await searchParams;
   const query = (params.q || "").trim();
-  const status = params.status || "";
+  const status = bookingStatuses.includes(params.status as BookingStatus) ? params.status as BookingStatus : "";
   const view = bookingViews.includes(params.view as BookingView) ? params.view as BookingView : "";
   const requestedPage = positiveAdminPage(params.page);
   const client = await getAdminReadClient();
@@ -54,15 +60,15 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   const results = client ? await Promise.all([
     client
       .from("bookings")
-      .select("id,booking_reference,status,service_name,appointment_start,created_at,location_mode,location,provider_sync_state,customers(name,email),vehicles(registration,make,model)")
+      .select("id,reference,status,starts_at,created_at,location_mode,services(name),customers(name,email),vehicles(registration,make,model)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(250),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("appointment_start", todayStart).lt("appointment_start", tomorrowStart).neq("status", "cancelled"),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("appointment_start", now.toISOString()).in("status", activeStatuses),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).or("status.eq.pending,provider_sync_state.in.(pending,failed)"),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "completed"),
+    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("starts_at", todayStart).lt("starts_at", tomorrowStart).not("status", "in", `(${releasedStatuses.join(",")})`),
+    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("starts_at", now.toISOString()).in("status", activeStatuses),
+    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "requested"),
+    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "collected"),
     client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "cancelled"),
   ]) : null;
 
@@ -70,7 +76,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   const filteredBookings = allBookings.filter((booking) => {
     const customer = relation(booking.customers);
     const vehicle = relation(booking.vehicles);
-    const searchable = [booking.booking_reference, booking.service_name, customer?.name, customer?.email, vehicle?.registration, vehicle?.make, vehicle?.model, booking.location].filter(Boolean).join(" ").toLowerCase();
+    const searchable = [booking.reference, relation(booking.services)?.name, customer?.name, customer?.email, vehicle?.registration, vehicle?.make, vehicle?.model].filter(Boolean).join(" ").toLowerCase();
     return (!query || searchable.includes(query.toLowerCase()))
       && (!status || booking.status === status)
       && matchesBookingView(booking, view, now, todayStart, tomorrowStart);
@@ -82,8 +88,8 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   const metrics = [
     { label: "Today", value: results?.[1].count || 0, icon: CalendarCheck2, tone: "blue", view: "today" },
     { label: "Upcoming", value: results?.[2].count || 0, icon: CalendarClock, tone: "navy", view: "upcoming" },
-    { label: "Awaiting action", value: results?.[3].count || 0, icon: AlertTriangle, tone: "amber", view: "attention" },
-    { label: "Completed", value: results?.[4].count || 0, icon: CheckCircle2, tone: "green", view: "completed" },
+    { label: "Needs your OK", value: results?.[3].count || 0, icon: AlertTriangle, tone: "amber", view: "attention" },
+    { label: "Collected", value: results?.[4].count || 0, icon: CheckCircle2, tone: "green", view: "completed" },
     { label: "Cancelled", value: results?.[5].count || 0, icon: CircleX, tone: "red", view: "cancelled" },
   ] as const;
 
@@ -97,11 +103,11 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
           <div>
             <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Garage appointments</p>
             <h1 className="mt-1 text-4xl font-extrabold text-[#071127]">Bookings</h1>
-            <p className="mt-2 max-w-2xl text-[#667586]">Review appointment details, calendar sync and bookings that need attention.</p>
+            <p className="mt-2 max-w-2xl text-[#667586]">Review appointment details and the bookings that need your OK.</p>
           </div>
         </div>
         <Link href="/app/service-catalogue" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C9D5E2] bg-white px-4 text-sm font-extrabold text-[#1446A5] transition hover:border-[#1974E2] hover:bg-[#F1F7FF]">
-          <Settings2 size={17} aria-hidden="true" /> Service catalogue
+          <Settings2 size={17} aria-hidden="true" /> Services
         </Link>
       </div>
 
@@ -125,7 +131,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
         })}
       </section>
 
-      <AdminListFilters action="/app/bookings" query={query} status={status} additionalParams={{ view }} placeholder="Reference, customer, vehicle or service…" statusOptions={[{ value: "pending", label: "Pending" }, { value: "confirmed", label: "Confirmed" }, { value: "rescheduled", label: "Rescheduled" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} />
+      <AdminListFilters action="/app/bookings" query={query} status={status} additionalParams={{ view }} placeholder="Reference, customer, vehicle or service…" statusOptions={bookingStatuses.map((value) => ({ value, label: bookingStatusLabel(value) }))} />
 
       <AdminBulkActions entity="bookings" action={manageTrashAction}>
       <section className="mt-8" aria-labelledby="booking-list-heading">
@@ -161,12 +167,12 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
                 const vehicle = relation(booking.vehicles);
                 const bookedAt = formatBookedAt(booking.created_at);
                 return (
-                  <tr key={booking.id} className={cn("border-t border-[#E4EAF0] align-top transition hover:bg-[#F8FAFC]", booking.provider_sync_state === "failed" && "bg-amber-50/60")}>
-                    <td className="py-2 pl-2"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.booking_reference}`} /></td>
-                    <td className="py-4 pl-2 pr-2 font-mono text-sm font-black text-[#1974E2]">{booking.booking_reference}</td>
+                  <tr key={booking.id} className={cn("border-t border-[#E4EAF0] align-top transition hover:bg-[#F8FAFC]", booking.status === "requested" && "bg-amber-50/60")}>
+                    <td className="py-2 pl-2"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} /></td>
+                    <td className="py-4 pl-2 pr-2 font-mono text-sm font-black text-[#1974E2]">{booking.reference}</td>
                     <td className="py-4 pl-2 pr-4"><p className="truncate text-sm font-extrabold text-[#071127]">{customer?.name || "Customer"}</p><p className="mt-1 truncate text-xs text-[#667586]">{customer?.email || "No email"}</p></td>
                     <td className="px-4 py-4 text-sm text-[#586575]">{vehicleLabel(vehicle)}</td>
-                    <td className="px-4 py-4 text-sm font-semibold text-[#071127]">{booking.service_name}</td>
+                    <td className="px-4 py-4 text-sm font-semibold text-[#071127]">{relation(booking.services)?.name || "Booking"}</td>
                     <td className="px-4 py-4"><BookingStatusBadge status={booking.status} /></td>
                     <td className="px-4 py-4">
                       <time dateTime={booking.created_at} className="text-sm font-bold text-[#071127]">
@@ -190,12 +196,12 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
             const vehicle = relation(booking.vehicles);
             const bookedAt = formatBookedAt(booking.created_at);
             return (
-              <article key={booking.id} className={cn("relative rounded-2xl border bg-white p-5 pl-14", booking.provider_sync_state === "failed" ? "border-amber-300" : "border-[#E4EAF0]")}>
-                <div className="absolute left-2 top-3"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.booking_reference}`} /></div>
+              <article key={booking.id} className={cn("relative rounded-2xl border bg-white p-5 pl-14", booking.status === "requested" ? "border-amber-300" : "border-[#E4EAF0]")}>
+                <div className="absolute left-2 top-3"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} /></div>
                 <BookingOpenLink href={`/app/bookings/${booking.id}`} className="block rounded-lg outline-none focus-visible:ring-4 focus-visible:ring-[#1974E2]/20">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="font-mono text-sm font-black tracking-wide text-[#1974E2]">{booking.booking_reference}</p>
+                      <p className="font-mono text-sm font-black tracking-wide text-[#1974E2]">{booking.reference}</p>
                       <h3 className="mt-2 truncate text-xl font-extrabold text-[#071127]">{customer?.name || "Customer"}</h3>
                       <time dateTime={booking.created_at} className="mt-1 block text-sm font-semibold text-[#586575]">
                         <span className="block">Booked {bookedAt.date}</span>
@@ -206,11 +212,10 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
                   </div>
                   <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-5 text-sm">
                     <ListDetail label="Vehicle" value={vehicleLabel(vehicle)} />
-                    <ListDetail label="Service" value={booking.service_name} />
+                    <ListDetail label="Service" value={relation(booking.services)?.name || "Booking"} />
                     <div><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Status</dt><dd className="mt-2"><BookingStatusBadge status={booking.status} /></dd></div>
                   </dl>
-                  <div className="mt-5 border-t border-[#E4EAF0] pt-4"><SyncStateBadge state={booking.provider_sync_state} /></div>
-                  <span className="sr-only">Open booking {booking.booking_reference}</span>
+                  <span className="sr-only">Open booking {booking.reference}</span>
                 </BookingOpenLink>
               </article>
             );
@@ -233,10 +238,11 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
 
 function matchesBookingView(booking: AdminBookingListRow, view: BookingView | "", now: Date, todayStart: string, tomorrowStart: string) {
   if (!view) return true;
-  const appointmentTime = new Date(booking.appointment_start).getTime();
-  if (view === "today") return appointmentTime >= new Date(todayStart).getTime() && appointmentTime < new Date(tomorrowStart).getTime() && booking.status !== "cancelled";
+  const appointmentTime = new Date(booking.starts_at).getTime();
+  if (view === "today") return appointmentTime >= new Date(todayStart).getTime() && appointmentTime < new Date(tomorrowStart).getTime() && !releasedStatuses.includes(booking.status);
   if (view === "upcoming") return appointmentTime >= now.getTime() && activeStatuses.includes(booking.status);
-  if (view === "attention") return booking.status === "pending" || booking.provider_sync_state === "pending" || booking.provider_sync_state === "failed";
+  if (view === "attention") return booking.status === "requested";
+  if (view === "completed") return booking.status === "collected";
   return booking.status === view;
 }
 
@@ -249,26 +255,10 @@ function BookingOpenLink({ href, className, children }: { href: string; classNam
 }
 
 function BookingStatusBadge({ status }: { status: BookingStatus }) {
-  const styles: Record<BookingStatus, string> = {
-    pending: "bg-amber-100 text-amber-900",
-    confirmed: "bg-green-100 text-green-800",
-    rescheduled: "bg-[#EAF3FF] text-[#1446A5]",
-    cancelled: "bg-red-100 text-red-800",
-    completed: "bg-[#E4EAF0] text-[#586575]",
-  };
-  return <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-extrabold capitalize", styles[status])}>{status}</span>;
+  return <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-extrabold", bookingStatusTone(status))}>{bookingStatusLabel(status)}</span>;
 }
 
-function SyncStateBadge({ state }: { state: ProviderSyncState }) {
-  const details: Record<ProviderSyncState, { label: string; className: string }> = {
-    synced: { label: "Synced", className: "bg-green-100 text-green-800" },
-    pending: { label: "Pending sync", className: "bg-amber-100 text-amber-900" },
-    failed: { label: "Sync failed", className: "bg-red-100 text-red-800" },
-  };
-  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold", details[state].className)}>{details[state].label}</span>;
-}
-
-function relation<T>(value: T | T[] | null): T | null {
+function relation<T>(value: Related<T>): T | null {
   return Array.isArray(value) ? value[0] || null : value;
 }
 

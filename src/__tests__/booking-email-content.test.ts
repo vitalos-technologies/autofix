@@ -37,7 +37,7 @@ describe("garage-branded booking email content", () => {
     }
     expect(rendered.html).toContain("Your Hartley Road Motors appointment is confirmed.");
     expect(rendered.html).toContain("Manage booking");
-    expect(rendered.html).toContain('href="https://hartley-road.autofix.vitalos.co.uk/manage-booking"');
+    expect(rendered.html).toContain('href="https://hartley-road.autofix.vitalos.co.uk/manage"');
     expect(rendered.html).toContain("Add to Google Calendar");
     expect(rendered.html).toContain("Add to Calendar");
     expect(rendered.html).not.toContain("Cal.com");
@@ -59,7 +59,7 @@ describe("garage-branded booking email content", () => {
   it("never mixes another garage's facts into the email", () => {
     const rendered = renderBookingEmail({ ...bookingFor(otherTestGarage()), type: "confirmed" });
     expect(rendered.html).toContain("Demo Garage B");
-    expect(rendered.html).toContain("https://demo-b.autofix.vitalos.co.uk/manage-booking");
+    expect(rendered.html).toContain("https://demo-b.autofix.vitalos.co.uk/manage");
     expect(rendered.html).not.toContain("Hartley Road");
   });
 

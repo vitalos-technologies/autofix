@@ -1,14 +1,23 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import type { BookingServiceOption } from "@/lib/bookings/types";
-
-// SOB's wizard is the home page of a garage booking host since P1.7, so this
+// SOB's wizard was the home page of a garage booking host since P1.7, so this
 // spec runs in playwright.smoke.config.ts with baseURL
 // http://hartley-road.localhost:<port> (seeded garage, local Supabase), not on
-// the admin host. P2.8/P2.11 replace it with the 5-step journey.
+// the admin host. P2.4 removed the wizard (Cal.com era) and left a placeholder;
+// P2.8/P2.11 replace this spec with the 5-step journey.
 const BOOKING_PATH = "/";
+const WIZARD_REMOVED = "SOB wizard removed with Cal.com in P2.4; the 5-step flow (P2.8) and P2.11 replace this journey";
 
-type BookingService = BookingServiceOption;
+/** The SOB wizard's service shape (its module went with the wizard in P2.4). */
+type BookingService = {
+  key: string;
+  name: string;
+  description: string;
+  locationMode: "workshop" | "mobile" | "both";
+  systemKey: string;
+  systemName: string;
+  systemDescription: string;
+};
 
 type CreateBookingRequest = {
   vehicle?: { registration?: string; make?: string; model?: string };
@@ -131,11 +140,8 @@ async function reachWorkshopAppointment(page: Page) {
 const STALE_JOURNEY = "SOB wizard UI changed (system picker, service checkboxes); replaced by the 5-step flow in P2.8/P2.11";
 
 test.describe("SOB Autofix booking wizard", () => {
-  test("serves an accessible first-party booking page without an iframe", async ({ page, isMobile }) => {
-    // Known defect, kept asserted: on phones the page's only h1 is
-    // `hidden lg:block` (src/app/%5Fsite/[garageId]/page.tsx), so there is no
-    // visible h1. Fix it in P2.8 and drop this line.
-    test.fail(isMobile, "booking home page hides its h1 below the lg breakpoint");
+  test("serves an accessible first-party booking page without an iframe", async ({ page }) => {
+    test.fixme(true, WIZARD_REMOVED);
     await setEssentialCookies(page);
     await mockServices(page);
 
@@ -317,6 +323,7 @@ test.describe("SOB Autofix booking wizard", () => {
 
   test("has no horizontal overflow on a mobile booking journey", async ({ page, isMobile }) => {
     test.skip(!isMobile, "Mobile-project coverage");
+    test.fixme(true, WIZARD_REMOVED);
     await setEssentialCookies(page);
     await seedConfirmedVehicle(page);
     await mockServices(page, [diagnosticService, servicingService]);

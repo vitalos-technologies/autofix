@@ -4,16 +4,21 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { normaliseHost } from "@/lib/tenancy/hosts";
 import { garageUrl, type GarageUrlSubject } from "@/lib/tenancy/urls";
 
-export type BookingCalendarStatus = "confirmed" | "rescheduled" | "cancelled";
+/** `requested` (waiting for the garage's OK) is a tentative event; the others are confirmed or cancelled. */
+export type BookingCalendarStatus = "confirmed" | "requested" | "rescheduled" | "cancelled";
 
 /** The garage facts a calendar file needs. */
 export type CalendarGarage = GarageUrlSubject & { id: string; name: string; email: string | null };
+
+/** Manage page on the garage's host. Calendar files carry the plain link (reference + registration), never a link token. */
+const MANAGE_PATH = "/manage";
 
 export type BookingCalendarDetails = {
   garage: CalendarGarage;
   reference: string;
   customerName: string;
-  customerEmail: string;
+  /** Becomes the ATTENDEE line when present. */
+  customerEmail?: string | null;
   service: string;
   vehicle: string;
   appointmentStart: string;
@@ -97,7 +102,9 @@ function foldCalendarLine(line: string) {
 
 export function buildBookingCalendar(details: BookingCalendarDetails) {
   const cancelled = details.status === "cancelled";
-  const manageUrl = garageUrl(details.garage, "/manage-booking");
+  const eventStatus = cancelled ? "CANCELLED" : details.status === "requested" ? "TENTATIVE" : "CONFIRMED";
+  const manageUrl = garageUrl(details.garage, MANAGE_PATH);
+  const attendee = details.customerEmail?.trim() ? `ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:${details.customerEmail.trim().replace(/[\r\n]/g, "")}` : null;
   const description = [
     `${details.garage.name} booking`,
     `Reference: ${details.reference}`,
@@ -120,12 +127,12 @@ export function buildBookingCalendar(details: BookingCalendarDetails) {
     `DTSTART:${utcCalendarDate(details.appointmentStart)}`,
     `DTEND:${utcCalendarDate(details.appointmentEnd)}`,
     `SEQUENCE:${Math.max(0, Math.floor(details.sequence))}`,
-    `STATUS:${cancelled ? "CANCELLED" : "CONFIRMED"}`,
+    `STATUS:${eventStatus}`,
     `SUMMARY:${escapeCalendarText(`${details.service} — ${details.garage.name}`)}`,
     `LOCATION:${escapeCalendarText(details.location)}`,
     `DESCRIPTION:${escapeCalendarText(description)}`,
     ...(organizer ? [organizer] : []),
-    `ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:${details.customerEmail.replace(/[\r\n]/g, "")}`,
+    ...(attendee ? [attendee] : []),
     `URL:${manageUrl}`,
     "TRANSP:OPAQUE",
     "END:VEVENT",
@@ -139,7 +146,7 @@ export function buildGoogleCalendarUrl(details: Pick<BookingCalendarDetails, "ga
     action: "TEMPLATE",
     text: `${details.service} — ${details.garage.name}`,
     dates: `${utcCalendarDate(details.appointmentStart)}/${utcCalendarDate(details.appointmentEnd)}`,
-    details: `${details.garage.name} booking\nReference: ${details.reference}\nVehicle: ${details.vehicle}\n\nManage booking: ${garageUrl(details.garage, "/manage-booking")}`,
+    details: `${details.garage.name} booking\nReference: ${details.reference}\nVehicle: ${details.vehicle}\n\nManage booking: ${garageUrl(details.garage, MANAGE_PATH)}`,
     location: details.location,
     ctz: details.timezone,
   });

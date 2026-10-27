@@ -50,7 +50,9 @@ describe("admin operations dashboard", () => {
     expect(dashboardSource).toContain('from("bookings")');
     expect(dashboardSource).toContain("todayAppointments");
     expect(dashboardSource).toContain("upcomingBookings");
-    expect(dashboardSource).toContain("provider_sync_state");
+    expect(dashboardSource).toContain("starts_at");
+    expect(dashboardSource).toContain(`booking.status === "requested"`);
+    expect(dashboardSource).not.toContain("provider_sync_state");
   });
 
   it("shows the shared current-week paid invoice total", () => {
