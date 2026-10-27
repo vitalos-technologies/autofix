@@ -38,6 +38,10 @@ Agent tool API (P4.2): `AGENT_TOKEN_PEPPER` (32+ random characters, Sensitive; k
 
 Jobs and webhooks (P3.7, P3.8): `CRON_SECRET` (Sensitive, at least 16 random characters; shorter or unset refuses every cron and drain call) and `TWILIO_WEBHOOK_BASE_URL` (the public origin Twilio calls the webhooks on, e.g. `https://autofix.vitalos.co.uk`; the webhooks also need `TWILIO_AUTH_TOKEN` and answer 503 without it). Reminder link tokens need no secret (random, stored hashed), so the bootstrap's `REMINDER_LINK_SECRET` is gone.
 
+Askbridge (P4.6, [askbridge.md](askbridge.md)): `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` (public, https widget script; inlined at build), `ASKBRIDGE_SYNC_URL` and `ASKBRIDGE_WEBHOOK_SECRET` (server only, Sensitive). All optional.
+
+Security headers (P4.3): `X-Frame-Options` and `Content-Security-Policy` are set per host in `src/proxy.ts` (not `next.config.ts`): admin host `SAMEORIGIN` + `frame-ancestors 'self'`; garage booking hosts a CSP whose `frame-ancestors` lists the garage's allowed sites and whose script/connect/frame sources add the Askbridge origin only when that garage has the chat on.
+
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
 
 ## Jobs and crons (P3.7)

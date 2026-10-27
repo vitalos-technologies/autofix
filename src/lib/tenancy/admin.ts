@@ -24,7 +24,7 @@ export const GARAGE_COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 180,
 };
 
-export type GarageRole = "owner" | "manager" | "technician";
+export type GarageRole = "owner" | "manager" | "technician" | "front_desk";
 export type GarageMembership = {
   garageId: string;
   name: string;
@@ -72,7 +72,7 @@ export type AdminContextOptions = {
   allowTrustedDevice?: boolean;
 };
 
-const ROLES = new Set<GarageRole>(["owner", "manager", "technician"]);
+const ROLES = new Set<GarageRole>(["owner", "manager", "technician", "front_desk"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type MembershipGarage = { id: string; name: string; status: string; accent?: string | null; plan?: string | null };
