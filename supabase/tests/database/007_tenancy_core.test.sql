@@ -71,7 +71,7 @@ select is(
   (select count(*)::integer
    from unnest(array['rate_limit_buckets', 'resend_webhook_events', 'inbound_email_events',
                      'admin_mfa_policy', 'admin_mfa_recovery_codes', 'admin_mfa_recovery_sessions', 'admin_trusted_devices',
-                     'platform_admins', 'jobs', 'vehicle_facts']) as platform_table(name)
+                     'platform_admins', 'jobs', 'vehicle_facts', 'twilio_webhook_events']) as platform_table(name)
    where has_table_privilege('authenticated', 'public.' || platform_table.name, 'select')),
   0, 'service-role-only platform tables are not readable by signed-in users'
 );

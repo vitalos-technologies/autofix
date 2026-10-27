@@ -69,7 +69,15 @@ function withKey(draft: BookingDraft): BookingDraft {
 function withoutVehicle(draft: BookingDraft): BookingDraft {
   const next = { ...draft };
   delete next.vehicle;
+  // A reminder link (/r/{token}) is about one car: another car is an ordinary booking.
+  delete next.reminderSendId;
   return next;
+}
+
+/** The draft with this car. A different registration also forgets the reminder the draft came from. */
+function withVehicle(draft: BookingDraft, vehicle: DraftVehicle): BookingDraft {
+  const next = draft.vehicle?.registration === vehicle.registration ? { ...draft } : withoutVehicle(draft);
+  return { ...next, vehicle };
 }
 
 async function servicesOrNull(garage: Garage): Promise<OnlineService[] | null> {
@@ -127,7 +135,7 @@ export async function vehicleStepAction(previous: VehicleFormState, formData: Fo
       };
     }
     const vehicle: DraftVehicle = { registration, make, model, manual: true };
-    await writeBookingDraft(withKey({ ...draft, vehicle }), meta);
+    await writeBookingDraft(withKey(withVehicle(draft, vehicle)), meta);
     redirect(BOOKING_STEP_PATHS.service);
   }
 
@@ -157,7 +165,7 @@ export async function vehicleStepAction(previous: VehicleFormState, formData: Fo
   }
   if (!vehicle.make) return { seq, status: "error", vehicle: null, suggestManual: true, message: LOOKUP_MESSAGES.not_found };
 
-  await writeBookingDraft(withKey({ ...draft, vehicle }), checkedMeta);
+  await writeBookingDraft(withKey(withVehicle(draft, vehicle)), checkedMeta);
   return { seq, status: "found", vehicle };
 }
 

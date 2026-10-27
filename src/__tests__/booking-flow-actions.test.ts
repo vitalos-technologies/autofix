@@ -47,7 +47,7 @@ vi.mock("@/lib/tenancy/garage", async (importOriginal) => ({
 }));
 
 const { setBookingEngineForTests } = await import("@/lib/booking-engine");
-const { readBookingSession, readJustBooked, BOOKING_STATE_COOKIE, JUST_BOOKED_COOKIE } = await import("@/lib/booking-engine/state");
+const { readBookingSession, readJustBooked, sealBookingSession, BOOKING_STATE_COOKIE, JUST_BOOKED_COOKIE } = await import("@/lib/booking-engine/state");
 const { confirmBookingAction, serviceStepAction, timeStepAction, vehicleStepAction } = await import("@/lib/booking-flow/actions");
 const { initialDetailsFormState, initialServiceFormState, initialTimeFormState, initialVehicleFormState } = await import("@/lib/booking-flow/forms");
 
@@ -377,6 +377,46 @@ describe("step 4 · details and confirm", () => {
     harness.rateLimitOk = false;
     expect((await run(confirmBookingAction, initialDetailsFormState, details)).state?.message).toMatch(/Too many/);
     expect(created).toHaveLength(0);
+  });
+});
+
+describe("a draft from a reminder link (/r/{token}, P3.9)", () => {
+  const SEND = "0d3c2b1a-0000-4000-8000-000000000501";
+
+  function seedReminderDraft() {
+    jar.set(BOOKING_STATE_COOKIE, {
+      value: sealBookingSession({
+        v: 1,
+        garageId: harness.garage.id,
+        idempotencyKey: "6a1d6c9e-6c2f-4a52-9a43-0b5f1e2d3c4b",
+        vehicle: { registration: REGISTRATION, make: "Ford", model: "Focus" },
+        serviceId: FAKE_SERVICE_IDS.diagnostics,
+        locationMode: "workshop",
+        reminderSendId: SEND,
+      }),
+      options: {},
+    });
+  }
+
+  it("hands the reminder's id to createBooking from the confirm step", async () => {
+    seedReminderDraft();
+    const slot = await freeSlot();
+    expect((await run(timeStepAction, initialTimeFormState, { startsAt: slot.startsAt })).redirect).toBe("/details");
+    await run(confirmBookingAction, initialDetailsFormState, details);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ reminderSendId: SEND, source: "online", vehicle: { registration: REGISTRATION, make: "Ford", model: "Focus" } });
+  });
+
+  it("keeps the reminder for the same car and forgets it when the customer changes the car", async () => {
+    seedReminderDraft();
+    await run(vehicleStepAction, initialVehicleFormState, { intent: "find", registration: "AB12 CDE", mode: "lookup" });
+    expect((await session()).draft.reminderSendId).toBe(SEND);
+    await run(vehicleStepAction, initialVehicleFormState, { intent: "find", registration: "CD34EFG", mode: "lookup" });
+    expect((await session()).draft.reminderSendId).toBeUndefined();
+
+    seedReminderDraft();
+    await run(vehicleStepAction, initialVehicleFormState, { intent: "reset" });
+    expect((await session()).draft.reminderSendId).toBeUndefined();
   });
 });
 

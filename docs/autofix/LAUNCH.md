@@ -44,7 +44,6 @@ From `.env.example`, `src/lib/env.ts` (`requiredProductionVariables`, `requiredB
 | `BOOKING_MANAGEMENT_SECRET` | 32+ random chars. Signs manage links, manage sessions, calendar downloads **and unsubscribe links** (`/unsubscribe/<token>`). Without it production booking answers `UNAVAILABLE` and emails carry no unsubscribe link. Rotating it retires every unsubscribe link already sent (the `/unsubscribe` form still works) | **Sensitive** | Yes (booking readiness) |
 | `BOOKING_STATE_SECRET` | 32+ random chars; seals the booking-flow cookies (falls back to `BOOKING_MANAGEMENT_SECRET`) | **Sensitive** | Recommended |
 | `BOOKING_ENGINE` | leave **unset** in production (`fake` is ignored in production builds anyway) | No | No |
-| `REMINDER_LINK_SECRET` | 32+ random chars, for reminder link tokens (P3.9) once reminders ship | **Sensitive** | When reminders go live |
 | `AGENT_TOKEN_PEPPER` | 32+ random chars, for the agent tool API (P4.2) | **Sensitive** | When the AI front desk goes live |
 
 ### Email (Resend, Cloudflare Email Routing)
@@ -69,6 +68,7 @@ From `.env.example`, `src/lib/env.ts` (`requiredProductionVariables`, `requiredB
 | `TWILIO_MESSAGING_SERVICE_SID` | Messaging Service holding the two-way UK number(s) | No | With live |
 | `TWILIO_WHATSAPP_FROM` | approved WhatsApp sender, E.164 | No | With WhatsApp |
 | `TWILIO_STATUS_CALLBACK_BASE_URL` | `https://autofix.vitalos.co.uk` (delivery receipts) | No | Recommended |
+| `TWILIO_WEBHOOK_BASE_URL` | `https://autofix.vitalos.co.uk`: the origin Twilio calls `/api/webhooks/twilio/*` on; signatures are checked against it (else rebuilt from `X-Forwarded-*`) | No | Recommended |
 
 ### Vehicle data
 
@@ -131,7 +131,7 @@ Never set in production: `DEV_TENANT_ROOT_DOMAIN`, `PLAYWRIGHT_TEST`, `ENABLE_DE
 | # | Step | Owner | Status | How to verify |
 | --- | --- | --- | --- | --- |
 | 6.1 | Account, UK two-way number(s) in a Messaging Service, alphanumeric sender (one-way, booking updates only, DECISIONS A13), WhatsApp sender + templates | Temitope (spend) | Todo | Twilio console lists the senders; WhatsApp templates approved |
-| 6.2 | Inbound SMS webhook on the two-way number → Autofix (STOP handling); voice webhook `/api/webhooks/twilio/voice` once P4.1 ships | Agent configures with your login | Todo | Replying STOP to a test text sets `opted_out_at` and shows "Customer stopped reminders" in the garage's Recent activity |
+| 6.2 | Webhooks (P3.8): Messaging Service inbound → `https://autofix.vitalos.co.uk/api/webhooks/twilio/sms`, WhatsApp sender inbound → `…/twilio/whatsapp`, voice number → `…/twilio/voice` (logs calls; text-back with P4.1). Delivery receipts go to `…/twilio/status` via `TWILIO_STATUS_CALLBACK_BASE_URL`. Each garage number needs a `garage_phone_numbers` row with `provider_sid` (platform provisioning) or nothing routes to it | Agent configures with your login | Todo | Replying STOP to a test text sets `opted_out_at` and shows "Customer stopped reminders" in the garage's Recent activity |
 | 6.3 | Switch `MESSAGING_MODE=live` only after 5.1 and 6.1, and after a mock-mode smoke test (9.4) | Temitope | Todo | A test booking with your own mobile receives the confirmation text |
 
 ## 7. Vehicle data, Turnstile, Sentry, crons
@@ -141,7 +141,7 @@ Never set in production: `DEV_TENANT_ROOT_DOMAIN`, `PLAYWRIGHT_TEST`, `ENABLE_DE
 | 7.1 | DVLA VES and DVSA MOT History keys (applications in progress; DVLA registrations paused 26 Oct). Until then `composite` uses DVSA + Vehicle Data Global | Temitope | Todo | Book 1 finds a real car (your own registration) on the free link |
 | 7.2 | Turnstile widget (managed mode) for `*.autofix.vitalos.co.uk` + custom domains; set both keys | Temitope | Todo | Book 4 shows the check; a submission without it is refused |
 | 7.3 | Sentry project `autofix` (EU region if offered), DSN + source-map token in Vercel. Scrubbing: registrations and phone numbers never logged (CLAUDE.md rule 3) | Temitope | Todo | Trigger a test error from a preview deploy; the event appears with readable stack traces and no personal data |
-| 7.4 | Crons: `vercel.json` has one job, `/api/cron/retention` at 03:15 UTC daily (Hobby allows daily only). Reminder sending (P3) needs sub-daily runs: Pro, or the job runner from `infrastructure/RUNNER.md` | Agent | Ready (retention) | Vercel → Project → Cron Jobs lists the job; its last run returns 200 (401 means `CRON_SECRET` is wrong) |
+| 7.4 | Crons (P3.7): `vercel.json` has one Hobby job, `/api/cron/daily` at 11:00 UTC (queues reminders.schedule, reminders.send, domains.check, retention, customers.enrich, mot.refresh and drains for 20 s). On Pro add the per-kind crons in INFRA.md ("Jobs and crons"), e.g. `reminders.send` every 10 minutes and `domains.check` every 5 | Agent | Ready (daily) | Vercel → Project → Cron Jobs lists the job; its last run returns 200 with `drain.ok: true` (401 means `CRON_SECRET` is wrong or shorter than 16 characters) |
 
 ## 8. Legal (P4.9)
 

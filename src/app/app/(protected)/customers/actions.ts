@@ -9,6 +9,7 @@ import { parseCustomerCsv, type ImportIssue, type ImportRow, type ParsedImport }
 import { importDeclaration } from "@/lib/customers/declaration";
 import { enrichImportedVehicles } from "@/lib/customers/enrichment";
 import { runCustomerImport, type ImportCounts } from "@/lib/customers/import";
+import { enqueueJob } from "@/lib/jobs/queue";
 import { CUSTOMER_PAGE_SIZE, listCustomers, type CustomerListResult } from "@/lib/customers/queries";
 import { getAdminContext } from "@/lib/tenancy/admin";
 
@@ -167,10 +168,25 @@ export async function importCustomersAction(input: { fileName: string; csv: stri
     detail: { rows: result.importedRows, ...result.counts },
   });
   after(async () => {
+    let remaining = true;
+    let retryAfterMs: number | undefined;
     try {
-      await enrichImportedVehicles({ garageId, importId: result.importId, limit: FIRST_ENRICHMENT_BATCH });
+      const first = await enrichImportedVehicles({ garageId, importId: result.importId, limit: FIRST_ENRICHMENT_BATCH });
+      remaining = first.remaining && first.stoppedReason !== "not_configured";
+      retryAfterMs = first.retryAfterMs;
     } catch {
       console.warn("[customers.enrich] first batch after import failed", { garageId });
+    }
+    if (!remaining) return;
+    // The rest goes through the job queue (P3.7 `customers.enrich`), drained by the cron or POST /api/jobs/drain.
+    try {
+      await enqueueJob("customers.enrich", { garageId, importId: result.importId }, {
+        garageId,
+        dedupeKey: `customers.enrich:${garageId}:import:${result.importId}`,
+        ...(retryAfterMs ? { runAt: new Date(Date.now() + retryAfterMs) } : {}),
+      });
+    } catch {
+      console.warn("[customers.enrich] could not queue the rest of the import", { garageId });
     }
   });
   revalidatePath("/app/customers");
