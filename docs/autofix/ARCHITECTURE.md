@@ -185,6 +185,10 @@ Routes and auth:
 
 The booking flow sends `draft.reminderSendId` to `createBooking` (attribution in `create_booking`, A52) and drops it when the customer changes the car.
 
+Response headers: a header set in `next.config.ts` `headers()` replaces the same header set by a route handler, so the stricter `Referrer-Policy` of the token links (`/r/:token`, `/manage/link`, `/manage-booking`, `/signup/invite/:token`: `no-referrer`; `/auth/confirm`: `strict-origin`) is also restated there (A188, checked by `tests/e2e/smoke.spec.ts`). A new route that needs its own `Referrer-Policy` needs a rule there too.
+
+Gate 3 (P3.12, A186, A187): `tests/e2e/gate3.spec.ts` (`pnpm test:e2e:gate3`) runs schedule (server, `POST /api/jobs/drain` with `CRON_SECRET`; playwright.garage.config.ts gives the server `PLAYWRIGHT_CRON_SECRET` from `tests/helpers/jobs.ts` and `MESSAGING_MODE=mock`) → send (`drainJobs()` in the test process with the clock pinned inside the send window, mock outbox) → `/r/{token}` in the browser → the five steps → attribution → Today's won back. App modules are loaded into Playwright with `importAppModule()` (`tests/helpers/app-modules.ts`, jiti with the `@/` and `server-only` aliases of vitest.config.ts).
+
 ### Missed calls (P4.1, `20261028002100_missed_calls.sql`; DECISIONS A160–A165)
 
 | Object | Notes |

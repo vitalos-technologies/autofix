@@ -170,7 +170,7 @@ export function totp(secret: string, window: number) {
 }
 
 /** A fresh TOTP code (waits for the next window if this one was used or is about to end). */
-export async function nextCode(user: StaffUser) {
+export async function nextCode(user: TotpMember) {
   return totp(user.secret, await nextUnusedWindow(user));
 }
 
