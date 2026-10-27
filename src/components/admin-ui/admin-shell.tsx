@@ -106,13 +106,12 @@ export function AdminShell({
         </a>
 
         <div className="hidden bg-navy-950 text-[#c9d4e2] lg:block">
-          <div className="sticky top-0 flex max-h-dvh flex-col gap-[22px] overflow-y-auto px-3.5 py-5">
+          {/* The whole sidebar is the Main navigation landmark: mark, garage switcher and sections. */}
+          <nav aria-label="Main" className="sticky top-0 flex max-h-dvh flex-col gap-[22px] overflow-y-auto px-3.5 py-5">
             <AutofixMark />
             <GarageSwitcher garages={garages} currentGarageId={currentGarageId} switchGarageAction={switchGarageAction} />
-            <nav aria-label="Main">
-              <AdminNavGroups groups={nav} activeHref={activeHref} />
-            </nav>
-          </div>
+            <AdminNavGroups groups={nav} activeHref={activeHref} />
+          </nav>
         </div>
 
         <div className="flex min-w-0 flex-col">

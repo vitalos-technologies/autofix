@@ -114,6 +114,20 @@ export function quickStatusActions(from: BookingStatus): BookingStatus[] {
   }
 }
 
+/** Short label for a job card button (three fit across a phone). */
+export function quickActionLabel(to: BookingStatus, from: BookingStatus): string {
+  switch (to) {
+    case "arrived":
+      return "Arrived";
+    case "in_progress":
+      return from === "waiting_parts" ? "Parts in" : "Start work";
+    case "waiting_parts":
+      return "Waiting parts";
+    default:
+      return statusActionLabel(to, from);
+  }
+}
+
 /** Destructive changes ask for a reason / confirmation on the booking page. */
 export function isDestructive(to: BookingStatus): boolean {
   return to === "cancelled" || to === "no_show";
