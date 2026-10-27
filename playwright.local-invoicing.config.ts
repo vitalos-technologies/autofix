@@ -5,6 +5,7 @@ const supabase = getLocalSupabaseConfig();
 // CI runners on one machine each get their own port (scripts/ci/supabase-isolate.sh).
 const port = process.env.PLAYWRIGHT_INVOICE_PORT || "3100";
 const baseURL = `http://127.0.0.1:${port}`;
+// Use a preinstalled Chromium (for example in sandboxes without a Playwright download).
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
@@ -17,7 +18,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    launchOptions: { executablePath },
+    launchOptions: executablePath ? { executablePath } : {},
   },
   webServer: {
     command: `pnpm dev --port ${port}`,

@@ -24,7 +24,8 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Button } from "@/components/ui/button";
 import { useVehicleSession } from "@/components/vehicle/vehicle-context";
 import { VehicleMotDetails } from "@/components/vehicle/vehicle-mot-details";
-import { contactLinks, formatPhone, siteConfig } from "@/config/site";
+import { useGarage } from "@/components/garage/garage-provider";
+import { addressLine, formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import { track } from "@/lib/analytics/events";
 import { addCalendarDays, slotBelongsToCalendarDate } from "@/lib/bookings/date";
 import { cn } from "@/lib/utils";
@@ -93,9 +94,24 @@ const symptomOptions = [
 ] as const;
 const defaultTimeZone = "Europe/London";
 const inputClass = "mt-2 block min-h-12 w-full rounded-xl border border-[#C8D4E0] bg-white px-4 py-3 text-[#071127] outline-none transition placeholder:text-[#7C8998] focus:border-[#168BFF] focus:ring-4 focus:ring-[#168BFF]/10";
-const workshopAddress = `${siteConfig.address.building}, ${siteConfig.address.street}, ${siteConfig.address.town}, ${siteConfig.address.city}, ${siteConfig.address.postcode}`;
+/** The booking site's garage facts (name, workshop address, phone) from `GarageProvider`. */
+function useGarageContact() {
+  const garage = useGarage();
+  const workshopLabel = `${garage.name} workshop`;
+  return {
+    name: garage.name,
+    workshopLabel,
+    workshopAddress: addressLine(garage) || workshopLabel,
+    phoneHref: telHref(garage.phone),
+    phoneDisplay: formatPhoneForDisplay(garage.phone),
+    motEnabled: garage.motEnabled,
+  };
+}
 
-export function BookingWizard({ motEnabled = false }: { motEnabled?: boolean } = {}) {
+/** SOB's 7-step wizard, kept until the 5-step flow replaces it (P2.8). Garage facts come from the host's garage. */
+export function BookingWizard() {
+  const garageContact = useGarageContact();
+  const motEnabled = garageContact.motEnabled;
   const { session, updateSession, clearVehicle } = useVehicleSession();
   const [step, setStep] = useState(0);
   const [vehicleView, setVehicleView] = useState<VehicleView>("input");
@@ -479,7 +495,7 @@ export function BookingWizard({ motEnabled = false }: { motEnabled?: boolean } =
         email: result.booking.email ?? customer.email.trim(),
         vehicle: activeVehicle,
         service: selectedService,
-        locationLabel: effectiveLocationMode === "workshop" ? "SOB Autofix workshop" : postcode.trim().toUpperCase(),
+        locationLabel: effectiveLocationMode === "workshop" ? garageContact.workshopLabel : postcode.trim().toUpperCase(),
         timeZone: slotTimeZone,
       });
       track("booking_completed", { source: "booking_wizard", selection: selectedService.key });
@@ -990,6 +1006,7 @@ function LocationStep({ service, mode, setMode, address, setAddress, postcode, s
   errors: FieldErrors;
 }) {
   const availableModes: LocationMode[] = service.locationMode === "both" ? ["workshop", "mobile"] : [service.locationMode];
+  const garageContact = useGarageContact();
   return (
     <div>
       <fieldset>
@@ -1002,7 +1019,7 @@ function LocationStep({ service, mode, setMode, address, setAddress, postcode, s
               <label key={option} className={cn("relative flex min-h-28 cursor-pointer items-start gap-4 rounded-2xl border p-4 transition focus-within:ring-4 focus-within:ring-[#168BFF]/20", mode === option ? "border-[#1974E2] bg-[#EAF3FF]" : "border-[#D7E0E9]")}>
                 <input type="radio" name="location-mode" value={option} checked={mode === option} onChange={() => setMode(option)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
                 <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", mode === option ? "bg-[#1974E2] text-white" : "bg-[#F4F7FA] text-[#1974E2]")}><Icon size={20} aria-hidden="true" /></span>
-                <span><strong className="block text-[#071127]">{mobile ? "Mobile service" : "Bring vehicle to SOB Autofix"}</strong><span className="mt-1 block text-sm leading-5 text-[#586575]">{mobile ? "We assess the vehicle where it is parked." : workshopAddress}</span></span>
+                <span><strong className="block text-[#071127]">{mobile ? "Mobile service" : `Bring vehicle to ${garageContact.name}`}</strong><span className="mt-1 block text-sm leading-5 text-[#586575]">{mobile ? "We assess the vehicle where it is parked." : garageContact.workshopAddress}</span></span>
               </label>
             );
           })}
@@ -1056,6 +1073,7 @@ function AppointmentStep({ date, setDate, minDate, maxDate, state, slots, select
   onSelect: (start: string) => void;
   onNextDay: () => void;
 }) {
+  const garageContact = useGarageContact();
   return (
     <div>
       <div className="flex flex-col items-end gap-3 sm:flex-row">
@@ -1070,15 +1088,15 @@ function AppointmentStep({ date, setDate, minDate, maxDate, state, slots, select
         <div className="mt-5 rounded-2xl border border-[#D7E0E9] bg-[#F8FAFC] p-5">
           <h3 className="text-xl font-extrabold text-[#071127]">No appointments on this date</h3>
           <p className="mt-2 text-sm leading-6 text-[#586575]">Try the next day, choose another date, or call us.</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onNextDay}>Check next day</Button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_no_slots" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#1974E2]/25 px-5 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a></div>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onNextDay}>Check next day</Button>{garageContact.phoneHref && <a href={garageContact.phoneHref} onClick={() => track("phone_clicked", { source: "booking_no_slots" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#1974E2]/25 px-5 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a>}</div>
         </div>
       )}
       {state === "error" && (
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" /><div><h3 className="text-xl font-extrabold text-[#4E3A10]">Online appointment availability is temporarily unavailable.</h3><p className="mt-2 text-sm leading-6 text-amber-900">Your details are still here. You can try again or contact SOB Autofix.</p></div></div>
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" /><div><h3 className="text-xl font-extrabold text-[#4E3A10]">Online appointment availability is temporarily unavailable.</h3><p className="mt-2 text-sm leading-6 text-amber-900">Your details are still here. You can try again or contact {garageContact.name}.</p></div></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Button type="button" onClick={onLoad}>Try again</Button>
-            <a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_availability" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call {formatPhone(siteConfig.phone)}</a>
+            {garageContact.phoneHref && <a href={garageContact.phoneHref} onClick={() => track("phone_clicked", { source: "booking_availability" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call {garageContact.phoneDisplay}</a>}
           </div>
         </div>
       )}
@@ -1092,7 +1110,7 @@ function AppointmentStep({ date, setDate, minDate, maxDate, state, slots, select
         </fieldset>
       )}
       {errors.appointmentStart && <p role="alert" className="mt-3 text-sm text-red-700">{errors.appointmentStart}</p>}
-      {(state === "ready" || state === "empty") && <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm"><button type="button" onClick={onNextDay} className="font-bold text-[#145CAD] underline">Check the next day</button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_no_suitable_time" })} className="font-bold text-[#145CAD] underline">No suitable time? Call us</a></div>}
+      {(state === "ready" || state === "empty") && <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm"><button type="button" onClick={onNextDay} className="font-bold text-[#145CAD] underline">Check the next day</button>{garageContact.phoneHref && <a href={garageContact.phoneHref} onClick={() => track("phone_clicked", { source: "booking_no_suitable_time" })} className="font-bold text-[#145CAD] underline">No suitable time? Call us</a>}</div>}
     </div>
   );
 }
@@ -1114,6 +1132,7 @@ function ReviewStep({ vehicle, service, serviceNames, problemDescription, sympto
   appointmentStart: string;
   timeZone: string;
 }) {
+  const garageContact = useGarageContact();
   const symptomLabels = symptoms.map((value) => symptomOptions.find((option) => option.value === value)?.label).filter(Boolean).join(", ");
   const conditional = [mileage ? `${Number(mileage).toLocaleString("en-GB")} miles` : "", warningLight, issueTiming ? issueTimingLabel(issueTiming) : ""].filter(Boolean).join(" · ");
   return (
@@ -1121,7 +1140,7 @@ function ReviewStep({ vehicle, service, serviceNames, problemDescription, sympto
       <ReviewCard icon={CarFront} label="Vehicle" value={vehicleLabel(vehicle)} support={formatRegistration(vehicle.registration)} />
       <ReviewCard icon={Wrench} label={serviceNames.length > 1 ? "Services" : "Service"} value={serviceNames.join(", ") || service.name} />
       <ReviewCard icon={ClipboardCheck} label="Problem" value={problemDescription || "Not provided"} support={[symptomLabels, conditional].filter(Boolean).join(" · ")} wide />
-      <ReviewCard icon={MapPin} label="Location" value={locationMode === "workshop" ? "SOB Autofix workshop" : address} support={locationMode === "workshop" ? workshopAddress : `${postcode.toUpperCase()} · ${vehicleAccessible ? "Vehicle safely accessible" : "Access needs checking"}`} />
+      <ReviewCard icon={MapPin} label="Location" value={locationMode === "workshop" ? garageContact.workshopLabel : address} support={locationMode === "workshop" ? garageContact.workshopAddress : `${postcode.toUpperCase()} · ${vehicleAccessible ? "Vehicle safely accessible" : "Access needs checking"}`} />
       <ReviewCard icon={CalendarDays} label="Appointment" value={formatAppointment(appointmentStart, timeZone)} />
       <ReviewCard icon={UserRound} label="Customer" value={customer.name} support={`${customer.email} · ${customer.phone}`} />
     </dl>
@@ -1145,11 +1164,12 @@ function LoadingPanel({ message, compact = false }: { message: string; compact?:
 }
 
 function AvailabilityFallback({ title, onRetry }: { title: string; onRetry: () => void }) {
+  const garageContact = useGarageContact();
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
       <h3 className="text-xl font-extrabold text-[#4E3A10]">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-amber-900">Try again, or call us and we&apos;ll help.</p>
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onRetry}>Try again</Button><a href={contactLinks.phone} onClick={() => track("phone_clicked", { source: "booking_services" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a></div>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Button type="button" onClick={onRetry}>Try again</Button>{garageContact.phoneHref && <a href={garageContact.phoneHref} onClick={() => track("phone_clicked", { source: "booking_services" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-white px-4 py-3 text-sm font-bold text-[#071127]"><Phone size={17} aria-hidden="true" /> Call us</a>}</div>
     </div>
   );
 }

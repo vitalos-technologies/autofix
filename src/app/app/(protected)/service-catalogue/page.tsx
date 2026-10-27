@@ -1,10 +1,12 @@
 import { CalendarSync, Wrench } from "lucide-react";
 import Link from "next/link";
 import { listServiceCatalogue } from "@/lib/service-catalogue/repository";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { CatalogueEditor } from "./catalogue-editor";
 
 export default async function AdminServiceCataloguePage() {
-  const systems = await listServiceCatalogue();
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  const systems = admin ? await listServiceCatalogue(admin.client, admin.garage.id) : [];
   const serviceCount = systems.reduce((total, system) => total + system.services.length, 0);
   const bookableCount = systems.reduce((total, system) => total + system.services.filter((service) => service.onlineBookingEnabled).length, 0);
 

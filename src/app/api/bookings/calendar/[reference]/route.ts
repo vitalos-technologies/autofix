@@ -1,19 +1,28 @@
 import { NextRequest } from "next/server";
 import { buildBookingCalendar, verifyBookingCalendarSignature } from "@/lib/bookings/calendar";
 import { getBookingCalendarNotification } from "@/lib/bookings/repository";
+import { bookingReferenceSchema } from "@/lib/bookings/schema";
+import { getHostGarage } from "@/lib/tenancy/garage";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 
-export async function GET(request: NextRequest, context: { params: Promise<{ reference: string }> }) {
-  const { reference } = await context.params;
-  const signature = request.nextUrl.searchParams.get("signature");
-  if (!/^SOB-[A-Z0-9-]{4,28}$/i.test(reference) || !verifyBookingCalendarSignature(reference, signature)) {
-    return new Response("Calendar not found", { status: 404, headers: { "Cache-Control": "no-store" } });
-  }
+function notFound() {
+  return new Response("Calendar not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+}
 
-  const booking = await getBookingCalendarNotification(reference);
-  if (!booking) return new Response("Calendar not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+export async function GET(request: NextRequest, context: { params: Promise<{ reference: string }> }) {
+  const { reference: rawReference } = await context.params;
+  const parsedReference = bookingReferenceSchema.safeParse(rawReference);
+  // The link is served from the garage's own host; the signature binds garage and reference.
+  const garage = await getHostGarage().catch(() => null);
+  const signature = request.nextUrl.searchParams.get("signature");
+  if (!garage || !parsedReference.success || !verifyBookingCalendarSignature(garage.id, parsedReference.data, signature)) return notFound();
+  const reference = parsedReference.data;
+
+  const booking = await getBookingCalendarNotification(garage, reference);
+  if (!booking) return notFound();
   const details = booking.details;
   const calendar = buildBookingCalendar({
+    garage,
     reference: details.reference,
     customerName: details.customerName,
     customerEmail: details.customerEmail,
@@ -31,7 +40,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ref
   return new Response(calendar, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${reference.toUpperCase()}.ics"`,
+      "Content-Disposition": `attachment; filename="${reference}.ics"`,
       "Cache-Control": "private, no-store, max-age=0",
       "X-Content-Type-Options": "nosniff",
     },

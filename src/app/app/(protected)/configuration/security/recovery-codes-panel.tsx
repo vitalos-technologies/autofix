@@ -7,7 +7,7 @@ import { regenerateMfaRecoveryCodes } from "./actions";
 
 export function formatMfaRecoveryCodesDownload(codes: string[]) {
   return [
-    "SOB Autofix administrator MFA recovery codes",
+    "Autofix MFA recovery codes",
     "",
     "Each code can be used once. Store this file securely and do not email or share it.",
     "",
@@ -21,7 +21,7 @@ function downloadRecoveryCodes(codes: string[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `sob-autofix-mfa-recovery-codes-${new Date().toISOString().slice(0, 10)}.txt`;
+  link.download = `autofix-mfa-recovery-codes-${new Date().toISOString().slice(0, 10)}.txt`;
   link.rel = "noopener";
   document.body.appendChild(link);
   link.click();

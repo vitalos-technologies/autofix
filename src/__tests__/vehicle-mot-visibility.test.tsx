@@ -3,10 +3,13 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BookingWizard } from "@/components/booking/booking-wizard";
+import { GarageProvider } from "@/components/garage/garage-provider";
 import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
 import { VehicleMotDetails } from "@/components/vehicle/vehicle-mot-details";
 import { VehicleSummary } from "@/components/vehicle/vehicle-summary";
+import { publicGarage } from "@/lib/tenancy/garage";
 import type { VehicleDetails } from "@/types/domain";
+import { testGarage } from "./support/garage";
 
 const vehicle: VehicleDetails = {
   registration: "AB12CDE",
@@ -19,7 +22,7 @@ const vehicle: VehicleDetails = {
 };
 
 function seedConfirmedVehicle() {
-  window.sessionStorage.setItem("sob-autofix-vehicle-session", JSON.stringify({ vehicle, vehicleConfirmed: true }));
+  window.sessionStorage.setItem("af-vehicle-session", JSON.stringify({ vehicle, vehicleConfirmed: true }));
 }
 
 describe("VehicleMotDetails", () => {
@@ -53,15 +56,15 @@ describe("customer vehicle surfaces", () => {
     vi.unstubAllGlobals();
   });
 
-  it("hides MOT facts in the booking wizard vehicle summary by default", async () => {
-    render(<VehicleSessionProvider><BookingWizard /></VehicleSessionProvider>);
+  it("hides MOT facts in the booking wizard when the garage has MOT switched off", async () => {
+    render(<GarageProvider garage={publicGarage(testGarage({ motEnabled: false }))}><VehicleSessionProvider><BookingWizard /></VehicleSessionProvider></GarageProvider>);
     expect(await screen.findByText("Vauxhall Astra")).toBeInTheDocument();
     expect(screen.queryByText("MOT expires")).not.toBeInTheDocument();
     expect(screen.queryByTestId("vehicle-mot-details")).not.toBeInTheDocument();
   });
 
-  it("shows MOT facts in the booking wizard vehicle summary when MOT is on", async () => {
-    render(<VehicleSessionProvider><BookingWizard motEnabled /></VehicleSessionProvider>);
+  it("shows MOT facts in the booking wizard when the garage has MOT switched on", async () => {
+    render(<GarageProvider garage={publicGarage(testGarage({ motEnabled: true }))}><VehicleSessionProvider><BookingWizard /></VehicleSessionProvider></GarageProvider>);
     expect(await screen.findByText("Vauxhall Astra")).toBeInTheDocument();
     expect(screen.getByText("MOT expires")).toBeInTheDocument();
     expect(screen.getByText("31 March 2027")).toBeInTheDocument();

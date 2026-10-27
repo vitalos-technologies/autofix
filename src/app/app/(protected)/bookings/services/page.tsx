@@ -1,6 +1,6 @@
 import { ArrowLeft, CalendarCog, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { ServiceMappingForm } from "./service-mapping-form";
 
 type ServiceMappingRow = {
@@ -15,7 +15,7 @@ type ServiceMappingRow = {
 };
 
 export default async function BookingServicesPage() {
-  const client = await createAdminReadClient();
+  const client = await getAdminReadClient();
   const { data } = client
     ? await client
       .from("booking_service_types")
@@ -37,7 +37,7 @@ export default async function BookingServicesPage() {
         <div>
           <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Booking configuration</p>
           <h1 className="mt-1 text-3xl font-extrabold text-[#071127] sm:text-4xl">Service mappings</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#667586]">Connect each approved SOB Autofix service to its calendar event type and choose where the appointment can take place.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#667586]">Connect each of your services to its calendar event type and choose where the appointment can take place.</p>
         </div>
       </header>
 

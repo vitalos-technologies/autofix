@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/layout/logo";
 import { signOut } from "@/app/app/login/actions";
 import { safeAdminReturnTo } from "@/lib/auth/mfa";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { MfaChallengeForm } from "./mfa-challenge-form";
 import { getCurrentTrustedDevice } from "@/lib/auth/trusted-device-server";
 import { isSensitiveAdminPath } from "@/lib/auth/trusted-device";
@@ -10,7 +10,7 @@ import { isSensitiveAdminPath } from "@/lib/auth/trusted-device";
 export default async function MfaPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; stepUp?: string }> }) {
   const query = await searchParams;
   const returnTo = safeAdminReturnTo(query.returnTo);
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin) redirect("/app/login");
   if (admin.mfaState === "enrollment_required") redirect("/app/mfa/enroll");
   if (!admin.mfaRequired || admin.mfaVerified) redirect(returnTo);

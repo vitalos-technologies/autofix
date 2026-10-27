@@ -62,7 +62,7 @@ async function setEssentialCookies(page: Page) {
 
 async function seedConfirmedVehicle(page: Page) {
   await page.addInitScript((storedVehicle) => {
-    sessionStorage.setItem("sob-autofix-vehicle-session", JSON.stringify({ vehicle: storedVehicle, vehicleConfirmed: true }));
+    sessionStorage.setItem("af-vehicle-session", JSON.stringify({ vehicle: storedVehicle, vehicleConfirmed: true }));
   }, vehicle);
 }
 

@@ -11,7 +11,7 @@ const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
 const bookingOrigin = `http://hartley-road.localhost:${port}`;
-// Use an already installed Chromium instead of the one `playwright install` downloads.
+// Use a preinstalled Chromium (for example in sandboxes without a Playwright download).
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
@@ -24,7 +24,7 @@ export default defineConfig({
   use: {
     trace: "retain-on-failure",
     launchOptions: {
-      executablePath,
+      ...(executablePath ? { executablePath } : {}),
       // Chromium resolves *.localhost to loopback itself; this keeps it so
       // where a resolver or proxy would interfere.
       args: ["--host-resolver-rules=MAP *.localhost 127.0.0.1"],

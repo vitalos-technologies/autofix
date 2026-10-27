@@ -60,7 +60,7 @@ describe("administrator MFA recovery", () => {
     }));
     expect(JSON.stringify(harness.rpc.mock.calls)).not.toContain(code);
     expect(harness.cookieSet).toHaveBeenCalledWith(
-      "sob_admin_mfa_recovery",
+      "af_mfa_recovery",
       expect.stringMatching(/^[0-9a-f]{64}$/),
       MFA_RECOVERY_COOKIE_OPTIONS,
     );
@@ -114,7 +114,7 @@ describe("administrator MFA recovery", () => {
     expect(migration).toContain("update public.admin_mfa_recovery_sessions");
     expect(migration).toContain("update public.admin_trusted_devices");
     const actions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
-    expect(actions).toContain("const admin = await getAdminUser();");
+    expect(actions).toContain("const admin = await getAdminContext();");
     expect(actions).toContain("if (!admin?.mfaVerified)");
   });
 
@@ -156,9 +156,9 @@ describe("administrator MFA recovery", () => {
   it("does not let an email recovery session enter factor or recovery-code management", () => {
     const recovery = read("src", "app", "app", "mfa", "recover", "actions.ts");
     const security = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
-    const server = read("src", "lib", "supabase", "server.ts");
+    const server = read("src", "lib", "tenancy", "admin.ts");
     expect(recovery).toContain("consumeMfaRecoveryCode");
-    expect(security).toContain("const admin = await getAdminUser();");
+    expect(security).toContain("const admin = await getAdminContext();");
     expect(server).toContain("if (requireMfa && requiresMfaChallenge(assurance) && !trustedDevice) return null");
     expect(server).toContain("if (requireMfa && mandatoryMfa && !mfaRequired && !mfaVerified) return null");
   });

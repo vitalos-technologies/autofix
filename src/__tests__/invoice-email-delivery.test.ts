@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { approvedInvoiceReplyTo, productionEmailSender } from "@/lib/email/identity";
 import {
   classifyTransactionalEmailProviderError,
   getInvoiceResendConfig,
@@ -17,6 +16,7 @@ import {
 } from "@/lib/invoices/email-delivery";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
 import type { Invoice } from "@/lib/invoices/types";
+import { testGarage } from "./support/garage";
 
 const logicalSendId = "5f04ae56-b240-45f0-b984-0d4e1156218f";
 const copySendId = "0a08ca3c-4409-4799-957e-6f32cc8a395d";
@@ -39,7 +39,13 @@ describe("invoice email delivery", () => {
     expect(dependencies.sendEmail).not.toHaveBeenCalled();
   });
 
-  it.each(["issued", "paid"] as const)("delivers a valid %s invoice with the approved identity", async (invoiceStatus) => {
+  it("binds the sender name and reply-to into the payload hash", () => {
+    const base: TransactionalEmail = { senderName: "Hartley Road Motors", replyTo: "bookings@hartleyroad.example", to: "customer@example.com", subject: "Invoice", text: "Invoice attached" };
+    expect(invoiceEmailPayloadSha256(base)).not.toBe(invoiceEmailPayloadSha256({ ...base, senderName: "Demo Garage B" }));
+    expect(invoiceEmailPayloadSha256(base)).not.toBe(invoiceEmailPayloadSha256({ ...base, replyTo: "hello@demo-b.example" }));
+  });
+
+  it.each(["issued", "paid"] as const)("delivers a valid %s invoice under the garage's identity", async (invoiceStatus) => {
     const dependencies = dependencyHarness();
 
     await expect(deliverInvoiceEmail(deliveryInput({ invoiceStatus }), dependencies)).resolves.toMatchObject({
@@ -49,14 +55,13 @@ describe("invoice email delivery", () => {
     });
 
     expect(dependencies.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      senderName: "Hartley Road Motors",
       to: "customer@example.com",
-      replyTo: "info@sobautofix.com",
+      replyTo: "bookings@hartleyroad.example",
       idempotencyKey: databaseIdempotencyKey(logicalSendId),
       tags: [{ name: "invoice_send_id", value: logicalSendId }],
     }));
-    expect(dependencies.sendEmail).not.toHaveBeenCalledWith(expect.objectContaining({
-      replyTo: "sobautofix@gmail.com",
-    }));
+    expect(dependencies.sendEmail).not.toHaveBeenCalledWith(expect.objectContaining({ from: expect.anything() }));
   });
 
   it("does not contact the provider when the database claim fails", async () => {
@@ -128,8 +133,8 @@ describe("invoice email delivery", () => {
     expect(providerMessages[0]?.idempotencyKey).toBe(databaseIdempotencyKey(logicalSendId));
     expect(providerMessages[1]?.idempotencyKey).toBe(databaseIdempotencyKey(copySendId));
     expect(providerMessages[0]?.idempotencyKey).not.toBe(providerMessages[1]?.idempotencyKey);
-    expect(providerMessages[0]?.replyTo).toBe("info@sobautofix.com");
-    expect(providerMessages[1]?.replyTo).toBe("info@sobautofix.com");
+    expect(providerMessages[0]?.replyTo).toBe("bookings@hartleyroad.example");
+    expect(providerMessages[1]?.replyTo).toBe("bookings@hartleyroad.example");
   });
 
   it("records a conclusive provider rejection as failed", async () => {
@@ -253,22 +258,26 @@ describe("invoice email configuration", () => {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_REPLY_TO: process.env.RESEND_REPLY_TO,
-    ENQUIRY_NOTIFICATION_EMAIL: process.env.ENQUIRY_NOTIFICATION_EMAIL,
   };
 
   afterEach(() => {
     restoreEnvironment(originalEnvironment);
   });
 
-  it("pins invoices to the approved Reply-To without changing enquiry configuration", () => {
+  it("uses the platform sender with only a fallback reply-to for invoices", () => {
     process.env.RESEND_API_KEY = "re_test";
-    process.env.RESEND_FROM_EMAIL = productionEmailSender;
+    process.env.RESEND_FROM_EMAIL = "Autofix <notifications@autofix.vitalos.co.uk>";
     process.env.RESEND_REPLY_TO = "another-valid-address@example.com";
-    process.env.ENQUIRY_NOTIFICATION_EMAIL = "notifications@example.com";
 
     expect(getResendConfig()?.replyTo).toBe("another-valid-address@example.com");
-    expect(getInvoiceResendConfig()?.replyTo).toBe(approvedInvoiceReplyTo);
-    expect(getInvoiceResendConfig()?.replyTo).toBe("info@sobautofix.com");
+    expect(getInvoiceResendConfig()).toEqual(getResendConfig());
+    expect(getInvoiceResendConfig()?.fromAddress).toBe("notifications@autofix.vitalos.co.uk");
+  });
+
+  it("rejects a malformed garage reply-to before claiming", async () => {
+    const dependencies = dependencyHarness();
+    await expect(deliverInvoiceEmail(deliveryInput({ replyTo: "not-an-email" }), dependencies)).rejects.toThrow();
+    expect(dependencies.claim).not.toHaveBeenCalled();
   });
 });
 
@@ -302,8 +311,8 @@ describe("invoice email PDF stability", () => {
   it("renders byte-identical PDFs for one immutable invoice revision", async () => {
     const invoice = representativeInvoice();
 
-    const first = await renderInvoicePdf(invoice);
-    const second = await renderInvoicePdf(invoice);
+    const first = await renderInvoicePdf(invoice, testGarage());
+    const second = await renderInvoicePdf(invoice, testGarage());
 
     expect(first.equals(second)).toBe(true);
   }, 20_000);
@@ -316,10 +325,12 @@ function deliveryInput(overrides: Partial<DeliverInvoiceEmailInput> = {}): Deliv
     invoiceRevision: revision,
     invoiceStatus: "issued",
     recipient: " Customer@Example.com ",
-    subject: "Invoice SOB-2026-000001 from SOB Autofix",
+    senderName: "Hartley Road Motors",
+    replyTo: "bookings@hartleyroad.example",
+    subject: "Invoice HRM-2026-000001 from Hartley Road Motors",
     text: "Please find your invoice attached.",
     html: "<p>Please find your invoice attached.</p>",
-    attachment: { filename: "SOB-Invoice-SOB-2026-000001.pdf", content: Buffer.from("stable-pdf-content") },
+    attachment: { filename: "Invoice-HRM-2026-000001.pdf", content: Buffer.from("stable-pdf-content") },
     ...overrides,
   };
 }
@@ -354,7 +365,7 @@ function restoreEnvironment(environment: Record<string, string | undefined>) {
 function representativeInvoice(): Invoice {
   return {
     id: invoiceId,
-    invoice_number: "SOB-2026-000001",
+    invoice_number: "HRM-2026-000001",
     invoice_year: 2026,
     invoice_sequence: 1,
     revision: 1,
@@ -375,13 +386,13 @@ function representativeInvoice(): Invoice {
     vehicle_model: "320d",
     service_name: "Diagnostics",
     appointment_start: null,
-    issuer_legal_name: "SOB Autofix Limited",
-    issuer_trading_name: "SOB Autofix",
-    issuer_tagline: "Professional Diagnostics. Not Guesswork.",
-    issuer_address: "Cumbrae\nStation Road\nNorton\nDoncaster\nDN6 9HF\nUnited Kingdom",
-    issuer_email: "sobautofix@gmail.com",
-    issuer_phone: "07469273483",
-    issuer_company_number: "16182532",
+    issuer_legal_name: "Hartley Road Motors Ltd",
+    issuer_trading_name: "Hartley Road Motors",
+    issuer_tagline: "Servicing, MOT and repairs",
+    issuer_address: "4 Hartley Road\nDoncaster\nDN1 2AB",
+    issuer_email: "bookings@hartleyroad.example",
+    issuer_phone: "+441302000101",
+    issuer_company_number: "01234567",
     issue_date: "2026-08-11",
     due_date: "2026-08-18",
     subtotal_pence: 8500,

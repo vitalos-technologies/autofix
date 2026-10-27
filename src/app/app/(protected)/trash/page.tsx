@@ -1,13 +1,13 @@
 import { Trash2 } from "lucide-react";
 import { AdminBulkActions, AdminItemCheckbox } from "@/components/admin/admin-bulk-actions";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { manageTrashAction } from "./actions";
 
 type TrashItem = { id: string; title: string; detail: string; deletedAt: string };
 type TrashSection = { entity: string; label: string; note?: string; items: TrashItem[] };
 
 export default async function AdminTrashPage() {
-  const client = await createAdminReadClient();
+  const client = await getAdminReadClient();
   const results = client ? await Promise.all([
     client.from("enquiries").select("id,type,deleted_at,customers(name,email)").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
     client.from("bookings").select("id,booking_reference,service_name,deleted_at,customers(name)").not("deleted_at", "is", null).order("deleted_at", { ascending: false }),

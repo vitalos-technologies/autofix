@@ -49,11 +49,11 @@ describe("enquiry email threading", () => {
   it("detects automated and bounce messages without treating normal mail as automated", () => {
     expect(isAutomatedEmail({ "Auto-Submitted": "auto-replied" }, "customer@example.com", "Reply")).toBe(true);
     expect(isAutomatedEmail({}, "mailer-daemon@example.com", "Delivery report")).toBe(true);
-    expect(isAutomatedEmail({}, "customer@example.com", "Re: Your SOB Autofix repair enquiry")).toBe(false);
+    expect(isAutomatedEmail({}, "customer@example.com", "Re: Your Hartley Road Motors repair enquiry")).toBe(false);
   });
 
   it("keeps a stable, non-sensitive conversation subject", () => {
-    expect(conversationSubject("mobile_mechanic")).toBe("Re: Your SOB Autofix mobile mechanic enquiry");
+    expect(conversationSubject("Hartley Road Motors", "mobile_mechanic")).toBe("Re: Your Hartley Road Motors mobile mechanic enquiry");
   });
 
   it("matches only by token, In-Reply-To, then References in that order", async () => {

@@ -21,6 +21,7 @@ import {
   lookupBookingAction,
   rescheduleBookingAction,
 } from "@/lib/bookings/manage-actions";
+import { useOptionalGarage } from "@/components/garage/garage-provider";
 import { Button } from "@/components/ui/button";
 import { initialBookingLookupState, type BookingHistoryEntry, type PublicBooking } from "@/lib/bookings/types";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ type SlotState = "idle" | "loading" | "ready" | "empty" | "error";
 type ActionFeedback = { tone: "success" | "error"; message: string };
 
 export function ManageBooking() {
+  const bookingPrefix = useOptionalGarage()?.bookingPrefix ?? "AF";
   const [state, formAction, lookupPending] = useActionState(lookupBookingAction, initialBookingLookupState);
   const [registration, setRegistration] = useState("");
   const [bookingOverride, setBookingOverride] = useState<PublicBooking>();
@@ -170,7 +172,7 @@ export function ManageBooking() {
         </div>
         <form action={formAction} onSubmit={resetForLookup} className="mt-7 grid items-end gap-4 md:grid-cols-[1fr_1fr_auto]">
           <FormField label="Booking reference" htmlFor="booking-reference">
-            <input id="booking-reference" name="bookingReference" placeholder="e.g. SOB-123456" required autoComplete="off" className={inputClasses} />
+            <input id="booking-reference" name="bookingReference" placeholder={`e.g. ${bookingPrefix}-4821`} required autoComplete="off" className={inputClasses} />
           </FormField>
           <FormField label="Vehicle registration" htmlFor="booking-registration">
             <div className="flex min-h-12 overflow-hidden rounded-xl border border-[#C9D5E2] bg-white focus-within:border-[#1974E2] focus-within:ring-4 focus-within:ring-[#1974E2]/15">

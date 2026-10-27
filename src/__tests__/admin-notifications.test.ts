@@ -9,7 +9,10 @@ describe("admin notifications", () => {
     expect(source).toContain("admin_seen_at.is.null");
     expect(source).toContain("provider_sync_state.in.(pending,failed)");
     expect(source).toContain('client.from("booking_notification_events")');
-    expect(source).toContain("enquiryIds.size + bookingIds.size + unmatchedCount");
+    // Unmatched inbound mail belongs to no garage, so it is not a garage notification.
+    expect(source).toContain("count: enquiryIds.size + bookingIds.size,");
+    expect(source).not.toContain("unmatched_inbound_emails");
+    expect(source).not.toContain("createAdminClient");
   });
 
   it("polls the authenticated count endpoint and sends the live count to both badges", () => {

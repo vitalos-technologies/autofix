@@ -30,7 +30,9 @@ State as of 25 Oct 2026.
 
 Kept from SOB: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET`, `GOOGLE_PLACES_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `VEHICLE_LOOKUP_PROVIDER`, `VEHICLE_DATA_GLOBAL_API_KEY`, `VEHICLE_DATA_GLOBAL_BASE_URL`, `VEHICLE_DATA_GLOBAL_PACKAGE`, `BOOKING_MANAGEMENT_SECRET`, `CRON_SECRET`, `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
 
-Removed: `CALCOM_*`, `NEXT_PUBLIC_TAWK_*`, `NEXT_PUBLIC_GOOGLE_MAPS_URL`, `GOOGLE_PLACE_ID`, `ENQUIRY_*` single-business values, `LEGAL_COPY_APPROVED`/`COOKIE_CONFIGURATION_APPROVED` (become per-platform flags).
+Removed: `CALCOM_*`, `NEXT_PUBLIC_TAWK_*`, `NEXT_PUBLIC_GOOGLE_MAPS_URL`, `GOOGLE_PLACE_ID`, `ENQUIRY_*` single-business values (incl. `ENQUIRY_NOTIFICATION_EMAIL`), `ADMIN_EMAILS` (access is `garage_members`), `LEGAL_COPY_APPROVED`/`COOKIE_CONFIGURATION_APPROVED` (become per-platform flags).
+
+Email (P1.3): `RESEND_FROM_EMAIL` is the platform sender address (the display name is replaced by the garage's name per message); `RESEND_REPLY_TO` is optional and only a fallback when a garage has no email; `ENQUIRY_REPLY_DOMAIN` (e.g. `reply.autofix.vitalos.co.uk`) carries enquiry reply tokens.
 
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
 

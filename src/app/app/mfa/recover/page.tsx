@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/layout/logo";
 import { signOut } from "@/app/app/login/actions";
 import { getActiveMfaRecoverySession } from "@/lib/auth/mfa-recovery-server";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { AuthenticatorReplacementForm, RecoveryCodeForm } from "./mfa-recovery-flow";
 
 export default async function MfaRecoveryPage() {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin) redirect("/app/login");
   const recovery = await getActiveMfaRecoverySession(admin.user.id);
   if (admin.mfaVerified && !recovery) redirect("/app");

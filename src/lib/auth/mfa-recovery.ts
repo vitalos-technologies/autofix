@@ -5,7 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 export const MFA_RECOVERY_CODE_COUNT = 10;
 export const MFA_RECOVERY_CODE_CHARACTERS = 20;
 export const MFA_RECOVERY_SESSION_SECONDS = 15 * 60;
-export const MFA_RECOVERY_COOKIE = "sob_admin_mfa_recovery";
+export const MFA_RECOVERY_COOKIE = "af_mfa_recovery";
 export const MFA_RECOVERY_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true,

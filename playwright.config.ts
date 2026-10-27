@@ -3,8 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const port = process.env.PLAYWRIGHT_PORT || "3000";
 const host = process.env.PLAYWRIGHT_HOST || "127.0.0.1";
 const baseURL = `http://${host}:${port}`;
-// Use an already installed Chromium (e.g. PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium)
-// instead of the one `playwright install` downloads.
+// Use a preinstalled Chromium (for example in sandboxes without a Playwright download).
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
@@ -19,7 +18,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    launchOptions: { executablePath },
+    launchOptions: executablePath ? { executablePath } : {},
   },
   webServer: {
     command: `pnpm dev --port ${port}`,

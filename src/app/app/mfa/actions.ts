@@ -3,13 +3,13 @@
 import { redirect } from "next/navigation";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { isSixDigitMfaCode, safeAdminReturnTo } from "@/lib/auth/mfa";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { trustCurrentDevice } from "@/lib/auth/trusted-device-server";
 
 export type MfaChallengeState = { message: string };
 
 export async function verifyMfaChallenge(_: MfaChallengeState, formData: FormData): Promise<MfaChallengeState> {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin) return { message: "Your sign-in session has expired. Use another account and try again." };
   const code = String(formData.get("code") || "").replace(/\s/g, "");
   const factorId = String(formData.get("factorId") || "");
