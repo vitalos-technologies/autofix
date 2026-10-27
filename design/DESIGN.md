@@ -90,6 +90,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 | `BookingSummaryBar` | Booking 4 | Navy card: plate chip, service, time, Edit |
 | `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due" |
 | `ConfirmationCard` | Booking 5 | Reference in Barlow, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
+| `BookingStatusChip` | Manage booking | Customer-facing status: 999px chip with a dot, success / warning / info / neutral / danger (same colour pairs as `StatusPill`) |
 | `AdminShell` | Admin desktop | Navy sidebar (garage switcher, 3 groups), white top bar (search, booking page link, bell, avatar); stacks on phones |
 | `AdminTabBar` | Admin phone | 5 tabs: Today, Diary, New (accent), Customers, More |
 | `KpiCard` | Admin | Label, Barlow number, one-line context; the "won back" card is navy |
@@ -118,7 +119,9 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 
 Booking state between steps lives in a signed, httpOnly cookie or server session, never in the query string (registration privacy rule).
 
-Screens not drawn yet (build them in the same language, then add them to the canvas): Diary (week view), Bookings list + booking detail, Customers & cars, Services & prices, Opening hours & bays, Messages & calls, Settings, sign-up/onboarding, manage booking, super admin.
+Screens not drawn yet (build them in the same language, then add them to the canvas): Diary (week view), Bookings list + booking detail, Customers & cars, Services & prices, Opening hours & bays, Messages & calls, Settings, sign-up/onboarding, super admin.
+
+Built but not yet in the canvas (P2.9, in the Book 1–5 language): Manage · Find your booking (`/manage` without a session: reference field, plate input, generic not-found alert), Manage · Your booking (`/manage`: status chip, booking card with plate chip and masked mobile, Change the time / Cancel booking / Add to calendar / Call / WhatsApp, and the requested, too-close, with-the-garage, time-passed, collected and cancelled notices), Manage · Pick a new time (`/manage/reschedule`: Book 3's strip and grid, current time struck through), Manage · Cancel this booking? (`/manage/cancel`: summary bar, optional reason, red 54px action).
 
 ## Rules
 
