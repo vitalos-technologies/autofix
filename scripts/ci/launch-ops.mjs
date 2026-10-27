@@ -14,6 +14,21 @@ const TASKS = ["report", "vercel-domains", "twilio-webhooks", "resend-domain", "
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
+// One table or column each migration adds, read through PostgREST with the service key.
+const MIGRATION_PROBES = [
+  ["20261026000000", "enquiries?select=id"],
+  ["20261026000100", "garage_members?select=garage_id"],
+  ["20261027000100", "resources?select=id"],
+  ["20261028000100", "agent_tokens?select=id"],
+  ["20261028000200", "customer_imports?select=id"],
+  ["20261028000300", "garage_agreements?select=id"],
+  ["20261028000400", "garage_invites?select=id"],
+  ["20261028000500", "platform_impersonations?select=id"],
+  ["20261028001000", "reminder_rules?select=id"],
+  ["20261028002000", "twilio_webhook_events?select=id"],
+  ["20261028002100", "calls?select=dial_status"],
+  ["20261028003000", "messages?select=read_at"],
+];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
 function clean(value) {
@@ -59,6 +74,17 @@ function errorText(result) {
   const code = error?.code ?? error?.name ?? "";
   const message = error?.message ?? result.body?.message ?? result.body?.raw ?? "";
   return `HTTP ${result.status} ${code} ${message}`.replace(/\s+/g, " ").trim();
+}
+
+// Every name the tasks read, so a secret saved under the wrong name (or in the wrong place) shows at once.
+const KEYS = [
+  "VERCEL_API_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID", "NEXT_PUBLIC_SITE_URL",
+  "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID",
+  "RESEND_API_KEY", "RESEND_ADMIN_API_KEY", "RESEND_FROM_EMAIL", "CLOUDFLARE_API_TOKEN",
+  "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_ACCESS_TOKEN",
+];
+function keysLine() {
+  console.log(`keys this run can see: ${KEYS.map((name) => `${name}=${env(name) ? "set" : "MISSING"}`).join(" ")}`);
 }
 
 const lastFour = (phone) => (phone ? `…${String(phone).slice(-4)}` : "none");
@@ -195,13 +221,19 @@ export function recordFqdn(name, domain, zone) {
 
 async function resendDomain() {
   heading("Resend sending domain");
-  if (missing(["RESEND_API_KEY", "RESEND_FROM_EMAIL"])) return fail("Resend is not configured");
+  if (missing(["RESEND_FROM_EMAIL"])) return fail("Resend is not configured");
   const domain = sendingDomain();
   if (!domain) return fail("RESEND_FROM_EMAIL has no domain");
-  const headers = { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" };
+  // The app's RESEND_API_KEY may be send-only; managing domains needs a full-access key.
+  const key = env("RESEND_ADMIN_API_KEY") ?? env("RESEND_API_KEY");
+  if (!key) return fail("RESEND_ADMIN_API_KEY (full access) is not set");
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 
   const list = await call("https://api.resend.com/domains", { headers });
-  if (!list.ok) return fail(`Resend domains: ${errorText(list)}`);
+  if (!list.ok) {
+    if (list.body?.name === "restricted_api_key") console.log("  Add a full-access Resend key as the repository secret RESEND_ADMIN_API_KEY (Resend → API Keys → Full access).");
+    return fail(`Resend domains: ${errorText(list)}`);
+  }
   let found = (list.body?.data ?? []).find((entry) => entry.name === domain);
   if (!found) {
     if (!apply) {
@@ -288,11 +320,21 @@ async function supabase() {
   if (!ref) return fail("NEXT_PUBLIC_SUPABASE_URL is not a https://<ref>.supabase.co URL");
   console.log(`  project ref ${ref}`);
 
-  // Without a Management API token, the service key can still say whether the schema exists.
+  // Without a Management API token, the service key can still show which migrations' tables and
+  // columns exist (migrations that only add functions are not checked this way).
   const secretKey = env("SUPABASE_SECRET_KEY");
   if (secretKey) {
-    const probe = await call(`https://${ref}.supabase.co/rest/v1/garages?select=id&limit=1`, { headers: { apikey: secretKey, Authorization: `Bearer ${secretKey}` } });
-    console.log(`  public.garages: ${probe.ok ? `exists (${(probe.body ?? []).length ? "has rows" : "empty"})` : `not reachable (${errorText(probe)})`}`);
+    const keyHeaders = { apikey: secretKey, Authorization: `Bearer ${secretKey}` };
+    const garages = await call(`https://${ref}.supabase.co/rest/v1/garages?select=id&limit=1`, { headers: keyHeaders });
+    console.log(`  public.garages: ${garages.ok ? `exists (${(garages.body ?? []).length ? "has rows" : "empty"})` : `not reachable (${errorText(garages)})`}`);
+    const found = [];
+    const absent = [];
+    for (const [version, probe] of MIGRATION_PROBES) {
+      const result = await call(`https://${ref}.supabase.co/rest/v1/${probe}&limit=0`, { headers: keyHeaders });
+      (result.ok ? found : absent).push(`${version} (${probe.split("?")[0]})`);
+    }
+    console.log(`  migration tables/columns present: ${found.length}/${MIGRATION_PROBES.length}`);
+    for (const entry of absent) console.log(`    missing ${entry}`);
   }
 
   if (missing(["SUPABASE_ACCESS_TOKEN"])) {
@@ -357,8 +399,9 @@ async function supabase() {
 
     // Auth mail through Resend only once its domain is verified (a rejected sender would stop every login email).
     const domain = sendingDomain();
-    if (env("RESEND_API_KEY") && domain) {
-      const list = await call("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}` } });
+    const resendKey = env("RESEND_ADMIN_API_KEY") ?? env("RESEND_API_KEY");
+    if (env("RESEND_API_KEY") && resendKey && domain) {
+      const list = await call("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${resendKey}` } });
       const verified = list.ok && (list.body?.data ?? []).some((entry) => entry.name === domain && entry.status === "verified");
       if (verified) {
         Object.assign(patch, {
@@ -389,6 +432,7 @@ async function supabase() {
 
 const run = {
   report: async () => {
+    keysLine();
     await vercelDomains();
     await twilioWebhooks();
     await resendDomain();
