@@ -4,7 +4,8 @@
 
 | Phase | Gate | Date | Last commit | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | in progress | 26 Oct 2026 | 35496ff | `/build` started on `claude/modest-mayer-9yzmr0`; local Supabase in Docker |
+| 1 | **passed** | 27 Oct 2026 | eb8dfd8 | All P1 tasks ticked; Gate 1 green in CI (run 40429708549: verify, database-tests incl. 1614 tenancy tests, browser-tests, lighthouse) on self-hosted runners `autofix-azure-*` |
+| 2 | in progress | 27 Oct 2026 | eb8dfd8 | P2.6/P2.7 done; data (P2.1–P2.3), api (P2.4/P2.5/P2.10) and ui (P2.8) lanes running |
 
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
 
@@ -37,7 +38,7 @@ After `/bootstrap` has pushed to GitHub, phases run in Claude Code cloud session
 
 ## Phase 1 · Fork + tenancy (days 1–3)
 
-Gate 1: **cross-garage tests return zero rows** for every tenant table, for select, insert, update and delete, as anon, as garage A staff and as garage B staff.
+Gate 1: **cross-garage tests return zero rows** for every tenant table, for select, insert, update and delete, as anon, as garage A staff and as garage B staff. **Passed 27 Oct 2026**: tenancy suite 1614/1614 (26 tables × 9 callers × select/insert/update/delete/move, structure, storage, integrity) in CI run 40429708549 on `autofix-azure-1`, with pgTAP 304/304 and `pnpm verify` green.
 
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
@@ -50,8 +51,8 @@ Gate 1: **cross-garage tests return zero rows** for every tenant table, for sele
 | [x] P1.7 | api | Host routing in middleware: admin host, `<slug>.autofix.vitalos.co.uk`, verified custom hosts, dev host overrides; rewrite to `/app/…` or `/_site/[garageId]/…`; 60 s edge cache of host → garage | Unit tests for every host shape incl. unknown → 404 — done `66647ba`, `c1159ce` |
 | [x] P1.8 | integrations | `src/lib/vercel/domains.ts`: add, get config, verify, remove domain via Vercel REST API; typed errors; `domains.check` job | Mocked tests; real call behind env flag — done `775197b` |
 | [x] P1.9 | data | Seed script: 2 demo garages ("Hartley Road Motors" `hartley-road`, "Demo Garage B" `demo-b`), 3 bays + 1 mobile van each, opening hours, 6 services, staff users, sample customers/vehicles | `pnpm db:seed` — done `e591a57` (idempotent, local only; `seedResources`/`seedOpeningHours`/`seedClosures`/`seedServices` hold the scheduling data and skip until P2.1 creates the tables) |
-| P1.10 | qa | Tenancy suite `tests/integration/tenancy.test.ts` against local Supabase: enumerates every table with `garage_id` from `information_schema` and asserts isolation (so new tables are covered automatically) | **Gate 1** green in CI — suite `b576df9`: 26 tables, 1614 tests, green locally on 27 Oct 2026 (also on a simulated CI runner slot); tick when the CI run is green |
-| P1.11 | qa | CI: add Supabase local service to GitHub Actions; run `pnpm verify`, tenancy suite, Playwright smoke | Workflow green on PR — workflow `2fd20e2` (per-runner Supabase and ports, seed, host smoke, browser and Lighthouse jobs on the seeded garage host); every job's commands green locally; tick when the first run on the runners is green |
+| [x] P1.10 | qa | Tenancy suite `tests/integration/tenancy.test.ts` against local Supabase: enumerates every table with `garage_id` from `information_schema` and asserts isolation (so new tables are covered automatically) | **Gate 1** green in CI — suite `b576df9`: 26 tables, 1614 tests, green locally on 27 Oct 2026 (also on a simulated CI runner slot); tick when the CI run is green — **green in CI**: run 40429708549 (27 Oct 2026, `autofix-azure-1`), 1614 tenancy tests |
+| [x] P1.11 | qa | CI: add Supabase local service to GitHub Actions; run `pnpm verify`, tenancy suite, Playwright smoke | Workflow green on PR — workflow `2fd20e2` (per-runner Supabase and ports, seed, host smoke, browser and Lighthouse jobs on the seeded garage host); every job's commands green locally; tick when the first run on the runners is green — all four jobs green on the self-hosted runners in run 40429708549 (on push; no PR is open yet) |
 
 ## Phase 2 · Booking engine (days 4–7)
 
