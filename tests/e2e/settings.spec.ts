@@ -110,8 +110,8 @@ function openWeekdayAhead() {
 
 test("services: the owner changes a price and the booking site shows it", async () => {
   await page.goto(`${adminOrigin}/app/settings/services`);
-  await expect(page.getByRole("heading", { level: 1, name: "Services & prices" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Services & prices" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { level: 1, name: "Services & prices", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Setup pages" }).getByRole("link", { name: "Services & prices" })).toHaveAttribute("aria-current", "page");
   await expectAccessibleAt(page);
 
   await openServiceStep();
@@ -119,7 +119,7 @@ test("services: the owner changes a price and the booking site shows it", async 
 
   await page.getByRole("link", { name: "Edit Diagnostics" }).click();
   await page.waitForURL(/\/app\/settings\/services\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Edit Diagnostics" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Edit Diagnostics", exact: true })).toBeVisible();
   await expectAccessibleAt(page);
 
   // Validation: a price that is not pounds and pence is refused, with the message on the field.
@@ -140,14 +140,14 @@ test("services: the owner changes a price and the booking site shows it", async 
   await expect(serviceCard(/Diagnostics/)).not.toContainText("From");
 
   await page.getByRole("link", { name: "Add a service" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Add a service" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Add a service", exact: true })).toBeVisible();
   await expectAccessibleAt(page);
 });
 
 test("hours: a closure takes that day off the booking site's time step", async () => {
   const day = openWeekdayAhead();
   await page.goto(`${adminOrigin}/app/settings/hours`);
-  await expect(page.getByRole("heading", { level: 1, name: "Opening hours" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Opening hours", exact: true })).toBeVisible();
   await expectAccessibleAt(page);
 
   await openServiceStep();
@@ -192,7 +192,7 @@ test("hours: overlapping opening times are refused, a split day is saved", async
 
 test("resources: bays and vans are listed with switches", async () => {
   await page.goto(`${adminOrigin}/app/settings/resources`);
-  await expect(page.getByRole("heading", { level: 1, name: "Bays & vans" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Bays & vans", exact: true })).toBeVisible();
   await expect(page.getByRole("switch", { name: "Bay 1 takes bookings" })).toHaveAttribute("aria-checked", "true");
   await expectAccessibleAt(page);
 
@@ -208,7 +208,7 @@ test("branding: #ffcc00 is darkened until white text passes, and the booking sit
   const darkened = bookingAccent("#ffcc00");
   expect(darkened).not.toBe("#ffcc00");
   await page.goto(`${adminOrigin}/app/settings/branding`);
-  await expect(page.getByRole("heading", { level: 1, name: "Branding & MOT" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Branding & MOT", exact: true })).toBeVisible();
   await expectAccessibleAt(page);
 
   await page.getByRole("button", { name: "Custom colour" }).click();
