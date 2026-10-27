@@ -57,6 +57,9 @@ export function verifyUnsubscribeToken(garageId: string, token: string | null | 
   const idBytes = Buffer.from(idPart, "base64url");
   const given = Buffer.from(tagPart, "base64url");
   if (idBytes.length !== 16 || given.length !== 16) return null;
+  // 16 bytes leave 4 unused bits in the last character, so four spellings decode to the same
+  // bytes: accept only the one we issue, so a changed character never still works.
+  if (idBytes.toString("base64url") !== idPart || given.toString("base64url") !== tagPart) return null;
   const customerId = bytesToUuid(idBytes);
   return timingSafeEqual(given, tag(secret, garageId, customerId)) ? customerId : null;
 }
