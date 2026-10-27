@@ -336,12 +336,12 @@ select is(
 );
 select is(
   (select template from public.reminder_rules where garage_id = 'a1300000-0000-4000-8000-000000000001' and kind = 'mot'),
-  E'Hi {first_name}, the MOT on your {vehicle} ({reg}) is due on {due_date}. Book a time: {link}\n{garage}.',
-  'the MOT template is the DEFAULT_TEMPLATES wording'
+  '{garage}: Hi {first_name}, MOT due {due_date}. Book: {link}',
+  'the MOT template is the DEFAULT_TEMPLATES wording (one text since 20261028002300)'
 );
 select is(
   (select template from public.reminder_rules where garage_id = 'a1300000-0000-4000-8000-000000000001' and kind = 'missed_call'),
-  'Sorry we missed your call. Book online in about a minute: {link} or we''ll call you back soon. {garage}',
+  '{garage}: sorry we missed your call. Book at {link} or we''ll call you back.',
   'the missed-call template is the DEFAULT_TEMPLATES wording'
 );
 

@@ -211,8 +211,9 @@ describe.skipIf(!configured).sequential("reminder pipeline against local Supabas
     const outbox = messaging.mock.getMockOutbox().filter((entry) => entry.garageId === garage.id);
     expect(outbox).toHaveLength(1);
     expect(outbox[0]).toMatchObject({ kind: "sms", to: RITA, idempotencyKey: `reminder_send:${sendId}` });
-    expect(outbox[0]!.body).toMatch(/^Hi Rita, the MOT on your Toyota Yaris \(RP\w+ \w{3}\) is due on .+\. Book a time: http:\/\/.+\/r\/[A-Za-z0-9_-]{43}\n.+\. Reply STOP to opt out\.$/);
-    token = /\/r\/([A-Za-z0-9_-]{43})/.exec(outbox[0]!.body)![1]!;
+    // The one-text default wording (A184) and a 22-character link token (A185).
+    expect(outbox[0]!.body).toMatch(/^.+: Hi Rita, MOT due \d{1,2} [A-Z][a-z]{2}\. Book: http:\/\/.+\/r\/[A-Za-z0-9_-]{22}\nReply STOP to opt out\.$/);
+    token = /\/r\/([A-Za-z0-9_-]{22})\n/.exec(outbox[0]!.body)![1]!;
 
     const send = await service.from("reminder_sends").select("status,provider_msg_id,link_token_hash,link_expires_at,sent_at,body").eq("id", sendId).single();
     expect(send.data).toMatchObject({ status: "sent", provider_msg_id: outbox[0]!.providerMessageId, body: outbox[0]!.body });

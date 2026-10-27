@@ -28,8 +28,7 @@ describe("renderTemplate", () => {
   it("renders the MOT reminder exactly as the consent wording draft for SMS", () => {
     const rendered = renderTemplate(DEFAULT_TEMPLATES.mot.body, vars, { channel: "sms" });
     expect(rendered.text).toBe(
-      "Hi Sam, the MOT on your Ford Fiesta (AB12 CDE) is due on 14 Nov. Book a time: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" +
-        "Hartley Road Garage. Reply STOP to opt out.",
+      "Hartley Road Garage: Hi Sam, MOT due 14 Nov. Book: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" + OPT_OUT_LINE,
     );
     expect(rendered.unknownPlaceholders).toEqual([]);
     expect(rendered.missingPlaceholders).toEqual([]);
@@ -37,15 +36,13 @@ describe("renderTemplate", () => {
 
   it("renders the service reminder exactly as the consent wording draft for WhatsApp", () => {
     expect(renderTemplate(DEFAULT_TEMPLATES.service.body, vars, { channel: "whatsapp" }).text).toBe(
-      "Hi Sam, your Ford Fiesta (AB12 CDE) is due a service. Book a time: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" +
-        "Hartley Road Garage. Reply STOP to opt out.",
+      "Hartley Road Garage: Hi Sam, service due. Book: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" + OPT_OUT_LINE,
     );
   });
 
-  it("keeps the missed-call and confirmation wording and adds the opt-out on its own line", () => {
+  it("keeps the missed-call and confirmation wording and adds the opt-out after it", () => {
     expect(renderTemplate(DEFAULT_TEMPLATES.missed_call.body, vars, { channel: "sms" }).text).toBe(
-      "Sorry we missed your call. Book online in about a minute: https://hartley-road.autofix.vitalos.co.uk/r/abc123 or we'll call you back soon. Hartley Road Garage\n" +
-        OPT_OUT_LINE,
+      "Hartley Road Garage: sorry we missed your call. Book at https://hartley-road.autofix.vitalos.co.uk/r/abc123 or we'll call you back. " + OPT_OUT_LINE,
     );
     expect(renderTemplate(DEFAULT_TEMPLATES.booking_confirmed.body, vars, { channel: "sms" }).text).toBe(
       "Hartley Road Garage: you're booked in for Full service on Tue 3 Nov at 09:30. Ref HRG-1042. Change or cancel: https://hartley-road.autofix.vitalos.co.uk/m/xyz\n" +

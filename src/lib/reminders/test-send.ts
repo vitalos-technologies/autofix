@@ -8,7 +8,7 @@ import { toE164UK } from "@/lib/messaging/phone";
 import { DEFAULT_TEMPLATES, renderTemplate } from "@/lib/messaging/templates";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { garageBaseUrl, type GarageUrlSubject, type UrlEnvironment } from "@/lib/tenancy/urls";
-import { formatMotDate } from "@/lib/vehicle/mot";
+import { formatReminderDate } from "./compose";
 import { checkTemplate, sampleTemplateValues, type RuleChannel, type RuleKind } from "./rules";
 
 // "Send me a test" on the Reminders page (P3.10). The rule's saved wording, filled in with the same
@@ -55,7 +55,7 @@ export function testRecipient(user: TestSendInput["user"], rule: Pick<TestSendIn
 /** The test as the member will get it: the sample details, the opt-out line and "Test: " in front. */
 export function composeTest(input: Pick<TestSendInput, "garage" | "rule" | "sampleDueDate" | "env">, channel: ChannelKind) {
   const base = garageBaseUrl(input.garage, input.env);
-  const values = sampleTemplateValues({ kind: input.rule.kind, garageName: input.garage.name, bookingBaseUrl: base, dueDate: formatMotDate(input.sampleDueDate) });
+  const values = sampleTemplateValues({ kind: input.rule.kind, garageName: input.garage.name, bookingBaseUrl: base, dueDate: formatReminderDate(input.sampleDueDate) });
   // The link in a test opens the booking page itself: a working reminder link needs a real reminder.
   const vars = { ...values, link: `${base.replace(/\/+$/, "")}/` };
   const rendered = renderTemplate(input.rule.template, vars, { channel });

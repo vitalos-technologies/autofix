@@ -249,8 +249,9 @@ test("sent: the job runner drains reminders.send on the mock SMS channel with a 
   expect(outbox).toHaveLength(1);
   expect(outbox[0]).toMatchObject({ kind: "sms", to: CUSTOMER.phone, idempotencyKey: `reminder_send:${sendId}` });
   const sms = outbox[0]!;
-  expect(sms.body).toMatch(/^Hi Rita, the MOT on your Toyota Yaris \(.+\) is due on .+\. Book a time: \S+\n.+\. Reply STOP to opt out\.$/);
-  const found = new RegExp(`Book a time: (http://${garage.slug.replace(/[-.]/g, "\\$&")}\\.localhost:${port}/r/([A-Za-z0-9_-]{43}))\\n`).exec(sms.body);
+  // The one-text default wording (A184) with a 22-character link token (A185).
+  expect(sms.body).toMatch(/^.+: Hi Rita, MOT due \d{1,2} [A-Z][a-z]{2}\. Book: \S+\nReply STOP to opt out\.$/);
+  const found = new RegExp(`Book: (http://${garage.slug.replace(/[-.]/g, "\\$&")}\\.localhost:${port}/r/([A-Za-z0-9_-]{22}))\\n`).exec(sms.body);
   expect(found, `the link in "${sms.body}"`).not.toBeNull();
   [, link, token] = found as unknown as [string, string, string];
 

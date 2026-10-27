@@ -160,14 +160,15 @@ export const REVIEW_CONSENT_NOTE =
   "Customers agreed to reminders when their MOT and service are due. That wording doesn't mention review requests, so check with your solicitor that it covers them before you switch this on.";
 
 /**
- * A stand-in for a reminder link token: as long as a real one (32 random bytes, base64url, 43
+ * A stand-in for a reminder link token: as long as a real one (16 random bytes, base64url, 22
  * characters; src/lib/reminders/link-token.ts) so the character count matches what is sent.
  */
-export const SAMPLE_LINK_TOKEN = "7KQ2hT9mWc4pXv8RbN3sLq6dZf1JyG5aEu0kVo2MiCr";
+export const SAMPLE_LINK_TOKEN = "7KQ2hT9mWc4pXv8RbN3sLq";
 
 /**
  * Sample values for the preview, the counter and the test: plausible, never a real customer, and
- * as long as the real thing (the full `https://…/r/{token}` link, the date as "3 November 2026"),
+ * as long as the real thing (the full `https://…/r/{token}` link, the date as the reminder writes
+ * it, "24 Nov": pass `formatReminderDate()` from src/lib/reminders/compose.ts),
  * so the counter is honest about how many texts a message takes. The missed-call text links to the
  * booking page itself, as src/lib/calls/text-back.ts does, and only knows `{first_name}` for callers
  * who are already customers.

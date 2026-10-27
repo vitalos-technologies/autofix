@@ -157,9 +157,9 @@ describe("composing and sending", () => {
     expect(outbox).toMatchObject({ kind: "sms", garageId: GARAGE_ID, to: "+447700900123", idempotencyKey: `reminder_send:${row.id}` });
     expect(outbox!.senderId).toBeUndefined();
 
-    const token = /https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/r\/([A-Za-z0-9_-]{43})\n/.exec(outbox!.body)?.[1];
+    const token = /https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/r\/([A-Za-z0-9_-]{22})\n/.exec(outbox!.body)?.[1];
     expect(token).toBeTruthy();
-    expect(outbox!.body).toBe(`Hi Sam, the MOT on your Ford Focus (AB12 CDE) is due on 10 November 2026. Book a time: https://hartley-road.autofix.vitalos.co.uk/r/${token}\nHartley Road Motors. Reply STOP to opt out.`);
+    expect(outbox!.body).toBe(`Hi Sam, the MOT on your Ford Focus (AB12 CDE) is due on 10 Nov. Book a time: https://hartley-road.autofix.vitalos.co.uk/r/${token}\nHartley Road Motors. Reply STOP to opt out.`);
 
     const [prepared] = calls.prepared;
     expect(prepared).toMatchObject({ id: row.id, to: "+447700900123", provider: "mock", body: outbox!.body });
@@ -183,7 +183,7 @@ describe("composing and sending", () => {
     const env = { ...PROD_ENV, BOOKING_MANAGEMENT_SECRET: "test-booking-management-secret-0123456789" };
     await run([[row]], { env });
     const [email] = getMockOutbox();
-    expect(email).toMatchObject({ kind: "email", to: "sam@example.com", subject: "Your MOT is due on 10 November 2026" });
+    expect(email).toMatchObject({ kind: "email", to: "sam@example.com", subject: "Your MOT is due on 10 Nov" });
     const link = /\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
     expect(link).toBeTruthy();
     expect(verifyUnsubscribeToken(GARAGE_ID, link![1], env)).toBe(row.customer_id);

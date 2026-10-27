@@ -1,4 +1,4 @@
-# Consent and messaging wording (draft v0.2)
+# Consent and messaging wording (draft v0.3)
 
 Draft for solicitor review; not legal advice. Covers PECR (marketing texts and calls) and UK GDPR transparency.
 
@@ -28,19 +28,26 @@ Import declaration the garage must tick before reminders are scheduled for impor
 
 ## SMS templates (default; garage may edit within the rules)
 
+v0.3 shortens these so each is one text (160 characters, plain GSM-7, opt-out line included) for a garage name and booking-link address of up to 20 characters each and a first name of up to 12. Dates are written like "24 Nov" ("24 Nov 2027" when more than six months away).
+
 MOT reminder:
 
-> Hi {first_name}, the MOT on your {vehicle} ({reg}) is due on {due_date}. Book a time: {link}
-> {garage}. Reply STOP to opt out.
+> {garage}: Hi {first_name}, MOT due {due_date}. Book: {link}
+> Reply STOP to opt out.
 
 Service reminder:
 
-> Hi {first_name}, your {vehicle} ({reg}) is due a service. Book a time: {link}
-> {garage}. Reply STOP to opt out.
+> {garage}: Hi {first_name}, service due. Book: {link}
+> Reply STOP to opt out.
+
+Review request (off until the garage switches it on):
+
+> {garage}: thanks {first_name}! Please review us: {link}
+> Reply STOP to opt out.
 
 Missed-call text-back (a reply to the caller's enquiry, not marketing):
 
-> Sorry we missed your call. Book online in about a minute: {link} or we'll call you back soon. {garage}
+> {garage}: sorry we missed your call. Book at {link} or we'll call you back. Reply STOP to opt out.
 
 Booking confirmation (service message):
 

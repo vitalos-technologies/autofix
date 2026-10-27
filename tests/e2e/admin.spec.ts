@@ -389,7 +389,7 @@ test("Reminders shows this month, the automations and what's due in the next 30 
   await expect(table.getByRole("row").filter({ hasText: due.declined.customerName })).toContainText("No consent, won't send");
 
   const preview = page.getByRole("complementary", { name: "Message preview" });
-  await expect(preview).toContainText("Hi Priya, the MOT on your Toyota Yaris (BC23 DEF) is due on");
+  await expect(preview).toContainText(/Hi Priya, MOT due \d{1,2} [A-Z][a-z]{2}\. Book:/);
   await expect(preview).toContainText("Reply STOP to opt out.");
   await expectAccessible(page);
 });
