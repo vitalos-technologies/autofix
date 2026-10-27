@@ -2,7 +2,7 @@ import "server-only";
 
 import { brandUrl, type EmailBrand } from "@/lib/email/brand";
 import { adminUrl } from "@/lib/tenancy/urls";
-import { detailCard, detailsText, emailLayout, notice, plainTextFooter, plainTextHeader, type RenderedEmail, type StatusTone } from "./components";
+import { detailCard, detailsText, emailLayout, notice, plainTextFooter, plainTextHeader, type FooterLink, type RenderedEmail, type StatusTone } from "./components";
 
 /** `requested`: an online booking waiting for the garage's OK (it still holds the slot). */
 export type BookingEmailType = "confirmed" | "requested" | "rescheduled" | "cancelled";
@@ -24,7 +24,17 @@ export type BookingEmailInput = {
   calendarUrl?: string;
   /** The signed manage link; defaults to the plain `/manage` page (reference + registration). */
   manageUrl?: string;
+  /** The signed `/unsubscribe/<token>` link for this customer; the footer then offers "Stop reminders" (P4.9). */
+  unsubscribeUrl?: string;
 };
+
+/** Customer email footer: the garage's privacy notice, and the customer's own opt-out link when there is one. */
+export function customerFooterLinks(brand: EmailBrand, unsubscribeUrl?: string): FooterLink[] {
+  return [
+    { label: "Privacy notice", url: brandUrl(brand, "/privacy") },
+    ...(unsubscribeUrl ? [{ label: "Stop reminders", url: unsubscribeUrl }] : []),
+  ];
+}
 
 export type InternalBookingEmailInput = BookingEmailInput & {
   /** Empty when the customer gave no email address. */
@@ -45,6 +55,7 @@ function copyFor(type: BookingEmailType, garageName: string) {
 
 export function renderBookingEmail(input: BookingEmailInput): RenderedEmail {
   const { brand } = input;
+  const footerLinks = customerFooterLinks(brand, input.unsubscribeUrl);
   const details = [
     { label: "Customer", value: input.customerName },
     { label: "Vehicle", value: input.vehicle },
@@ -82,8 +93,9 @@ export function renderBookingEmail(input: BookingEmailInput): RenderedEmail {
         ...(input.calendarUrl ? [{ label: "Add to Calendar", url: input.calendarUrl }] : []),
       ],
       afterCta: isCancelled ? "When you're ready, you can arrange another appointment online." : "Need to make a change? Use Manage Booking to review, reschedule or cancel your appointment.",
+      footerLinks,
     }),
-    text: [plainTextHeader(brand), "", item.status, "", `Hello ${input.customerName},`, "", item.intro, "", input.previousAppointment && input.type === "rescheduled" ? `Previous appointment: ${input.previousAppointment}\n` : "", detailsText(details), "", `${actionLabel}: ${actionUrl}`, !isCancelled && input.googleCalendarUrl ? `Add to Google Calendar: ${input.googleCalendarUrl}` : "", !isCancelled && input.calendarUrl ? `Add to Calendar: ${input.calendarUrl}` : "", plainTextFooter(brand)].filter((line) => line !== "").join("\n"),
+    text: [plainTextHeader(brand), "", item.status, "", `Hello ${input.customerName},`, "", item.intro, "", input.previousAppointment && input.type === "rescheduled" ? `Previous appointment: ${input.previousAppointment}\n` : "", detailsText(details), "", `${actionLabel}: ${actionUrl}`, !isCancelled && input.googleCalendarUrl ? `Add to Google Calendar: ${input.googleCalendarUrl}` : "", !isCancelled && input.calendarUrl ? `Add to Calendar: ${input.calendarUrl}` : "", plainTextFooter(brand, footerLinks)].filter((line) => line !== "").join("\n"),
   };
 }
 

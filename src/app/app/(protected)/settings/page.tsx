@@ -50,6 +50,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
         <Link href="/app/settings" aria-current="page" className="rounded-lg bg-[#071127] px-4 py-2 text-sm font-bold text-white">Settings</Link>
         <Link href="/app/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-[#1974E2]">Security</Link>
+        <Link href="/app/settings/agreements" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-[#1974E2]">Agreements</Link>
       </nav>
 
       <div className="mt-8 grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">

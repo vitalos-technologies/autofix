@@ -43,7 +43,7 @@ Env: `NEXT_PUBLIC_ADMIN_HOST` (`autofix.vitalos.co.uk`), `NEXT_PUBLIC_TENANT_ROO
 | `<slug>.autofix.vitalos.co.uk`, verified custom host, `<slug>.localhost:3000`, `localhost:3000/?__garage=<slug>` (dev only) | `/_site/<garageId>/…` (folder `src/app/%5Fsite/[garageId]`); `/api/…` is not rewritten and resolves the garage from the host |
 | unknown | 404 |
 
-Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`, `/confirmed/[reference]`, `/manage`, `/r/[token]`, `/privacy`, `/unsubscribe`.
+Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`, `/confirmed/[reference]`, `/manage`, `/r/[token]`, `/privacy`, `/unsubscribe` (form), `/unsubscribe/[token]` (signed link, opts out on open) and `/unsubscribe/[token]/resumed`. Legal (P4.9): `src/lib/legal/*` (drafts embedded from `docs/autofix/legal/`, `renderPrivacyNotice`, `renderDpa`, `dpaTextHash`, `acceptDpaAction`), `src/lib/consent/*` (`unsubscribeUrl(garage, customerId)`, `optOutWithToken`, `optOutByPhone`, `resumeWithToken`), `src/components/legal/*` (`LegalDocumentBody`, `DraftFlag`, `DpaAcceptance`); admin `/app/settings/agreements`; SQL `garage_agreements`, `accept_garage_agreement()`, `opt_out_customer()`, `resume_customer_reminders()` (`20261028000300_dpa_acceptance.sql`).
 
 ## Migrations
 
