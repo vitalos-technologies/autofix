@@ -100,4 +100,17 @@ describe("host routing proxy", () => {
     const response = await proxy(request("https://autofix.vitalos.co.uk/?__garage=hartley-road"));
     expect(rewriteOf(response)).toBeNull();
   });
+
+  it("forwards the request method and path to admin-host server code, overwriting any client value (P4.5)", async () => {
+    const forged = new NextRequest("https://autofix.vitalos.co.uk/app/customers?q=AB12CDE", {
+      method: "POST",
+      headers: { host: "autofix.vitalos.co.uk", "x-autofix-method": "GET", "x-autofix-path": "/elsewhere" },
+    });
+    const response = await proxy(forged);
+    expect(response.headers.get("x-middleware-request-x-autofix-method")).toBe("POST");
+    expect(response.headers.get("x-middleware-request-x-autofix-path")).toBe("/app/customers");
+    const admin = await proxy(request("https://autofix.vitalos.co.uk/admin"));
+    expect(admin.status).toBe(200);
+    expect(admin.headers.get("x-middleware-request-x-autofix-method")).toBe("GET");
+  });
 });

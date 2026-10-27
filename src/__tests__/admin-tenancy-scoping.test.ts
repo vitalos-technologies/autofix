@@ -248,8 +248,12 @@ describe("admin pages stay on the garage's RLS client", () => {
     for (const route of ["src/app/api/bookings/route.ts", "src/app/api/bookings/manage/route.ts", "src/app/api/slots/route.ts", "src/app/api/services/route.ts"]) {
       expect(scanned.map((path) => relative(root, path))).toContain(route);
     }
+    // The super admin (P4.5, DECISIONS A126) names the garage it acts on by design; the database checks
+    // platform_admins and AAL2 for every one of those calls. Nothing there selects a tenant context.
+    const platformTargets = ["src/app/api/platform/", "src/app/admin/", "src/lib/platform/"];
     const offenders = scanned
       .filter((path) => !path.endsWith("switch-garage.ts"))
+      .filter((path) => !platformTargets.some((prefix) => relative(root, path).startsWith(prefix)))
       .filter((path) => pattern.test(readFileSync(path, "utf8")))
       .map((path) => relative(root, path));
     expect(offenders).toEqual([]);

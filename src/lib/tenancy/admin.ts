@@ -1,13 +1,15 @@
 import "server-only";
 
 import type { AuthMFAGetAuthenticatorAssuranceLevelResponse, SupabaseClient, User } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { requiresMfaChallenge } from "@/lib/auth/mfa";
 import { isMandatoryAdminMfaEnabled } from "@/lib/auth/mfa-policy";
 import { findValidTrustedDevice, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
+import { IMPERSONATION_COOKIE, isPrefetch, isReadRequest, toImpersonation, type Impersonation, type ImpersonationRow } from "@/lib/platform/policy";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { GARAGE_SELECT, garageFromRow, type Garage, type GarageRow } from "@/lib/tenancy/garage";
+import { REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
 
 /** httpOnly cookie holding the admin's selected garage id. Always re-validated against memberships. */
 export const GARAGE_COOKIE = "af_garage";
@@ -46,6 +48,13 @@ export type AdminContext = {
   mandatoryMfa: boolean;
   mfaState: AdminMfaState;
   trustedDevice: TrustedDevice;
+  /**
+   * A Vitalos platform admin viewing this garage as support (P4.5), or null.
+   * Read-only: the database admits the session only in read-only transactions
+   * and server actions get no context at all while it lasts. Render
+   * `ImpersonationBanner` (src/components/platform) when set.
+   */
+  impersonation: Impersonation | null;
 };
 
 export type AdminContextOptions = {
@@ -109,6 +118,28 @@ export async function loadMemberships(client: SupabaseClient, userId: string): P
   });
 }
 
+/**
+ * The platform admin's impersonated garage (P4.5), when the hint cookie is set
+ * and current_impersonation() returns an open session. `undefined` means no
+ * session (load the user's own garages); `null` means the request is a write
+ * (server action or non-GET), which is refused and logged.
+ */
+async function loadImpersonation(base: SupabaseClient): Promise<{ session: Impersonation; path: string | null } | null | undefined> {
+  const { data, error } = await base.rpc("current_impersonation");
+  const session = error ? null : toImpersonation(((data ?? []) as ImpersonationRow[])[0]);
+  if (!session) return undefined;
+  const requestHeaders = await headers();
+  const path = requestHeaders.get(REQUEST_PATH_HEADER);
+  if (!isReadRequest(requestHeaders)) {
+    await base.rpc("log_impersonation_event", { p_action: "platform.impersonation_write_blocked", p_path: path });
+    return null;
+  }
+  if (!isPrefetch(requestHeaders)) {
+    await base.rpc("log_impersonation_event", { p_action: "platform.impersonation_page_view", p_path: path });
+  }
+  return { session, path };
+}
+
 const loadAdminIdentity = cache(async () => {
   // Read the request cookies first, even when Supabase is not configured, so
   // every admin route is rendered per request and never prerendered at build.
@@ -118,8 +149,15 @@ const loadAdminIdentity = cache(async () => {
   const { data: { user } } = await base.auth.getUser();
   if (!user) return null;
 
-  const memberships = await loadMemberships(base, user.id);
-  const selected = selectGarage(memberships, cookieStore.get(GARAGE_COOKIE)?.value);
+  const impersonated = cookieStore.get(IMPERSONATION_COOKIE) ? await loadImpersonation(base) : undefined;
+  if (impersonated === null) return null;
+  const impersonation = impersonated?.session ?? null;
+
+  // While impersonating, the impersonated garage is the only one, read as owner (read-only).
+  const memberships = impersonation
+    ? [{ garageId: impersonation.garageId, name: impersonation.garageName, role: "owner" as const }]
+    : await loadMemberships(base, user.id);
+  const selected = selectGarage(memberships, impersonation ? impersonation.garageId : cookieStore.get(GARAGE_COOKIE)?.value);
   if (!selected) return null;
 
   const client = await createGarageClient(selected.garageId);
@@ -145,6 +183,7 @@ const loadAdminIdentity = cache(async () => {
     mandatoryMfa,
     service,
     trustedDeviceToken,
+    impersonation,
   };
 });
 
@@ -191,6 +230,7 @@ export async function getAdminContext(options: AdminContextOptions = {}): Promis
     mandatoryMfa,
     mfaState,
     trustedDevice,
+    impersonation: identity.impersonation,
   };
 }
 

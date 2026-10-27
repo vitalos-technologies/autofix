@@ -50,6 +50,9 @@ export async function loginWithPassword(_: LoginState, formData: FormData): Prom
 
   const memberships = await loadMemberships(client, auth.user.id);
   if (!memberships.length) {
+    // Vitalos platform admins (P4.5) need no garage: /admin runs its own MFA step.
+    const { data: isPlatformAdmin } = await client.rpc("is_platform_admin");
+    if (isPlatformAdmin === true) redirect("/admin");
     await client.auth.signOut();
     return { message: "This account is not linked to a garage. Ask the garage owner to invite you." };
   }

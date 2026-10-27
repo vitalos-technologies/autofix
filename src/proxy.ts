@@ -6,6 +6,7 @@ import { requiresMfaChallenge } from "@/lib/auth/mfa";
 import { isMandatoryAdminMfaEnabled } from "@/lib/auth/mfa-policy";
 import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
 import { classifyHost } from "@/lib/tenancy/hosts";
+import { REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
 import { resolveHost, type HostGarage } from "@/lib/tenancy/resolve";
 
 /** Internal prefix for garage booking sites (folder `src/app/%5Fsite/[garageId]`). */
@@ -76,13 +77,18 @@ export async function proxy(request: NextRequest) {
 
   // Admin host from here on.
   if (hasPrefix(pathname, SITE_PREFIX)) return notFound();
+  // Server code reads the method and path from these (impersonation is read-only, P4.5); always ours, never the client's.
+  request.headers.set(REQUEST_METHOD_HEADER, request.method);
+  request.headers.set(REQUEST_PATH_HEADER, pathname);
   if (param === "" && request.cookies.has(DEV_GARAGE_COOKIE)) {
-    const response = NextResponse.next();
+    const response = NextResponse.next({ request });
     response.cookies.delete(DEV_GARAGE_COOKIE);
     return response;
   }
-  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth")) return adminSession(request);
-  return NextResponse.next();
+  if (isGarageAdminPath(pathname) || hasPrefix(pathname, "/auth") || hasPrefix(pathname, "/admin") || hasPrefix(pathname, "/api/platform")) {
+    return adminSession(request);
+  }
+  return NextResponse.next({ request });
 }
 
 /** Refreshes the Supabase session and enforces SOB's MFA rules on `/app`. */
