@@ -37,6 +37,12 @@
 | A16 | `garage_domains.hostname` is unique among non-deleted rows, so a removed domain can be connected again later | Low |
 | A17 | Retention no longer anonymises customers who still have bookings or invoices (SOB's job did on its next run). Retention removes storage rows directly; switch to the Storage API in P3.7 so files are deleted too | Low |
 | A18 | Invoice numbers are `<booking_prefix>-YYYY-NNNNNN` per garage; invoice issuer details are copied from the garage when a draft is saved/issued | Low |
+| A19 | **Admin garage selection.** The selected garage is the httpOnly `af_garage` cookie, honoured only if the user is a member of that garage; otherwise (missing, forged, stale) the user's oldest membership is used. Cancelled garages and unknown roles are not memberships. A user with no membership cannot sign in. Switching garage reloads `/app` | Low |
+| A20 | Mandatory MFA stays app-wide for every garage member, as SOB had it for admins (the database only requires it for owners). Account security events (MFA, trusted devices, password change) are written to the audit log of every garage the user belongs to, and nowhere when they belong to none | Low |
+| A21 | **Email identity.** Every email is sent from the platform sender (`RESEND_FROM_EMAIL`, e.g. `notifications@autofix.vitalos.co.uk`) with the garage's name as display name, `Reply-To` the garage's email (enquiry replies use the per-thread reply address). Staff alerts go to the garage's email when it has one. Footer: "Sent by Autofix on behalf of <garage>". Auth emails (password reset) are Autofix-branded, not per garage | Low; needs the Resend domain already on the list |
+| A22 | Invoice bank details live in `garages.settings.invoicePayment` (`accountName`, `sortCode`, `accountNumber`); without them the PDF has no bank block. Garage logos are used only from `https` URLs (PNG/JPEG ≤ 1.5 MB); otherwise the garage name is shown | Low |
+| A23 | Unmatched inbound email (no valid reply token) stays in `unmatched_inbound_emails` with no garage; the garage-admin triage page is removed and triage moves to the super admin (P4.5) | Low |
+| A24 | The retention cron runs `apply_enquiry_retention` once per garage, cancelled garages included, and reports totals only. Opening hours remain in `site_settings.value` (one row per garage) until P2.1 replaces them | Low |
 
 ## Waiting on Temitope
 
@@ -50,4 +56,5 @@ Agents: add items here instead of doing them. Each needs his explicit OK.
 - [ ] Stripe: Autofix product line and prices in the live account (Temitope); agents use test mode only.
 - [ ] Solicitor review of `docs/autofix/legal/` before the first paying garage.
 - [ ] First founding garage and its domain.
+- [ ] Email DNS (P1.3): verify the platform sending domain in Resend (DNS records on `vitalos.co.uk`) and set `RESEND_FROM_EMAIL` (e.g. `Autofix <notifications@autofix.vitalos.co.uk>`); set up Cloudflare Email Routing for `reply.autofix.vitalos.co.uk` and set `ENQUIRY_REPLY_DOMAIN`. The Cloudflare enquiry email worker (`workers/enquiry-email/`) still points at SOB's `reply.sobautofix.com` and `sobautofix.com` and needs updating and redeploying once the routing exists.
 - [ ] **GitHub Actions never starts a runner on this repo.** Every CI run since the bootstrap PR (runs 1–9, 26 Oct 2026) fails in ~3 s with no runner assigned and no logs, which points to an org-level Actions setting or billing/spending limit for private repos in `vitalos-technologies`. Please check Organization settings → Billing (Actions minutes / spending limit / payment method) and Settings → Actions → General (Actions enabled for this repo). Until then, gates are proven with the same commands run locally against Docker Supabase (evidence in the build log).
