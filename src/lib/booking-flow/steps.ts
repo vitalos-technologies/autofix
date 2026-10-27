@@ -22,9 +22,17 @@ export function serviceLocationModes(service: Pick<OnlineService, "locationMode"
   return [service.locationMode];
 }
 
-/** Services shown on this garage's booking page: MOT services only when the garage has MOT on. */
-export function visibleServices(services: readonly OnlineService[], motEnabled: boolean): OnlineService[] {
-  return services.filter((service) => motEnabled || !service.isMot).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "en-GB"));
+/**
+ * Services shown on this garage's booking page: MOT services only when the garage has MOT on, and
+ * mobile visits only when it lists the postcode districts it covers (`create_booking` rejects every
+ * mobile booking otherwise), so a "both" service becomes workshop-only and a mobile-only one is hidden.
+ */
+export function visibleServices(services: readonly OnlineService[], motEnabled: boolean, mobileOffered = true): OnlineService[] {
+  return services
+    .filter((service) => motEnabled || !service.isMot)
+    .filter((service) => mobileOffered || service.locationMode !== "mobile")
+    .map((service) => (!mobileOffered && service.locationMode === "both" ? { ...service, locationMode: "workshop" as const } : service))
+    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "en-GB"));
 }
 
 /**

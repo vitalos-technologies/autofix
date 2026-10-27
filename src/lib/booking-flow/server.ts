@@ -23,9 +23,9 @@ export function bookingCalendarPath(garage: Garage, reference: string): string |
   }
 }
 
-/** The garage's online services as the booking page shows them (MOT only when switched on). */
-export async function loadBookingServices(garage: Pick<Garage, "id" | "motEnabled">): Promise<OnlineService[]> {
-  return visibleServices(await getBookingEngine().listOnlineServices(garage.id), garage.motEnabled);
+/** The garage's online services as the booking page shows them (MOT only when on; mobile only with a service area). */
+export async function loadBookingServices(garage: Pick<Garage, "id" | "motEnabled" | "serviceArea">): Promise<OnlineService[]> {
+  return visibleServices(await getBookingEngine().listOnlineServices(garage.id), garage.motEnabled, garage.serviceArea.length > 0);
 }
 
 /** Client IP for rate limits (hashed by `consumeRateLimit`, never stored as is). */

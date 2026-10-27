@@ -64,6 +64,17 @@ describe("booking step guards", () => {
     expect(visibleServices(services, true).some((service) => service.isMot)).toBe(true);
     expect(visibleServices(services, true).map((service) => service.sort)).toEqual([10, 20, 30, 40, 50]);
   });
+
+  it("offers mobile visits only when the garage lists the districts it covers", () => {
+    const withArea = visibleServices(services, true, true);
+    const withoutArea = visibleServices(services, true, false);
+    expect(withoutArea.some((service) => service.locationMode === "mobile")).toBe(false);
+    expect(withoutArea.some((service) => service.locationMode === "both")).toBe(false);
+    for (const service of withArea.filter((item) => item.locationMode === "both")) {
+      expect(withoutArea.find((item) => item.id === service.id)?.locationMode).toBe("workshop");
+    }
+    expect(withoutArea.length).toBe(withArea.filter((service) => service.locationMode !== "mobile").length);
+  });
 });
 
 describe("booking flow dates", () => {
@@ -100,10 +111,11 @@ describe("booking flow wording", () => {
     expect(normaliseUkPostcode("dn12ab")).toBe("DN1 2AB");
     expect(normaliseUkPostcode(" s6 1aa ")).toBe("S6 1AA");
     expect(normaliseUkPostcode("not a postcode")).toBeNull();
-    expect(inServiceArea("DN1 2AB", [])).toBe(true);
+    expect(inServiceArea("DN1 2AB", [])).toBe(false);
     expect(inServiceArea("DN1 2AB", ["DN1", "DN2"])).toBe(true);
     expect(inServiceArea("DN11 2AB", ["DN1"])).toBe(false);
-    expect(inServiceArea("DN11 2AB", ["DN"])).toBe(true);
+    expect(inServiceArea("DN11 2AB", ["DN"])).toBe(false);
+    expect(inServiceArea("dn1 2ab", [" dn1 "])).toBe(true);
     expect(inServiceArea("S6 1AA", ["DN1"])).toBe(false);
   });
 

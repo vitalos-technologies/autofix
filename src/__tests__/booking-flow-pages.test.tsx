@@ -140,11 +140,18 @@ describe("step pages", () => {
     expect(screen.queryByRole("group", { name: "Where?" })).not.toBeInTheDocument();
     cleanup();
 
-    harness.garage = testGarage({ motEnabled: false });
+    harness.garage = testGarage({ motEnabled: false, serviceArea: ["DN1"] });
     saveDraft({ vehicle, serviceId: FAKE_SERVICE_IDS.diagnostics, locationMode: "workshop" });
     render((await ServicePage({ params: params() })) as ReactElement);
     expect(screen.queryByRole("radio", { name: /MOT/ })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Where?" })).toBeInTheDocument();
+    cleanup();
+
+    // No districts listed: create_booking() refuses mobile visits, so the flow never offers one.
+    harness.garage = testGarage({ motEnabled: false, serviceArea: [] });
+    saveDraft({ vehicle, serviceId: FAKE_SERVICE_IDS.diagnostics, locationMode: "workshop" });
+    render((await ServicePage({ params: params() })) as ReactElement);
+    expect(screen.queryByRole("group", { name: "Where?" })).not.toBeInTheDocument();
   });
 
   it("offers two weeks of days and the chosen date's times", async () => {
