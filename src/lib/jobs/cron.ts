@@ -20,16 +20,18 @@ const PERIOD: Partial<Record<JobKind, "day" | { minutes: number }>> = {
   "mot.refresh": "day",
   "domains.check": { minutes: 5 },
   retention: "day",
+  "customers.enrich": "day",
 };
 
 /** Cron names and the kinds each queues, in drain order. */
 export const CRON_JOBS = {
-  daily: ["reminders.schedule", "reminders.send", "domains.check", "retention", "mot.refresh"],
+  daily: ["reminders.schedule", "reminders.send", "domains.check", "retention", "customers.enrich", "mot.refresh"],
   "reminders.schedule": ["reminders.schedule"],
   "reminders.send": ["reminders.send"],
   "mot.refresh": ["mot.refresh"],
   "domains.check": ["domains.check"],
   retention: ["retention"],
+  "customers.enrich": ["customers.enrich"],
 } as const satisfies Record<string, readonly JobKind[]>;
 
 export type CronJobName = keyof typeof CRON_JOBS;

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { verifyUnsubscribeToken } from "@/lib/consent/unsubscribe-token";
 import { createRemindersSendHandler } from "@/lib/jobs/handlers/reminders-send";
 import { JobError } from "@/lib/jobs/types";
 import type { ChannelKind, MessageChannel, SendResult } from "@/lib/messaging/channel";
@@ -85,7 +86,7 @@ function channelReturning(...results: SendResult[]): (kind: ChannelKind) => Mess
   return (kind) => ({ kind, mode: "live", send });
 }
 
-async function run(batches: ClaimedReminder[][], options: { now?: Date; channelFor?: (kind: ChannelKind) => MessageChannel; deadline?: number; clock?: () => number; env?: Record<string, string>; batchSize?: number } = {}) {
+async function run(batches: ClaimedReminder[][], options: { now?: Date; channelFor?: (kind: ChannelKind) => MessageChannel; deadline?: number; clock?: () => number; env?: Record<string, string | undefined>; batchSize?: number } = {}) {
   const { repo, calls } = fakeRepo(batches);
   const result = await sendGarageReminders({
     garage,
@@ -177,12 +178,21 @@ describe("composing and sending", () => {
     expect(new Set(calls.prepared.map((entry) => entry.linkHash)).size).toBe(2);
   });
 
-  it("emails get the subject and an unsubscribe link instead of Reply STOP", async () => {
-    await run([[reminder({ channel: "email" })]]);
+  it("emails get the subject and the customer's signed unsubscribe link instead of Reply STOP", async () => {
+    const row = reminder({ channel: "email" });
+    const env = { ...PROD_ENV, BOOKING_MANAGEMENT_SECRET: "test-booking-management-secret-0123456789" };
+    await run([[row]], { env });
     const [email] = getMockOutbox();
     expect(email).toMatchObject({ kind: "email", to: "sam@example.com", subject: "Your MOT is due on 10 November 2026" });
-    expect(email!.body).toContain("Unsubscribe: https://hartley-road.autofix.vitalos.co.uk/unsubscribe");
+    const link = /\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
+    expect(link).toBeTruthy();
+    expect(verifyUnsubscribeToken(GARAGE_ID, link![1], env)).toBe(row.customer_id);
     expect(email!.body).not.toMatch(/reply stop/i);
+  });
+
+  it("falls back to the garage's unsubscribe form when links cannot be signed", async () => {
+    await run([[reminder({ channel: "email" })]]);
+    expect(getMockOutbox()[0]!.body).toMatch(/\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe$/);
   });
 
   it.each([

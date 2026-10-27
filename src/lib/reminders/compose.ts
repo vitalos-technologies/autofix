@@ -1,8 +1,9 @@
 // Reminder message composition: the rule's template with the customer's,
 // car's and garage's details, the opt-out line for SMS/WhatsApp (DECISIONS
-// A13: reminders go from the two-way number, so "Reply STOP" works) and an
-// unsubscribe link for email. Pure.
+// A13: reminders go from the two-way number, so "Reply STOP" works) and the
+// signed unsubscribe link for email ("Stop reminders: <link>", P4.9). Pure.
 
+import { UNSUBSCRIBE_LINK_LINE } from "@/lib/consent/copy";
 import type { ChannelKind } from "@/lib/messaging/channel";
 import { DEFAULT_TEMPLATES, renderTemplate, type TemplatePlaceholder } from "@/lib/messaging/templates";
 import { formatMotDate } from "@/lib/vehicle/mot";
@@ -49,7 +50,7 @@ export function composeReminder(input: {
   garageName: string;
   /** Absolute `/r/{token}` link on the garage's booking host. */
   link: string;
-  /** Email only: the garage's unsubscribe page. */
+  /** Email only: the customer's signed unsubscribe link (or the garage's unsubscribe form). */
   unsubscribeUrl?: string;
 }): ComposedReminder {
   const { reminder } = input;
@@ -68,6 +69,6 @@ export function composeReminder(input: {
   if (reminder.channel !== "email") return { ok: true, body: rendered.text };
 
   const subject = renderTemplate(DEFAULT_TEMPLATES[reminder.kind].subject, vars).text;
-  const footer = input.unsubscribeUrl ? `\n\nDon't want these reminders? Unsubscribe: ${input.unsubscribeUrl}` : "";
+  const footer = input.unsubscribeUrl ? `\n\n${UNSUBSCRIBE_LINK_LINE.replace("{unsubscribe_link}", input.unsubscribeUrl)}` : "";
   return { ok: true, body: `${rendered.text}${footer}`, subject };
 }

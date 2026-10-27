@@ -12,6 +12,7 @@ export const JOB_KINDS = [
   "messages.reply",
   "domains.check",
   "retention",
+  "customers.enrich",
   "mot.refresh",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unsubscribeUrl, type UnsubscribeEnv } from "@/lib/consent/unsubscribe-token";
 import type { ChannelKind, MessageChannel, SendFailure, SendResult } from "@/lib/messaging/channel";
 import { isWithinSendWindow, nextSendWindow } from "@/lib/messaging/quiet-hours";
 import { garageUrl, type GarageUrlSubject, type UrlEnvironment } from "@/lib/tenancy/urls";
@@ -69,7 +70,8 @@ export type SendRemindersInput = {
   deadline: number;
   clock?: () => number;
   batchSize?: number;
-  env?: UrlEnvironment;
+  /** Links (garage host) and the unsubscribe signing key; process.env by default. */
+  env?: UrlEnvironment & UnsubscribeEnv;
   createToken?: (now: Date) => ReminderLinkToken;
 };
 
@@ -106,7 +108,9 @@ export async function sendGarageReminders(input: SendRemindersInput): Promise<Se
   const window = sendWindow(input.now(), garage.timezone);
   if (!window.open) return { outcome: "deferred", counts, deferUntil: window.next, more: false };
 
-  const unsubscribeUrl = garageUrl(garage, "/unsubscribe", input.env);
+  const env = input.env ?? process.env;
+  // Without the signing key (never in production) emails point at the garage's unsubscribe form.
+  const unsubscribeForm = garageUrl(garage, "/unsubscribe", env);
   let stop: SendStop | undefined;
   let more = false;
 
@@ -131,8 +135,8 @@ export async function sendGarageReminders(input: SendRemindersInput): Promise<Se
       const composed = composeReminder({
         reminder,
         garageName: garage.name,
-        link: garageUrl(garage, reminderLinkPath(token.token), input.env),
-        unsubscribeUrl,
+        link: garageUrl(garage, reminderLinkPath(token.token), env),
+        ...(reminder.channel === "email" ? { unsubscribeUrl: unsubscribeUrl(garage, reminder.customer_id, env) ?? unsubscribeForm } : {}),
       });
       if (!composed.ok) {
         await repo.markFailed(garage.id, reminder.id, null, composed.reason);

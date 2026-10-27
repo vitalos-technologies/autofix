@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createCustomersEnrichHandler } from "@/lib/jobs/handlers/customers-enrich";
 import { createDomainsCheckHandler, createSupabaseDomainsCheckRepo } from "@/lib/jobs/handlers/domains-check";
 import { createMessagesReplyHandler, helpReplyBody } from "@/lib/jobs/handlers/messages-reply";
 import { createMotRefreshHandler } from "@/lib/jobs/handlers/mot-refresh";
@@ -337,5 +338,60 @@ describe("messages.reply (HELP)", () => {
     const result = await createMessagesReplyHandler({ channelFor: (kind) => createMockChannel(kind) })(payload, jobContext({ job: jobRow("messages.reply", payload, A), db: fake.client, now: new Date() }));
     expect(result).toEqual({ outcome: "already_answered" });
     expect(getMockOutbox()).toEqual([]);
+  });
+});
+
+describe("customers.enrich (P3.11 import enrichment)", () => {
+  const IMPORT = "00000000-0000-4000-8000-000000000501";
+  const now = new Date("2026-10-27T11:00:00Z");
+  const done = { checked: 10, enriched: 9, notFound: 1, failed: 0, remaining: false, stoppedReason: "done" as const };
+
+  it("fans out once a day to garages with cars waiting", async () => {
+    const fake = createFakeSupabase({ from: () => ({ data: [{ garage_id: A }, { garage_id: B }, { garage_id: A }] }) });
+    const { queue, enqueued } = recordingQueue();
+    const result = await createCustomersEnrichHandler({ enrich: vi.fn() })({}, jobContext({ job: jobRow("customers.enrich"), db: fake.client, now, queue }));
+    expect(hasFilter(fake.queries[0]!, "eq", "enrichment_status", "pending")).toBe(true);
+    expect(enqueued.map((entry) => [entry.payload, entry.options.dedupeKey])).toEqual([
+      [{ garageId: A }, `customers.enrich:${A}:2026-10-27`],
+      [{ garageId: B }, `customers.enrich:${B}:2026-10-27`],
+    ]);
+    expect(result).toEqual({ outcome: "fanned_out", counts: { garages: 2 } });
+  });
+
+  it("enriches one garage's import within the attempt's time, with the job's client", async () => {
+    const enrich = vi.fn(async () => done);
+    const db = {} as never;
+    const { queue, enqueued } = recordingQueue();
+    const result = await createCustomersEnrichHandler({ enrich })({ garageId: A, importId: IMPORT }, jobContext({ job: jobRow("customers.enrich", { garageId: A, importId: IMPORT }, A), db, now, queue, clock: () => 1_000, deadline: 16_000 }));
+    expect(enrich).toHaveBeenCalledWith(expect.objectContaining({ garageId: A, importId: IMPORT, limit: 50, budgetMs: 15_000, client: db }));
+    expect(enqueued).toEqual([]);
+    expect(result).toEqual({ outcome: "done", counts: { checked: 10, enriched: 9, not_found: 1, failed: 0, more: 0 } });
+  });
+
+  it.each([
+    ["a full batch: straight away", { ...done, remaining: true, stoppedReason: "limit" as const }, undefined, "more"],
+    ["a DVSA rate limit: after Retry-After", { ...done, remaining: true, stoppedReason: "rate_limited" as const, retryAfterMs: 30_000 }, 30_000, "retry"],
+    ["only failed lookups left: 15 minutes later", { ...done, failed: 2, remaining: true, stoppedReason: "done" as const }, 15 * 60_000, "retry"],
+  ])("continues after %s", async (_label, outcome, delay, key) => {
+    const { queue, enqueued } = recordingQueue();
+    const job = jobRow("customers.enrich", { garageId: A }, A);
+    await createCustomersEnrichHandler({ enrich: vi.fn(async () => outcome) })({ garageId: A }, jobContext({ job, db: {} as never, now, queue }));
+    expect(enqueued).toEqual([{
+      kind: "customers.enrich",
+      payload: { garageId: A },
+      options: { garageId: A, ...(delay ? { runAt: new Date(now.getTime() + delay) } : {}), dedupeKey: `customers.enrich:${A}:${key}:${job.id}` },
+    }]);
+  });
+
+  it("stops quietly without a vehicle source and retries a database failure", async () => {
+    const { queue, enqueued } = recordingQueue();
+    const notConfigured = await createCustomersEnrichHandler({ enrich: vi.fn(async () => ({ ...done, remaining: true, stoppedReason: "not_configured" as const })) })({ garageId: A }, jobContext({ job: jobRow("customers.enrich", { garageId: A }, A), db: {} as never, now, queue }));
+    expect(notConfigured).toMatchObject({ outcome: "not_configured" });
+    expect(enqueued).toEqual([]);
+    await expectJobError(
+      createCustomersEnrichHandler({ enrich: vi.fn(async () => ({ ...done, remaining: true, stoppedReason: "error" as const })) })({ garageId: A }, jobContext({ job: jobRow("customers.enrich", { garageId: A }, A), db: {} as never, now })),
+      "ENRICH_FAILED",
+      true,
+    );
   });
 });

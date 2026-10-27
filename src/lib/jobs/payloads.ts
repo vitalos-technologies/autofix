@@ -15,6 +15,8 @@ export const remindersSendPayload = z.object({ garageId: uuid.optional() }).stri
 /** `after`: continue after this vehicle id (batches respect DVSA's rate limit). */
 export const motRefreshPayload = z.object({ garageId: uuid.optional(), after: uuid.optional() }).strict();
 export const domainsCheckPayload = z.object({}).strict();
+/** P3.11: enrich a garage's imported vehicles (optionally one import's). */
+export const customersEnrichPayload = z.object({ garageId: uuid.optional(), importId: uuid.optional() }).strict();
 export const retentionPayload = z.object({ garageId: uuid.optional() }).strict();
 export const notificationsBookingPayload = z
   .object({

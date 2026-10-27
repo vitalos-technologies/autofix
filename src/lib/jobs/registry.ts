@@ -1,5 +1,6 @@
 import "server-only";
 
+import { customersEnrichHandler } from "./handlers/customers-enrich";
 import { domainsCheckHandler } from "./handlers/domains-check";
 import { messagesReplyHandler } from "./handlers/messages-reply";
 import { motRefreshHandler } from "./handlers/mot-refresh";
@@ -10,7 +11,8 @@ import { retentionHandler } from "./handlers/retention";
 import { JOB_KINDS, type JobDefinition, type JobHandler, type JobKind } from "./types";
 
 // The typed handler registry. Order is JOB_KINDS: time-critical sends before
-// housekeeping, and the slow DVSA refresh last so it never starves them.
+// housekeeping, and the DVSA-bound work (imports, the MOT refresh) last so it
+// never starves them.
 
 const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "reminders.schedule": { handler: remindersScheduleHandler, timeoutMs: 15_000 },
@@ -19,6 +21,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "messages.reply": { handler: messagesReplyHandler, timeoutMs: 12_000 },
   "domains.check": { handler: domainsCheckHandler, timeoutMs: 18_000 },
   retention: { handler: retentionHandler, timeoutMs: 18_000 },
+  "customers.enrich": { handler: customersEnrichHandler, timeoutMs: 18_000 },
   "mot.refresh": { handler: motRefreshHandler, timeoutMs: 18_000 },
 };
 
