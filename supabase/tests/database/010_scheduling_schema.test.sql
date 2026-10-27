@@ -506,7 +506,7 @@ select is(
 select pg_temp.act_as('10100000-0000-4000-8000-0000000000a2', 'a1000000-0000-4000-8000-000000000001');
 set local role authenticated;
 select lives_ok(
-  $$insert into public.resources (name, kind, sort) values ('Bay 2', 'bay', 2)$$,
+  $$insert into public.resources (name, kind, sort) values ('pgTAP default-garage bay', 'bay', 2)$$,
   'managers add resources to the selected garage'
 );
 select throws_ok(
@@ -525,7 +525,7 @@ select is(
   array['cancelled', 'note', 'status_changed'], 'cancelling writes a cancelled event'
 );
 select is(
-  (select garage_id from public.resources where name = 'Bay 2'),
+  (select garage_id from public.resources where name = 'pgTAP default-garage bay'),
   'a1000000-0000-4000-8000-000000000001'::uuid, 'garage_id defaults to the selected garage'
 );
 

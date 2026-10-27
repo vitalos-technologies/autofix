@@ -304,7 +304,7 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
       ...(email ? { email } : {}),
       channel,
       reminderConsent,
-      ...(reminderConsent ? { consentSource: reminderConsentCopy(garage.motEnabled) } : {}),
+      ...(reminderConsent ? { consentText: reminderConsentCopy(garage.motEnabled) } : {}),
     },
     vehicle: {
       registration: vehicle.registration,

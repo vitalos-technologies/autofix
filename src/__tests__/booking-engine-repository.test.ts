@@ -239,7 +239,7 @@ describe("createBooking", () => {
       source: "online",
       idempotency_key: KEY,
       reminder_send_id: null,
-      customer: { name: "Sam Patel", phone: "+447700900123", email: null, channel: "sms", reminder_consent: false, consent_source: null },
+      customer: { name: "Sam Patel", phone: "+447700900123", email: null, channel: "sms", reminder_consent: false, consent_source: null, consent_text: null },
       vehicle: { registration: "AB12CDE", make: "Vauxhall", model: null, colour: null, fuel: null, year: null, mot_expiry: null },
     });
     const token = deriveManageToken(GARAGE, KEY);
@@ -254,6 +254,19 @@ describe("createBooking", () => {
     await engine.createBooking(GARAGE, input());
     const booking = fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { customer: Record<string, unknown> };
     expect(booking.customer).toMatchObject({ reminder_consent: true, consent_source: "booking", email: "sam@example.com" });
+  });
+
+  it("stores the exact consent wording only alongside a ticked box", async () => {
+    const wording = "Remind me when the MOT and service are due. You can stop these any time.";
+    const ticked = engineFor(world());
+    await ticked.engine.createBooking(GARAGE, input({ customer: { ...input().customer, reminderConsent: true, consentText: wording } }));
+    const tickedCustomer = (ticked.fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { customer: Record<string, unknown> }).customer;
+    expect(tickedCustomer).toMatchObject({ reminder_consent: true, consent_source: "booking", consent_text: wording });
+
+    const unticked = engineFor(world());
+    await unticked.engine.createBooking(GARAGE, input({ customer: { ...input().customer, reminderConsent: false, consentText: wording } }));
+    const untickedCustomer = (unticked.fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { customer: Record<string, unknown> }).customer;
+    expect(untickedCustomer).toMatchObject({ reminder_consent: false, consent_source: null, consent_text: null });
   });
 
   it("rejects numbers that are not UK mobiles without touching the database", async () => {

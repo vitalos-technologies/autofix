@@ -86,10 +86,10 @@ export const bookingCustomerInputSchema = z.object({
   channel: z.enum(messageChannels).default("sms"),
   reminderConsent: z.boolean().default(false),
   /**
-   * The exact consent wording the customer ticked (stored with the consent record as its source).
+   * The exact consent wording the customer ticked, stored as `customers.consent_text` (PECR record).
    * Only sent when `reminderConsent` is true.
    */
-  consentSource: z.string().trim().min(1).max(300).optional(),
+  consentText: z.string().trim().min(1).max(300).optional(),
 });
 export type BookingCustomerInput = z.infer<typeof bookingCustomerInputSchema>;
 

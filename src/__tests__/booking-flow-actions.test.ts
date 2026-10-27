@@ -315,16 +315,16 @@ describe("step 4 · details and confirm", () => {
     await toDetails();
     await run(confirmBookingAction, initialDetailsFormState, details);
     expect(created[0]!.customer.reminderConsent).toBe(false);
-    expect(created[0]!.customer).not.toHaveProperty("consentSource");
+    expect(created[0]!.customer).not.toHaveProperty("consentText");
 
     await toDetails();
     await run(confirmBookingAction, initialDetailsFormState, { ...details, reminderConsent: "yes" });
-    expect(created[1]!.customer).toMatchObject({ reminderConsent: true, consentSource: REMINDER_CONSENT_COPY });
+    expect(created[1]!.customer).toMatchObject({ reminderConsent: true, consentText: REMINDER_CONSENT_COPY });
 
     harness.garage = testGarage({ motEnabled: false });
     await toDetails();
     await run(confirmBookingAction, initialDetailsFormState, { ...details, reminderConsent: "yes" });
-    expect(created[2]!.customer).toMatchObject({ reminderConsent: true, consentSource: REMINDER_CONSENT_COPY_NO_MOT });
+    expect(created[2]!.customer).toMatchObject({ reminderConsent: true, consentText: REMINDER_CONSENT_COPY_NO_MOT });
     expect(created[2]!.vehicle.motExpiry).toBeUndefined();
   });
 

@@ -143,6 +143,7 @@ export function createBookingPayload(input: CreateBookingInput, normalised: { ph
       channel: input.customer.channel,
       reminder_consent: input.customer.reminderConsent,
       consent_source: input.customer.reminderConsent ? "booking" : null,
+      consent_text: input.customer.reminderConsent ? (input.customer.consentText ?? null) : null,
     },
     vehicle: {
       registration: input.vehicle.registration,
