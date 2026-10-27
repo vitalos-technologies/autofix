@@ -5,7 +5,8 @@
 | Phase | Gate | Date | Last commit | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | **passed** | 27 Oct 2026 | eb8dfd8 | All P1 tasks ticked; Gate 1 green in CI (run 40429708549: verify, database-tests incl. 1614 tenancy tests, browser-tests, lighthouse) on self-hosted runners `autofix-azure-*` |
-| 2 | in progress | 27 Oct 2026 | eb8dfd8 | P2.6/P2.7 done; data (P2.1–P2.3), api (P2.4/P2.5/P2.10) and ui (P2.8) lanes running |
+| 2 | in progress | 27 Oct 2026 | 48f7b8a | P2.1–P2.8 and P2.10 merged; P2.9 (manage page) and P2.11 (Gate 2) running in this session |
+| 3/4 (spun off) | n/a | 27 Oct 2026 | 48f7b8a | Separate cloud sessions, each on its own branch, merged by the lead when done: P4.2 agent tool API → `claude/autofix-p4-2-agent-api` (migration `20261028000100`), P3.11 customers + CSV import → `claude/autofix-p3-11-customers-import` (`20261028000200`), P4.8/P4.9 launch checklist + legal copy → `claude/autofix-p4-8-p4-9-launch-legal` (`20261028000300`). Later migrations (P3.6 reminders) start at `20261028001000` |
 
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
 
