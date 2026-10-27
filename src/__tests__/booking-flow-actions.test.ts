@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book";
 import { createFakeBookingEngine, FAKE_SERVICE_IDS, type FakeBookingEngine } from "@/lib/booking-engine/fake";
+import { parseLegalMarkdown } from "@/lib/legal/markdown";
+import { LEGAL_SOURCES } from "@/lib/legal/sources.generated";
 import type { BookingEngine, CreateBookingInput } from "@/lib/booking-engine/types";
 import type { Garage } from "@/lib/tenancy/garage";
 import { testGarage } from "./support/garage";
@@ -326,6 +328,11 @@ describe("step 4 · details and confirm", () => {
     await run(confirmBookingAction, initialDetailsFormState, { ...details, reminderConsent: "yes" });
     expect(created[2]!.customer).toMatchObject({ reminderConsent: true, consentText: REMINDER_CONSENT_COPY_NO_MOT });
     expect(created[2]!.vehicle.motExpiry).toBeUndefined();
+
+    // The stored wording is the reviewed draft's, word for word (docs/autofix/legal/consent-and-messaging-wording.md).
+    const draftQuotes = parseLegalMarkdown(LEGAL_SOURCES.consentWording).flatMap((block) => (block.kind === "quote" ? [block.text] : []));
+    expect(draftQuotes).toContain(created[1]!.customer.consentText);
+    expect(draftQuotes).toContain(created[2]!.customer.consentText);
   });
 
   it("sends the customer back to the time step with alternatives when the slot has gone", async () => {

@@ -73,7 +73,24 @@ export function formatRelativeTime(value: string, now = new Date()) {
   }).format(date);
 }
 
+/** Actions that read as a whole sentence (legal records, P4.9). */
+const SENTENCE_ACTIONS: Record<string, string> = {
+  "customer.opted_out": "Customer stopped reminders",
+  "customer.opted_in": "Customer turned reminders back on",
+  "agreement.accepted": "Accepted agreement",
+};
+
+const OPT_OUT_SOURCES: Record<string, string> = {
+  unsubscribe_link: "via unsubscribe link",
+  unsubscribe_form: "via unsubscribe page",
+  unsubscribe_page: "via unsubscribe page",
+  sms_stop: "by replying STOP",
+  staff: "by staff",
+};
+
 export function auditActionLabel(action: string, entityType: string) {
+  const sentence = SENTENCE_ACTIONS[action];
+  if (sentence) return sentence;
   const entity = entityType.replaceAll("_", " ");
   const actions: Record<string, string> = {
     create: "Created",
@@ -96,6 +113,8 @@ export function auditActionLabel(action: string, entityType: string) {
 export function auditEntityLabel(entityType: string, detail: unknown) {
   if (detail && typeof detail === "object") {
     const values = detail as Record<string, unknown>;
+    if (entityType === "customer" && typeof values.source === "string") return OPT_OUT_SOURCES[values.source] ?? values.source.replaceAll("_", " ");
+    if (entityType === "garage_agreement" && typeof values.version === "string") return `${String(values.kind ?? "").toUpperCase()} v${values.version}`.trim();
     if (typeof values.slug === "string") return values.slug.replaceAll("-", " ");
     if (typeof values.status === "string") return values.status.replaceAll("_", " ");
   }

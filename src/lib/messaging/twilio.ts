@@ -46,7 +46,7 @@ import "server-only";
 //
 // Alphanumeric senders are one-way: a customer cannot reply STOP to
 // `HartleyRd`. Messages from an alphanumeric sender need another opt-out
-// route (the /r/{token}/stop page) or a two-way number.
+// route (the signed /unsubscribe/{token} page, src/lib/consent) or a two-way number.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ChannelKind, DeliveryStatus, MessageChannel, OutboundMessage, SendResult } from "./channel";

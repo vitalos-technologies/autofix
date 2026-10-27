@@ -383,6 +383,17 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { subject: "Tampered subject" },
   },
   enquiry_messages: { create: (rows) => rows.enquiryMessage(), patch: { text_body: "Tampered" } },
+  garage_agreements: {
+    create: (rows) => rows.insert("garage_agreements", {
+      kind: "dpa",
+      version: "0.1",
+      text_hash: "a".repeat(64),
+      accepted_by: rows.ownerId,
+      accepted_by_name: `Tenancy owner ${rows.key}`,
+      accepted_by_role: "owner",
+    }),
+    patch: { version: "9.9" },
+  },
   garage_domains: {
     create: async (rows) => {
       await rows.insert("garage_domains", { hostname: `book.${rows.garage.slug}.example`, kind: "custom", status: "pending_dns" });
