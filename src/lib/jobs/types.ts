@@ -9,6 +9,7 @@ export const JOB_KINDS = [
   "reminders.schedule",
   "reminders.send",
   "notifications.booking",
+  "calls.text_back",
   "messages.reply",
   "domains.check",
   "retention",

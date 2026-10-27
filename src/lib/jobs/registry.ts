@@ -1,5 +1,6 @@
 import "server-only";
 
+import { callsTextBackHandler } from "./handlers/calls-text-back";
 import { customersEnrichHandler } from "./handlers/customers-enrich";
 import { domainsCheckHandler } from "./handlers/domains-check";
 import { messagesReplyHandler } from "./handlers/messages-reply";
@@ -19,6 +20,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "reminders.schedule": { handler: remindersScheduleHandler, timeoutMs: 15_000 },
   "reminders.send": { handler: remindersSendHandler, timeoutMs: 18_000 },
   "notifications.booking": { handler: notificationsBookingHandler, timeoutMs: 15_000 },
+  "calls.text_back": { handler: callsTextBackHandler, timeoutMs: 12_000 },
   "messages.reply": { handler: messagesReplyHandler, timeoutMs: 12_000 },
   "domains.check": { handler: domainsCheckHandler, timeoutMs: 18_000 },
   retention: { handler: retentionHandler, timeoutMs: 18_000 },

@@ -1,13 +1,14 @@
 import "server-only";
 
+import { afterRecordingTwiml, dialTwiml, isTwilioRecordingUrl, isVoiceStep, MISSED_DIAL_STATUSES, voicemailTwiml, voiceStepUrl, type VoiceStep } from "@/lib/calls/twiml";
 import { createJobLogger } from "@/lib/jobs/log";
-import { safeErrorCode, type JobLogger } from "@/lib/jobs/types";
+import { safeErrorCode, type JobKind, type JobLogger } from "@/lib/jobs/types";
 import type { ChannelKind, DeliveryStatus } from "./channel";
 import type { MessagingEnv } from "./config";
 import type { InboundIntent } from "./keywords";
 import { isE164 } from "./phone";
 import { parseTwilioInboundMessage, parseTwilioStatusCallback } from "./twilio";
-import { escapeXml, readVerifiedTwilioRequest, twimlResponse, webhookErrorResponse } from "./webhook-request";
+import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErrorResponse } from "./webhook-request";
 
 // POST /api/webhooks/twilio/{sms,whatsapp,status,voice} (P3.8).
 //
@@ -26,8 +27,13 @@ import { escapeXml, readVerifiedTwilioRequest, twimlResponse, webhookErrorRespon
 //   Opt-Out already answered: OptOutType is set).
 // - status: delivery receipts move `messages` and `reminder_sends` forward
 //   only (isLaterStatus: callbacks arrive out of order).
-// - voice: logs the call in `calls` and answers with minimal TwiML (P4.1 adds
-//   the text-back and voicemail).
+// - voice (P4.1): logs the call in `calls`; rings the garage's own phone
+//   first when it has one (a `forwarding` number it entered, without
+//   provider_sid), and when that is busy, unanswered or fails, or when there is
+//   no such number, plays a greeting in the garage's name and takes a
+//   voicemail (?step=recorded / ?step=recording store its link). A missed call
+//   queues `calls.text_back`, drained after the response, so the caller gets
+//   the text within seconds.
 // Logs carry ids, kinds and outcome codes only: never numbers or bodies.
 
 export type TwilioWebhookKind = "sms" | "whatsapp" | "status" | "voice";
@@ -54,6 +60,8 @@ export type CallRecord = {
   missed: boolean;
 };
 
+export type DialOutcome = { dialStatus: string; missed: boolean; durationSeconds: number | null };
+
 export type KeywordResult = { customers: number; cancelled: number; unchanged: number };
 
 /** Storage for the webhooks. `createSupabaseTwilioWebhookRepo` is the real one; tests pass fakes. */
@@ -69,8 +77,17 @@ export interface TwilioWebhookRepo {
   /** Garages that texted this number in the last 12 months (STOP sent to a number we cannot route). */
   garagesThatMessaged(phone: string): Promise<string[]>;
   applyDeliveryStatus(providerMessageId: string, status: DeliveryStatus, errorCode: number | null): Promise<{ messages: number; reminders: number }>;
-  recordCall(call: CallRecord): Promise<"created" | "updated" | "unchanged">;
+  /** Inserts the call or moves its status forward. `callId` is null only when the call belongs to another garage. */
+  recordCall(call: CallRecord): Promise<{ outcome: "created" | "updated" | "unchanged"; callId: string | null }>;
   queueHelpReply(garageId: string, inboundMessageId: string): Promise<void>;
+  /** The garage's own phone to ring first: a UK `forwarding` number it entered (no provider_sid), never the called number. */
+  findDialTarget(garageId: string, calledNumber: string): Promise<string | null>;
+  /** Whether this caller rang this garage in the last `withinMs` on another call (a forward that came back to us). */
+  callerRangRecently(garageId: string, from: string, callSid: string, withinMs: number): Promise<boolean>;
+  recordDialOutcome(garageId: string, callSid: string, outcome: DialOutcome): Promise<{ callId: string | null }>;
+  /** Stores the voicemail link on the call (by CallSid, unique across garages); false when there is no such call. */
+  recordVoicemail(callSid: string, voicemail: { url: string; durationSeconds: number | null }): Promise<boolean>;
+  queueTextBack(garageId: string, callId: string): Promise<void>;
 }
 
 export type TwilioWebhookDeps = {
@@ -78,12 +95,12 @@ export type TwilioWebhookDeps = {
   env?: MessagingEnv;
   /** Runs queued work after the response (`after()` in the route). */
   afterResponse?: (task: () => Promise<unknown>) => void;
-  /** Drains the jobs the webhook queued. */
-  drainReplies?: () => Promise<unknown>;
+  /** Drains the jobs the webhook queued (HELP answers, text-backs) after the response. */
+  drainQueued?: (kinds: JobKind[]) => Promise<unknown>;
   log?: JobLogger;
 };
 
-type Outcome = { status: "processed" | "ignored"; outcome: string; response?: Response; queuedReply?: boolean };
+type Outcome = { status: "processed" | "ignored"; outcome: string; response?: Response; queued?: JobKind[] };
 
 const defaultLog = createJobLogger({ source: "twilio_webhook" });
 
@@ -147,7 +164,7 @@ async function keywordOutcome(
     // With Advanced Opt-Out, Twilio has already answered HELP itself (it then sends OptOutType).
     if (form.OptOutType?.trim() || !stored) return { status: "processed", outcome: "help_answered_by_twilio" };
     await repo.queueHelpReply(routed.garageId, stored.id);
-    return { status: "processed", outcome: "help", queuedReply: true };
+    return { status: "processed", outcome: "help", queued: ["messages.reply"] };
   }
   return { status: "processed", outcome: stored ? "stored" : "already_stored" };
 }
@@ -164,39 +181,126 @@ async function status(form: Record<string, string>, repo: TwilioWebhookRepo): Pr
   });
 }
 
-async function voice(form: Record<string, string>, repo: TwilioWebhookRepo): Promise<Outcome | null> {
+/** A Twilio caller id we can store and text: E.164 and not one of Twilio's withheld placeholders. */
+function callerNumber(raw: string | undefined) {
+  const value = raw?.trim() ?? "";
+  return isE164(value) && !WITHHELD_CALLERS.has(value) ? value : null;
+}
+
+function seconds(raw: string | undefined, max: number) {
+  if (raw === undefined || raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? Math.min(max, Math.trunc(value)) : null;
+}
+
+/** How recent another call from the same caller must be to treat this one as our own forward coming back. */
+const FORWARD_LOOP_WINDOW_MS = 2 * 60 * 1000;
+const DIAL_STATUSES = new Set(["completed", "answered", "busy", "no-answer", "failed", "canceled"]);
+
+type VoiceContext = { signedUrl: string; step: VoiceStep | null };
+
+function voicemail(routed: RoutedNumber, context: VoiceContext) {
+  return twimlResponse(voicemailTwiml({
+    garageName: routed.garageName,
+    recordedUrl: voiceStepUrl(context.signedUrl, "recorded"),
+    recordingStatusUrl: voiceStepUrl(context.signedUrl, "recording"),
+  }));
+}
+
+async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, context: VoiceContext): Promise<Outcome | null> {
   const callSid = form.CallSid?.trim() ?? "";
+  if (!SID.test(callSid)) return null;
+  if (context.step === "recording") return voicemailStored(form, repo, callSid);
+  if (context.step === "recorded") return { status: "processed", outcome: "voicemail_left", response: twimlResponse(afterRecordingTwiml()) };
+
   const to = stripWhatsApp(form.To);
-  if (!SID.test(callSid) || !isE164(to)) return null;
+  if (!isE164(to)) return null;
+  if (context.step === "dial") return dialFinished(form, repo, callSid, to, context);
+
   const rawStatus = form.CallStatus?.trim().toLowerCase() || "ringing";
   const callStatus = CALL_STATUSES.has(rawStatus) ? rawStatus : "ringing";
-  const eventKey = `voice:${callSid}:${callStatus}`;
   const live = LIVE_CALL_STATUSES.has(callStatus);
-  if (!(await repo.claimEvent(eventKey, "voice", callSid))) {
-    return { status: "processed", outcome: "duplicate", response: live ? twimlResponse("<Hangup/>") : twimlResponse() };
-  }
+  const eventKey = `voice:${callSid}:${callStatus}`;
+  const claimed = await repo.claimEvent(eventKey, "voice", callSid);
+  const from = callerNumber(form.From);
 
-  return withEvent(repo, eventKey, async () => {
+  const answer = async (record: boolean): Promise<Outcome> => {
     const routed = await repo.findGarageByNumber(to);
     if (!routed) return { status: "ignored", outcome: "unrouted", response: twimlResponse("<Reject/>") };
+    if (!live) {
+      // A status callback (completed, no-answer, ...): move the call forward, answer nothing.
+      if (record) {
+        await repo.recordCall({ garageId: routed.garageId, callSid, from, to, status: callStatus, durationSeconds: seconds(form.CallDuration, 86_400), missed: true });
+      }
+      return { status: "processed", outcome: "call_status", response: twimlResponse() };
+    }
 
-    const rawFrom = form.From?.trim() ?? "";
-    const from = isE164(rawFrom) && !WITHHELD_CALLERS.has(rawFrom) ? rawFrom : null;
-    const duration = Number(form.CallDuration ?? form.DialCallDuration ?? NaN);
-    const recorded = await repo.recordCall({
-      garageId: routed.garageId,
-      callSid,
-      from,
-      to,
-      status: callStatus,
-      durationSeconds: Number.isFinite(duration) && duration >= 0 ? Math.min(86_400, Math.trunc(duration)) : null,
-      // Calls reach the Autofix number only when the garage did not pick up (forward when busy or unanswered).
-      missed: true,
-    });
-    const response = live
-      ? twimlResponse(`<Say language="en-GB">Sorry, ${escapeXml(routed.garageName)} can't take your call right now. Please try again later.</Say><Hangup/>`)
-      : twimlResponse();
-    return { status: "processed", outcome: `call_${recorded}`, response };
+    // Ring the garage's own phone first, unless this call is that forward coming back to us.
+    const target = await repo.findDialTarget(routed.garageId, to);
+    const loop = target !== null
+      && (form.ForwardedFrom?.trim() === target || (from !== null && await repo.callerRangRecently(routed.garageId, from, callSid, FORWARD_LOOP_WINDOW_MS)));
+    const dialling = target !== null && !loop;
+    let queued: JobKind[] | undefined;
+    if (record) {
+      const { callId } = await repo.recordCall({ garageId: routed.garageId, callSid, from, to, status: callStatus, durationSeconds: null, missed: !dialling });
+      if (!dialling && callId) {
+        await repo.queueTextBack(routed.garageId, callId);
+        queued = ["calls.text_back"];
+      }
+    }
+    const response = dialling && target
+      ? twimlResponse(dialTwiml({ number: target, actionUrl: voiceStepUrl(context.signedUrl, "dial") }))
+      : voicemail(routed, context);
+    return { status: "processed", outcome: dialling ? "call_dialling" : loop ? "call_forward_returned" : "call_missed", response, queued };
+  };
+
+  // A repeated request (Twilio retrying a slow answer) gets the same TwiML, without the writes.
+  if (!claimed) return { ...(await answer(false)), outcome: "duplicate", queued: undefined };
+  return withEvent(repo, eventKey, () => answer(true));
+}
+
+/** `?step=dial`: how ringing the garage's own phone went (DialCallStatus). */
+async function dialFinished(form: Record<string, string>, repo: TwilioWebhookRepo, callSid: string, to: string, context: VoiceContext): Promise<Outcome> {
+  const raw = form.DialCallStatus?.trim().toLowerCase() ?? "";
+  const dialStatus = DIAL_STATUSES.has(raw) ? raw : "failed";
+  const missed = MISSED_DIAL_STATUSES.has(dialStatus);
+  const eventKey = `voice:${callSid}:dial`;
+  const claimed = await repo.claimEvent(eventKey, "voice", callSid);
+
+  const answer = async (record: boolean): Promise<Outcome> => {
+    const routed = await repo.findGarageByNumber(to);
+    if (!routed) return { status: "ignored", outcome: "unrouted", response: twimlResponse("<Hangup/>") };
+    let queued: JobKind[] | undefined;
+    if (record) {
+      const { callId } = await repo.recordDialOutcome(routed.garageId, callSid, { dialStatus, missed, durationSeconds: seconds(form.DialCallDuration, 86_400) });
+      if (missed && callId) {
+        await repo.queueTextBack(routed.garageId, callId);
+        queued = ["calls.text_back"];
+      }
+    }
+    return {
+      status: "processed",
+      outcome: missed ? "dial_missed" : "dial_answered",
+      response: missed ? voicemail(routed, context) : twimlResponse("<Hangup/>"),
+      queued,
+    };
+  };
+
+  if (!claimed) return { ...(await answer(false)), outcome: "duplicate", queued: undefined };
+  return withEvent(repo, eventKey, () => answer(true));
+}
+
+/** `?step=recording`: the voicemail is ready; its link goes on the call. */
+async function voicemailStored(form: Record<string, string>, repo: TwilioWebhookRepo, callSid: string): Promise<Outcome> {
+  const url = form.RecordingUrl?.trim();
+  if (form.RecordingStatus?.trim().toLowerCase() !== "completed" || !isTwilioRecordingUrl(url)) {
+    return { status: "ignored", outcome: "recording_not_usable", response: twimlResponse() };
+  }
+  const eventKey = `voice:${callSid}:recording`;
+  if (!(await repo.claimEvent(eventKey, "voice", callSid))) return { status: "processed", outcome: "duplicate", response: twimlResponse() };
+  return withEvent(repo, eventKey, async () => {
+    const stored = await repo.recordVoicemail(callSid, { url, durationSeconds: seconds(form.RecordingDuration, 3_600) });
+    return { status: stored ? "processed" : "ignored", outcome: stored ? "voicemail_stored" : "call_unknown", response: twimlResponse() };
   });
 }
 
@@ -223,7 +327,12 @@ export async function handleTwilioWebhook(request: Request, kind: TwilioWebhookK
 
   let outcome: Outcome | null;
   try {
-    outcome = kind === "status" ? await status(verified.form, repo) : kind === "voice" ? await voice(verified.form, repo) : await inbound(verified.form, kind, repo);
+    if (kind === "voice") {
+      const step = new URL(request.url).searchParams.get("step");
+      outcome = await voice(verified.form, repo, { signedUrl: twilioWebhookUrl(request, deps.env), step: isVoiceStep(step) ? step : null });
+    } else {
+      outcome = kind === "status" ? await status(verified.form, repo) : await inbound(verified.form, kind, repo);
+    }
   } catch (error) {
     log.error("twilio_webhook_failed", { kind, error: safeErrorCode(error) });
     return webhookErrorResponse(500, "processing_failed");
@@ -236,9 +345,10 @@ export async function handleTwilioWebhook(request: Request, kind: TwilioWebhookK
   }
 
   log.info("twilio_webhook", { kind, outcome: outcome.outcome });
-  if (outcome.queuedReply && deps.drainReplies) {
-    const drain = deps.drainReplies;
-    (deps.afterResponse ?? ((task) => void task().catch(() => undefined)))(() => drain());
+  if (outcome.queued?.length && deps.drainQueued) {
+    const drain = deps.drainQueued;
+    const kinds = outcome.queued;
+    (deps.afterResponse ?? ((task) => void task().catch(() => undefined)))(() => drain(kinds));
   }
   return outcome.response ?? twimlResponse();
 }

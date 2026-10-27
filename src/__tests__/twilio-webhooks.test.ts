@@ -19,9 +19,9 @@ const GARAGE = "a0000000-0000-4000-8000-00000000000a";
 const GARAGE_NUMBER = "+447700100200";
 const CUSTOMER = "+447700900123";
 
-function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, options: { signWith?: string; url?: string; headers?: Record<string, string>; requestUrl?: string } = {}) {
+function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, options: { signWith?: string; url?: string; headers?: Record<string, string>; requestUrl?: string; query?: string } = {}) {
   const body = new URLSearchParams(params).toString();
-  const path = `/api/webhooks/twilio/${kind}`;
+  const path = `/api/webhooks/twilio/${kind}${options.query ?? ""}`;
   const signature = computeTwilioSignature(options.url ?? `${BASE}${path}`, new URLSearchParams(body), options.signWith ?? AUTH_TOKEN);
   return new Request(options.requestUrl ?? `http://localhost:3000${path}`, {
     method: "POST",
@@ -32,7 +32,9 @@ function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, 
 
 type Customer = { garageId: string; phone: string; consent: boolean; optedOut: boolean };
 
-function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[] } = {}) {
+type StoredCall = CallRecord & { id: string; dialStatus?: string; voicemail?: { url: string; durationSeconds: number | null } };
+
+function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[]; dialTarget?: string; recentCaller?: boolean } = {}) {
   const events = new Map<string, string>();
   const customers = options.customers ?? [{ garageId: GARAGE, phone: CUSTOMER, consent: true, optedOut: false }];
   const messageStatus = { ...options.messageStatus };
@@ -40,8 +42,9 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
   const state = {
     inbound: [] as InboundMessageRow[],
     keywords: [] as Array<{ garageId: string; phone: string; intent: string; changed: number }>,
-    calls: new Map<string, CallRecord>(),
+    calls: new Map<string, StoredCall>(),
     replies: [] as string[],
+    textBacks: [] as string[],
     finished: [] as Array<{ key: string; status: string; outcome?: string | null }>,
     messageStatus,
     reminderStatus,
@@ -99,8 +102,31 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
     },
     async recordCall(call) {
       const existing = state.calls.get(call.callSid);
-      state.calls.set(call.callSid, { ...existing, ...call });
-      return existing ? "updated" : "created";
+      const id = existing?.id ?? `call-${call.callSid}`;
+      // Like the database: the first row keeps its missed flag; later callbacks move status and duration.
+      state.calls.set(call.callSid, existing ? { ...existing, status: call.status, durationSeconds: call.durationSeconds ?? existing.durationSeconds } : { ...call, id });
+      return { outcome: existing ? "updated" : "created", callId: id };
+    },
+    async findDialTarget() {
+      return options.dialTarget ?? null;
+    },
+    async callerRangRecently() {
+      return options.recentCaller ?? false;
+    },
+    async recordDialOutcome(_garageId, callSid, outcome) {
+      const existing = state.calls.get(callSid);
+      if (!existing) return { callId: null };
+      state.calls.set(callSid, { ...existing, dialStatus: outcome.dialStatus, missed: outcome.missed });
+      return { callId: existing.id };
+    },
+    async recordVoicemail(callSid, voicemail) {
+      const existing = state.calls.get(callSid);
+      if (!existing) return false;
+      state.calls.set(callSid, { ...existing, voicemail });
+      return true;
+    },
+    async queueTextBack(_garageId, callId) {
+      state.textBacks.push(callId);
     },
     async queueHelpReply(_garageId, messageId) {
       state.replies.push(messageId);
@@ -240,12 +266,12 @@ describe("inbound SMS and WhatsApp", () => {
   it("queues a HELP answer and drains it after the response, unless Twilio already answered", async () => {
     const { repo, state } = memoryRepo();
     const tasks: Array<() => Promise<unknown>> = [];
-    const drainReplies = vi.fn(async () => undefined);
-    await handleTwilioWebhook(signedRequest("sms", inboundParams("HELP")), "sms", deps(repo, { afterResponse: (task: () => Promise<unknown>) => tasks.push(task), drainReplies }));
+    const drainQueued = vi.fn(async () => undefined);
+    await handleTwilioWebhook(signedRequest("sms", inboundParams("HELP")), "sms", deps(repo, { afterResponse: (task: () => Promise<unknown>) => tasks.push(task), drainQueued }));
     expect(state.replies).toEqual(["message-1"]);
-    expect(drainReplies).not.toHaveBeenCalled();
+    expect(drainQueued).not.toHaveBeenCalled();
     await tasks[0]!();
-    expect(drainReplies).toHaveBeenCalledOnce();
+    expect(drainQueued).toHaveBeenCalledExactlyOnceWith(["messages.reply"]);
 
     const advanced = memoryRepo();
     await handleTwilioWebhook(signedRequest("sms", inboundParams("HELP", "SM00000000000000000000000000000021", { OptOutType: "HELP" })), "sms", deps(advanced.repo));
@@ -291,33 +317,134 @@ describe("delivery status callbacks", () => {
   });
 });
 
-describe("voice", () => {
-  const callParams = (status: string, extra: Record<string, string> = {}) => ({ CallSid: "CA00000000000000000000000000000001", From: CUSTOMER, To: GARAGE_NUMBER, CallStatus: status, Direction: "inbound", ...extra });
+describe("voice (P4.1 missed calls)", () => {
+  const CALL = "CA00000000000000000000000000000001";
+  const OWN_PHONE = "+441302000101";
+  const RECORDING = "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Recordings/RE00000000000000000000000000000001";
+  const callParams = (status: string, extra: Record<string, string> = {}) => ({ CallSid: CALL, From: CUSTOMER, To: GARAGE_NUMBER, CallStatus: status, Direction: "inbound", ...extra });
+  const voiceUrl = (step: string) => `${BASE}/api/webhooks/twilio/voice?step=${step}`;
 
-  it("logs the call as missed and answers with a short message (garage name escaped)", async () => {
+  function capture() {
+    const tasks: Array<() => Promise<unknown>> = [];
+    const drainQueued = vi.fn(async () => undefined);
+    return { tasks, drainQueued, extra: { afterResponse: (task: () => Promise<unknown>) => tasks.push(task), drainQueued } };
+  }
+
+  it("without a phone of its own the garage greets in its name, takes a voicemail and queues the text-back", async () => {
     const { repo, state } = memoryRepo();
-    const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    const { tasks, drainQueued, extra } = capture();
+    const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo, extra));
     const xml = await response.text();
-    expect(xml).toContain("<Say language=\"en-GB\">Sorry, Hartley Road &amp; Sons can't take your call right now.");
-    expect(xml).toContain("<Hangup/>");
-    expect(state.calls.get("CA00000000000000000000000000000001")).toEqual({
-      garageId: GARAGE, callSid: "CA00000000000000000000000000000001", from: CUSTOMER, to: GARAGE_NUMBER, status: "ringing", durationSeconds: null, missed: true,
-    });
+    expect(xml).toContain("<Say language=\"en-GB\">Sorry, Hartley Road &amp; Sons can&apos;t take your call right now. Please leave a message after the tone and we&apos;ll get back to you.</Say>");
+    expect(xml).toContain(`<Record maxLength="120" timeout="5" playBeep="true" trim="trim-silence" action="${voiceUrl("recorded")}" method="POST" recordingStatusCallback="${voiceUrl("recording")}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>`);
+    expect(xml).not.toMatch(/transcribe/i);
+    expect(xml).toMatch(/\/><Say language="en-GB">We didn&apos;t get a message\. Goodbye\.<\/Say><Hangup\/><\/Response>$/);
+    expect(state.calls.get(CALL)).toMatchObject({ garageId: GARAGE, from: CUSTOMER, to: GARAGE_NUMBER, status: "ringing", missed: true });
+    expect(state.textBacks).toEqual([`call-${CALL}`]);
+    // The text-back is drained after the response, not before it.
+    expect(drainQueued).not.toHaveBeenCalled();
+    await tasks[0]!();
+    expect(drainQueued).toHaveBeenCalledExactlyOnceWith(["calls.text_back"]);
+  });
 
+  it("rings the garage's own phone first, and only counts the call missed when that fails", async () => {
+    const { repo, state } = memoryRepo({ dialTarget: OWN_PHONE });
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo))).text();
+    expect(xml).toBe(`<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeout="20" answerOnBridge="true" action="${voiceUrl("dial")}" method="POST"><Number>${OWN_PHONE}</Number></Dial></Response>`);
+    expect(state.calls.get(CALL)).toMatchObject({ missed: false });
+    expect(state.textBacks).toEqual([]);
+  });
+
+  it.each(["no-answer", "busy", "failed", "canceled"])("after a %s dial it takes a voicemail and texts the caller back", async (dialStatus) => {
+    const { repo, state } = memoryRepo({ dialTarget: OWN_PHONE });
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", callParams("in-progress", { DialCallStatus: dialStatus, DialCallDuration: "0" }), { query: "?step=dial" }), "voice", deps(repo))).text();
+    expect(xml).toContain("<Record ");
+    expect(state.calls.get(CALL)).toMatchObject({ dialStatus, missed: true });
+    expect(state.textBacks).toEqual([`call-${CALL}`]);
+  });
+
+  it("an answered dial just hangs up when the garage puts the phone down: not missed, no text", async () => {
+    const { repo, state } = memoryRepo({ dialTarget: OWN_PHONE });
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", callParams("in-progress", { DialCallStatus: "completed", DialCallDuration: "95" }), { query: "?step=dial" }), "voice", deps(repo))).text();
+    expect(xml).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    expect(state.calls.get(CALL)).toMatchObject({ dialStatus: "completed", missed: false });
+    expect(state.textBacks).toEqual([]);
+  });
+
+  it("never rings the garage's phone again for a forward that came back to us", async () => {
+    const recent = memoryRepo({ dialTarget: OWN_PHONE, recentCaller: true });
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(recent.repo))).text();
+    expect(xml).not.toContain("<Dial");
+    expect(xml).toContain("<Record ");
+    expect(recent.state.calls.get(CALL)).toMatchObject({ missed: true });
+    expect(recent.state.finished.at(-1)).toMatchObject({ outcome: "call_forward_returned" });
+
+    const forwarded = memoryRepo({ dialTarget: OWN_PHONE });
+    const again = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing", { ForwardedFrom: OWN_PHONE })), "voice", deps(forwarded.repo))).text();
+    expect(again).not.toContain("<Dial");
+  });
+
+  it("answers Twilio's retry of the first request with the same TwiML, without writing or texting twice", async () => {
+    const { repo, state } = memoryRepo();
+    const first = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo))).text();
+    const retry = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo))).text();
+    expect(retry).toBe(first);
+    expect(state.textBacks).toHaveLength(1);
+    expect(state.finished.filter((entry) => entry.key === `voice:${CALL}:ringing`)).toHaveLength(1);
+  });
+
+  it("stores the voicemail link from the recording callback once, and only Twilio recording links", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    const recording = { CallSid: CALL, RecordingSid: "RE00000000000000000000000000000001", RecordingUrl: RECORDING, RecordingStatus: "completed", RecordingDuration: "17" };
+    expect((await handleTwilioWebhook(signedRequest("voice", recording, { query: "?step=recording" }), "voice", deps(repo))).status).toBe(200);
+    expect(state.calls.get(CALL)?.voicemail).toEqual({ url: RECORDING, durationSeconds: 17 });
+    await handleTwilioWebhook(signedRequest("voice", { ...recording, RecordingDuration: "99" }, { query: "?step=recording" }), "voice", deps(repo));
+    expect(state.calls.get(CALL)?.voicemail?.durationSeconds).toBe(17);
+
+    const other = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(other.repo));
+    await handleTwilioWebhook(signedRequest("voice", { ...recording, RecordingUrl: "https://evil.example/recording" }, { query: "?step=recording" }), "voice", deps(other.repo));
+    await handleTwilioWebhook(signedRequest("voice", { ...recording, RecordingStatus: "absent" }, { query: "?step=recording" }), "voice", deps(other.repo));
+    expect(other.state.calls.get(CALL)?.voicemail).toBeUndefined();
+  });
+
+  it("thanks the caller after the recording, and records nothing", async () => {
+    const { repo, state } = memoryRepo();
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", { CallSid: CALL, To: GARAGE_NUMBER, RecordingUrl: RECORDING }, { query: "?step=recorded" }), "voice", deps(repo))).text();
+    expect(xml).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Say language="en-GB">Thanks for your message. Goodbye.</Say><Hangup/></Response>');
+    expect(state.calls.size).toBe(0);
+  });
+
+  it("refuses a step the signature was not made for", async () => {
+    const { repo, state } = memoryRepo({ dialTarget: OWN_PHONE });
+    const signedForDial = signedRequest("voice", callParams("in-progress", { DialCallStatus: "no-answer" }), { query: "?step=dial" });
+    const tampered = new Request(`http://localhost:3000/api/webhooks/twilio/voice?step=recording`, { method: "POST", headers: signedForDial.headers, body: await signedForDial.text() });
+    expect((await handleTwilioWebhook(tampered, "voice", deps(repo))).status).toBe(403);
+    expect(state.calls.size).toBe(0);
+  });
+
+  it("moves the call forward on status callbacks and answers them with empty TwiML", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
     const completed = await handleTwilioWebhook(signedRequest("voice", callParams("completed", { CallDuration: "14" })), "voice", deps(repo));
     expect(await completed.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-    expect(state.calls.get("CA00000000000000000000000000000001")).toMatchObject({ status: "completed", durationSeconds: 14 });
+    expect(state.calls.get(CALL)).toMatchObject({ status: "completed", durationSeconds: 14, missed: true });
+    expect(state.textBacks).toHaveLength(1);
   });
 
   it("stores withheld numbers as null and rejects calls to unprovisioned numbers", async () => {
     const { repo, state } = memoryRepo();
     await handleTwilioWebhook(signedRequest("voice", callParams("ringing", { From: "+266696687" })), "voice", deps(repo));
-    expect(state.calls.get("CA00000000000000000000000000000001")?.from).toBeNull();
+    expect(state.calls.get(CALL)?.from).toBeNull();
 
     const unrouted = memoryRepo({ routed: false });
     const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(unrouted.repo));
     expect(await response.text()).toContain("<Reject/>");
     expect(unrouted.state.calls.size).toBe(0);
+    expect(unrouted.state.textBacks).toEqual([]);
   });
 });
 

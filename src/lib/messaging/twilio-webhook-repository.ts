@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseJobQueue } from "@/lib/jobs/queue";
 import { databaseError } from "@/lib/jobs/types";
 import type { DeliveryStatus } from "./channel";
+import { toE164UK } from "./phone";
 import { isLaterStatus } from "./twilio";
 import type { CallRecord, KeywordResult, TwilioWebhookRepo } from "./twilio-webhooks";
 
@@ -159,22 +160,77 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
           status: call.status,
           missed: call.missed,
           duration_s: call.durationSeconds,
-        });
-        if (!inserted.error) return "created";
-        if (inserted.error.code !== "23505") throw databaseError("calls.insert", inserted.error);
+        }).select("id").single();
+        if (!inserted.error && inserted.data) return { outcome: "created" as const, callId: (inserted.data as { id: string }).id };
+        if (inserted.error?.code !== "23505") throw databaseError("calls.insert", inserted.error);
         // Two callbacks raced: fall through to an update of the row the other one created.
         return this.recordCall(call);
       }
 
-      if (row.garage_id !== call.garageId) return "unchanged";
+      if (row.garage_id !== call.garageId) return { outcome: "unchanged" as const, callId: null };
       const forward = (CALL_RANK[call.status] ?? 0) > (CALL_RANK[row.status] ?? 0);
       const patch: Record<string, unknown> = {};
       if (forward) patch.status = call.status;
       if (call.durationSeconds !== null && call.durationSeconds !== row.duration_s) patch.duration_s = call.durationSeconds;
-      if (Object.keys(patch).length === 0) return "unchanged";
+      if (Object.keys(patch).length === 0) return { outcome: "unchanged" as const, callId: row.id };
       const updated = await db.from("calls").update(patch).eq("garage_id", row.garage_id).eq("id", row.id);
       if (updated.error) throw databaseError("calls.update", updated.error);
-      return "updated";
+      return { outcome: "updated" as const, callId: row.id };
+    },
+
+    async findDialTarget(garageId, calledNumber) {
+      const { data, error } = await db
+        .from("garage_phone_numbers")
+        .select("number")
+        .eq("garage_id", garageId)
+        .eq("purpose", "forwarding")
+        .is("provider_sid", null)
+        .neq("number", calledNumber)
+        .order("created_at", { ascending: true })
+        .limit(5);
+      if (error) throw databaseError("garage_phone_numbers.dial_target", error);
+      // Only UK geographic, non-geographic (03) and mobile numbers: never premium or overseas, which we would pay to ring.
+      const numbers = ((data ?? []) as Array<{ number: string }>).map((row) => row.number);
+      return numbers.find((number) => toE164UK(number, { allowLandline: true }) === number) ?? null;
+    },
+
+    async callerRangRecently(garageId, from, callSid, withinMs) {
+      const { data, error } = await db
+        .from("calls")
+        .select("id")
+        .eq("garage_id", garageId)
+        .eq("from_number", from)
+        .neq("provider_call_sid", callSid)
+        .gte("created_at", new Date(Date.now() - withinMs).toISOString())
+        .limit(1);
+      if (error) throw databaseError("calls.recent_from_caller", error);
+      return (data ?? []).length > 0;
+    },
+
+    async recordDialOutcome(garageId, callSid, outcome) {
+      const { data, error } = await db
+        .from("calls")
+        .update({ dial_status: outcome.dialStatus, missed: outcome.missed })
+        .eq("garage_id", garageId)
+        .eq("provider_call_sid", callSid)
+        .select("id")
+        .maybeSingle();
+      if (error) throw databaseError("calls.dial_outcome", error);
+      return { callId: (data as { id: string } | null)?.id ?? null };
+    },
+
+    async recordVoicemail(callSid, voicemail) {
+      const { data, error } = await db
+        .from("calls")
+        .update({ voicemail_url: voicemail.url, voicemail_duration_s: voicemail.durationSeconds })
+        .eq("provider_call_sid", callSid)
+        .select("id");
+      if (error) throw databaseError("calls.voicemail", error);
+      return (data ?? []).length > 0;
+    },
+
+    async queueTextBack(garageId, callId) {
+      await createSupabaseJobQueue(db).enqueue("calls.text_back", { garageId, callId }, { garageId, dedupeKey: `calls.text_back:${callId}` });
     },
 
     async queueHelpReply(garageId, inboundMessageId) {

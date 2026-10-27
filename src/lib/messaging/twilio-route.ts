@@ -6,10 +6,11 @@ import { createSupabaseTwilioWebhookRepo } from "./twilio-webhook-repository";
 import { handleTwilioWebhook, type TwilioWebhookKind } from "./twilio-webhooks";
 
 // Route handler factory for POST /api/webhooks/twilio/{sms,whatsapp,status,voice}.
-// Queued replies (HELP) are drained after the response, so Twilio gets its
-// answer at once.
+// Work the webhook queued (HELP answers, missed-call text-backs) is drained
+// after the response, so Twilio gets its answer at once and the caller gets
+// the text within seconds.
 
-const REPLY_DRAIN_BUDGET_MS = 10_000;
+const AFTER_RESPONSE_DRAIN_BUDGET_MS = 15_000;
 
 export function twilioWebhookRoute(kind: TwilioWebhookKind) {
   return async function POST(request: Request) {
@@ -26,9 +27,9 @@ export function twilioWebhookRoute(kind: TwilioWebhookKind) {
           void run();
         }
       },
-      drainReplies: async () => {
+      drainQueued: async (kinds) => {
         const { drainJobs } = await import("@/lib/jobs/runner");
-        return drainJobs({ kinds: ["messages.reply"], budgetMs: REPLY_DRAIN_BUDGET_MS });
+        return drainJobs({ kinds, budgetMs: AFTER_RESPONSE_DRAIN_BUDGET_MS });
       },
     });
   };
