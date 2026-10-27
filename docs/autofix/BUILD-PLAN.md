@@ -6,9 +6,9 @@
 | --- | --- | --- | --- | --- |
 | 1 | **passed** | 27 Oct 2026 | eb8dfd8 | All P1 tasks ticked; Gate 1 green in CI (run 40429708549: verify, database-tests incl. 1614 tenancy tests, browser-tests, lighthouse) on self-hosted runners `autofix-azure-*` |
 | 2 | **passed** | 27 Oct 2026 | 7db956d | All P2 tasks ticked; Gate 2 green in CI run 40468968919 (verify, database-tests incl. 100-way concurrency, browser-tests incl. booking 27/27 + manage 5/5 + axe, lighthouse) |
-| 3 | in progress | 27 Oct 2026 | e453c6e | P3.4, P3.5, P3.6, P3.11 done; P3.8 library done; P3.1–P3.3 (ui lane) and P3.7–P3.9 (api lane) running; then P3.10 and Gate 3 (P3.12) |
+| 3 | **passed** | 27 Oct 2026 | 64e367c | All P3 tasks ticked; Gate 3 green in CI run 40500091562 (self-hosted `autofix-azure-*`): `tests/e2e/gate3.spec.ts` 7/7 (reminder scheduled → sent on the mock SMS channel → `/r/<token>` opened → booked through the 5 steps → `source = reminder`, `reminder_sends.booking_id` set → Today's "Won back by reminders" £0 → £54), admin journeys + every nav page with axe at 390/1440 (32 + 6), plus verify, pgTAP, integration incl. tenancy, booking/manage/settings/super-admin/booking-page/sign-up/legal browser tests and Lighthouse |
 | 3/4 (spun off) | n/a | 27 Oct 2026 | 48f7b8a | Separate cloud sessions, each on its own branch, merged by the lead when done: P4.2 agent tool API → `claude/autofix-p4-2-agent-api` (migration `20261028000100`), P3.11 customers + CSV import → `claude/autofix-p3-11-customers-import` (`20261028000200`), P4.8/P4.9 launch checklist + legal copy → `claude/autofix-p4-8-p4-9-launch-legal` (`20261028000300`). Later migrations (P3.6 reminders) start at `20261028001000` |
-| 4 (spun off, round 2) | n/a | 27 Oct 2026 | e453c6e | Merged into this branch: P4.2 (`23f6a58`), P3.11 (`e453c6e`), P4.8/P4.9 (`ee1095c`). Now running in separate sessions: P4.4 sign-up/onboarding → `claude/autofix-p4-4-signup` (migration `20261028000400`, pgTAP 020, A100–A119), P4.5 super admin → `claude/autofix-p4-5-super-admin` (`20261028000500`, pgTAP 021, A120–A139), P4.3/P4.6 booking page, domains, Askbridge → `claude/autofix-p4-3-p4-6-domain-askbridge` (`20261028000600`, pgTAP 022, A140–A159) |
+| 4 (spun off, round 2) | n/a | 27 Oct 2026 | ba54cc7 | Merged: P4.5 super admin (`d364574`), P4.3/P4.6 booking page, domains, Askbridge (`9690488`), P4.4 sign-up/onboarding (`ba54cc7`); P4.1 missed calls built in this session (`f911ba6`) |
 
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
 
@@ -77,7 +77,7 @@ Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (
 
 ## Phase 3 · Admin + reminders (days 8–11)
 
-Gate 3: **a reminder link produces a booking credited to that reminder end to end** (scheduled → sent via mocked Twilio → link opened → booking created with `source = reminder` → `reminder_sends.booking_id` set → dashboard "won back" updates).
+Gate 3: **a reminder link produces a booking credited to that reminder end to end** (scheduled → sent via mocked Twilio → link opened → booking created with `source = reminder` → `reminder_sends.booking_id` set → dashboard "won back" updates). **Passed 27 Oct 2026** in CI run 40500091562 (`pnpm test:e2e:gate3`, 7/7).
 
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
