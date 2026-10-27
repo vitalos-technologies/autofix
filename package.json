@@ -22,6 +22,7 @@
     "test:e2e:settings": "playwright test --config playwright.garage.config.ts --project=settings",
     "test:e2e:legal": "playwright test --config playwright.garage.config.ts --project=legal-mobile",
     "test:lighthouse": "lhci autorun",
+    "test:load": "node scripts/load/slots-load.mjs",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
