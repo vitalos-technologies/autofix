@@ -14,7 +14,7 @@ import {
 } from "@/lib/invoices/dashboard";
 import { formatPence } from "@/lib/invoices/money";
 import { sourceLabel } from "@/lib/invoices/types";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { manageTrashAction } from "../trash/actions";
 
@@ -24,7 +24,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const filters = normalizeInvoiceDashboardFilters(params);
   const { query, status, date } = filters;
-  const admin = await getAdminUser({ allowTrustedDevice: true });
+  const admin = await getAdminContext({ allowTrustedDevice: true });
   const result = admin
     ? await loadInvoiceDashboard(admin.client, filters)
     : { ...emptyInvoiceDashboard, error: new Error("Admin session is unavailable") };

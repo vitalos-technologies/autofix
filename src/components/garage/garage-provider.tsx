@@ -10,12 +10,16 @@ export type PublicGarage = {
   phone: string | null;
   whatsapp: string | null;
   email: string | null;
+  line1: string | null;
+  line2: string | null;
   town: string | null;
   postcode: string | null;
   timezone: string;
   logoUrl: string | null;
   accent: string;
   motEnabled: boolean;
+  /** Booking reference prefix, e.g. `HRM` in `HRM-4821`. */
+  bookingPrefix: string;
 };
 
 const GarageContext = createContext<PublicGarage | null>(null);

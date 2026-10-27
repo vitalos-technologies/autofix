@@ -32,7 +32,7 @@ import { MfaSecurityPanel } from "@/app/app/(protected)/configuration/security/m
 describe("admin MFA QR rendering", () => {
   it("preserves Supabase's complete data URI on a normal image element", () => {
     render(<MfaSecurityPanel />);
-    const image = screen.getByRole("img", { name: "QR code for SOB Autofix admin authenticator setup" });
+    const image = screen.getByRole("img", { name: "QR code for Autofix authenticator setup" });
     expect(image.tagName).toBe("IMG");
     expect(image.getAttribute("src")).toBe(qrCode);
     expect(image.getAttribute("src")).not.toContain("data%3Aimage");

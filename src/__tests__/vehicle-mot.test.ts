@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MOT_ENABLED, formatMotDate, toIsoDate, toStatusLabel, withMotVisibility } from "@/lib/vehicle/mot";
+import * as mot from "@/lib/vehicle/mot";
+import { formatMotDate, toIsoDate, toStatusLabel, withMotVisibility } from "@/lib/vehicle/mot";
 import type { VehicleDetails } from "@/types/domain";
 
 const vehicle: VehicleDetails = {
@@ -13,8 +14,8 @@ const vehicle: VehicleDetails = {
 };
 
 describe("MOT visibility", () => {
-  it("is off until P1.3 wires garages.mot_enabled", () => {
-    expect(DEFAULT_MOT_ENABLED).toBe(false);
+  it("has no platform-wide default: visibility is always the garage's switch", () => {
+    expect(mot).not.toHaveProperty("DEFAULT_MOT_ENABLED");
   });
 
   it("removes MOT fields when the garage has MOT switched off", () => {

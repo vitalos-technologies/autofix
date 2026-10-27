@@ -1,29 +1,56 @@
 import "server-only";
 /* eslint-disable jsx-a11y/alt-text -- @react-pdf/renderer Image does not expose an alt prop; adjacent issuer text and PDF metadata identify the brand. */
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import React from "react";
 import { Document, Image, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
-import { invoicePaymentDetails } from "@/config/invoicing";
+import { PLATFORM_NAME } from "@/lib/email/brand";
+import { formatPhoneForDisplay } from "@/lib/tenancy/contact";
+import type { Garage } from "@/lib/tenancy/garage";
+import { garageBaseUrl } from "@/lib/tenancy/urls";
 import { formatPence, invoicePaymentSummary } from "./money";
 import { invoiceStatusLabel, type Invoice, type InvoiceStatus } from "./types";
 
-// Navy logo on a white masthead keeps printed invoices light on ink.
-export const invoiceLogoPath = join("public", "brand", "sob-autofix-logo-invoice.png");
+// Invoices are the garage's documents: its name and details come from the
+// issuer snapshot taken when the invoice was issued, and its current logo and
+// bank details from the garage profile. Autofix appears only in the footer.
 
-let cachedLogoSource: string | null | undefined;
+/** The garage profile fields an invoice PDF reads. */
+export type InvoiceGarage = Pick<Garage, "name" | "slug" | "customDomain" | "logoUrl" | "invoicePayment">;
 
-function loadInvoiceLogo() {
-  if (cachedLogoSource !== undefined) return cachedLogoSource;
+const LOGO_TIMEOUT_MS = 4_000;
+const LOGO_MAX_BYTES = 1_500_000;
+const LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
+
+/**
+ * The garage's logo as a data URI (PNG or JPEG over https only), or null for
+ * the text masthead. Fetched with a timeout and size cap so a slow or missing
+ * logo never blocks an invoice.
+ */
+export async function loadGarageLogo(logoUrl: string | null | undefined, fetcher: typeof fetch = fetch): Promise<string | null> {
+  if (!logoUrl) return null;
+  let url: URL;
   try {
-    const bytes = readFileSync(join(process.cwd(), invoiceLogoPath));
-    cachedLogoSource = `data:image/png;base64,${bytes.toString("base64")}`;
-  } catch (error) {
-    cachedLogoSource = null;
-    console.error("[invoice-pdf] Official SOB Autofix logo could not be loaded; using branded text fallback.", error);
+    url = new URL(logoUrl);
+  } catch {
+    return null;
   }
-  return cachedLogoSource;
+  if (url.protocol !== "https:") return null;
+  try {
+    const response = await fetcher(url, { signal: AbortSignal.timeout(LOGO_TIMEOUT_MS), redirect: "follow" });
+    const type = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+    if (!response.ok || !LOGO_TYPES.has(type)) return null;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > LOGO_MAX_BYTES) return null;
+    return `data:${type};base64,${bytes.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+/** `Invoice-HRM-2026-000001.pdf`, or `Invoice-Draft.pdf`. */
+export function invoiceFileName(invoice: Pick<Invoice, "invoice_number">) {
+  const reference = (invoice.invoice_number || "Draft").replace(/[^A-Za-z0-9-]/g, "");
+  return `Invoice-${reference || "Draft"}.pdf`;
 }
 
 const c = {
@@ -69,12 +96,13 @@ const s = StyleSheet.create({
   footerBrand: { width: "66%", color: c.secondary, fontSize: 7.2 }, footerStrong: { color: c.navy, fontFamily: "Helvetica-Bold" }, footerMeta: { width: "31%", textAlign: "right", color: c.secondary, fontSize: 7.2 },
 });
 
-export async function renderInvoicePdf(invoice: Invoice) {
-  return renderToBuffer(<InvoiceDocument invoice={invoice} />);
+export async function renderInvoicePdf(invoice: Invoice, garage: InvoiceGarage) {
+  const logo = await loadGarageLogo(garage.logoUrl);
+  return renderToBuffer(<InvoiceDocument invoice={invoice} garage={garage} logo={logo} />);
 }
 
-export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
-  const logo = loadInvoiceLogo();
+export function InvoiceDocument({ invoice, garage, logo }: { invoice: Invoice; garage: InvoiceGarage; logo: string | null }) {
+  const website = new URL(garageBaseUrl(garage)).host;
   const watermark = invoice.status === "draft" ? "DRAFT" : invoice.status === "void" ? "VOID" : null;
   const status = invoiceStatusLabel(invoice.status).toUpperCase();
   const reference = invoice.invoice_number || "DRAFT - NOT ISSUED";
@@ -84,11 +112,11 @@ export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
   return <Document title={`${invoice.issuer_trading_name} invoice ${displayNumber}`} author={invoice.issuer_legal_name} creationDate={new Date(invoice.created_at)} modificationDate={new Date(invoice.updated_at)}>
     <Page size="A4" style={s.page} wrap>
       {watermark && <Text fixed style={s.watermark}>{watermark}</Text>}
-      <ContinuationHeader logo={logo} reference={reference} status={status} />
-      <Footer invoice={invoice} reference={reference} status={status} />
+      <ContinuationHeader logo={logo} name={invoice.issuer_trading_name || garage.name} reference={reference} status={status} />
+      <Footer invoice={invoice} website={website} reference={reference} status={status} />
 
       <View style={s.masthead} wrap={false}>
-        <View style={s.mastBrand}>{logo ? <Image src={logo} style={s.logo} /> : <Text style={s.logoFallback}>{invoice.issuer_trading_name.toUpperCase()}</Text>}<Text style={s.tagline}>{invoice.issuer_tagline}</Text></View>
+        <View style={s.mastBrand}>{logo ? <Image src={logo} style={s.logo} /> : <Text style={s.logoFallback}>{(invoice.issuer_trading_name || garage.name).toUpperCase()}</Text>}{invoice.issuer_tagline ? <Text style={s.tagline}>{invoice.issuer_tagline}</Text> : null}</View>
         <View style={s.identity}><Text style={s.invoiceTitle}>INVOICE</Text><Text style={s.invoiceNumber}>{reference}</Text><Text style={[s.badge, statusStyle(invoice.status)]}>{status}</Text></View>
       </View>
 
@@ -98,7 +126,7 @@ export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
         <View style={s.detailColumn}><SectionHeading>Vehicle / Service</SectionHeading>{invoice.vehicle_registration && <View style={s.registrationPanel}><Text style={s.registration}>{invoice.vehicle_registration.toUpperCase()}</Text></View>}{vehicleName(invoice) && <Text style={s.vehicleName}>{vehicleName(invoice)}</Text>}{invoice.service_name && <Text style={s.service}>{invoice.service_name}</Text>}{invoice.appointment_start && <Text style={s.detailLine}>{formatDateTime(invoice.appointment_start)}</Text>}{!invoice.vehicle_registration && !vehicleName(invoice) && !invoice.service_name && <Text style={s.detailLine}>No vehicle or service details recorded.</Text>}</View>
       </View>
 
-      <View style={s.issuer} wrap={false}><View style={s.issuerBlock}><Text style={s.label}>From</Text><Text style={s.value}>{invoice.issuer_legal_name}</Text><Text style={s.issuerDetails}>{splitAddress(invoice.issuer_address).join(" · ")}</Text></View><View style={s.issuerBlock}><Text style={s.label}>Contact</Text><Text style={s.issuerDetails}>{formatPhone(invoice.issuer_phone)} · {invoice.issuer_email}</Text><Text style={s.issuerDetails}>sobautofix.com · Company no. {invoice.issuer_company_number}</Text></View></View>
+      <View style={s.issuer} wrap={false}><View style={s.issuerBlock}><Text style={s.label}>From</Text><Text style={s.value}>{invoice.issuer_legal_name}</Text><Text style={s.issuerDetails}>{splitAddress(invoice.issuer_address).join(" · ")}</Text></View><View style={s.issuerBlock}><Text style={s.label}>Contact</Text><Text style={s.issuerDetails}>{joinPresent([formatPhone(invoice.issuer_phone), invoice.issuer_email])}</Text><Text style={s.issuerDetails}>{joinPresent([website, invoice.issuer_company_number ? `Company no. ${invoice.issuer_company_number}` : ""])}</Text></View></View>
 
       <View style={s.table}>
         <View style={s.tableHead} fixed><Text style={s.description}>DESCRIPTION</Text><Text style={s.qty}>QTY</Text><Text style={s.unit}>UNIT PRICE</Text><Text style={s.amount}>AMOUNT</Text></View>
@@ -106,19 +134,20 @@ export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
       </View>
 
       <View style={s.settlement} wrap={false}>
-        <View style={s.settlementLeft}><PaymentSection invoice={invoice} status={status} />{invoice.notes && <View style={s.lower}><SectionHeading>Notes</SectionHeading><Text style={s.notes}>{invoice.notes}</Text></View>}</View>
+        <View style={s.settlementLeft}><PaymentSection invoice={invoice} garage={garage} status={status} />{invoice.notes && <View style={s.lower}><SectionHeading>Notes</SectionHeading><Text style={s.notes}>{invoice.notes}</Text></View>}</View>
         <View style={s.totals}><Total label="Subtotal" value={invoice.subtotal_pence} />{BigInt(invoice.discount_pence) > 0n && <Total label="Discount" value={-BigInt(invoice.discount_pence)} />}<View style={[s.totalRow, s.grand]}><Text>TOTAL GBP</Text><Text>{formatPence(payment.totalPence)}</Text></View><Total label="AMOUNT PAID" value={payment.amountPaidPence} /><View style={[s.totalRow, s.balance]}><Text>BALANCE DUE</Text><Text>{formatPence(payment.balancePence)}</Text></View>{invoice.status === "paid" && <Text style={s.paidMarker}>PAID / SETTLED</Text>}</View>
       </View>
     </Page>
   </Document>;
 }
 
-function ContinuationHeader({ logo, reference, status }: { logo: string | null; reference: string; status: string }) {
-  return <View fixed style={s.continuation}>{logo ? <Image src={logo} style={s.continuationLogo} /> : <Text style={s.continuationFallback}>SOB AUTOFIX</Text>}<View style={s.continuationMeta}><Text style={s.continuationNumber}>Invoice {reference}</Text><Text style={s.continuationStatus}>{status}</Text></View></View>;
+function ContinuationHeader({ logo, name, reference, status }: { logo: string | null; name: string; reference: string; status: string }) {
+  return <View fixed style={s.continuation}>{logo ? <Image src={logo} style={s.continuationLogo} /> : <Text style={s.continuationFallback}>{name.toUpperCase()}</Text>}<View style={s.continuationMeta}><Text style={s.continuationNumber}>Invoice {reference}</Text><Text style={s.continuationStatus}>{status}</Text></View></View>;
 }
 
-function Footer({ invoice, reference, status }: { invoice: Invoice; reference: string; status: string }) {
-  return <View fixed style={s.footer}><View style={s.footerBrand}><Text style={s.footerStrong}>{invoice.issuer_legal_name} · {invoice.issuer_tagline}</Text><Text>{`sobautofix.com · ${formatPhone(invoice.issuer_phone)} · ${invoice.issuer_email} · Company no. ${invoice.issuer_company_number}`}</Text></View><View style={s.footerMeta}><Text style={s.footerStrong}>{reference} · {status}</Text><Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} /></View></View>;
+function Footer({ invoice, website, reference, status }: { invoice: Invoice; website: string; reference: string; status: string }) {
+  const contact = joinPresent([website, formatPhone(invoice.issuer_phone), invoice.issuer_email, invoice.issuer_company_number ? `Company no. ${invoice.issuer_company_number}` : ""]);
+  return <View fixed style={s.footer}><View style={s.footerBrand}><Text style={s.footerStrong}>{joinPresent([invoice.issuer_legal_name, invoice.issuer_tagline])}</Text><Text>{contact}</Text><Text>{`Invoice produced with ${PLATFORM_NAME}`}</Text></View><View style={s.footerMeta}><Text style={s.footerStrong}>{reference} · {status}</Text><Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} /></View></View>;
 }
 
 function SummaryStrip({ invoice, status }: { invoice: Invoice; status: string }) {
@@ -126,8 +155,9 @@ function SummaryStrip({ invoice, status }: { invoice: Invoice; status: string })
   return <View style={s.summaryStrip} wrap={false}><Pair label="Issue date" value={formatDate(invoice.issue_date)} /><Pair label="Due date" value={formatDate(invoice.due_date)} /><Pair label={third.label} value={third.value} /></View>;
 }
 
-function PaymentSection({ invoice, status }: { invoice: Invoice; status: string }) {
-  return <View><SectionHeading>Payment details</SectionHeading><Text style={s.paymentStatus}>Pay to: {invoicePaymentDetails.accountName}</Text><Text style={s.notes}>Sort code: {invoicePaymentDetails.sortCode} · Account no: {invoicePaymentDetails.accountNumber}</Text>{invoice.paid_at ? <><Text style={s.paymentStatus}>{status} · {formatDate(invoice.paid_at.slice(0, 10))}</Text>{invoice.payment_method && <Text style={s.notes}>{paymentMethodLabel(invoice.payment_method)}{invoice.payment_reference ? ` · ${invoice.payment_reference}` : ""}</Text>}</> : <>{invoice.due_date && <Text style={s.paymentStatus}>Payment due by {formatDate(invoice.due_date)}.</Text>}{invoice.payment_terms && <Text style={s.notes}>{invoice.payment_terms}</Text>}</>}</View>;
+function PaymentSection({ invoice, garage, status }: { invoice: Invoice; garage: InvoiceGarage; status: string }) {
+  const bank = garage.invoicePayment;
+  return <View><SectionHeading>Payment details</SectionHeading>{bank ? <><Text style={s.paymentStatus}>Pay to: {bank.accountName}</Text><Text style={s.notes}>Sort code: {bank.sortCode} · Account no: {bank.accountNumber}</Text></> : null}{invoice.paid_at ? <><Text style={s.paymentStatus}>{status} · {formatDate(invoice.paid_at.slice(0, 10))}</Text>{invoice.payment_method && <Text style={s.notes}>{paymentMethodLabel(invoice.payment_method)}{invoice.payment_reference ? ` · ${invoice.payment_reference}` : ""}</Text>}</> : <>{invoice.due_date && <Text style={s.paymentStatus}>Payment due by {formatDate(invoice.due_date)}.</Text>}{invoice.payment_terms && <Text style={s.notes}>{invoice.payment_terms}</Text>}</>}</View>;
 }
 
 function SectionHeading({ children }: { children: React.ReactNode }) { return <><Text style={s.label}>{children}</Text><View style={s.sectionRule} /></>; }
@@ -138,6 +168,7 @@ function vehicleName(invoice: Invoice) { return [invoice.vehicle_make, invoice.v
 function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" }).format(new Date(`${value}T12:00:00Z`)) : "Not set"; }
 function formatDateTime(value: string) { return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value)); }
 function trimQuantity(value: string) { return value.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1"); }
-function formatPhone(value: string) { const digits = value.replace(/\s+/g, ""); return digits.length === 11 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : value; }
+function formatPhone(value: string | null) { return formatPhoneForDisplay(value); }
+function joinPresent(values: Array<string | null | undefined>) { return values.map((value) => value?.trim() ?? "").filter(Boolean).join(" · "); }
 function paymentMethodLabel(value: NonNullable<Invoice["payment_method"]>) { return value === "bank_transfer" ? "Bank transfer" : value.charAt(0).toUpperCase() + value.slice(1); }
 function statusStyle(status: InvoiceStatus) { return status === "draft" ? s.badgeDraft : status === "issued" ? s.badgeIssued : status === "paid" ? s.badgePaid : s.badgeVoid; }

@@ -24,7 +24,9 @@ describe("shared service catalogue", () => {
   it("uses the database catalogue for booking and invoices", () => {
     const booking = source("src/lib/bookings/services.ts");
     const invoice = source("src/components/admin/invoice-form.tsx");
-    expect(booking).toContain("listServiceCatalogue({ bookableOnly: true })");
+    expect(booking).toContain("listServiceCatalogue(createAdminClient(), garageId, { bookableOnly: true })");
+    // Every catalogue query is scoped to one garage.
+    expect(source("src/lib/service-catalogue/repository.ts").match(/\.eq\("garage_id", garageId\)/g)).toHaveLength(3);
     expect(invoice).toContain("serviceCategories={serviceCategories}");
   });
 

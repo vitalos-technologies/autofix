@@ -17,6 +17,11 @@ import {
 } from "@/lib/bookings/schema";
 import type { BookingLookupState } from "@/lib/bookings/types";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { getHostGarage, type Garage } from "@/lib/tenancy/garage";
+
+// Manage booking on a garage host. The garage always comes from the request
+// host; access tokens are bound to that garage, so a token copied to another
+// garage's site is rejected.
 
 const genericLookupFailure = "We couldn't find a booking matching those details. Please check the information and try again.";
 const expiredSessionMessage = "Your secure booking session has expired. Find your booking again.";
@@ -28,9 +33,9 @@ async function requesterIp() {
   return requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || requestHeaders.get("x-real-ip") || "unknown";
 }
 
-function verifiedBookingAccess(accessToken: unknown) {
+function verifiedBookingAccess(garage: Garage, accessToken: unknown) {
   const parsed = bookingAccessSchema.safeParse({ accessToken });
-  return parsed.success ? verifyBookingAccessToken(parsed.data.accessToken) : null;
+  return parsed.success ? verifyBookingAccessToken(parsed.data.accessToken, garage.id) : null;
 }
 
 function slotWindowDays(start: string, end: string) {
@@ -64,33 +69,36 @@ function operationErrorCode(error: unknown) {
 }
 
 export async function lookupBookingAction(_previousState: BookingLookupState, formData: FormData): Promise<BookingLookupState> {
+  const garage = await getHostGarage();
+  if (!garage) return { status: "error", message: genericLookupFailure };
   const ip = await requesterIp();
-  if (!(await consumeRateLimit(ip, "booking_lookup_ip", 5, 600))) return { status: "error", message: "Too many attempts. Please wait before trying again." };
+  if (!(await consumeRateLimit(`${garage.id}:${ip}`, "booking_lookup_ip", 5, 600))) return { status: "error", message: "Too many attempts. Please wait before trying again." };
   const parsed = bookingLookupSchema.safeParse({
     bookingReference: formData.get("bookingReference"),
     registration: formData.get("registration"),
   });
   if (!parsed.success) return { status: "error", message: genericLookupFailure };
-  const compoundIdentifier = `${ip}:${parsed.data.bookingReference}:${parsed.data.registration}`;
+  const compoundIdentifier = `${garage.id}:${ip}:${parsed.data.bookingReference}:${parsed.data.registration}`;
   if (!(await consumeRateLimit(compoundIdentifier, "booking_lookup_details", 5, 900))) return { status: "error", message: "Too many attempts. Please wait before trying again." };
   try {
-    const result = await findBooking(parsed.data);
+    const result = await findBooking(garage, parsed.data);
     if (!result) return { status: "error", message: genericLookupFailure };
-    return { status: "found", booking: result.booking, accessToken: createBookingAccessToken(result.id) };
+    return { status: "found", booking: result.booking, accessToken: createBookingAccessToken(result.id, garage.id) };
   } catch {
     return { status: "error", message: genericLookupFailure };
   }
 }
 
 export async function beginRescheduleAction(accessToken: string) {
-  const access = verifiedBookingAccess(accessToken);
-  if (!access) return { success: false as const, message: expiredSessionMessage };
+  const garage = await getHostGarage();
+  const access = garage ? verifiedBookingAccess(garage, accessToken) : null;
+  if (!garage || !access) return { success: false as const, message: expiredSessionMessage };
   const ip = await requesterIp();
   if (!(await consumeRateLimit(`${ip}:${access.bookingId}`, "booking_reschedule_begin", 10, 600))) {
     return { success: false as const, message: "Too many attempts. Please wait before trying again." };
   }
   try {
-    const eligible = await beginBookingReschedule(access.bookingId);
+    const eligible = await beginBookingReschedule(garage, access.bookingId);
     return eligible
       ? { success: true as const }
       : { success: false as const, message: "This booking cannot be rescheduled online." };
@@ -100,8 +108,10 @@ export async function beginRescheduleAction(accessToken: string) {
 }
 
 export async function getRescheduleSlotsAction(accessToken: string, start: string, end: string) {
+  const garage = await getHostGarage();
+  if (!garage) return { success: false as const, message: expiredSessionMessage };
   const parsed = bookingRescheduleSlotsSchema.safeParse({ accessToken, start, end });
-  const access = parsed.success ? verifiedBookingAccess(parsed.data.accessToken) : verifiedBookingAccess(accessToken);
+  const access = parsed.success ? verifiedBookingAccess(garage, parsed.data.accessToken) : verifiedBookingAccess(garage, accessToken);
   if (!access) return { success: false as const, message: expiredSessionMessage };
   if (!parsed.success || slotWindowDays(parsed.data.start, parsed.data.end) > maximumSlotWindowDays) {
     return { success: false as const, message: "Choose a valid date range of no more than seven days." };
@@ -111,7 +121,7 @@ export async function getRescheduleSlotsAction(accessToken: string, start: strin
     return { success: false as const, message: "Too many availability checks. Please wait a moment before trying again." };
   }
   try {
-    const result = await getBookingRescheduleSlots(access.bookingId, parsed.data.start, parsed.data.end);
+    const result = await getBookingRescheduleSlots(garage, access.bookingId, parsed.data.start, parsed.data.end);
     if (!result) return { success: false as const, message: "This booking cannot be rescheduled online." };
     return {
       success: true as const,
@@ -124,8 +134,10 @@ export async function getRescheduleSlotsAction(accessToken: string, start: strin
 }
 
 export async function rescheduleBookingAction(accessToken: string, appointmentStart: string) {
+  const garage = await getHostGarage();
+  if (!garage) return { success: false as const, message: expiredSessionMessage };
   const parsed = bookingRescheduleSchema.safeParse({ accessToken, appointmentStart });
-  const access = parsed.success ? verifiedBookingAccess(parsed.data.accessToken) : verifiedBookingAccess(accessToken);
+  const access = parsed.success ? verifiedBookingAccess(garage, parsed.data.accessToken) : verifiedBookingAccess(garage, accessToken);
   if (!access) return { success: false as const, message: expiredSessionMessage };
   if (!parsed.success) return { success: false as const, message: "Choose a valid appointment time." };
   const ip = await requesterIp();
@@ -133,7 +145,7 @@ export async function rescheduleBookingAction(accessToken: string, appointmentSt
     return { success: false as const, message: "Too many rescheduling attempts. Please wait before trying again." };
   }
   try {
-    const result = await rescheduleBooking(access.bookingId, parsed.data.appointmentStart);
+    const result = await rescheduleBooking(garage, access.bookingId, parsed.data.appointmentStart);
     if (result.outcome === "rescheduled") {
       return { success: true as const, message: "Your appointment has been rescheduled.", booking: result.booking };
     }
@@ -152,14 +164,15 @@ export async function rescheduleBookingAction(accessToken: string, appointmentSt
 }
 
 export async function cancelBookingAction(accessToken: string) {
-  const access = verifiedBookingAccess(accessToken);
-  if (!access) return { success: false as const, message: expiredSessionMessage };
+  const garage = await getHostGarage();
+  const access = garage ? verifiedBookingAccess(garage, accessToken) : null;
+  if (!garage || !access) return { success: false as const, message: expiredSessionMessage };
   const ip = await requesterIp();
   if (!(await consumeRateLimit(`${ip}:${access.bookingId}`, "booking_cancel", 3, 600))) {
     return { success: false as const, message: "Too many attempts. Please wait before trying again." };
   }
   try {
-    const result = await cancelBooking(access.bookingId);
+    const result = await cancelBooking(garage, access.bookingId);
     if (result.outcome === "cancelled") return { success: true as const, message: "Your booking has been cancelled.", booking: result.booking };
     if (result.outcome === "ineligible") {
       return {
@@ -170,6 +183,6 @@ export async function cancelBookingAction(accessToken: string) {
     }
     return { success: false as const, message: "We couldn't find that booking. Please find it again." };
   } catch {
-    return { success: false as const, message: "We couldn't cancel this booking online. Please contact SOB Autofix for help." };
+    return { success: false as const, message: `We couldn't cancel this booking online. Please contact ${garage.name} for help.` };
   }
 }

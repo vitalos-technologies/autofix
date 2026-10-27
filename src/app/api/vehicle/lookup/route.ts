@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { resolveRouteGarage } from "@/lib/tenancy/route";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
-import { DEFAULT_MOT_ENABLED, withMotVisibility } from "@/lib/vehicle/mot";
+import { withMotVisibility } from "@/lib/vehicle/mot";
 import { VehicleLookupError } from "@/lib/vehicle/provider";
 import { registrationSchema } from "@/lib/vehicle/registration";
 
 export async function POST(request: NextRequest) {
+  const { garage, response } = await resolveRouteGarage();
+  if (response) return response;
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (!(await consumeRateLimit(ip, "vehicle_lookup", 10, 60))) {
+  if (!(await consumeRateLimit(ip, "vehicle_lookup", 10, 60)) || !(await consumeRateLimit(garage.id, "vehicle_lookup_garage", 600, 600))) {
     return NextResponse.json({ success: false, error: { code: "rate_limited", message: "Too many lookups. Please wait a minute and try again." } }, { status: 429 });
   }
 
@@ -19,8 +22,8 @@ export async function POST(request: NextRequest) {
   if (!provider) return NextResponse.json({ success: false, error: { code: "unavailable", message: "Vehicle lookup is not configured. You can continue manually." } }, { status: 503 });
 
   try {
-    // MOT data reaches the customer only when the garage shows MOT.
-    const vehicle = withMotVisibility(await provider.lookup(parsed.data), DEFAULT_MOT_ENABLED);
+    // MOT data reaches the customer only when this garage shows MOT.
+    const vehicle = withMotVisibility(await provider.lookup(parsed.data), garage.motEnabled);
     return NextResponse.json({ success: true, vehicle }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const known = error instanceof VehicleLookupError ? error : new VehicleLookupError("Vehicle lookup is unavailable", "unavailable");

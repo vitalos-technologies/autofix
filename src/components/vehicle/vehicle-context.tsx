@@ -4,8 +4,8 @@ import { createContext, useCallback, useContext, useMemo, useSyncExternalStore }
 import type { VehicleSession } from "@/types/domain";
 
 const emptySession: VehicleSession = { vehicle: null };
-const storageKey = "sob-autofix-vehicle-session";
-const changeEvent = "sob-autofix-vehicle-session-change";
+const storageKey = "af-vehicle-session";
+const changeEvent = "af-vehicle-session-change";
 
 type ContextValue = {
   session: VehicleSession;

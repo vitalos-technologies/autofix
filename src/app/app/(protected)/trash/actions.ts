@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 
 const entitySchema = z.enum(["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]);
 const actionSchema = z.enum(["trash", "restore", "delete"]);
@@ -12,7 +12,7 @@ const idsSchema = z.array(z.string().uuid()).min(1).max(100);
 export type TrashActionResult = { success: boolean; message: string };
 
 export async function manageTrashAction(formData: FormData): Promise<TrashActionResult> {
-  const admin = await getAdminUser({ requireMfa: false, allowTrustedDevice: true });
+  const admin = await getAdminContext({ requireMfa: false, allowTrustedDevice: true });
   if (!admin) redirect("/app/login");
   if (admin.mfaState === "enrollment_required") redirect("/app/mfa/enroll");
   if (admin.mfaState === "challenge_required") redirect("/app/mfa?returnTo=%2Fapp%2Ftrash&stepUp=1");

@@ -2,7 +2,7 @@ import { AlertTriangle, Bell, CalendarClock, MailWarning } from "lucide-react";
 import Link from "next/link";
 import { AdminPagination } from "@/components/admin/admin-list-controls";
 import { ADMIN_LIST_PAGE_SIZE, positiveAdminPage } from "@/lib/admin/pagination";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminReadClient } from "@/lib/tenancy/admin";
 
 type AlertRow = {
   id: string;
@@ -38,17 +38,17 @@ type DisplayAlert = {
 
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const requestedPage = positiveAdminPage((await searchParams).page);
-  const client = await createAdminReadClient();
-  const [alertsResult, unreadResult, unmatchedResult, repliedResult, bookingResult, bookingDeliveryResult] = client
+  const client = await getAdminReadClient();
+  // RLS client for the selected garage only.
+  const [alertsResult, unreadResult, repliedResult, bookingResult, bookingDeliveryResult] = client
     ? await Promise.all([
         client.from("enquiries").select("id,type,status,notification_status,created_at,customers(name,email,phone)").is("deleted_at", null).or("status.eq.new,notification_status.in.(pending,failed)").order("created_at", { ascending: false }).limit(100),
         client.from("enquiry_conversations").select("enquiry_id,unread_count,enquiries!inner(deleted_at)").is("enquiries.deleted_at", null).gt("unread_count", 0),
-        client.from("unmatched_inbound_emails").select("id", { count: "exact", head: true }).is("linked_enquiry_id", null).is("ignored_at", null).neq("reason", "automated_ignored"),
         client.from("enquiry_messages").select("enquiry_id").eq("direction", "outbound").eq("message_type", "email").in("delivery_status", ["sent", "delivered"]),
         client.from("bookings").select("id,booking_reference,status,provider_sync_state,admin_seen_at,service_name,created_at,customers(name,email,phone)").is("deleted_at", null).or("admin_seen_at.is.null,provider_sync_state.in.(pending,failed)").order("created_at", { ascending: false }).limit(100),
         client.from("booking_notification_events").select("booking_id,status,bookings!inner(deleted_at)").is("bookings.deleted_at", null).in("status", ["pending", "failed"]),
       ])
-    : [{ data: [], error: new Error("Database unavailable") }, { data: [] }, { count: 0 }, { data: [] }, { data: [], error: new Error("Database unavailable") }, { data: [], error: new Error("Database unavailable") }];
+    : [{ data: [], error: new Error("Database unavailable") }, { data: [] }, { data: [] }, { data: [], error: new Error("Database unavailable") }, { data: [], error: new Error("Database unavailable") }];
 
   let alerts = (alertsResult.data || []) as unknown as AlertRow[];
   const repliedIds = new Set((repliedResult.data || []).map((item) => item.enquiry_id));
@@ -117,7 +117,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const failedBookingEmails = new Set((bookingDeliveryResult.data || []).filter((item) => item.status === "failed").map((item) => item.booking_id)).size;
   const failedEmails = alerts.filter((item) => item.notification_status === "failed").length + failedBookingEmails;
   const newBookings = bookingAlerts.filter((booking) => !booking.admin_seen_at).length;
-  const attentionCount = displayAlerts.length + (unmatchedResult.count || 0);
+  const attentionCount = displayAlerts.length;
   const loadFailed = Boolean(alertsResult.error || bookingResult.error || bookingDeliveryResult.error);
   const totalPages = Math.max(1, Math.ceil(displayAlerts.length / ADMIN_LIST_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
@@ -134,14 +134,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <div className="flex flex-wrap gap-2"><Link href="/app/bookings" className="rounded-xl bg-[#071127] px-4 py-3 text-sm font-bold text-white">View bookings</Link><Link href="/app/enquiries" className="rounded-xl border border-[#D7E0E9] bg-white px-4 py-3 text-sm font-bold text-[#071127]">View enquiries</Link></div>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <SummaryCard href="#attention-heading" icon={<Bell />} label="Requires attention" value={attentionCount} />
         <SummaryCard href="/app/bookings" icon={<CalendarClock />} label="New bookings" value={newBookings} />
         <SummaryCard href="#attention-heading" icon={<MailWarning />} label="Email failures" value={failedEmails} tone={failedEmails ? "danger" : "default"} />
-        <SummaryCard href="/app/enquiries/unmatched" icon={<MailWarning />} label="Unmatched inbound" value={unmatchedResult.count || 0} />
       </div>
-
-      {(unmatchedResult.count || 0) > 0 && <Link href="/app/enquiries/unmatched" className="mt-6 flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 p-5 font-bold text-amber-950"><span>{unmatchedResult.count} unmatched inbound {unmatchedResult.count === 1 ? "email needs" : "emails need"} review</span><span aria-hidden="true">→</span></Link>}
 
       {loadFailed && <div role="alert" className="mt-8 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"><AlertTriangle className="shrink-0" size={20} />Notifications could not be loaded. Refresh the page or check the database connection.</div>}
 

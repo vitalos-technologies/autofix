@@ -25,29 +25,43 @@ describe("provider-neutral booking management", () => {
   });
 
   it("requires a reference and registration for a booking lookup", () => {
-    expect(bookingLookupSchema.safeParse({ bookingReference: "SOB-123456", registration: "AB12 CDE" }).success).toBe(true);
-    expect(bookingLookupSchema.safeParse({ bookingReference: "SOB-123456" }).success).toBe(false);
+    expect(bookingLookupSchema.safeParse({ bookingReference: "HRM-4821", registration: "AB12 CDE" }).success).toBe(true);
+    expect(bookingLookupSchema.safeParse({ bookingReference: "HRM-4821" }).success).toBe(false);
+  });
+
+  it("accepts any garage's <PREFIX>-NNNN reference and nothing else", () => {
+    for (const reference of ["HRM-4821", "AB-1234", "DGBX-123456"]) {
+      expect(bookingLookupSchema.safeParse({ bookingReference: reference, registration: "AB12CDE" }).success, reference).toBe(true);
+    }
+    for (const reference of ["H-1234", "HRMXX-1234", "HRM-123", "HRM-1234567", "HRM1234", "12-3456"]) {
+      expect(bookingLookupSchema.safeParse({ bookingReference: reference, registration: "AB12CDE" }).success, reference).toBe(false);
+    }
   });
 
   it("normalises every secure lookup factor", () => {
-    expect(bookingLookupSchema.parse({ bookingReference: " sob-123456 ", registration: "ab12 cde" })).toEqual({
-      bookingReference: "SOB-123456",
+    expect(bookingLookupSchema.parse({ bookingReference: " hrm-4821 ", registration: "ab12 cde" })).toEqual({
+      bookingReference: "HRM-4821",
       registration: "AB12CDE",
     });
   });
 
-  it("issues a valid short-lived booking access token", () => {
-    const token = createBookingAccessToken("booking-id", 60);
-    expect(verifyBookingAccessToken(token)).toMatchObject({ bookingId: "booking-id" });
+  it("issues a valid short-lived booking access token for one garage", () => {
+    const token = createBookingAccessToken("booking-id", "garage-a", 60);
+    expect(verifyBookingAccessToken(token, "garage-a")).toMatchObject({ bookingId: "booking-id", garageId: "garage-a" });
+  });
+
+  it("rejects a token presented on another garage's site", () => {
+    const token = createBookingAccessToken("booking-id", "garage-a", 60);
+    expect(verifyBookingAccessToken(token, "garage-b")).toBeNull();
   });
 
   it("rejects a tampered booking access token", () => {
-    const token = createBookingAccessToken("booking-id", 60);
-    expect(verifyBookingAccessToken(`${token}x`)).toBeNull();
+    const token = createBookingAccessToken("booking-id", "garage-a", 60);
+    expect(verifyBookingAccessToken(`${token}x`, "garage-a")).toBeNull();
   });
 
   it("rejects an expired booking access token", () => {
-    expect(verifyBookingAccessToken(createBookingAccessToken("booking-id", -1))).toBeNull();
+    expect(verifyBookingAccessToken(createBookingAccessToken("booking-id", "garage-a", -1), "garage-a")).toBeNull();
   });
 
   it("keeps non-sequential collision-checked references, prefixed and unique per garage", () => {
@@ -119,6 +133,9 @@ describe("provider-neutral booking management", () => {
     expect(actions).toContain("rescheduleBooking");
     expect(actions).toContain("cancelBooking");
     expect(component).not.toContain("window.location");
+    // Every action resolves the garage from the request host, never from the client.
+    expect(actions.match(/await getHostGarage\(\)/g)?.length).toBe(5);
+    expect(actions).not.toMatch(/formData\.get\("garage/i);
   });
 
   it("rate-limits lookup, slot browsing, reschedule and cancellation separately", () => {

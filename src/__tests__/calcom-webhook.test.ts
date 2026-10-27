@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testGarage } from "./support/garage";
 
 const harness = vi.hoisted(() => {
   type Row = Record<string, unknown>;
@@ -80,6 +81,9 @@ const harness = vi.hoisted(() => {
 
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => harness.admin }));
 vi.mock("@/lib/bookings/notifications", () => ({ sendBookingNotification: harness.sendNotification }));
+// The webhook has no host: the garage comes from the stored booking.
+const storedGarage = testGarage();
+vi.mock("@/lib/tenancy/garage", () => ({ getGarageById: vi.fn(async (id: string) => (id === storedGarage.id ? storedGarage : null)) }));
 
 import { processCalComWebhook } from "@/lib/bookings/repository";
 import type { CalComWebhook } from "@/lib/calcom/webhook";
@@ -87,7 +91,8 @@ import type { CalComWebhook } from "@/lib/calcom/webhook";
 function bookingRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "70ca0b0b-1df7-42f4-8fe1-329c54ace42d",
-    booking_reference: "SOB-123456",
+    garage_id: storedGarage.id,
+    booking_reference: "HRM-4821",
     status: "pending",
     service_type_id: "service-id",
     service_key: "vehicle-diagnostics",
@@ -99,7 +104,7 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     original_appointment_end: "2026-08-18T09:00:00.000Z",
     timezone: "Europe/London",
     location_mode: "workshop",
-    location: "SOB Autofix workshop",
+    location: "Hartley Road Motors workshop",
     service_address: null,
     service_postcode: null,
     notes: null,
@@ -132,24 +137,36 @@ describe("Cal.com webhook reconciliation", () => {
     harness.sendNotification.mockClear();
   });
 
-  it("reconciles a created booking by safe SOB metadata", async () => {
+  it("reconciles a created booking by its Autofix metadata, in the booking's garage", async () => {
     const payload = event("BOOKING_CREATED", {
       uid: "provider-uid",
       eventTypeId: 123,
       status: "ACCEPTED",
       startTime: "2026-08-18T08:00:00.000Z",
       endTime: "2026-08-18T09:00:00.000Z",
-      metadata: { sobBookingId: harness.state.booking?.id, sobBookingReference: "SOB-123456" },
+      metadata: { autofixGarageId: storedGarage.id, autofixBookingId: harness.state.booking?.id, autofixBookingReference: "HRM-4821" },
     });
     const result = await processCalComWebhook(payload, JSON.stringify(payload));
     expect(result).toMatchObject({ duplicate: false, outcome: "processed" });
     expect(harness.state.booking).toMatchObject({ provider_booking_uid: "provider-uid", status: "confirmed", provider_sync_state: "synced" });
-    expect(harness.state.audits).toContainEqual(expect.objectContaining({ action: "confirmed", actor_type: "provider" }));
+    expect(harness.state.audits).toContainEqual(expect.objectContaining({ garage_id: storedGarage.id, action: "confirmed", actor_type: "provider" }));
     expect(harness.sendNotification).toHaveBeenCalledTimes(1);
+    expect(harness.sendNotification).toHaveBeenCalledWith(storedGarage, expect.objectContaining({ reference: "HRM-4821" }), "confirmed");
+  });
+
+  it("ignores metadata that names another garage", async () => {
+    const payload = event("BOOKING_CREATED", {
+      uid: "provider-uid",
+      status: "ACCEPTED",
+      metadata: { autofixGarageId: "22222222-2222-4222-8222-222222222222", autofixBookingId: harness.state.booking?.id, autofixBookingReference: "HRM-4821" },
+    });
+    const result = await processCalComWebhook(payload, JSON.stringify(payload));
+    expect(result.outcome).toBe("unknown_booking");
+    expect(harness.state.booking).toMatchObject({ status: "pending", provider_booking_uid: null });
   });
 
   it("deduplicates delivery of the exact same event", async () => {
-    const payload = event("BOOKING_CREATED", { uid: "provider-uid", status: "ACCEPTED", metadata: { sobBookingId: harness.state.booking?.id } });
+    const payload = event("BOOKING_CREATED", { uid: "provider-uid", status: "ACCEPTED", metadata: { autofixGarageId: storedGarage.id, autofixBookingId: harness.state.booking?.id } });
     const raw = JSON.stringify(payload);
     await processCalComWebhook(payload, raw);
     const duplicate = await processCalComWebhook(payload, raw);
@@ -165,7 +182,7 @@ describe("Cal.com webhook reconciliation", () => {
       status: "ACCEPTED",
       startTime: "2026-08-18T08:00:00.000Z",
       endTime: "2026-08-18T09:00:00.000Z",
-      metadata: { sobBookingId: harness.state.booking?.id, sobBookingReference: "SOB-123456" },
+      metadata: { autofixGarageId: storedGarage.id, autofixBookingId: harness.state.booking?.id, autofixBookingReference: "HRM-4821" },
     });
     const raw = JSON.stringify(payload);
     harness.state.bookingUpdateError = { code: "database_unavailable" };

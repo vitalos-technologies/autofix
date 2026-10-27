@@ -10,7 +10,9 @@ import {
   getActiveMfaRecoverySession,
   setMfaRecoveryNewFactor,
 } from "@/lib/auth/mfa-recovery-server";
-import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
+import { recordUserSecurityEvent } from "@/lib/admin/audit";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 
 export type RecoveryCodeState = { message: string };
 export type ReplacementEnrollmentState = {
@@ -26,7 +28,7 @@ async function recoveryAttemptAllowed(userId: string) {
 }
 
 export async function verifyMfaRecoveryCode(_: RecoveryCodeState, formData: FormData): Promise<RecoveryCodeState> {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   const genericFailure = "The recovery code could not be verified. Check the code or wait before trying again.";
   if (!admin || admin.mfaVerified || !admin.mfaRequired) return { message: genericFailure };
   if (!(await recoveryAttemptAllowed(admin.user.id))) return { message: genericFailure };
@@ -40,7 +42,7 @@ export async function startAuthenticatorReplacement(
   formData: FormData,
 ): Promise<ReplacementEnrollmentState> {
   void formData;
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin || admin.mfaVerified || !admin.mfaRequired) return { message: "The controlled recovery session is no longer valid. Sign in and start again." };
   const recovery = await getActiveMfaRecoverySession(admin.user.id);
   if (!recovery) return { message: "The controlled recovery session has expired. Enter another unused recovery code." };
@@ -72,7 +74,7 @@ export async function verifyAuthenticatorReplacement(
   _: ReplacementEnrollmentState,
   formData: FormData,
 ): Promise<ReplacementEnrollmentState> {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin || !admin.mfaRequired) return { message: "The controlled recovery session is no longer valid. Sign in and start again." };
   const recovery = await getActiveMfaRecoverySession(admin.user.id);
   if (!recovery?.new_factor_id) return { message: "Start replacement authenticator setup again." };
@@ -103,7 +105,7 @@ export async function verifyAuthenticatorReplacement(
   if (!(await completeMfaRecovery(admin.user.id, recovery.id, factorId))) {
     return { message: "The authenticator was replaced, but recovery completion could not be recorded. Contact the project owner before continuing." };
   }
-  await service.from("admin_audit_log").insert({ actor_id: admin.user.id, action: "global_sign_out", entity_type: "admin_security", entity_id: admin.user.id, detail: { reason: "mfa_factor_replaced" } });
+  await recordUserSecurityEvent(admin.user.id, "global_sign_out", { reason: "mfa_factor_replaced" }, {}, service);
   const { error: signOutError } = await admin.client.auth.signOut({ scope: "global" });
   if (signOutError) await admin.client.auth.signOut({ scope: "local" });
   redirect("/app/login?mfa=replaced");

@@ -18,7 +18,10 @@ describe("production deployment configuration", () => {
     expect(requiredProductionVariables).toContain("RESEND_WEBHOOK_SECRET");
     expect(requiredProductionVariables).toContain("CLOUDFLARE_EMAIL_WEBHOOK_SECRET");
     expect(requiredProductionVariables).not.toContain("RESEND_INBOUND_DOMAIN");
-    expect(envExample).toContain("ENQUIRY_REPLY_DOMAIN=reply.sobautofix.com");
+    expect(envExample).toContain("ENQUIRY_REPLY_DOMAIN=reply.autofix.vitalos.co.uk");
+    // Single-business notification addresses are gone: staff alerts go to each garage's own email.
+    expect(requiredProductionVariables).not.toContain("ENQUIRY_NOTIFICATION_EMAIL");
+    expect(requiredProductionVariables).not.toContain("RESEND_REPLY_TO");
   });
 
   it("does not make safe-fallback integrations production blockers", () => {

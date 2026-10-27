@@ -3,10 +3,13 @@ import { InvoiceForm, type InvoiceFormInitial } from "@/components/admin/invoice
 import { BackLink } from "@/components/ui/back-link";
 import { getInvoiceForAdmin } from "@/lib/invoices/repository";
 import { listServiceCatalogue } from "@/lib/service-catalogue/repository";
+import { getAdminContext } from "@/lib/tenancy/admin";
 
 export default async function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [invoice, catalogue] = await Promise.all([getInvoiceForAdmin(id), listServiceCatalogue()]);
+  const admin = await getAdminContext();
+  if (!admin) notFound();
+  const [invoice, catalogue] = await Promise.all([getInvoiceForAdmin(id), listServiceCatalogue(admin.client, admin.garage.id)]);
   if (!invoice || invoice.status !== "draft") notFound();
   const initial: InvoiceFormInitial = {
     id: invoice.id, sourceType: invoice.source_type, bookingId: invoice.booking_id || undefined, enquiryId: invoice.enquiry_id || undefined,

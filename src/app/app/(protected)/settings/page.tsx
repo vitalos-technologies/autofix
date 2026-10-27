@@ -3,27 +3,49 @@ import Link from "next/link";
 import { saveSettings } from "../actions";
 import { AdminField } from "@/components/admin/admin-field";
 import { OpeningHoursEditor } from "@/components/admin/opening-hours-editor";
-import { siteConfig } from "@/config/site";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
+import { formatPhoneForDisplay } from "@/lib/tenancy/contact";
 
-export default async function SettingsPage() {
-  const client = await createAdminReadClient();
-  const { data } = client
-    ? await client.from("site_settings").select("value").eq("id", true).maybeSingle()
+const emptyOpeningHours = { monday: "", tuesday: "", wednesday: "", thursday: "", friday: "", saturday: "", sunday: "", bankHolidays: "" };
+
+const errorMessages: Record<string, string> = {
+  owner_only: "Only a garage owner can change these details.",
+  invalid: "Check the details and try again.",
+  phone: "Enter UK phone numbers, for example 01302 000101 or 07700 900123.",
+  save_failed: "The settings could not be saved. Try again.",
+};
+
+// Garage profile for the admin's selected garage. Facts come from `garages`;
+// opening-hours text lives in that garage's `site_settings` row until P3.4.
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  const { saved, error } = await searchParams;
+  const { data } = admin
+    ? await admin.client.from("site_settings").select("value").eq("garage_id", admin.garage.id).maybeSingle()
     : { data: null };
-  const override = (data?.value || {}) as Partial<typeof siteConfig>;
+  const stored = (data?.value || {}) as { openingHours?: Partial<typeof emptyOpeningHours>; googleMapsUrl?: string };
+  const garage = admin?.garage;
   const current = {
-    ...siteConfig,
-    ...override,
-    address: { ...siteConfig.address, ...(override.address || {}) },
-    openingHours: { ...siteConfig.openingHours, ...(override.openingHours || {}) },
+    name: garage?.name ?? "",
+    legalName: garage?.legalName ?? "",
+    companyNumber: garage?.companyNumber ?? "",
+    phone: formatPhoneForDisplay(garage?.phone),
+    whatsapp: formatPhoneForDisplay(garage?.whatsapp),
+    email: garage?.email ?? "",
+    address: { line1: garage?.address.line1 ?? "", line2: garage?.address.line2 ?? "", town: garage?.address.town ?? "", postcode: garage?.address.postcode ?? "" },
+    openingHours: { ...emptyOpeningHours, ...(stored.openingHours || {}) },
+    googleMapsUrl: typeof stored.googleMapsUrl === "string" ? stored.googleMapsUrl : "",
   };
+  const canEdit = admin?.role === "owner";
 
   return (
     <>
       <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Configuration</p>
       <h1 className="mt-2 text-4xl font-extrabold text-[#071127]">Settings</h1>
-      <p className="mt-3 text-[#586575]">Manage the business details used in booking pages and customer communications.</p>
+      <p className="mt-3 text-[#586575]">Manage the details {current.name || "your garage"} shows on its booking page, emails and invoices.</p>
+      {saved === "1" && <p role="status" className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-800">Settings saved.</p>}
+      {error && errorMessages[error] && <p role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">{errorMessages[error]}</p>}
+      {!canEdit && <p className="mt-5 rounded-xl border border-[#D7E0E9] bg-white p-4 text-sm text-[#586575]">Only a garage owner can change these details.</p>}
 
       <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
         <Link href="/app/settings" aria-current="page" className="rounded-lg bg-[#071127] px-4 py-2 text-sm font-bold text-white">Settings</Link>
@@ -47,23 +69,22 @@ export default async function SettingsPage() {
           <form action={saveSettings} className="grid gap-6">
             <SettingsSection id="business-profile" icon={<Building2 />} title="Business profile" description="Core identity and registration details shown throughout the site.">
               <AdminField label="Business name"><input name="name" required defaultValue={current.name} /></AdminField>
-              <AdminField label="Legal name"><input name="legalName" required defaultValue={current.legalName} /></AdminField>
-              <AdminField label="Company number"><input name="companyNumber" required defaultValue={current.companyNumber} /></AdminField>
+              <AdminField label="Legal name"><input name="legalName" defaultValue={current.legalName} /></AdminField>
+              <AdminField label="Company number"><input name="companyNumber" defaultValue={current.companyNumber} /></AdminField>
             </SettingsSection>
 
             <SettingsSection id="contact-details" icon={<Contact />} title="Contact details" description="Public channels customers use to contact the garage.">
-              <AdminField label="Phone"><input name="phone" required defaultValue={current.phone} /></AdminField>
-              <AdminField label="WhatsApp"><input name="whatsapp" required defaultValue={current.whatsapp} /></AdminField>
-              <AdminField label="Email"><input name="email" type="email" required defaultValue={current.email} /></AdminField>
+              <AdminField label="Phone"><input name="phone" type="tel" autoComplete="tel" defaultValue={current.phone} /></AdminField>
+              <AdminField label="WhatsApp"><input name="whatsapp" type="tel" defaultValue={current.whatsapp} /></AdminField>
+              <AdminField label="Email"><input name="email" type="email" autoComplete="email" defaultValue={current.email} /></AdminField>
             </SettingsSection>
 
             <SettingsSection id="location" icon={<MapPin />} title="Location" description="Workshop address and the destination used by map links.">
-              <AdminField label="Building"><input name="building" required defaultValue={current.address.building} /></AdminField>
-              <AdminField label="Street"><input name="street" required defaultValue={current.address.street} /></AdminField>
-              <AdminField label="Town"><input name="town" required defaultValue={current.address.town} /></AdminField>
-              <AdminField label="City"><input name="city" required defaultValue={current.address.city} /></AdminField>
-              <AdminField label="Postcode"><input name="postcode" required defaultValue={current.address.postcode} /></AdminField>
-              <AdminField label="Google Maps URL"><input name="googleMapsUrl" type="url" defaultValue={"googleMapsUrl" in current ? String(current.googleMapsUrl || "") : ""} /></AdminField>
+              <AdminField label="Address line 1"><input name="line1" autoComplete="address-line1" defaultValue={current.address.line1} /></AdminField>
+              <AdminField label="Address line 2"><input name="line2" autoComplete="address-line2" defaultValue={current.address.line2} /></AdminField>
+              <AdminField label="Town"><input name="town" autoComplete="address-level2" defaultValue={current.address.town} /></AdminField>
+              <AdminField label="Postcode"><input name="postcode" autoComplete="postal-code" defaultValue={current.address.postcode} /></AdminField>
+              <AdminField label="Google Maps URL"><input name="googleMapsUrl" type="url" defaultValue={current.googleMapsUrl} /></AdminField>
             </SettingsSection>
 
             <SettingsSection id="opening-hours" icon={<Clock3 />} title="Opening hours" description="Leave an entry blank when the hours are not confirmed; blank hours are not published.">
@@ -71,7 +92,7 @@ export default async function SettingsPage() {
             </SettingsSection>
 
             <div className="sticky bottom-4 z-10 flex justify-end rounded-2xl border border-[#D7E0E9] bg-white/95 p-4 shadow-[0_12px_35px_rgba(7,17,39,0.12)] backdrop-blur">
-              <button className="min-h-12 w-full rounded-xl bg-[#1974E2] px-7 font-bold text-white sm:w-auto">Save all settings</button>
+              <button disabled={!canEdit} className="min-h-12 w-full rounded-xl bg-[#1974E2] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Save all settings</button>
             </div>
           </form>
 

@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { registrationSchema } from "@/lib/vehicle/registration";
 
+/** `<booking_prefix>-NNNN` (4 to 6 digits), unique per garage: always look it up with the garage. */
+export const bookingReferenceSchema = z.string().trim().toUpperCase().regex(/^[A-Z]{2,4}-\d{4,6}$/);
+
 export const bookingLookupSchema = z.object({
-  bookingReference: z.string().trim().toUpperCase().regex(/^SOB-\d{6}$/),
+  bookingReference: bookingReferenceSchema,
   registration: registrationSchema,
 });
 

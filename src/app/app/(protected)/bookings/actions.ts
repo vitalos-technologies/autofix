@@ -8,7 +8,9 @@ import {
   getBookingRescheduleSlots,
   rescheduleBooking,
 } from "@/lib/bookings/repository";
-import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
+import { recordAdminAudit } from "@/lib/admin/audit";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 
 const uuidSchema = z.string().uuid();
 
@@ -62,7 +64,7 @@ type SafeActionResult = {
 };
 
 async function getVerifiedAdmin() {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (admin?.mfaState === "enrollment_required") redirect("/app/mfa/enroll");
   if (admin?.mfaRequired && !admin.mfaVerified) redirect("/app/mfa?returnTo=/app/bookings&stepUp=1");
   return admin;
@@ -80,7 +82,7 @@ export async function getAdminBookingSlotsAction(
   if (!parsed.success) return { success: false, message: "Choose a valid date range of up to 14 days." };
 
   try {
-    const result = await getBookingRescheduleSlots(parsed.data.bookingId, parsed.data.start, parsed.data.end);
+    const result = await getBookingRescheduleSlots(admin.garage, parsed.data.bookingId, parsed.data.start, parsed.data.end);
     if (!result) return { success: false, message: "This booking cannot be rescheduled." };
     const slots = result.slots
       .filter((slot) => Number.isFinite(Date.parse(slot.start)))
@@ -110,7 +112,7 @@ export async function rescheduleAdminBookingAction(
   if (!parsed.success) return { success: false, message: "Choose a valid future appointment time." };
 
   try {
-    const result = await rescheduleBooking(parsed.data.bookingId, parsed.data.appointmentStart, "admin");
+    const result = await rescheduleBooking(admin.garage, parsed.data.bookingId, parsed.data.appointmentStart, "admin");
     if (result.outcome !== "rescheduled") {
       return { success: false, message: "This booking can no longer be rescheduled." };
     }
@@ -129,7 +131,7 @@ export async function cancelAdminBookingAction(bookingId: string): Promise<SafeA
   if (!parsed.success) return { success: false, message: "This booking could not be found." };
 
   try {
-    const result = await cancelBooking(parsed.data, "admin");
+    const result = await cancelBooking(admin.garage, parsed.data, "admin");
     if (result.outcome === "not_found") return { success: false, message: "This booking could not be found." };
     if (result.outcome !== "cancelled") return { success: false, message: "This booking can no longer be cancelled." };
     revalidateBookingPaths(parsed.data);
@@ -144,10 +146,13 @@ export async function startBookingEnquiryThreadAction(formData: FormData) {
   if (!admin) redirect("/app/login?returnTo=%2Fapp%2Fbookings");
 
   const bookingId = uuidSchema.parse(formData.get("bookingId"));
+  // Service-role-only RPC; it is scoped to the admin's selected garage, so a
+  // booking id from another garage is "Booking not found".
   const client = createAdminClient();
   if (!client) throw new Error("Enquiry conversations are temporarily unavailable.");
 
   const { data, error } = await client.rpc("create_booking_enquiry_thread", {
+    p_garage_id: admin.garage.id,
     target_booking_id: bookingId,
     actor_id_value: admin.user.id,
   });
@@ -170,12 +175,11 @@ export async function markBookingSeenAction(bookingId: string) {
 
   const parsed = uuidSchema.safeParse(bookingId);
   if (!parsed.success) throw new Error("This booking could not be found.");
-  const client = createAdminClient();
-  if (!client) throw new Error("Booking notifications are temporarily unavailable.");
 
-  const { error } = await client
+  const { error } = await admin.client
     .from("bookings")
     .update({ admin_seen_at: new Date().toISOString() })
+    .eq("garage_id", admin.garage.id)
     .eq("id", parsed.data)
     .is("admin_seen_at", null);
   if (error) throw new Error("The booking notification could not be acknowledged.");
@@ -208,16 +212,14 @@ export async function saveBookingServiceMappingAction(
     };
   }
 
-  const client = createAdminClient();
-  if (!client) return { success: false, message: "Booking configuration is temporarily unavailable." };
-
-  const { data, error } = await client
+  const { data, error } = await admin.client
     .from("booking_service_types")
     .update({
       provider_event_type_id: parsed.data.providerEventTypeId,
       online_booking_enabled: parsed.data.onlineBookingEnabled,
       location_mode: parsed.data.locationMode,
     })
+    .eq("garage_id", admin.garage.id)
     .eq("id", parsed.data.id)
     .is("deleted_at", null)
     .select("id")
@@ -226,17 +228,17 @@ export async function saveBookingServiceMappingAction(
 
   revalidatePath("/app/bookings/services");
   revalidatePath("/_site/[garageId]", "layout");
-  const { error: auditError } = await client.from("admin_audit_log").insert({
-    actor_id: admin.user.id,
+  const audited = await recordAdminAudit(admin.garage.id, {
+    actorId: admin.user.id,
     action: "update",
-    entity_type: "booking_service_mapping",
-    entity_id: parsed.data.id,
+    entityType: "booking_service_mapping",
+    entityId: parsed.data.id,
     detail: {
       onlineBookingEnabled: parsed.data.onlineBookingEnabled,
       locationMode: parsed.data.locationMode,
     },
   });
-  if (auditError) {
+  if (!audited) {
     return { success: true, message: "The mapping was saved, but its audit entry could not be recorded." };
   }
   return { success: true, message: "Service mapping saved." };

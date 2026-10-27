@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { approvedInvoiceReplyTo, parseEmailAddress, productionEmailSender } from "@/lib/email/identity";
+import { parseEmailAddress } from "@/lib/email/identity";
 import {
   sendInvoiceTransactionalEmail,
   TransactionalEmailDeliveryError,
@@ -55,6 +55,10 @@ export type DeliverInvoiceEmailInput = {
   invoiceRevision: string | number;
   invoiceStatus: "draft" | "issued" | "paid" | "void";
   recipient: string;
+  /** The garage's name, shown as the From display name on the platform sender. */
+  senderName: string;
+  /** The garage's own address; omitted when the garage has none. */
+  replyTo?: string;
   subject: string;
   text: string;
   html: string;
@@ -75,11 +79,12 @@ export async function deliverInvoiceEmail(
 ): Promise<InvoiceEmailDeliveryResult> {
   const normalized = normalizeInput(input);
   const message: TransactionalEmail = {
+    senderName: normalized.senderName,
     to: normalized.recipient,
     subject: normalized.subject,
     text: normalized.text,
     html: normalized.html,
-    replyTo: approvedInvoiceReplyTo,
+    replyTo: normalized.replyTo,
     tags: [{ name: "invoice_send_id", value: normalized.logicalSendId }],
     attachments: [normalized.attachment],
   };
@@ -107,7 +112,7 @@ export async function deliverInvoiceEmail(
   const providerMessage = { ...message, idempotencyKey: providerIdempotencyKey };
   let providerId: string | null;
   try {
-    providerId = (await (dependencies.sendEmail ?? sendWithApprovedInvoiceIdentity)(providerMessage)).providerId;
+    providerId = (await (dependencies.sendEmail ?? sendWithPlatformInvoiceIdentity)(providerMessage)).providerId;
   } catch (error) {
     const failure = classifyProviderError(error);
     return persistFailure(dependencies, normalized.logicalSendId, claim, failure);
@@ -152,8 +157,8 @@ export async function deliverInvoiceEmail(
 export function invoiceEmailPayloadSha256(message: TransactionalEmail) {
   const hash = createHash("sha256");
   const manifest = JSON.stringify([
-    productionEmailSender,
-    approvedInvoiceReplyTo,
+    message.senderName ?? null,
+    message.replyTo ?? null,
     message.to,
     message.subject,
     message.text,
@@ -170,7 +175,7 @@ export function invoiceEmailPayloadSha256(message: TransactionalEmail) {
   return hash.digest("hex");
 }
 
-async function sendWithApprovedInvoiceIdentity(message: TransactionalEmail) {
+async function sendWithPlatformInvoiceIdentity(message: TransactionalEmail) {
   const result = await sendInvoiceTransactionalEmail(message);
   return { providerId: result.data?.id ?? null };
 }
@@ -243,8 +248,11 @@ function normalizeInput(input: DeliverInvoiceEmailInput) {
   const invoiceRevision = BigInt(suppliedRevision).toString();
   if (!input.subject.trim() || !input.text.trim() || !input.html.trim()) throw new Error("INVALID_INVOICE_EMAIL_CONTENT");
   if (!input.attachment.filename.trim() || input.attachment.content.length === 0) throw new Error("INVALID_INVOICE_ATTACHMENT");
+  if (!input.senderName?.trim()) throw new Error("INVALID_INVOICE_SENDER");
+  const replyTo = input.replyTo ? parseEmailAddress(input.replyTo.trim()).toLowerCase() : undefined;
   return {
     ...input,
+    replyTo,
     logicalSendId,
     invoiceId,
     invoiceRevision,

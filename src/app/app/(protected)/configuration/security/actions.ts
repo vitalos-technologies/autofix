@@ -6,7 +6,9 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { createMfaReplacementFriendlyName, isSixDigitMfaCode } from "@/lib/auth/mfa";
 import { isMandatoryAdminMfaEnabled } from "@/lib/auth/mfa-policy";
 import { createMfaRecoveryCodeSet, revokeMfaRecoveryMaterial } from "@/lib/auth/mfa-recovery-server";
-import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
+import { recordUserSecurityEvent } from "@/lib/admin/audit";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { clearTrustedDeviceCookie, getCurrentTrustedDevice, revokeAllTrustedDevices } from "@/lib/auth/trusted-device-server";
 
 export type EnrollmentState = {
@@ -17,7 +19,7 @@ export type EnrollmentState = {
 
 export async function startMfaReplacement(_: EnrollmentState, formData: FormData): Promise<EnrollmentState> {
   void formData;
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin?.mfaVerified) return { message: "Verify with your current authenticator before replacing it." };
   const { data: factors, error: listError } = await admin.client.auth.mfa.listFactors();
   if (listError || !factors?.totp.length) return { message: "The current authenticator could not be confirmed. Refresh and try again." };
@@ -34,7 +36,7 @@ export async function startMfaReplacement(_: EnrollmentState, formData: FormData
 }
 
 export async function verifyMfaReplacement(_: EnrollmentState, formData: FormData): Promise<EnrollmentState> {
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin?.mfaVerified) return { message: "Your secure session expired. Sign in with the current authenticator and start again." };
   const factorId = String(formData.get("factorId") || "");
   const code = String(formData.get("code") || "").replace(/\s/g, "");
@@ -56,7 +58,7 @@ export async function verifyMfaReplacement(_: EnrollmentState, formData: FormDat
     const { error } = await service.auth.admin.mfa.deleteFactor({ userId: admin.user.id, id: factor.id });
     if (error) return { message: "The new authenticator works, but the previous authenticator could not be invalidated. Contact the project owner before continuing." };
   }
-  await service.from("admin_audit_log").insert({ actor_id: admin.user.id, action: "mfa_factor_replaced", entity_type: "admin_security", entity_id: admin.user.id, detail: { factorType: "totp" } });
+  await recordUserSecurityEvent(admin.user.id, "mfa_factor_replaced", { factorType: "totp" }, {}, service);
   revalidatePath("/app/configuration/security");
   return { message: "", recoveryCodes };
 }
@@ -64,7 +66,7 @@ export async function verifyMfaReplacement(_: EnrollmentState, formData: FormDat
 export async function startMfaEnrollment(previous: EnrollmentState, formData: FormData): Promise<EnrollmentState> {
   void previous;
   void formData;
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin) return { message: "Your admin session has expired. Sign in again." };
   const { data: factors, error: listError } = await admin.client.auth.mfa.listFactors();
   if (listError || !factors) return { message: "We couldn't start two-factor authentication. Please try again." };
@@ -75,13 +77,13 @@ export async function startMfaEnrollment(previous: EnrollmentState, formData: Fo
     if (error) return { message: "We couldn't clean up an incomplete setup. Please try again." };
   }
 
-  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "SOB Autofix Admin" });
+  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "Autofix" });
   if (error || !data || data.type !== "totp") return { message: "We couldn't enable two-factor authentication. Please try again." };
   return { message: "", enrollment: { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret } };
 }
 
 export async function verifyMfaEnrollment(_: EnrollmentState, formData: FormData): Promise<EnrollmentState> {
-  const admin = await getAdminUser({ requireMfa: false });
+  const admin = await getAdminContext({ requireMfa: false });
   if (!admin) return { message: "Your admin session has expired. Sign in again." };
   const factorId = String(formData.get("factorId") || "");
   const code = String(formData.get("code") || "").replace(/\s/g, "");
@@ -99,7 +101,7 @@ export async function verifyMfaEnrollment(_: EnrollmentState, formData: FormData
     await revokeAllTrustedDevices(admin.user.id, "mfa_trusted_devices_revoked_factor_change");
     return { message: "Two-factor authentication is enabled, but recovery codes could not be created. Sign in again and create them from Security before relying on MFA recovery." };
   }
-  await admin.client.from("admin_audit_log").insert({ actor_id: admin.user.id, action: "mfa_enabled", entity_type: "admin_security", entity_id: admin.user.id, detail: { factorType: "totp" } });
+  await recordUserSecurityEvent(admin.user.id, "mfa_enabled", { factorType: "totp" });
   revalidatePath("/app/configuration/security");
   return { message: "", recoveryCodes };
 }
@@ -109,7 +111,7 @@ export async function regenerateMfaRecoveryCodes(
   formData: FormData,
 ): Promise<{ message: string; recoveryCodes?: string[] }> {
   void formData;
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin?.mfaVerified) return { message: "Verify with your authenticator before creating recovery codes." };
   if (!(await consumeRateLimit(admin.user.id, "admin_mfa_recovery_regeneration", 3, 900))) {
     return { message: "Too many recovery-code changes. Please wait before trying again." };
@@ -121,7 +123,7 @@ export async function regenerateMfaRecoveryCodes(
 }
 
 export async function removeMfaFactor(_: { message: string }, formData: FormData): Promise<{ message: string }> {
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin || !admin.mfaVerified) return { message: "Verify your account with two-factor authentication before removing it." };
   const factorId = String(formData.get("factorId") || "");
   const { data: factors, error: listError } = await admin.client.auth.mfa.listFactors();
@@ -139,13 +141,13 @@ export async function removeMfaFactor(_: { message: string }, formData: FormData
   if (!(await revokeMfaRecoveryMaterial(admin.user.id, "mfa_factor_removed"))) {
     return { message: "The authenticator was removed, but recovery records could not be revoked. Contact the project owner before continuing." };
   }
-  await admin.client.from("admin_audit_log").insert({ actor_id: admin.user.id, action: "mfa_removed", entity_type: "admin_security", entity_id: admin.user.id, detail: { factorType: "totp" } });
+  await recordUserSecurityEvent(admin.user.id, "mfa_removed", { factorType: "totp" });
   revalidatePath("/app/configuration/security");
   redirect("/app/configuration/security?removed=success");
 }
 
 export async function revokeTrustedDevice(_: { message: string }, formData: FormData) {
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin?.mfaVerified) return { message: "Verify with your authenticator before revoking a trusted device." };
   const deviceId = String(formData.get("deviceId") || "");
   const client = createAdminClient();
@@ -154,7 +156,7 @@ export async function revokeTrustedDevice(_: { message: string }, formData: Form
   const revokedAt = new Date().toISOString();
   const { data, error } = await client.from("admin_trusted_devices").update({ revoked_at: revokedAt }).eq("id", deviceId).eq("user_id", admin.user.id).is("revoked_at", null).select("id,device_label").maybeSingle();
   if (error || !data) return { message: "The trusted device was already revoked or could not be found." };
-  await client.from("admin_audit_log").insert({ actor_id: admin.user.id, action: "mfa_trusted_device_revoked", entity_type: "admin_trusted_device", entity_id: data.id, detail: { deviceLabel: data.device_label } });
+  await recordUserSecurityEvent(admin.user.id, "mfa_trusted_device_revoked", { deviceLabel: data.device_label }, { type: "admin_trusted_device", id: data.id }, client);
   if (current?.id === data.id) await clearTrustedDeviceCookie();
   revalidatePath("/app/configuration/security");
   return { message: "Trusted device revoked." };
@@ -162,7 +164,7 @@ export async function revokeTrustedDevice(_: { message: string }, formData: Form
 
 export async function revokeEveryTrustedDevice(_: { message: string }, formData: FormData) {
   void formData;
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin?.mfaVerified) return { message: "Verify with your authenticator before revoking trusted devices." };
   if (!(await revokeAllTrustedDevices(admin.user.id))) return { message: "Trusted devices could not be revoked." };
   revalidatePath("/app/configuration/security");

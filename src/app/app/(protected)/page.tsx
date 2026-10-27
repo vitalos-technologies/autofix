@@ -22,7 +22,7 @@ import {
 } from "@/lib/admin/dashboard";
 import { emptyInvoiceDashboard, loadInvoiceDashboard, normalizeInvoiceDashboardFilters } from "@/lib/invoices/dashboard";
 import { formatPence } from "@/lib/invoices/money";
-import { createAdminReadClient, getAdminUser } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 
 type RecentEnquiry = {
@@ -55,8 +55,9 @@ type BookingSummary = {
 const emptyResult = { data: [], count: 0, error: null };
 
 export default async function DashboardPage() {
-  const client = await createAdminReadClient();
-  const admin = await getAdminUser({ allowTrustedDevice: true });
+  // Every read goes through the RLS client for the selected garage.
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  const client = admin?.client ?? null;
   const now = new Date();
 
   const [newEnquiriesResult, recentEnquiriesResult, failedEmailsResult, activityResult, bookingsResult, bookingServicesResult, invoicesResult] = client
@@ -95,7 +96,7 @@ export default async function DashboardPage() {
   const systemHealth = createSystemHealthChecks({
     websiteReady: isWebsiteReady(),
     databaseReady,
-    emailReady: ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "RESEND_REPLY_TO", "ENQUIRY_NOTIFICATION_EMAIL"].every((key) => Boolean(process.env[key])),
+    emailReady: ["RESEND_API_KEY", "RESEND_FROM_EMAIL"].every((key) => Boolean(process.env[key])) && Boolean(admin?.garage.email),
     bookingReady: bookingConfigured,
     vehicleLookupReady: (process.env.VEHICLE_LOOKUP_PROVIDER === "vehicle-data-global"
       && ["VEHICLE_DATA_GLOBAL_API_KEY", "VEHICLE_DATA_GLOBAL_BASE_URL", "VEHICLE_DATA_GLOBAL_PACKAGE"].every((key) => Boolean(process.env[key])))

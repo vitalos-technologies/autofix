@@ -3,15 +3,21 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getSchedulingProvider } from "@/lib/calcom/client";
 import type { CalComWebhook } from "@/lib/calcom/webhook";
-import { siteConfig } from "@/config/site";
 import { SchedulingProviderError } from "@/lib/scheduling/provider";
 import { createAdminClient } from "@/lib/supabase/server";
+import { addressLine } from "@/lib/tenancy/contact";
+import { getGarageById, type Garage } from "@/lib/tenancy/garage";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { addCalendarDays, calendarDateInTimeZone, slotBelongsToCalendarDate } from "./date";
 import { sendBookingNotification, type BookingNotificationDetails } from "./notifications";
 import { bookingTimezone, getAvailableRescheduleSlots, getBookableService } from "./services";
 import type { BookingLookupInput, CreateBookingInput } from "./schema";
 import type { BookingConfirmation, BookingHistoryEntry, BookingStatus, ProviderSyncState, PublicBooking } from "./types";
+
+// Cal.com-era booking workflow, kept compiling and garage-correct until the
+// native engine replaces it (P2.4). Every query is scoped by garage_id: public
+// callers pass the host's garage, admin callers their selected garage, and the
+// provider webhook takes the garage from the stored booking.
 
 type AuditRow = {
   id: number;
@@ -23,6 +29,7 @@ type AuditRow = {
 
 type BookingRow = {
   id: string;
+  garage_id: string;
   booking_reference: string;
   status: BookingStatus;
   service_type_id: string | null;
@@ -69,7 +76,7 @@ type BookingRow = {
 };
 
 const modifiableStatuses: BookingStatus[] = ["pending", "confirmed", "rescheduled"];
-const bookingSelect = "id,booking_reference,status,service_type_id,service_key,service_name,problem_description,appointment_start,appointment_end,original_appointment_start,original_appointment_end,timezone,location_mode,location,service_address,service_postcode,notes,cancellation_reason,cancelled_at,provider,provider_booking_uid,provider_event_type_id,provider_sync_state,provider_event_updated_at,provider_error_code,customers!inner(name,email,phone),vehicles!inner(registration,make,model,year,colour,fuel_type,transmission),booking_audit_log(id,action,actor_type,detail,created_at)";
+const bookingSelect = "id,garage_id,booking_reference,status,service_type_id,service_key,service_name,problem_description,appointment_start,appointment_end,original_appointment_start,original_appointment_end,timezone,location_mode,location,service_address,service_postcode,notes,cancellation_reason,cancelled_at,provider,provider_booking_uid,provider_event_type_id,provider_sync_state,provider_event_updated_at,provider_error_code,customers!inner(name,email,phone),vehicles!inner(registration,make,model,year,colour,fuel_type,transmission),booking_audit_log(id,action,actor_type,detail,created_at)";
 
 export type BookingWorkflowErrorCode = "slot_unavailable" | "service_unavailable" | "provider_unavailable" | "processing" | "persistence";
 
@@ -112,7 +119,7 @@ export function bookingModificationMessage(status: BookingStatus) {
   return undefined;
 }
 
-function toPublicBooking(row: BookingRow): PublicBooking {
+function toPublicBooking(garage: Pick<Garage, "name">, row: BookingRow): PublicBooking {
   const customer = relation(row.customers);
   const vehicle = relation(row.vehicles);
   const providerReady = row.provider === "calcom" && Boolean(row.provider_booking_uid && row.provider_event_type_id);
@@ -131,17 +138,20 @@ function toPublicBooking(row: BookingRow): PublicBooking {
     notes: row.problem_description || row.notes || undefined,
     history: historyFor(row),
     canModify: modifiableStatuses.includes(row.status) && providerReady,
-    modificationMessage: statusMessage || (!providerReady ? "Please contact SOB Autofix to change this booking." : undefined),
+    modificationMessage: statusMessage || (!providerReady ? `Please contact ${garage.name} to change this booking.` : undefined),
   };
 }
 
-function workshopLocation() {
-  const address = siteConfig.address;
-  return [address.building, address.street, address.town, address.city, address.postcode].filter(Boolean).join(", ");
+function workshopLabel(garage: Pick<Garage, "name">) {
+  return `${garage.name} workshop`;
 }
 
-function bookingLocation(input: CreateBookingInput["location"]) {
-  return input.mode === "mobile" ? [input.address, input.postcode].filter(Boolean).join(", ") : workshopLocation();
+function workshopLocation(garage: Pick<Garage, "name" | "address">) {
+  return addressLine(garage.address) || workshopLabel(garage);
+}
+
+function bookingLocation(garage: Pick<Garage, "name" | "address">, input: CreateBookingInput["location"]) {
+  return input.mode === "mobile" ? [input.address, input.postcode].filter(Boolean).join(", ") : workshopLocation(garage);
 }
 
 function vehicleLabel(row: BookingRow) {
@@ -149,7 +159,7 @@ function vehicleLabel(row: BookingRow) {
   return [formatRegistration(vehicle?.registration || ""), vehicle?.make, vehicle?.model].filter(Boolean).join(" · ");
 }
 
-function notificationDetails(row: BookingRow): BookingNotificationDetails | null {
+function notificationDetails(garage: Pick<Garage, "name">, row: BookingRow): BookingNotificationDetails | null {
   const customer = relation(row.customers);
   const vehicle = relation(row.vehicles);
   if (!customer?.email) return null;
@@ -169,7 +179,7 @@ function notificationDetails(row: BookingRow): BookingNotificationDetails | null
     appointmentStart: row.appointment_start,
     appointmentEnd: row.appointment_end || undefined,
     timezone: row.timezone,
-    location: row.location || "SOB Autofix workshop",
+    location: row.location || workshopLabel(garage),
     previousAppointmentStart: previousAppointment?.previousAppointmentStart,
     previousAppointmentEnd: previousAppointment?.previousAppointmentEnd,
     calendarSequence,
@@ -178,20 +188,21 @@ function notificationDetails(row: BookingRow): BookingNotificationDetails | null
   };
 }
 
-export async function getBookingCalendarNotification(reference: string) {
+/** Calendar file for a booking on the host's garage (references are unique per garage only). */
+export async function getBookingCalendarNotification(garage: Garage, reference: string) {
   const admin = createAdminClient();
   if (!admin) return null;
-  const { data, error } = await admin.from("bookings").select(bookingSelect).eq("booking_reference", reference).is("deleted_at", null).maybeSingle();
+  const { data, error } = await admin.from("bookings").select(bookingSelect).eq("garage_id", garage.id).eq("booking_reference", reference).is("deleted_at", null).maybeSingle();
   if (error || !data) return null;
   const row = data as unknown as BookingRow;
   if (!(["confirmed", "rescheduled", "cancelled"] as BookingStatus[]).includes(row.status)) return null;
-  const details = notificationDetails(row);
+  const details = notificationDetails(garage, row);
   if (!details?.appointmentEnd) return null;
   const type = row.status === "cancelled" ? "cancelled" as const : row.status === "rescheduled" ? "rescheduled" as const : "confirmed" as const;
   return { details, type };
 }
 
-function toConfirmation(row: BookingRow): BookingConfirmation {
+function toConfirmation(garage: Pick<Garage, "name">, row: BookingRow): BookingConfirmation {
   const customer = relation(row.customers);
   return {
     reference: row.booking_reference,
@@ -199,38 +210,40 @@ function toConfirmation(row: BookingRow): BookingConfirmation {
     appointmentStart: row.appointment_start,
     service: row.service_name,
     vehicle: vehicleLabel(row),
-    location: row.location || "SOB Autofix workshop",
+    location: row.location || workshopLabel(garage),
     email: customer?.email || "",
   };
 }
 
-async function getBookingById(id: string) {
+async function getBookingById(garageId: string, id: string) {
   const admin = createAdminClient();
   if (!admin) return null;
-  const { data, error } = await admin.from("bookings").select(bookingSelect).eq("id", id).is("deleted_at", null).maybeSingle();
+  const { data, error } = await admin.from("bookings").select(bookingSelect).eq("garage_id", garageId).eq("id", id).is("deleted_at", null).maybeSingle();
   return error || !data ? null : data as unknown as BookingRow;
 }
 
-async function recordAudit(bookingId: string, action: string, actor: AuditRow["actor_type"], detail: Record<string, unknown> = {}) {
+async function recordAudit(garageId: string, bookingId: string, action: string, actor: AuditRow["actor_type"], detail: Record<string, unknown> = {}) {
   const admin = createAdminClient();
   if (!admin) return false;
-  const { error } = await admin.from("booking_audit_log").insert({ booking_id: bookingId, action, actor_type: actor, detail });
+  const { error } = await admin.from("booking_audit_log").insert({ garage_id: garageId, booking_id: bookingId, action, actor_type: actor, detail });
   return !error;
 }
 
-export async function findBooking(input: BookingLookupInput) {
+/** Reference + registration lookup for manage booking, within the host's garage only. */
+export async function findBooking(garage: Garage, input: BookingLookupInput) {
   const admin = createAdminClient();
   if (!admin) return null;
   const { data, error } = await admin
     .from("bookings")
     .select(bookingSelect)
+    .eq("garage_id", garage.id)
     .eq("booking_reference", input.bookingReference)
     .is("deleted_at", null)
     .eq("vehicles.registration", input.registration)
     .maybeSingle();
   if (error || !data) return null;
   const row = data as unknown as BookingRow;
-  return { id: row.id, booking: toPublicBooking(row) };
+  return { id: row.id, booking: toPublicBooking(garage, row) };
 }
 
 function providerPhone(value: string) {
@@ -251,10 +264,11 @@ function workflowError(error: unknown): BookingWorkflowError {
   return new BookingWorkflowError("We couldn't complete this booking. Please try again.", "persistence");
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<BookingConfirmation> {
-  const service = await getBookableService(input.serviceKey, input.location.mode);
+/** Creates a booking for the host's garage. `garage` never comes from the request body. */
+export async function createBooking(garage: Garage, input: CreateBookingInput): Promise<BookingConfirmation> {
+  const service = await getBookableService(garage.id, input.serviceKey, input.location.mode);
   if (!service) throw new BookingWorkflowError("This service is not currently available for online booking.", "service_unavailable");
-  const timeZone = bookingTimezone();
+  const timeZone = bookingTimezone(garage.timezone);
   const provider = getSchedulingProvider();
   const selectedDate = calendarDateInTimeZone(input.appointmentStart, timeZone);
   if (!selectedDate) throw new BookingWorkflowError("Choose a valid appointment date and time.", "slot_unavailable");
@@ -276,8 +290,9 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingC
 
   const admin = createAdminClient();
   if (!admin) throw new BookingWorkflowError("The booking service is not configured.", "persistence");
-  const location = bookingLocation(input.location);
+  const location = bookingLocation(garage, input.location);
   const { data: intentData, error: intentError } = await admin.rpc("create_booking_intent", {
+    p_garage_id: garage.id,
     p_idempotency_key: input.idempotencyKey,
     p_customer_name: input.customer.name,
     p_customer_email: input.customer.email,
@@ -308,8 +323,8 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingC
   }
 
   if (!intent.created) {
-    const existing = await getBookingById(intent.booking_id);
-    if (existing?.provider_booking_uid && ["pending", "confirmed", "rescheduled"].includes(existing.status)) return toConfirmation(existing);
+    const existing = await getBookingById(garage.id, intent.booking_id);
+    if (existing?.provider_booking_uid && ["pending", "confirmed", "rescheduled"].includes(existing.status)) return toConfirmation(garage, existing);
     throw new BookingWorkflowError("This booking request is already being processed. Please wait before trying again.", "processing");
   }
 
@@ -324,14 +339,14 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingC
         phoneNumber: providerPhone(input.customer.phone),
         timeZone,
       },
-      metadata: { sobBookingId: intent.booking_id, sobBookingReference: intent.booking_reference },
+      metadata: { autofixGarageId: garage.id, autofixBookingId: intent.booking_id, autofixBookingReference: intent.booking_reference },
       attendeeAddress: input.location.mode === "mobile" ? location : undefined,
     });
   } catch (error) {
     const safe = workflowError(error);
     await Promise.all([
-      admin.from("bookings").update({ provider_sync_state: "failed", provider_error_code: safe.code, last_modified_at: new Date().toISOString() }).eq("id", intent.booking_id),
-      recordAudit(intent.booking_id, "provider_sync_failed", "system", { operation: "create", code: safe.code }),
+      admin.from("bookings").update({ provider_sync_state: "failed", provider_error_code: safe.code, last_modified_at: new Date().toISOString() }).eq("garage_id", garage.id).eq("id", intent.booking_id),
+      recordAudit(garage.id, intent.booking_id, "provider_sync_failed", "system", { operation: "create", code: safe.code }),
     ]);
     throw safe;
   }
@@ -349,49 +364,50 @@ export async function createBooking(input: CreateBookingInput): Promise<BookingC
     original_appointment_start: providerBooking.start,
     original_appointment_end: providerBooking.end || null,
     last_modified_at: new Date().toISOString(),
-  }).eq("id", intent.booking_id);
+  }).eq("garage_id", garage.id).eq("id", intent.booking_id);
   if (updateError) {
-    throw new BookingWorkflowError(`Your appointment was created but ${intent.booking_reference} needs calendar reconciliation. Please contact SOB Autofix.`, "persistence");
+    throw new BookingWorkflowError(`Your appointment was created but ${intent.booking_reference} needs calendar reconciliation. Please contact ${garage.name}.`, "persistence");
   }
 
-  await recordAudit(intent.booking_id, localStatus === "confirmed" ? "confirmed" : "provider_synced", "provider", {
+  await recordAudit(garage.id, intent.booking_id, localStatus === "confirmed" ? "confirmed" : "provider_synced", "provider", {
     appointmentStart: providerBooking.start,
   });
-  const confirmed = await getBookingById(intent.booking_id);
+  const confirmed = await getBookingById(garage.id, intent.booking_id);
   if (!confirmed) throw new BookingWorkflowError(`Your appointment was created under ${intent.booking_reference}, but confirmation is delayed.`, "persistence");
   if (localStatus === "confirmed") {
-    const notification = notificationDetails(confirmed);
-    if (notification) await sendBookingNotification(notification, "confirmed");
+    const notification = notificationDetails(garage, confirmed);
+    if (notification) await sendBookingNotification(garage, notification, "confirmed");
   }
-  return toConfirmation(confirmed);
+  return toConfirmation(garage, confirmed);
 }
 
-export async function beginBookingReschedule(bookingId: string) {
-  const row = await getBookingById(bookingId);
+export async function beginBookingReschedule(garage: Garage, bookingId: string) {
+  const row = await getBookingById(garage.id, bookingId);
   if (!row || !modifiableStatuses.includes(row.status) || row.provider !== "calcom" || !row.provider_booking_uid || !row.provider_event_type_id) return false;
-  await recordAudit(bookingId, "reschedule_started", "customer");
+  await recordAudit(garage.id, bookingId, "reschedule_started", "customer");
   return true;
 }
 
-export async function getBookingRescheduleSlots(bookingId: string, start: string, end: string) {
-  const row = await getBookingById(bookingId);
+export async function getBookingRescheduleSlots(garage: Garage, bookingId: string, start: string, end: string) {
+  const row = await getBookingById(garage.id, bookingId);
   if (!row || !modifiableStatuses.includes(row.status) || row.provider !== "calcom" || !row.provider_booking_uid || !row.provider_event_type_id) return null;
   const slots = await getAvailableRescheduleSlots({
     providerEventTypeId: row.provider_event_type_id,
     providerBookingUid: row.provider_booking_uid,
     start,
     end,
+    timezone: garage.timezone,
   });
-  return { slots, timeZone: bookingTimezone() };
+  return { slots, timeZone: bookingTimezone(garage.timezone) };
 }
 
-export async function rescheduleBooking(bookingId: string, appointmentStart: string, actor: "customer" | "admin" = "customer") {
-  const row = await getBookingById(bookingId);
+export async function rescheduleBooking(garage: Garage, bookingId: string, appointmentStart: string, actor: "customer" | "admin" = "customer") {
+  const row = await getBookingById(garage.id, bookingId);
   if (!row || !modifiableStatuses.includes(row.status) || row.provider !== "calcom" || !row.provider_booking_uid || !row.provider_event_type_id) {
-    return { outcome: "ineligible" as const, booking: row ? toPublicBooking(row) : undefined };
+    return { outcome: "ineligible" as const, booking: row ? toPublicBooking(garage, row) : undefined };
   }
   const provider = getSchedulingProvider();
-  const timeZone = bookingTimezone();
+  const timeZone = bookingTimezone(garage.timezone);
   const selectedDate = calendarDateInTimeZone(appointmentStart, timeZone);
   if (!selectedDate) throw new BookingWorkflowError("Choose a valid appointment date and time.", "slot_unavailable");
   const currentSlots = await provider.getAvailableSlots({
@@ -405,7 +421,7 @@ export async function rescheduleBooking(bookingId: string, appointmentStart: str
   if (!currentSlots.some((slot) => slotBelongsToCalendarDate(slot.start, selectedDate, timeZone) && new Date(slot.start).getTime() === selectedTime)) {
     throw new SchedulingProviderError("That appointment time is no longer available", "slot_unavailable", 409);
   }
-  const updatedProviderBooking = await provider.rescheduleBooking(row.provider_booking_uid, appointmentStart, `${actor === "admin" ? "Staff" : "Customer"} requested reschedule through SOB Autofix`);
+  const updatedProviderBooking = await provider.rescheduleBooking(row.provider_booking_uid, appointmentStart, `${actor === "admin" ? "Staff" : "Customer"} requested reschedule through Autofix`);
   const admin = createAdminClient();
   if (!admin) throw new Error("Booking persistence is not configured");
   const { error } = await admin.from("bookings").update({
@@ -417,30 +433,30 @@ export async function rescheduleBooking(bookingId: string, appointmentStart: str
     provider_error_code: null,
     provider_event_updated_at: new Date().toISOString(),
     last_modified_at: new Date().toISOString(),
-  }).eq("id", bookingId).in("status", modifiableStatuses);
+  }).eq("garage_id", garage.id).eq("id", bookingId).in("status", modifiableStatuses);
   if (error) throw new Error("The rescheduled appointment needs reconciliation");
-  await recordAudit(bookingId, "rescheduled", actor, {
+  await recordAudit(garage.id, bookingId, "rescheduled", actor, {
     previousAppointmentStart: row.appointment_start,
     previousAppointmentEnd: row.appointment_end,
     appointmentStart: updatedProviderBooking.start,
     appointmentEnd: updatedProviderBooking.end,
     providerResult: "synced",
   });
-  const updated = await getBookingById(bookingId);
+  const updated = await getBookingById(garage.id, bookingId);
   if (updated) {
-    const notification = notificationDetails(updated);
-    if (notification) await sendBookingNotification(notification, "rescheduled");
+    const notification = notificationDetails(garage, updated);
+    if (notification) await sendBookingNotification(garage, notification, "rescheduled");
   }
-  return { outcome: "rescheduled" as const, booking: updated ? toPublicBooking(updated) : undefined };
+  return { outcome: "rescheduled" as const, booking: updated ? toPublicBooking(garage, updated) : undefined };
 }
 
-export async function cancelBooking(bookingId: string, actor: "customer" | "admin" = "customer") {
-  const row = await getBookingById(bookingId);
+export async function cancelBooking(garage: Garage, bookingId: string, actor: "customer" | "admin" = "customer") {
+  const row = await getBookingById(garage.id, bookingId);
   if (!row) return { outcome: "not_found" as const };
   if (!modifiableStatuses.includes(row.status) || row.provider !== "calcom" || !row.provider_booking_uid) {
-    return { outcome: "ineligible" as const, booking: toPublicBooking(row) };
+    return { outcome: "ineligible" as const, booking: toPublicBooking(garage, row) };
   }
-  const reason = `${actor === "admin" ? "Staff" : "Customer"} requested cancellation through SOB Autofix`;
+  const reason = `${actor === "admin" ? "Staff" : "Customer"} requested cancellation through Autofix`;
   await getSchedulingProvider().cancelBooking(row.provider_booking_uid, reason);
   const admin = createAdminClient();
   if (!admin) throw new Error("Booking persistence is not configured");
@@ -453,21 +469,26 @@ export async function cancelBooking(bookingId: string, actor: "customer" | "admi
     provider_error_code: null,
     provider_event_updated_at: cancelledAt,
     last_modified_at: cancelledAt,
-  }).eq("id", bookingId).in("status", modifiableStatuses);
+  }).eq("garage_id", garage.id).eq("id", bookingId).in("status", modifiableStatuses);
   if (error) throw new Error("The cancellation needs reconciliation");
-  await recordAudit(bookingId, "cancelled", actor, { previousStatus: row.status, cancelledAt, reason, providerResult: "synced" });
-  const updated = await getBookingById(bookingId);
+  await recordAudit(garage.id, bookingId, "cancelled", actor, { previousStatus: row.status, cancelledAt, reason, providerResult: "synced" });
+  const updated = await getBookingById(garage.id, bookingId);
   if (updated) {
-    const notification = notificationDetails(updated);
-    if (notification) await sendBookingNotification(notification, "cancelled");
+    const notification = notificationDetails(garage, updated);
+    if (notification) await sendBookingNotification(garage, notification, "cancelled");
   }
-  return { outcome: "cancelled" as const, booking: updated ? toPublicBooking(updated) : undefined };
+  return { outcome: "cancelled" as const, booking: updated ? toPublicBooking(garage, updated) : undefined };
 }
 
 function webhookMetadata(event: CalComWebhook) {
   return event.payload.metadata && typeof event.payload.metadata === "object" ? event.payload.metadata : {};
 }
 
+/**
+ * The stored booking a provider event is about, which also decides the garage.
+ * Provider UIDs are globally unique at Cal.com; the metadata fallback needs our
+ * garage id because booking references repeat across garages.
+ */
 async function findWebhookBooking(event: CalComWebhook) {
   const admin = createAdminClient();
   if (!admin) return null;
@@ -477,14 +498,16 @@ async function findWebhookBooking(event: CalComWebhook) {
     if (data) return data as unknown as BookingRow;
   }
   const metadata = webhookMetadata(event);
-  const bookingId = typeof metadata.sobBookingId === "string" ? metadata.sobBookingId : null;
-  const reference = typeof metadata.sobBookingReference === "string" ? metadata.sobBookingReference : null;
+  const garageId = typeof metadata.autofixGarageId === "string" ? metadata.autofixGarageId : null;
+  const bookingId = typeof metadata.autofixBookingId === "string" ? metadata.autofixBookingId : null;
+  const reference = typeof metadata.autofixBookingReference === "string" ? metadata.autofixBookingReference : null;
+  if (!garageId) return null;
   if (bookingId) {
-    const { data } = await admin.from("bookings").select(bookingSelect).eq("id", bookingId).is("deleted_at", null).maybeSingle();
+    const { data } = await admin.from("bookings").select(bookingSelect).eq("garage_id", garageId).eq("id", bookingId).is("deleted_at", null).maybeSingle();
     if (data) return data as unknown as BookingRow;
   }
   if (reference) {
-    const { data } = await admin.from("bookings").select(bookingSelect).eq("booking_reference", reference).is("deleted_at", null).maybeSingle();
+    const { data } = await admin.from("bookings").select(bookingSelect).eq("garage_id", garageId).eq("booking_reference", reference).is("deleted_at", null).maybeSingle();
     if (data) return data as unknown as BookingRow;
   }
   return null;
@@ -559,9 +582,9 @@ export async function processCalComWebhook(event: CalComWebhook, rawBody: string
       }
     }
 
-    const { error } = await admin.from("bookings").update(update).eq("id", row.id);
+    const { error } = await admin.from("bookings").update(update).eq("garage_id", row.garage_id).eq("id", row.id);
     if (error) throw new Error("Webhook booking update failed");
-    await recordAudit(row.id, action, "provider", {
+    await recordAudit(row.garage_id, row.id, action, "provider", {
       previousAppointmentStart: action === "rescheduled" ? row.appointment_start : undefined,
       previousAppointmentEnd: action === "rescheduled" ? row.appointment_end : undefined,
       appointmentStart: update.appointment_start,
@@ -569,10 +592,11 @@ export async function processCalComWebhook(event: CalComWebhook, rawBody: string
       providerEvent: event.triggerEvent,
     });
     await admin.from("provider_webhook_events").update({ outcome: "processed" }).eq("event_key", eventKey);
-    const updated = await getBookingById(row.id);
-    if (updated && !(notificationType === "confirmed" && updated.status !== "confirmed")) {
-      const notification = notificationDetails(updated);
-      if (notification) await sendBookingNotification(notification, notificationType);
+    const updated = await getBookingById(row.garage_id, row.id);
+    const garage = updated ? await getGarageById(row.garage_id) : null;
+    if (updated && garage && !(notificationType === "confirmed" && updated.status !== "confirmed")) {
+      const notification = notificationDetails(garage, updated);
+      if (notification) await sendBookingNotification(garage, notification, notificationType);
     }
     return { duplicate: false, outcome: "processed" as const };
   } catch (error) {

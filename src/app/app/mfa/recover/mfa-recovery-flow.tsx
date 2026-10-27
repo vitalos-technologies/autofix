@@ -12,7 +12,7 @@ import {
 function QrImage({ src }: { src: string }) {
   // Supabase supplies a transient SVG data URI that must not be optimized or persisted.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} width={208} height={208} alt="QR code for replacement SOB Autofix admin authenticator" />;
+  return <img src={src} width={208} height={208} alt="QR code for your replacement Autofix authenticator" />;
 }
 
 export function RecoveryCodeForm() {
