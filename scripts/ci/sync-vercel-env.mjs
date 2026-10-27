@@ -9,8 +9,14 @@
 
 const ALLOWED_TARGETS = new Set(["production", "preview"]);
 
+// Values piped into `gh secret set` from Windows PowerShell 5.1 start with a byte-order mark; a stray
+// newline is just as invisible. Neither belongs in a key, and a BOM breaks the Authorization header.
+function clean(value) {
+  return (value ?? "").replace(/^﻿/, "").trim();
+}
+
 function required(name) {
-  const value = process.env[name];
+  const value = clean(process.env[name]);
   if (!value) {
     console.error(`sync-vercel-env: ${name} is not set.`);
     process.exit(1);
@@ -28,14 +34,14 @@ if (targets.length === 0 || targets.some((target) => !ALLOWED_TARGETS.has(target
 }
 
 const byKey = new Map();
-for (const [name, value] of Object.entries(process.env)) {
-  if (!value) continue;
-  if (name.startsWith("VAR__")) byKey.set(name.slice(5), { value, type: "encrypted" });
+for (const [name, raw] of Object.entries(process.env)) {
+  const value = clean(raw);
+  if (value && name.startsWith("VAR__")) byKey.set(name.slice(5), { value, type: "encrypted" });
 }
 // A secret wins over a variable of the same name.
-for (const [name, value] of Object.entries(process.env)) {
-  if (!value) continue;
-  if (name.startsWith("SECRET__")) byKey.set(name.slice(8), { value, type: "sensitive" });
+for (const [name, raw] of Object.entries(process.env)) {
+  const value = clean(raw);
+  if (value && name.startsWith("SECRET__")) byKey.set(name.slice(8), { value, type: "sensitive" });
 }
 
 const url = `https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env?upsert=true&teamId=${encodeURIComponent(teamId)}`;
