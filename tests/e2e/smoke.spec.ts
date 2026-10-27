@@ -28,12 +28,12 @@ async function accentOf(page: Page, slug: string) {
 
 /** GET through node:http so the Host header can name a host DNS cannot resolve. */
 function getWithHost(host: string, path = "/") {
-  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+  return new Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined> }>((resolve, reject) => {
     const outgoing = httpRequest({ host: "127.0.0.1", port, path, method: "GET", headers: { host: `${host}:${port}` } }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk: string) => { body += chunk; });
-      response.on("end", () => resolve({ status: response.statusCode ?? 0, body }));
+      response.on("end", () => resolve({ status: response.statusCode ?? 0, body, headers: response.headers }));
     });
     outgoing.on("error", reject);
     outgoing.setTimeout(30_000, () => outgoing.destroy(new Error(`GET ${host}${path} timed out`)));
@@ -89,4 +89,25 @@ test("a garage host cannot reach the admin or another garage's site", async ({ p
   expect(direct?.status()).toBe(404);
   const nested = await page.goto(`${origin(`${HARTLEY.slug}.localhost`)}/_site/00000000-0000-4000-8000-000000000000`);
   expect(nested?.status()).toBe(404);
+});
+
+// DECISIONS A188: a Referrer-Policy from next.config.ts replaces the one a route handler sets, so the links that
+// carry a token in their URL get theirs from next.config.ts too. Checked through the server, where the override
+// happens (the handlers' unit tests cannot see it).
+test("links that carry a token keep their own Referrer-Policy", async () => {
+  const garageHost = `${HARTLEY.slug}.localhost`;
+  const cases = [
+    { host: garageHost, path: `/r/${"A".repeat(43)}`, status: 303, policy: "no-referrer" },
+    { host: garageHost, path: "/manage/link?token=not-a-token", status: 303, policy: "no-referrer" },
+    { host: garageHost, path: "/manage-booking?token=not-a-token", status: 308, policy: "no-referrer" },
+    { host: "localhost", path: "/signup/invite/not-a-token", status: 303, policy: "no-referrer" },
+    { host: "localhost", path: "/auth/confirm?token_hash=not-a-token&type=email&next=/signup/garage", status: 200, policy: "strict-origin" },
+    // Every other response keeps the site-wide policy.
+    { host: garageHost, path: "/", status: 200, policy: "strict-origin-when-cross-origin" },
+    { host: "localhost", path: "/app/login", status: 200, policy: "strict-origin-when-cross-origin" },
+  ];
+  for (const item of cases) {
+    const response = await getWithHost(item.host, item.path);
+    expect({ path: item.path, status: response.status, policy: response.headers["referrer-policy"] }).toEqual({ path: item.path, status: item.status, policy: item.policy });
+  }
 });
