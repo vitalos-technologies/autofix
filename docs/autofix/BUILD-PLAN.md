@@ -88,7 +88,7 @@ Gate 3: **a reminder link produces a booking credited to that reminder end to en
 | P3.8 | integrations | `MessageChannel` interface + Twilio SMS/WhatsApp adapters + status webhook + STOP handling; Resend email adapter; sandbox/mock mode by default | Signature verification tests — library layer done `693cfef` (channels, Twilio adapters, signatures, templates, quiet hours, STOP keywords); webhook routes open |
 | P3.9 | api | Reminder link tokens `/r/{token}` → prefilled booking; attribution on booking create | Covered by gate test |
 | P3.10 | ui | Reminders page: stats, automations with switches, due-in-30-days table, template editor with 160-char counter, message preview, "send me a test" | Matches `Admin-Reminders.png` |
-| P3.11 | api | Customers & cars: list, detail, CSV import with consent declaration, background DVSA enrichment | Import of 1,000 rows < 60 s locally |
+| [x] P3.11 | api | Customers & cars: list, detail, CSV import with consent declaration, background DVSA enrichment | Import of 1,000 rows < 60 s locally — done `b172e41` (1,000 rows in ~0.2 s locally; `tests/integration/customer-import.test.ts`); retention fix A46 |
 | P3.12 | qa | Gate 3 end-to-end test + admin Playwright journeys + axe | **Gate 3** green |
 
 ## Phase 4 · Front desk + launch (days 12–14)
