@@ -55,3 +55,4 @@ Spending money or entering payment details; DNS or domain changes on vitalos.co.
   Co-Authored-By: Claude <noreply@anthropic.com>
   ```
 - After each task: tick it in BUILD-PLAN.md with the commit hash. After each phase: run `/gate <n>` and report Done / Needs approval / Blockers.
+- PRs: once every CI check on the head commit is green, merge the PR yourself (Temitope, 27 Oct 2026; DECISIONS D15). Never merge on red or pending checks, and never skip or force past checks.
