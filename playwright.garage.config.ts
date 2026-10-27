@@ -9,6 +9,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
 //                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
+//   pnpm test:e2e:settings settings.spec.ts setup pages (/app/settings/*) for an owner signed in with password +
+//                          TOTP, checked on its own garage's booking site (<slug>.localhost), axe at 390 and 1440
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
 // books back and the manage pages always read the database. The in-memory engine (BOOKING_ENGINE=fake,
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
@@ -21,7 +23,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts"],
+  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts", "settings.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -77,5 +79,7 @@ export default defineConfig({
       testMatch: "manage.spec.ts",
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
     },
+    // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
+    { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
   ],
 });

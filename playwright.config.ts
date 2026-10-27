@@ -10,7 +10,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   // Garage-host specs need local Supabase and the seed: playwright.garage.config.ts
   // (`pnpm test:e2e:smoke`, `pnpm test:e2e:booking`).
-  testIgnore: ["smoke.spec.ts", "booking.spec.ts"],
+  testIgnore: ["smoke.spec.ts", "booking.spec.ts", "settings.spec.ts"],
   fullyParallel: true,
   workers: process.env.E2E_ADMIN_ENQUIRY_IDS ? 1 : 2,
   retries: process.env.CI ? 2 : 0,
