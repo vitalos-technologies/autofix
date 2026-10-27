@@ -67,7 +67,7 @@ From `.env.example`, `src/lib/env.ts` (`requiredProductionVariables`, `requiredB
 | `TWILIO_AUTH_TOKEN` | Twilio console (also verifies inbound webhooks) | **Sensitive** | With live |
 | `TWILIO_MESSAGING_SERVICE_SID` | Messaging Service holding the two-way UK number(s) | No | With live |
 | `TWILIO_WHATSAPP_FROM` | approved WhatsApp sender, E.164 | No | With WhatsApp |
-| `TWILIO_STATUS_CALLBACK_BASE_URL` | `https://autofix.vitalos.co.uk` (delivery receipts) | No | Recommended |
+| `TWILIO_STATUS_CALLBACK_BASE_URL` | leave unset: delivery receipts go to `NEXT_PUBLIC_SITE_URL` (https) by default; set only to send them elsewhere | No | No |
 | `TWILIO_WEBHOOK_BASE_URL` | `https://autofix.vitalos.co.uk`: the origin Twilio calls `/api/webhooks/twilio/*` on; signatures are checked against it (else rebuilt from `X-Forwarded-*`) | No | Recommended |
 
 ### Vehicle data

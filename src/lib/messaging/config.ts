@@ -68,7 +68,8 @@ export function readTwilioConfig(env: MessagingEnv = process.env): TwilioEnvConf
     authToken: clean(env.TWILIO_AUTH_TOKEN),
     messagingServiceSid: messagingServiceSid && MESSAGING_SERVICE_SID.test(messagingServiceSid) ? messagingServiceSid : undefined,
     whatsappFrom: whatsappFrom && E164.test(whatsappFrom) ? whatsappFrom : undefined,
-    statusCallbackUrl: statusCallbackUrlFrom(clean(env.TWILIO_STATUS_CALLBACK_BASE_URL)),
+    // Delivery receipts go to this app: TWILIO_STATUS_CALLBACK_BASE_URL if set, else the (https) site URL.
+    statusCallbackUrl: statusCallbackUrlFrom(clean(env.TWILIO_STATUS_CALLBACK_BASE_URL) ?? clean(env.NEXT_PUBLIC_SITE_URL)),
   };
 }
 
