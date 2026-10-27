@@ -22,6 +22,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -51,6 +53,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -99,6 +103,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -120,6 +126,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
