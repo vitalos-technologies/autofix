@@ -269,7 +269,7 @@ Also on the admin host: `/app/more` (phone "More" tab: every section, the garage
 
 ### Messages & calls (as built; DECISIONS A196–A205)
 
-Routes: `/app/messages` (conversations), `/app/messages/[customerId]` (thread + reply), `/app/messages/calls` (calls). Migration `20261028003000_messages_inbox.sql`: `messages.read_at` / `read_by` (staff column grant + policy "garage members mark inbound messages read"), `claim_staff_reply(uuid, uuid, uuid, text, text)` (service role). pgTAP `026_messages_inbox`.
+Routes: `/app/messages` (conversations), `/app/messages/[customerId]` (thread + reply), `/app/messages/calls` (calls). Migration `20261028003000_messages_inbox.sql`: `messages.read_at` / `read_by` (staff column grant + policy "garage members mark inbound messages read"), `claim_staff_reply(uuid, uuid, uuid, text, text)` (service role). pgTAP `027_messages_inbox`.
 
 | Module | Exports |
 | --- | --- |
