@@ -25,7 +25,7 @@ describe("InvoiceDraftsWorkspace", () => {
 
     expect(screen.getByLabelText("Draft invoices")).toBeInTheDocument();
     expect(screen.getByText("Ada Customer")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Resume" })).toHaveAttribute("href", "/admin/invoices/draft-1/edit");
+    expect(screen.getByRole("link", { name: "Resume" })).toHaveAttribute("href", "/app/invoices/draft-1/edit");
 
     await user.click(screen.getByRole("button", { name: "Close draft invoices" }));
     expect(screen.queryByLabelText("Draft invoices")).not.toBeInTheDocument();

@@ -2,7 +2,7 @@
 
 import { RotateCcw, Trash2 } from "lucide-react";
 import { startTransition, useRef, useState } from "react";
-import type { TrashActionResult } from "@/app/admin/(protected)/trash/actions";
+import type { TrashActionResult } from "@/app/app/(protected)/trash/actions";
 import { ConfirmActionDialog } from "@/components/admin/confirm-action-dialog";
 
 export function AdminBulkActions({ entity, children, mode = "active", action }: {
@@ -60,22 +60,22 @@ export function AdminBulkActions({ entity, children, mode = "active", action }: 
   }
 
   return <div ref={root} onChange={updateSelection}>
-    <div className="mt-5 flex min-h-14 flex-wrap items-center gap-3 rounded-xl border border-[#D7E0E9] bg-white px-4 py-2">
-      <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-extrabold text-[#071127]"><input ref={selectAll} type="checkbox" onChange={(event) => toggleAll(event.currentTarget.checked)} className="size-4 accent-[#1974E2]" /> Select all visible</label>
-      <span className="text-xs font-semibold text-[#667586]">{selected} selected</span>
+    <div className="mt-5 flex min-h-14 flex-wrap items-center gap-3 rounded-card border border-grey-200 bg-white px-3.5 py-1.5 font-sans">
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-[14px] font-semibold text-navy-950"><input ref={selectAll} type="checkbox" onChange={(event) => toggleAll(event.currentTarget.checked)} className="size-[18px] accent-[var(--garage-accent)]" /> Select all visible</label>
+      <span className="text-[13px] font-semibold text-grey-600">{selected} selected</span>
       <div className="ml-auto flex flex-wrap gap-2">
-        {mode === "active" ? <button type="button" disabled={!selected || pending} onClick={() => run("trash")} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-extrabold text-red-700 disabled:opacity-40"><Trash2 size={16} /> Move to trash</button> : <>
-          <button type="button" disabled={!selected || pending} onClick={() => run("restore")} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#BCD6F6] px-3 text-sm font-extrabold text-[#1446A5] disabled:opacity-40"><RotateCcw size={16} /> Restore</button>
-          <button type="button" disabled={!selected || pending} onClick={() => setConfirmDelete(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-700 px-3 text-sm font-extrabold text-white disabled:opacity-40"><Trash2 size={16} /> Delete permanently</button>
+        {mode === "active" ? <button type="button" disabled={!selected || pending} onClick={() => run("trash")} className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[#f3c4c4] bg-white px-3 text-[14px] font-semibold text-[#991b1b] hover:bg-[#fdecec] disabled:opacity-60"><Trash2 size={18} aria-hidden="true" /> Move to trash</button> : <>
+          <button type="button" disabled={!selected || pending} onClick={() => run("restore")} className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-grey-300 bg-white px-3 text-[14px] font-semibold text-navy-950 hover:border-grey-600 disabled:opacity-60"><RotateCcw size={18} aria-hidden="true" /> Restore</button>
+          <button type="button" disabled={!selected || pending} onClick={() => setConfirmDelete(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[10px] bg-[#b91c1c] px-3 text-[14px] font-bold text-white hover:bg-[#991b1b] disabled:opacity-60"><Trash2 size={18} aria-hidden="true" /> Delete permanently</button>
         </>}
       </div>
     </div>
-    {result && <p role="status" className={`mt-3 rounded-lg px-4 py-3 text-sm font-bold ${result.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{result.message}</p>}
+    {result && <p role="status" className={`mt-3 rounded-input px-4 py-3 text-[14px] font-semibold ${result.success ? "bg-success-bg text-success-ink" : "bg-[#fdecec] text-[#991b1b]"}`}>{result.message}</p>}
     {children}
     <ConfirmActionDialog open={confirmDelete} pending={pending} tone="danger" title="Permanently delete selected items?" message={`${selected} selected ${selected === 1 ? "item" : "items"} will be permanently deleted. This cannot be undone. Issued invoices and records protected by linked financial data will be kept.`} confirmLabel="Delete permanently" onCancel={() => setConfirmDelete(false)} onConfirm={() => run("delete")} />
   </div>;
 }
 
 export function AdminItemCheckbox({ id, label }: { id: string; label: string }) {
-  return <label className="inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center" onClick={(event) => event.stopPropagation()}><input data-trash-item type="checkbox" value={id} aria-label={label} className="size-4 accent-[#1974E2]" /></label>;
+  return <label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center" onClick={(event) => event.stopPropagation()}><input data-trash-item type="checkbox" value={id} aria-label={label} className="size-[18px] accent-[var(--garage-accent)]" /></label>;
 }

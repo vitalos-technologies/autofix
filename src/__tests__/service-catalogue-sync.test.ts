@@ -2,68 +2,54 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { serviceCatalogue } from "@/config/service-catalogue";
+import { listGarageServices, listServiceCatalogue } from "@/lib/service-catalogue/repository";
+import { createFakeSupabase, hasFilter } from "./support/fake-supabase";
 
 function source(path: string) {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-describe("shared service catalogue", () => {
-  it("seeds every established vehicle system and service into the database catalogue", () => {
-    const migration = source("supabase/migrations/20260928131539_unify_service_catalogue.sql");
-    for (const system of serviceCatalogue) {
-      expect(migration).toContain(`'${system.id}'`);
-      for (const service of system.services) expect(migration).toContain(`'${service.replaceAll("'", "''")}'`);
+const GARAGE = "11111111-1111-4111-8111-111111111111";
+
+describe("garage services", () => {
+  it("reads the garage's own services from the native services table", async () => {
+    const fake = createFakeSupabase({
+      from: () => ({ data: [{ id: "s1", name: "Full service", description: null, duration_min: 90, price_pence: 14900, price_mode: "fixed", location_mode: "workshop", online_enabled: true, is_mot: false, sort: 1 }] }),
+    });
+    const services = await listGarageServices(fake.client, GARAGE);
+    expect(services).toEqual([{ id: "s1", name: "Full service", description: "", durationMin: 90, pricePence: 14900, priceMode: "fixed", locationMode: "workshop", onlineEnabled: true, isMot: false, sort: 1 }]);
+    const [query] = fake.queries;
+    expect(query?.table).toBe("services");
+    expect(hasFilter(query!, "eq", "garage_id", GARAGE)).toBe(true);
+    expect(hasFilter(query!, "is", "deleted_at", null)).toBe(true);
+    expect(await listServiceCatalogue(fake.client, GARAGE)).toEqual([expect.objectContaining({ key: "services", services })]);
+  });
+
+  it("returns nothing without a client, a garage or on error", async () => {
+    expect(await listGarageServices(null, GARAGE)).toEqual([]);
+    expect(await listGarageServices(createFakeSupabase().client, "")).toEqual([]);
+    const failing = createFakeSupabase({ from: () => ({ error: { code: "42P01", message: "missing" } }) });
+    expect(await listServiceCatalogue(failing.client, GARAGE)).toEqual([]);
+  });
+
+  it("feeds invoice line items and keeps the static fallback catalogue", () => {
+    expect(serviceCatalogue.length).toBeGreaterThan(0);
+    expect(source("src/components/admin/invoice-form.tsx")).toContain("serviceCategories={serviceCategories}");
+    expect(source("src/app/app/(protected)/invoices/new/page.tsx")).toContain("listServiceCatalogue(client");
+  });
+
+  it("no longer reads the Cal.com-era catalogue tables", () => {
+    for (const path of [
+      "src/lib/service-catalogue/repository.ts",
+      "src/app/app/(protected)/service-catalogue/page.tsx",
+      "src/app/app/(protected)/trash/page.tsx",
+      "src/app/app/(protected)/trash/actions.ts",
+      "src/app/app/(protected)/page.tsx",
+    ]) {
+      const text = source(path);
+      expect(text, path).not.toContain('from("booking_service_types")');
+      expect(text, path).not.toContain('from("service_catalogue_systems")');
+      expect(text, path).not.toContain("catalogue_services");
     }
-    expect(migration).toContain("create table public.service_catalogue_systems");
-    expect(migration).toContain("add column system_id uuid references public.service_catalogue_systems(id)");
-  });
-
-  it("uses the database catalogue for booking, invoices and the public portfolio", () => {
-    const booking = source("src/lib/bookings/services.ts");
-    const invoice = source("src/components/admin/invoice-form.tsx");
-    const publicCatalogue = source("src/components/services/service-catalogue.tsx");
-    const vehicleJourney = source("src/components/vehicle/vehicle-journey.tsx");
-    expect(booking).toContain("listServiceCatalogue({ bookableOnly: true })");
-    expect(invoice).toContain("serviceCategories={serviceCategories}");
-    expect(publicCatalogue).toContain("await listServiceCatalogue()");
-    expect(vehicleJourney).toContain('fetch("/api/bookings/services"');
-    expect(vehicleJourney).toContain("selectedSystem: system.key");
-    expect(vehicleJourney).not.toContain("const serviceOptions");
-    expect(vehicleJourney).not.toContain("serviceCount");
-    expect(vehicleJourney).toContain("overflow-x-hidden");
-  });
-
-  it("presents vehicle systems before their services in the customer booking flow", () => {
-    const wizard = source("src/components/booking/booking-wizard.tsx");
-    expect(wizard).toContain("1. Choose the vehicle system");
-    expect(wizard).toContain("2. Choose a service under");
-    expect(wizard).toContain("systemKey");
-    expect(wizard).toContain('view === "systems"');
-    expect(wizard).toContain("Other / Fault not listed");
-    expect(wizard).toContain("Add another vehicle system repair");
-    expect(wizard).toContain("Clear selection");
-    expect(wizard).toContain('services: [...system.services].sort((left, right) => left.name.localeCompare(right.name, "en-GB"))');
-    expect(wizard).toContain('.sort((left, right) => left.name.localeCompare(right.name, "en-GB"));');
-    expect(wizard).toContain('const allSystems = [...systems, { key: "other", name: "Other / Fault not listed", services: [] as BookingService[] }];');
-    expect(wizard).not.toContain("{system.description}");
-    expect(wizard).not.toContain("{system.services.length} services");
-    expect(wizard).not.toContain("{service.description}");
-    expect(wizard).not.toContain("locationModeLabel(service.locationMode)");
-  });
-
-  it("provides an editable CMS portfolio and recoverable deletion", () => {
-    const page = source("src/app/admin/(protected)/service-catalogue/page.tsx");
-    const editor = source("src/app/admin/(protected)/service-catalogue/catalogue-editor.tsx");
-    const trash = source("src/app/admin/(protected)/trash/actions.ts");
-    expect(page).toContain("Service catalogue");
-    expect(editor).toContain("createCatalogueSystemAction");
-    expect(editor).toContain("updateCatalogueServiceAction");
-    expect(editor).not.toContain('title="Calendar event ID"');
-    expect(editor).not.toContain('title="Order"');
-    expect(editor).toContain('type="hidden" name="providerEventTypeId"');
-    expect(editor).toContain('type="hidden" name="sortOrder"');
-    expect(editor).toContain("group-open:bg-[#071127]");
-    expect(trash).toContain('"catalogue_systems"');
-    expect(trash).toContain('"catalogue_services"');
   });
 });

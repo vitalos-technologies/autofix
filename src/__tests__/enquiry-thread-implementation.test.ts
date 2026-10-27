@@ -7,9 +7,9 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("threaded enquiry implementation safeguards", () => {
   it("creates isolated RLS-protected conversation, message and webhook tables", () => {
-    const migration = read("supabase/migrations/202608110001_enquiry_email_threads.sql");
+    const migration = read("supabase/migrations/20261026000000_baseline.sql");
     for (const table of ["enquiry_conversations", "enquiry_messages", "resend_webhook_events", "unmatched_inbound_emails"]) {
-      expect(migration).toContain(`create table if not exists public.${table}`);
+      expect(migration).toContain(`create table public.${table}`);
       expect(migration).toContain(`alter table public.${table} enable row level security`);
     }
     expect(migration).toContain("client_request_id");
@@ -27,7 +27,10 @@ describe("threaded enquiry implementation safeguards", () => {
   });
 
   it("uses a provider-neutral Cloudflare event ledger and atomic inbound storage", () => {
-    const migration = read("supabase/migrations/202608110007_cloudflare_inbound_email.sql");
+    const migration = read("supabase/migrations/20261026000000_baseline.sql");
+    const tenancy = read("supabase/migrations/20261026000100_tenancy.sql");
+    expect(tenancy).toContain("create function public.store_inbound_email_message(\n  p_garage_id uuid,");
+    expect(tenancy).toContain("raise exception 'ENQUIRY_NOT_FOUND'");
     expect(migration).toContain("public.inbound_email_events");
     expect(migration).toContain("public.claim_inbound_email_event");
     expect(migration).toContain("public.store_inbound_email_message");
@@ -55,10 +58,10 @@ describe("threaded enquiry implementation safeguards", () => {
   });
 
   it("provides a protected detail route with legacy original-message fallback", () => {
-    const page = read("src/app/admin/(protected)/enquiries/[id]/page.tsx");
+    const page = read("src/app/app/(protected)/enquiries/[id]/page.tsx");
     expect(page).toContain('message_type: "website_enquiry"');
     expect(page).toContain("legacy-");
     expect(page).toContain("EnquiryReplyComposer");
-    expect(read("src/app/admin/(protected)/layout.tsx")).toContain('redirect("/admin/login")');
+    expect(read("src/app/app/(protected)/layout.tsx")).toContain('redirect("/app/login")');
   });
 });

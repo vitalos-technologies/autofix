@@ -1,18 +1,20 @@
-import Image from "next/image";
+import { Wrench } from "lucide-react";
 import Link from "next/link";
-import logo from "../../../assets/sobautofix_logo.png";
-import inverseLogo from "../../../assets/sobautofix_logo-white.png";
+import { cn } from "@/lib/utils";
 
-export function Logo({ inverse = false, compact = false, imageClassName }: { inverse?: boolean; compact?: boolean; imageClassName?: string }) {
+/**
+ * The Autofix wordmark for the admin and sign-in screens. The admin is
+ * Autofix-branded; garage logos appear only on customer screens.
+ */
+export function Logo({ inverse = false, compact = false, className }: { inverse?: boolean; compact?: boolean; className?: string }) {
   return (
-    <Link href="/" className="inline-flex shrink-0 items-center" aria-label="SOB Autofix home">
-      <Image
-        src={inverse ? inverseLogo : logo}
-        alt=""
-        sizes="108px"
-        loading="eager"
-        className={imageClassName ?? (compact ? "h-10 w-auto object-contain" : "h-[4.5rem] w-auto object-contain")}
-      />
+    <Link href="/app" className={cn("inline-flex shrink-0 items-center gap-2 rounded-lg", className)} aria-label="Autofix home">
+      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-lg bg-[#155fba] text-white", compact ? "size-8" : "size-10")}>
+        <Wrench size={compact ? 17 : 21} strokeWidth={2.25} />
+      </span>
+      <span aria-hidden="true" className={cn("font-display font-extrabold leading-none tracking-tight", compact ? "text-2xl" : "text-[1.9rem]", inverse ? "text-white" : "text-[#071127]")}>
+        Autofix
+      </span>
     </Link>
   );
 }

@@ -91,8 +91,9 @@ describe.sequential("local Supabase invoice authorization", () => {
         p_page: 1,
         p_page_size: 25,
       }],
-      ["finalize_invoice_email_send", { p_attempt_id: 1, p_claim_token: claimToken, p_provider_id: "denied" }],
+      ["finalize_invoice_email_send", { p_garage_id: users.garageA.id, p_attempt_id: 1, p_claim_token: claimToken, p_provider_id: "denied" }],
       ["fail_invoice_email_send", {
+        p_garage_id: users.garageA.id,
         p_attempt_id: 1,
         p_claim_token: claimToken,
         p_error_code: "denied",
@@ -126,7 +127,7 @@ describe.sequential("local Supabase invoice authorization", () => {
     const invoiceMutations = [
       users.admin.from("invoices").update({ status: "paid" }).eq("id", draftId),
       users.admin.from("invoices").update({ total_pence: 1 }).eq("id", draftId),
-      users.admin.from("invoices").update({ invoice_number: "SOB-2090-999999" }).eq("id", draftId),
+      users.admin.from("invoices").update({ invoice_number: `${users.garageA.bookingPrefix}-2090-999999` }).eq("id", draftId),
       users.admin.from("invoices").update({ tax_pence: 1 }).eq("id", draftId),
       users.admin.from("invoices").delete().eq("id", draftId),
       users.admin.from("invoice_items").update({ quantity: "2" }).eq("id", item.data!.id),
@@ -198,29 +199,37 @@ describe.sequential("local Supabase invoice authorization", () => {
     const customerId = randomUUID();
     const vehicleId = randomUUID();
     const bookingId = randomUUID();
+    const serviceId = randomUUID();
+    const resourceId = randomUUID();
     const fixtureSuffix = randomUUID().replaceAll("-", "").slice(0, 8);
     const customer = {
       name: "Duplicate Booking Customer",
       email: `duplicate-booking-${fixtureSuffix}@example.test`,
-      phone: "07111111111",
+      phone: "+447700900111",
     };
     const vehicle = { registration: `DB${fixtureSuffix}`.toUpperCase(), make: "Test", model: "Booking" };
     const appointmentStart = "2092-05-10T09:00:00.000Z";
 
     executeLocalOwnerSql(
       `
-        insert into public.customers (id, name, email, phone, preferred_contact)
-        values (:'customer_id'::uuid, :'customer_name', :'customer_email', :'customer_phone', 'email');
-        insert into public.vehicles (id, customer_id, registration, make, model)
-        values (:'vehicle_id'::uuid, :'customer_id'::uuid, :'registration', :'make', :'model');
+        insert into public.customers (id, garage_id, name, email, phone, preferred_contact)
+        values (:'customer_id'::uuid, :'garage_id'::uuid, :'customer_name', :'customer_email', :'customer_phone', 'email');
+        insert into public.vehicles (id, garage_id, customer_id, registration, make, model)
+        values (:'vehicle_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'registration', :'make', :'model');
+        insert into public.services (id, garage_id, name, duration_min, price_pence, price_mode)
+        values (:'service_id'::uuid, :'garage_id'::uuid, 'Persisted booking service', 60, 5000, 'fixed');
+        insert into public.resources (id, garage_id, name)
+        values (:'resource_id'::uuid, :'garage_id'::uuid, 'Invoice test bay');
         insert into public.bookings (
-          id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Persisted booking service', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
+        garage_id: users.garageA.id,
         customer_id: customerId,
         customer_name: customer.name,
         customer_email: customer.email,
@@ -229,6 +238,8 @@ describe.sequential("local Supabase invoice authorization", () => {
         registration: vehicle.registration,
         make: vehicle.make,
         model: vehicle.model,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: bookingId,
         appointment_start: appointmentStart,
       },
@@ -283,10 +294,10 @@ describe.sequential("local Supabase invoice authorization", () => {
     const unrelatedCustomerId = randomUUID();
     executeLocalOwnerSql(
       `
-        insert into public.customers (id, name, email, phone, preferred_contact)
-        values (:'customer_id'::uuid, 'Unrelated local customer', :'customer_email', '07222222222', 'email');
+        insert into public.customers (id, garage_id, name, email, phone, preferred_contact)
+        values (:'customer_id'::uuid, :'garage_id'::uuid, 'Unrelated local customer', :'customer_email', '+447700900222', 'email');
       `,
-      { customer_id: unrelatedCustomerId, customer_email: `unrelated-${fixtureSuffix}@example.test` },
+      { garage_id: users.garageA.id, customer_id: unrelatedCustomerId, customer_email: `unrelated-${fixtureSuffix}@example.test` },
     );
 
     const forgedRelationship = await users.admin.rpc("save_invoice_draft", {
@@ -301,13 +312,17 @@ describe.sequential("local Supabase invoice authorization", () => {
     executeLocalOwnerSql(
       `
         insert into public.bookings (
-          id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Raced persisted booking', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
+        garage_id: users.garageA.id,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: racedBookingId,
         customer_id: customerId,
         vehicle_id: vehicleId,
@@ -343,13 +358,17 @@ describe.sequential("local Supabase invoice authorization", () => {
     executeLocalOwnerSql(
       `
         insert into public.bookings (
-          id, customer_id, vehicle_id, service_name, appointment_start, original_appointment_start
+          id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source
         ) values (
-          :'booking_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid,
-          'Relationship drift', :'appointment_start'::timestamptz, :'appointment_start'::timestamptz
+          :'booking_id'::uuid, :'garage_id'::uuid, :'customer_id'::uuid, :'vehicle_id'::uuid, :'service_id'::uuid, :'resource_id'::uuid,
+          :'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour',
+          tstzrange(:'appointment_start'::timestamptz, :'appointment_start'::timestamptz + interval '1 hour'), 'confirmed', 'phone'
         );
       `,
       {
+        garage_id: users.garageA.id,
+        service_id: serviceId,
+        resource_id: resourceId,
         booking_id: changedBookingId,
         customer_id: customerId,
         vehicle_id: vehicleId,
@@ -397,9 +416,10 @@ describe.sequential("local Supabase invoice dashboard", () => {
     executeLocalOwnerSql(
       `
         insert into public.invoices (
-          source_type, customer_name, vehicle_registration, issue_date, created_by, updated_by
+          garage_id, source_type, customer_name, vehicle_registration, issue_date, created_by, updated_by
         )
         select
+          :'garage_id'::uuid,
           'manual',
           :'marker' || '-' || series::text,
           case when series = 1 then :'registration' else null end,
@@ -408,7 +428,7 @@ describe.sequential("local Supabase invoice dashboard", () => {
           :'actor_id'::uuid
         from generate_series(1, 1005) series;
       `,
-      { actor_id: users.adminIdentity.id, marker, registration },
+      { garage_id: users.garageA.id, actor_id: users.adminIdentity.id, marker, registration },
     );
 
     const finalPage = await dashboardQuery({
@@ -453,7 +473,7 @@ describe.sequential("local Supabase invoice numbering", () => {
     const nextDraft = await saveDraft(users.admin, "2093-02-10", "first-issued");
     const issued = await users.admin.rpc("issue_invoice", { p_invoice_id: nextDraft });
     expect(issued.error).toBeNull();
-    expect(issued.data).toMatchObject({ invoice_number: "SOB-2093-000001", invoice_sequence: 1 });
+    expect(issued.data).toMatchObject({ invoice_number: `${users.garageA.bookingPrefix}-2093-000001`, invoice_sequence: 1 });
   });
 
   it("allocates unique contiguous numbers under concurrent issue requests", async () => {
@@ -485,7 +505,7 @@ describe.sequential("local Supabase invoice numbering", () => {
 
     const numbers = issued.data?.map((invoice) => invoice.invoice_number) ?? [];
     expect(new Set(numbers).size).toBe(count);
-    expect(numbers.every((number) => /^SOB-2097-\d{6}$/.test(String(number)))).toBe(true);
+    expect(numbers.every((number) => new RegExp(`^${users.garageA.bookingPrefix}-2097-\\d{6}$`).test(String(number)))).toBe(true);
     expect(issued.data?.every((invoice) => invoice.status === "issued" && Number(invoice.invoice_year) === 2097)).toBe(true);
     expect(issued.data?.map((invoice) => Number(invoice.invoice_sequence)).sort((a, b) => a - b)).toEqual(
       Array.from({ length: count }, (_, index) => index + 1),
@@ -511,7 +531,7 @@ describe.sequential("local Supabase invoice numbering", () => {
     expect(issued.error).toBeNull();
     expect(issued.data).toMatchObject({
       status: "issued",
-      invoice_number: "SOB-2098-000001",
+      invoice_number: `${users.garageA.bookingPrefix}-2098-000001`,
       invoice_sequence: 1,
     });
   });
@@ -537,9 +557,9 @@ describe.sequential("local Supabase invoice numbering", () => {
       .in("id", [previousYear, nextYear, replacement]);
     expect(rows.error).toBeNull();
     const byId = new Map(rows.data?.map((row) => [row.id, row]));
-    expect(byId.get(previousYear)).toMatchObject({ invoice_number: "SOB-2094-000001", invoice_sequence: 1 });
-    expect(byId.get(nextYear)).toMatchObject({ status: "void", invoice_number: "SOB-2095-000001", invoice_sequence: 1 });
-    expect(byId.get(replacement)).toMatchObject({ invoice_number: "SOB-2095-000002", invoice_sequence: 2 });
+    expect(byId.get(previousYear)).toMatchObject({ invoice_number: `${users.garageA.bookingPrefix}-2094-000001`, invoice_sequence: 1 });
+    expect(byId.get(nextYear)).toMatchObject({ status: "void", invoice_number: `${users.garageA.bookingPrefix}-2095-000001`, invoice_sequence: 1 });
+    expect(byId.get(replacement)).toMatchObject({ invoice_number: `${users.garageA.bookingPrefix}-2095-000002`, invoice_sequence: 2 });
   });
 });
 
@@ -606,6 +626,7 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     expect(voidWhileSending.error?.message).toContain("INVOICE_EMAIL_SEND_IN_PROGRESS");
 
     const failed = await users.service.rpc("fail_invoice_email_send", {
+      p_garage_id: users.garageA.id,
       p_attempt_id: initial!.attempt_id,
       p_claim_token: initial!.claim_token,
       p_error_code: "provider_rejected",
@@ -614,8 +635,8 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     });
     expect(failed.error).toBeNull();
 
-    // Exercise attribution with both explicitly authorised administrators
-    // active at the same time.
+    // Exercise attribution with both of garage A's owners active at the same
+    // time.
     const retry = await users.secondaryAdmin.rpc("claim_invoice_email_send", claimArgs);
     expect(retry.error).toBeNull();
     expect(retry.data?.[0]).toMatchObject({
@@ -626,6 +647,7 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     expect(retry.data?.[0].attempt_id).not.toBe(initial!.attempt_id);
 
     const finalized = await users.service.rpc("finalize_invoice_email_send", {
+      p_garage_id: users.garageA.id,
       p_attempt_id: retry.data![0].attempt_id,
       p_claim_token: retry.data![0].claim_token,
       p_provider_id: "provider-message-1",
@@ -693,6 +715,7 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     expect(initial.data?.[0]).toMatchObject({ disposition: "should_send", should_send: true });
 
     const ambiguous = await users.service.rpc("fail_invoice_email_send", {
+      p_garage_id: users.garageA.id,
       p_attempt_id: initial.data![0].attempt_id,
       p_claim_token: initial.data![0].claim_token,
       p_error_code: "finalize_persistence_failed",
@@ -711,6 +734,7 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     });
 
     const conflictingFinalize = await users.service.rpc("finalize_invoice_email_send", {
+      p_garage_id: users.garageA.id,
       p_attempt_id: initial.data![0].attempt_id,
       p_claim_token: initial.data![0].claim_token,
       p_provider_id: "different-provider-message",
@@ -727,11 +751,139 @@ describe.sequential("local Supabase invoice settlement and email delivery", () =
     ]);
 
     const finalized = await users.service.rpc("finalize_invoice_email_send", {
+      p_garage_id: users.garageA.id,
       p_attempt_id: initial.data![0].attempt_id,
       p_claim_token: initial.data![0].claim_token,
       p_provider_id: "provider-known-message",
     });
     expect(finalized.error).toBeNull();
+  });
+});
+
+describe.sequential("local Supabase garage isolation", () => {
+  it("never shows or changes garage A's invoices to garage B, whichever garage B selects", async () => {
+    const draftId = await saveDraft(users.admin, "2086-04-01", "isolation-draft");
+    const issuedId = await saveDraft(users.admin, "2086-04-02", "isolation-issued");
+    expect((await users.admin.rpc("issue_invoice", { p_invoice_id: issuedId })).error).toBeNull();
+
+    for (const [label, client] of [
+      ["garage B owner", users.otherGarageAdmin],
+      ["garage B owner forging garage A", users.otherGarageAdminForgingGarageA],
+      ["user with no garage", users.nonAdmin],
+    ] as const) {
+      for (const table of ["invoices", "invoice_items", "invoice_payments", "invoice_email_sends", "invoice_email_attempts", "admin_audit_log", "customers", "bookings"]) {
+        const read = await client.from(table).select("garage_id").eq("garage_id", users.garageA.id).limit(5);
+        expect(read.error, `${label} reading ${table}`).toBeNull();
+        expect(read.data, `${label} reading ${table}`).toEqual([]);
+      }
+    }
+
+    const anonRead = await createLocalClient(getLocalSupabaseConfig().publishableKey, undefined, users.garageA.id)
+      .from("invoices").select("id").limit(1);
+    expect(anonRead.error?.code).toBe("42501");
+
+    const ownGarageCalls = await Promise.all([
+      users.otherGarageAdmin.rpc("issue_invoice", { p_invoice_id: draftId }),
+      users.otherGarageAdmin.rpc("save_invoice_draft", { p_invoice_id: draftId, p_payload: invoiceDraftPayload("2086-04-01", "hijack"), p_confirm_duplicate_source: false }),
+      users.otherGarageAdmin.rpc("delete_invoice_draft", { p_invoice_id: draftId }),
+      users.otherGarageAdmin.rpc("void_invoice", { p_invoice_id: issuedId }),
+      users.otherGarageAdmin.rpc("record_invoice_payment", { p_invoice_id: issuedId, p_amount_pence: 1, p_paid_at: new Date().toISOString(), p_method: "cash", p_reference: "" }),
+      users.otherGarageAdmin.rpc("mark_invoice_paid", { p_invoice_id: issuedId, p_paid_at: new Date().toISOString(), p_method: "cash", p_reference: "" }),
+      users.otherGarageAdmin.rpc("create_invoice_correction", { p_invoice_id: issuedId }),
+      users.otherGarageAdmin.rpc("duplicate_invoice_to_draft", { p_invoice_id: issuedId }),
+      users.otherGarageAdmin.rpc("claim_invoice_email_send", {
+        p_invoice_id: issuedId, p_recipient: "hijack@example.test", p_logical_send_id: randomUUID(), p_invoice_revision: 2, p_payload_sha256: "c".repeat(64),
+      }),
+    ]);
+    const expectedErrors = [
+      "DRAFT_INVOICE_NOT_FOUND",
+      "DRAFT_INVOICE_NOT_FOUND",
+      "DRAFT_INVOICE_NOT_FOUND",
+      "ISSUED_INVOICE_NOT_FOUND",
+      "ISSUED_INVOICE_NOT_FOUND",
+      "ISSUED_INVOICE_NOT_FOUND",
+      "ISSUED_INVOICE_NOT_FOUND",
+      "INVOICE_NOT_FOUND",
+      "ONLY_ISSUED_INVOICES_CAN_BE_EMAILED",
+    ];
+    ownGarageCalls.forEach((result, index) => expect(result.error?.message).toBe(expectedErrors[index]));
+
+    const trash = await users.otherGarageAdmin.rpc("manage_admin_trash", { p_entity: "invoices", p_ids: [draftId], p_action: "trash" });
+    expect(trash.error).toBeNull();
+    expect(trash.data).toBe(0);
+
+    const forged = await users.otherGarageAdminForgingGarageA.rpc("issue_invoice", { p_invoice_id: draftId });
+    expect(forged.error?.code).toBe("42501");
+    const forgedDashboard = await users.otherGarageAdminForgingGarageA.rpc("get_invoice_dashboard", {
+      p_query: null, p_status: null, p_date: null, p_page: 1, p_page_size: 25,
+    });
+    expect(forgedDashboard.error?.code).toBe("42501");
+
+    const otherDashboard = await users.otherGarageAdmin.rpc("get_invoice_dashboard", {
+      p_query: "isolation", p_status: null, p_date: null, p_page: 1, p_page_size: 25,
+    });
+    expect(otherDashboard.error).toBeNull();
+    expect(otherDashboard.data).toMatchObject({ matching_count: "0" });
+
+    const after = await users.admin.from("invoices").select("id,status,deleted_at").in("id", [draftId, issuedId]).order("status");
+    expect(after.data).toEqual([
+      { id: draftId, status: "draft", deleted_at: null },
+      { id: issuedId, status: "issued", deleted_at: null },
+    ]);
+  });
+
+  it("scopes service-role delivery outcomes to the garage passed explicitly", async () => {
+    const invoiceId = await saveDraft(users.admin, "2085-02-01", "isolation-email");
+    const issue = await users.admin.rpc("issue_invoice", { p_invoice_id: invoiceId });
+    expect(issue.error).toBeNull();
+    const claim = await users.admin.rpc("claim_invoice_email_send", {
+      p_invoice_id: invoiceId,
+      p_recipient: "isolation@example.test",
+      p_logical_send_id: randomUUID(),
+      p_invoice_revision: Number(issue.data!.revision),
+      p_payload_sha256: "d".repeat(64),
+    });
+    expect(claim.error).toBeNull();
+
+    const wrongGarage = await users.service.rpc("finalize_invoice_email_send", {
+      p_garage_id: users.garageB.id,
+      p_attempt_id: claim.data![0].attempt_id,
+      p_claim_token: claim.data![0].claim_token,
+      p_provider_id: "provider-wrong-garage",
+    });
+    expect(wrongGarage.error?.message).toBe("EMAIL_ATTEMPT_NOT_FOUND");
+
+    const rightGarage = await users.service.rpc("finalize_invoice_email_send", {
+      p_garage_id: users.garageA.id,
+      p_attempt_id: claim.data![0].attempt_id,
+      p_claim_token: claim.data![0].claim_token,
+      p_provider_id: "provider-right-garage",
+    });
+    expect(rightGarage.error).toBeNull();
+  });
+
+  it("gives a member only their own garages and stamps new rows with the selected garage", async () => {
+    const garages = await users.admin.from("garages").select("id");
+    expect(garages.error).toBeNull();
+    expect(garages.data).toEqual([{ id: users.garageA.id }]);
+
+    const customer = await users.otherGarageAdmin
+      .from("customers")
+      .insert({ name: "Isolation customer", phone: "+447700900555", preferred_contact: "phone" })
+      .select("garage_id")
+      .single();
+    expect(customer.error).toBeNull();
+    expect(customer.data?.garage_id).toBe(users.garageB.id);
+
+    const planted = await users.otherGarageAdmin
+      .from("customers")
+      .insert({ garage_id: users.garageA.id, name: "Planted customer", phone: "+447700900556", preferred_contact: "phone" });
+    expect(planted.error?.code).toBe("42501");
+
+    const serviceWithoutGarage = await users.service
+      .from("customers")
+      .insert({ name: "No garage", phone: "+447700900557", preferred_contact: "phone" });
+    expect(serviceWithoutGarage.error?.code).toBe("23502");
   });
 });
 
@@ -747,7 +899,7 @@ async function saveDraft(client: SupabaseClient, issueDate: string, suffix: stri
 
 function independentAdminClients(accessToken: string, count: number) {
   const { publishableKey } = getLocalSupabaseConfig();
-  return Array.from({ length: count }, () => createLocalClient(publishableKey, accessToken));
+  return Array.from({ length: count }, () => createLocalClient(publishableKey, accessToken, users.garageA.id));
 }
 
 async function dashboardQuery(overrides: Record<string, unknown> = {}) {

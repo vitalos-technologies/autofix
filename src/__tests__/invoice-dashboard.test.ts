@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
+import { functionDefinition } from "./support/migrations";
 import {
   invoiceDashboardPageSize,
   loadInvoiceDashboard,
@@ -61,37 +62,40 @@ describe("invoice dashboard query", () => {
     });
   });
 
-  it("defines an admin-only, uncapped server-side query", () => {
+  it("defines a staff-only, garage-scoped, uncapped server-side query", () => {
     const migration = readFileSync(
-      join(process.cwd(), "supabase", "migrations", "202608110009_invoice_dashboard_query.sql"),
+      join(process.cwd(), "supabase", "migrations", "20261026000100_tenancy.sql"),
       "utf8",
     );
-    expect(migration).toContain("actor_id uuid := public.require_invoice_actor()");
-    expect(migration).toContain("matching_count::text");
-    expect(migration).toContain("outstanding_total::text");
-    expect(migration).toContain("offset (effective_page - 1) * p_page_size");
-    expect(migration).not.toMatch(/limit\s+500/i);
-    expect(migration).toContain("from public, anon, authenticated, service_role");
-    expect(migration).toContain("to authenticated");
+    const query = functionDefinition(migration, "get_invoice_dashboard_without_payments");
+    expect(query).toContain("perform public.require_invoice_actor()");
+    expect(query).toContain("where invoice.garage_id = garage_scope");
+    expect(query).toContain("matching_count::text");
+    expect(query).toContain("outstanding_total::text");
+    expect(query).toContain("offset (effective_page - 1) * p_page_size");
+    expect(query).not.toMatch(/limit\s+500/i);
+    expect(migration).toContain("revoke all on all functions in schema public from public, anon, authenticated, service_role;");
+    expect(migration).toContain("grant execute on function public.get_invoice_dashboard(text, text, date, integer, integer) to authenticated;");
   });
 
-  it("totals payments from the current London week", () => {
+  it("totals payments from the current week in the garage's time zone", () => {
     const migration = readFileSync(
-      join(process.cwd(), "supabase", "migrations", "202608280001_invoice_weekly_paid_total.sql"),
+      join(process.cwd(), "supabase", "migrations", "20261026000100_tenancy.sql"),
       "utf8",
     );
-    expect(migration).toContain("current_week_paid_total_pence");
-    expect(migration).toContain("timezone('Europe/London', statement_timestamp())");
-    expect(migration).toContain("invoice.paid_at >= week_start");
-    expect(migration).toContain("invoice.paid_at < week_end");
+    const dashboard = functionDefinition(migration, "get_invoice_dashboard");
+    expect(dashboard).toContain("current_week_paid_total_pence");
+    expect(dashboard).toContain("timezone(garage_timezone, statement_timestamp())");
+    expect(dashboard).toContain("invoice.paid_at >= week_start");
+    expect(dashboard).toContain("invoice.paid_at < week_end");
   });
 
   it("uses the shared admin pagination and preserves invoice filters", () => {
     const source = readFileSync(
-      join(process.cwd(), "src/app/admin/(protected)/invoices/page.tsx"),
+      join(process.cwd(), "src/app/app/(protected)/invoices/page.tsx"),
       "utf8",
     );
-    expect(source).toContain('<AdminPagination path="/admin/invoices"');
+    expect(source).toContain('<AdminPagination path="/app/invoices"');
     expect(source).toContain("totalItems={matchingCount}");
     expect(source).toContain("totalPages={pages}");
     expect(source).toContain("additionalParams={{ date }}");
@@ -99,7 +103,7 @@ describe("invoice dashboard query", () => {
 
   it("matches the appointment table's customer and vehicle column spacing", () => {
     const source = readFileSync(
-      join(process.cwd(), "src/app/admin/(protected)/invoices/page.tsx"),
+      join(process.cwd(), "src/app/app/(protected)/invoices/page.tsx"),
       "utf8",
     );
     expect(source).toContain('min-w-[1100px] table-fixed');

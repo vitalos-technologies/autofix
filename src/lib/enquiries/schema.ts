@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toE164UK } from "@/lib/messaging/phone";
 import { enquiryTypes } from "@/types/domain";
 
 const vehicleSchema = z.object({
@@ -19,7 +20,8 @@ export const enquiryRequestSchema = z.object({
   contact: z.object({
     name: z.string().trim().min(2).max(100),
     email: z.email().max(254).optional(),
-    phone: z.string().trim().min(7).max(30),
+    // Stored as E.164 (customers.phone); one customer per phone per garage.
+    phone: z.string().trim().min(7).max(30).refine((value) => toE164UK(value, { allowLandline: true }) !== null, "Enter a UK phone number"),
     preferredContact: z.enum(["phone", "whatsapp", "email"]),
   }),
   vehicle: vehicleSchema.optional(),

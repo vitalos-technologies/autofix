@@ -27,7 +27,7 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 import { NextRequest } from "next/server";
-import { proxy } from "@/proxy";
+import { config, proxy } from "@/proxy";
 
 describe("admin MFA proxy enforcement", () => {
   beforeEach(() => {
@@ -41,31 +41,43 @@ describe("admin MFA proxy enforcement", () => {
   });
 
   it("allows a direct protected request when no MFA factor is enrolled", async () => {
-    const response = await proxy(new NextRequest("http://localhost/admin/enquiries"));
+    const response = await proxy(new NextRequest("http://localhost/app/enquiries"));
     expect(response.headers.get("location")).toBeNull();
   });
 
   it("redirects a no-factor administrator to enrollment after mandatory MFA activation", async () => {
     harness.policy = { mandatory_mfa_enabled: true };
-    const response = await proxy(new NextRequest("http://localhost/admin/enquiries"));
-    expect(response.headers.get("location")).toBe("http://localhost/admin/mfa/enroll");
+    const response = await proxy(new NextRequest("http://localhost/app/enquiries"));
+    expect(response.headers.get("location")).toBe("http://localhost/app/mfa/enroll");
+  });
+
+  it("leaves onboarding to its own MFA step while enrolment is mandatory (P4.4)", async () => {
+    harness.policy = { mandatory_mfa_enabled: true };
+    const response = await proxy(new NextRequest("http://localhost/app/onboarding/security"));
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("still sends an enrolled but unverified session on onboarding pages to the challenge", async () => {
+    harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
+    const response = await proxy(new NextRequest("http://localhost/app/onboarding/services"));
+    expect(response.headers.get("location")).toBe("http://localhost/app/mfa?returnTo=%2Fapp%2Fonboarding%2Fservices");
   });
 
   it("blocks direct protected access until the enrolled factor is verified", async () => {
     harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
-    const response = await proxy(new NextRequest("http://localhost/admin/enquiries?status=new"));
-    expect(response.headers.get("location")).toBe("http://localhost/admin/mfa?returnTo=%2Fadmin%2Fenquiries%3Fstatus%3Dnew");
+    const response = await proxy(new NextRequest("http://localhost/app/enquiries?status=new"));
+    expect(response.headers.get("location")).toBe("http://localhost/app/mfa?returnTo=%2Fapp%2Fenquiries%3Fstatus%3Dnew");
   });
 
   it("allows direct protected access after MFA verification", async () => {
     harness.assurance = { currentLevel: "aal2", nextLevel: "aal2" };
-    const response = await proxy(new NextRequest("http://localhost/admin/enquiries"));
+    const response = await proxy(new NextRequest("http://localhost/app/enquiries"));
     expect(response.headers.get("location")).toBeNull();
   });
 
   it("does not redirect the challenge page into a loop", async () => {
     harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
-    const response = await proxy(new NextRequest("http://localhost/admin/mfa"));
+    const response = await proxy(new NextRequest("http://localhost/app/mfa"));
     expect(response.headers.get("location")).toBeNull();
   });
 
@@ -75,7 +87,16 @@ describe("admin MFA proxy enforcement", () => {
     harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
     harness.trustedRecord = { id: "device-id", user_id: "admin-id", token_hash: await hashTrustedDeviceToken(token), device_label: "Chrome on Windows", user_agent_summary: null, created_at: new Date().toISOString(), last_used_at: new Date().toISOString(), expires_at: new Date(Date.now() + 60_000).toISOString(), revoked_at: null };
     const headers = { cookie: `${TRUSTED_DEVICE_COOKIE}=${token}` };
-    expect((await proxy(new NextRequest("http://localhost/admin/enquiries", { headers }))).headers.get("location")).toBeNull();
-    expect((await proxy(new NextRequest("http://localhost/admin/configuration/security", { headers }))).headers.get("location")).toContain("/admin/mfa");
+    expect((await proxy(new NextRequest("http://localhost/app/enquiries", { headers }))).headers.get("location")).toBeNull();
+    expect((await proxy(new NextRequest("http://localhost/app/configuration/security", { headers }))).headers.get("location")).toContain("/app/mfa");
+  });
+});
+
+describe("proxy route matching", () => {
+  it("runs on every route except build assets, so host routing covers /app, /auth and /admin", () => {
+    expect(config.matcher).toHaveLength(1);
+    const pattern = new RegExp(`^${config.matcher[0]!.replace("/((?!", "/(?!(?:").replace(").*)", ")).*")}$`);
+    for (const path of ["/app/enquiries", "/auth/confirm", "/admin", "/", "/service"]) expect(pattern.test(path)).toBe(true);
+    for (const path of ["/_next/static/chunk.js", "/_next/image", "/favicon.ico", "/email/logo.png"]) expect(pattern.test(path)).toBe(false);
   });
 });

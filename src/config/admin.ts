@@ -1,14 +1,8 @@
-export const ADMIN_EMAILS = [
-  "sobautofix@gmail.com",
-  "temitopeagbola@gmail.com",
-] as const;
+// The garage admin lives at /app on the admin host (decision A7). /admin is
+// reserved for the Vitalos super admin (P4.5) and must not match here.
+// Access is garage membership (`garage_members`), not an email allowlist.
+export const GARAGE_ADMIN_BASE_PATH = "/app";
 
-// Retained as the primary administrator identity for existing fixtures and
-// operational tooling that need one deterministic account.
-export const ADMIN_EMAIL = ADMIN_EMAILS[0];
-
-export function isAllowedAdminEmail(email: string | null | undefined) {
-  const normalizedEmail = email?.trim().toLowerCase();
-  return normalizedEmail !== undefined
-    && ADMIN_EMAILS.some((allowedEmail) => allowedEmail === normalizedEmail);
+export function isGarageAdminPath(pathname: string) {
+  return pathname === GARAGE_ADMIN_BASE_PATH || pathname.startsWith(`${GARAGE_ADMIN_BASE_PATH}/`);
 }

@@ -1,8 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createBookingAccessToken, verifyBookingAccessToken } from "@/lib/bookings/access-token";
-import { bookingLookupSchema, createBookingSchema } from "@/lib/bookings/schema";
+import { join, relative, sep } from "node:path";
+import { describe, expect, it } from "vitest";
+import { manageLookupSchema } from "@/lib/booking-engine/manage-schema";
 
 const root = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(root, ...parts), "utf8");
@@ -15,137 +14,74 @@ function filesUnder(directory: string): string[] {
   });
 }
 
-describe("provider-neutral booking management", () => {
-  beforeEach(() => {
-    process.env.BOOKING_MANAGEMENT_SECRET = "booking-management-test-secret-with-enough-entropy";
-  });
-
-  afterEach(() => {
-    delete process.env.BOOKING_MANAGEMENT_SECRET;
-  });
-
+describe("native booking management", () => {
   it("requires a reference and registration for a booking lookup", () => {
-    expect(bookingLookupSchema.safeParse({ bookingReference: "SOB-123456", registration: "AB12 CDE" }).success).toBe(true);
-    expect(bookingLookupSchema.safeParse({ bookingReference: "SOB-123456" }).success).toBe(false);
+    expect(manageLookupSchema.safeParse({ reference: "HRM-4821", registration: "AB12 CDE" }).success).toBe(true);
+    expect(manageLookupSchema.safeParse({ reference: "HRM-4821" }).success).toBe(false);
   });
 
-  it("normalises every secure lookup factor", () => {
-    expect(bookingLookupSchema.parse({ bookingReference: " sob-123456 ", registration: "ab12 cde" })).toEqual({
-      bookingReference: "SOB-123456",
-      registration: "AB12CDE",
-    });
+  it("accepts any garage's <PREFIX>-NNNN reference and nothing else", () => {
+    for (const reference of ["HRM-4821", "AB-1234", "DGBX-123456"]) {
+      expect(manageLookupSchema.safeParse({ reference, registration: "AB12CDE" }).success, reference).toBe(true);
+    }
+    for (const reference of ["H-1234", "HRMXX-1234", "HRM-123", "HRM-1234567", "HRM1234", "12-3456"]) {
+      expect(manageLookupSchema.safeParse({ reference, registration: "AB12CDE" }).success, reference).toBe(false);
+    }
   });
 
-  it("issues a valid short-lived booking access token", () => {
-    const token = createBookingAccessToken("booking-id", 60);
-    expect(verifyBookingAccessToken(token)).toMatchObject({ bookingId: "booking-id" });
+  it("normalises every lookup factor", () => {
+    expect(manageLookupSchema.parse({ reference: " hrm-4821 ", registration: "ab12 cde" })).toEqual({ reference: "HRM-4821", registration: "AB12CDE" });
   });
 
-  it("rejects a tampered booking access token", () => {
-    const token = createBookingAccessToken("booking-id", 60);
-    expect(verifyBookingAccessToken(`${token}x`)).toBeNull();
-  });
-
-  it("rejects an expired booking access token", () => {
-    expect(verifyBookingAccessToken(createBookingAccessToken("booking-id", -1))).toBeNull();
-  });
-
-  it("keeps non-sequential collision-checked SOB references", () => {
-    const migration = read("supabase", "migrations", "202608110002_booking_management.sql");
-    expect(migration).toContain("floor(random() * 1000000)");
+  it("keeps non-sequential collision-checked references, prefixed and unique per garage", () => {
+    const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
+    expect(migration).toContain("floor(random() * (10 ^ digits))");
     expect(migration).toContain("exit when not exists");
-    expect(migration).toContain("^SOB-[0-9]{6}$");
+    expect(migration).toContain("^[A-Z]{2,4}-[0-9]{4,6}$");
+    expect(migration).toContain("unique (garage_id, booking_reference)");
   });
 
-  it("adds provider-neutral booking correlation and sync fields", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
-    expect(migration).toContain("provider_booking_uid text");
-    expect(migration).toContain("provider_event_type_id bigint");
-    expect(migration).toContain("provider_sync_state");
+  it("resolves the garage from the host in every public booking route", () => {
+    for (const path of [["src", "app", "api", "bookings", "route.ts"], ["src", "app", "api", "bookings", "manage", "route.ts"], ["src", "app", "api", "slots", "route.ts"], ["src", "app", "api", "services", "route.ts"]]) {
+      const source = read(...path);
+      expect(source, path.join("/")).toContain("await resolveRouteGarage()");
+      expect(source, path.join("/")).not.toMatch(/garage_?id"\s*\)|body\.garage|searchParams\.get\("garage/i);
+    }
   });
 
-  it("reserves booking creation through an idempotent database function", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
-    expect(migration).toContain("create_booking_intent");
-    expect(migration).toContain("idempotency_key");
-    expect(migration).toContain("IDEMPOTENCY_KEY_REQUIRED");
-    expect(migration).toContain("pg_advisory_xact_lock");
-    expect(migration).toContain("when unique_violation");
+  it("rate-limits lookup, links, rescheduling and cancellation separately", () => {
+    const route = read("src", "app", "api", "bookings", "manage", "route.ts");
+    for (const scope of ["booking_lookup_ip", "booking_lookup_details", "booking_manage_link", "booking_reschedule", "booking_cancel"]) {
+      expect(route).toContain(`"${scope}"`);
+    }
   });
 
-  it("ships service mappings disabled until real event types are configured", () => {
-    const migration = read("supabase", "migrations", "202608110006_calcom_booking_rework.sql");
-    expect(migration).toContain("online_booking_enabled boolean not null default false");
-    expect(migration).toContain("not online_booking_enabled or provider_event_type_id is not null");
-    expect(migration).toContain("provider_event_type_id > 0");
-    expect(migration).not.toMatch(/provider_event_type_id\s*,?\s*\)\s*values[\s\S]{0,400}\b\d{2,}\b/i);
+  it("keeps registrations out of URLs: lookups are POST bodies and the slots query is strict", () => {
+    const route = read("src", "app", "api", "bookings", "manage", "route.ts");
+    expect(route).toContain("export async function POST");
+    expect(route).not.toMatch(/searchParams\.get\("(registration|reg|vrm)"/i);
+    expect(read("src", "app", "api", "slots", "route.ts")).toContain(".strict()");
   });
 
-  it("validates complete server-side booking data", () => {
-    const result = createBookingSchema.safeParse({
-      vehicle: { registration: "AB12 CDE", make: "Vauxhall", model: "Astra" },
-      serviceKey: "vehicle-diagnostics",
-      problemDescription: "",
-      symptoms: ["warning light"],
-      conditionalAnswers: { warningLight: "Engine management" },
-      location: { mode: "workshop" },
-      customer: { name: "Test Customer", email: "test@example.com", phone: "07000 000000" },
-      appointmentStart: "2026-08-18T09:00:00.000Z",
-      idempotencyKey: "70ca0b0b-1df7-42f4-8fe1-329c54ace42d",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("requires a mobile address and postcode only for mobile work", () => {
-    const base = {
-      vehicle: { registration: "AB12 CDE" },
-      serviceKey: "mobile-diagnostic-visit",
-      problemDescription: "The vehicle will not start consistently.",
-      symptoms: [],
-      conditionalAnswers: {},
-      customer: { name: "Test Customer", email: "test@example.com", phone: "07000 000000" },
-      appointmentStart: "2026-08-18T09:00:00.000Z",
-      idempotencyKey: "70ca0b0b-1df7-42f4-8fe1-329c54ace42d",
-    };
-    expect(createBookingSchema.safeParse({ ...base, location: { mode: "mobile" } }).success).toBe(false);
-    expect(createBookingSchema.safeParse({ ...base, location: { mode: "mobile", address: "1 Station Road", postcode: "DN6 9HF" } }).success).toBe(true);
-  });
-
-  it("keeps rescheduling and cancellation inside the product", () => {
-    const actions = read("src", "app", "manage-booking", "actions.ts");
-    const component = read("src", "components", "booking", "manage-booking.tsx");
-    expect(actions).toContain("getBookingRescheduleSlots");
-    expect(actions).toContain("rescheduleBooking");
-    expect(actions).toContain("cancelBooking");
-    expect(component).not.toContain("window.location");
-  });
-
-  it("rate-limits lookup, slot browsing, reschedule and cancellation separately", () => {
-    const actions = read("src", "app", "manage-booking", "actions.ts");
-    expect(actions).toContain("booking_lookup_ip");
-    expect(actions).toContain("booking_reschedule_slots");
-    expect(actions).toContain('"booking_reschedule"');
-    expect(actions).toContain("booking_cancel");
-  });
-
-  it("preserves history and hides provider identifiers from the customer view", () => {
-    const component = read("src", "components", "booking", "manage-booking.tsx");
-    expect(component).toContain("Booking history");
-    expect(component).toContain("booking.history");
-    expect(component).not.toContain("provider_booking_uid");
-    expect(component).not.toContain("eventTypeId");
+  it("removes Cal.com from the application", () => {
+    const legacy = new RegExp(["cal", "com"].join(""), "i");
+    const files = [...filesUnder("src"), ".env.example", "package.json"].filter((file) => file !== join("src", "__tests__", "booking-management.test.ts"));
+    expect(files.filter((file) => legacy.test(readFileSync(join(root, file), "utf8")))).toEqual([]);
   });
 
   it("rejects reintroduced legacy scheduling integration outside compatibility migrations", () => {
     const legacyName = ["calen", "dly"].join("");
     const forbidden = new RegExp(`${legacyName}|${legacyName}\\.com|${legacyName.toUpperCase()}_`, "i");
+    // The build plan names the legacy table it schedules for removal (P2.1).
     const historicalMigrations = new Set([
-      join("supabase", "migrations", "202608110002_booking_management.sql"),
-      join("supabase", "migrations", "202608110006_calcom_booking_rework.sql"),
+      join("docs", "autofix", "BUILD-PLAN.md"),
     ]);
+    // docs/autofix/ is the Autofix planning kit; it names the legacy scheduler
+    // only to record that it is not used. Every SOB doc and all of src/ stay scanned.
+    const autofixPlanningDocs = join("docs", "autofix") + sep;
     const candidates = [
       ...filesUnder("src"),
-      ...filesUnder("docs"),
+      ...filesUnder("docs").filter((file) => !file.startsWith(autofixPlanningDocs)),
       ".env.example",
       "README.md",
       "next.config.ts",

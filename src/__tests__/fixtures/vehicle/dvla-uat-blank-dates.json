@@ -1,0 +1,20 @@
+{
+  "registrationNumber": "AA19PPP",
+  "co2Emissions": 0,
+  "engineCapacity": 2000,
+  "euroStatus": "EURO6",
+  "markedForExport": false,
+  "fuelType": "PETROL",
+  "revenueWeight": 44000,
+  "colour": "RED",
+  "make": "FORD",
+  "yearOfManufacture": 2016,
+  "taxDueDate": "",
+  "taxStatus": "Taxed",
+  "dateOfLastV5CIssued": "2019-05-20",
+  "wheelplan": "3 AXLE + 3 AXLE ARTIC",
+  "monthOfFirstDvlaRegistration": "2016-09",
+  "monthOfFirstRegistration": "2016-09",
+  "motStatus": "Valid",
+  "motExpiryDate": ""
+}

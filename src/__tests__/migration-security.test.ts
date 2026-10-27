@@ -1,42 +1,277 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  allMigrations,
+  baselineMigration,
+  functionDefinition,
+  migrationFiles,
+  schedulingMigration,
+  sqlStatements,
+  tenancyMigration,
+} from "./support/migrations";
 
-const migration = readFileSync(join(process.cwd(), "supabase", "migrations", "202608080001_initial_schema.sql"), "utf8");
-const bookingThreadMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20260927123710_link_booking_enquiry_threads.sql"), "utf8");
-const exposedTables = [
-  "admin_profiles", "site_settings", "content_entries", "content_revisions", "navigation_items", "offers", "service_prices", "media_assets", "reviews", "customers", "vehicles", "enquiries", "enquiry_attachments", "sale_vehicles", "sale_vehicle_images", "notification_attempts", "rate_limit_buckets", "admin_audit_log",
+// Tables the tenancy migration (P1.4) scoped by garage. booking_service_types,
+// service_catalogue_systems and provider_webhook_events were dropped again by
+// the scheduling migration (asserted below).
+const tenantTables = [
+  "customers", "vehicles", "bookings", "booking_service_types", "service_catalogue_systems", "booking_audit_log",
+  "booking_notification_events", "enquiries", "enquiry_attachments", "enquiry_conversations", "enquiry_messages",
+  "notification_attempts", "invoices", "invoice_items", "invoice_payments", "invoice_email_sends",
+  "invoice_email_attempts", "invoice_number_sequences", "media_assets", "reviews", "offers", "service_prices",
+  "site_settings", "admin_audit_log",
+];
+const garageTables = ["garages", "garage_domains", "garage_members", "platform_admins"];
+const platformTables = [
+  "rate_limit_buckets", "resend_webhook_events", "inbound_email_events", "provider_webhook_events",
+  "unmatched_inbound_emails", "admin_profiles", "admin_mfa_policy", "admin_mfa_recovery_codes",
+  "admin_mfa_recovery_sessions", "admin_trusted_devices", "twilio_webhook_events",
+];
+const removedSurfaces = ["content_entries", "content_revisions", "navigation_items", "sale_vehicles", "sale_vehicle_images", "import_article_drafts", "vehicle-sales"];
+const serviceRoleFunctions = [
+  "consume_rate_limit(text, text, integer, integer)",
+  "claim_inbound_email_event(text, text, text)",
+  "finish_inbound_email_event(text, text, text, text)",
+  "replace_admin_mfa_recovery_codes(uuid, text[], text)",
+  "consume_admin_mfa_recovery_code(uuid, text, text, timestamptz)",
+  "generate_booking_reference(uuid)",
+  "create_booking_enquiry_thread(uuid, uuid, uuid)",
+  "increment_enquiry_unread(uuid, uuid, timestamptz)",
+  "apply_enquiry_retention(uuid)",
+  "finalize_invoice_email_send(uuid, bigint, uuid, text)",
+  "fail_invoice_email_send(uuid, bigint, uuid, text, boolean, text)",
+];
+const tenancyStatements = sqlStatements(tenancyMigration);
+const schedulingStatements = sqlStatements(schedulingMigration);
+const schedulingTables = ["resources", "opening_hours", "closures", "services", "bookings", "booking_events"];
+const engineFunctions = [
+  "available_slots(uuid, uuid, date, date, text)",
+  "create_booking(uuid, jsonb)",
+  "seed_garage_defaults(uuid)",
+];
+const internalEngineFunctions = [
+  "available_slots_at(uuid, uuid, date, date, text, timestamptz)",
+  "create_booking_at(uuid, jsonb, timestamptz)",
+  "opening_window_starts(uuid, date, date, integer)",
+  "booking_service_context(uuid, uuid, text)",
+  "booking_input_text(jsonb, text, integer)",
+  "booking_input_uuid(jsonb, text)",
+  "booking_result(public.bookings, boolean)",
+  "maintain_booking_cancellation()",
+  "log_booking_status_change()",
 ];
 
+/** Staff bookings (A90 follow-up, A176-A185). */
+const staffBookingsMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261028002200_staff_bookings.sql"), "utf8");
+const staffBookingStatements = sqlStatements(staffBookingsMigration);
+
 describe("Supabase migration security invariants", () => {
-  it.each(exposedTables)("enables RLS on %s", (table) => {
-    expect(migration).toContain(`alter table public.${table} enable row level security;`);
+  it("starts from one SOB baseline followed by the tenancy migration", () => {
+    expect(migrationFiles.slice(0, 2)).toEqual(["20261026000000_baseline.sql", "20261026000100_tenancy.sql"]);
+    expect(baselineMigration).toMatch(/commit\s+(?:--\s+)?35496ff/);
   });
 
-  it("keeps public writes behind server endpoints", () => {
-    expect(migration).not.toMatch(/create policy[^;]+for insert to anon/i);
-    expect(migration).not.toMatch(/create policy[^;]+for update to anon/i);
+  it("leaves SOB-only surfaces out of the baseline", () => {
+    const sqlWithoutComments = allMigrations.replace(/--[^\n]*/g, "");
+    for (const surface of removedSurfaces) expect(sqlWithoutComments).not.toContain(surface);
   });
 
-  it("uses separate public, vehicle-sale and private buckets", () => {
-    expect(migration).toContain("'public-media'");
-    expect(migration).toContain("'vehicle-sales'");
-    expect(migration).toContain("'enquiry-attachments'");
-    expect(migration).toContain("'enquiry-attachments', false");
+  it.each([...tenantTables, ...garageTables, ...platformTables])("enables RLS on %s", (table) => {
+    expect(allMigrations).toContain(`alter table public.${table} enable row level security;`);
+  });
+
+  it.each(tenantTables)("adds a cascading, defaulted garage_id to %s", (table) => {
+    expect(tenancyMigration).toMatch(new RegExp(
+      `alter table public\\.${table}\\n(?:  [^\\n]*\\n)*?  add column garage_id uuid not null default public\\.current_garage_id\\(\\) references public\\.garages\\(id\\) on delete cascade`,
+    ));
+  });
+
+  it("scopes every tenant policy to the selected garage", () => {
+    const policies = tenancyStatements.filter((statement) => /^create policy/i.test(statement) && / on public\.(?!(?:garages|garage_members|admin_profiles|unmatched_inbound_emails)\b)/.test(statement));
+    expect(policies.length).toBeGreaterThan(60);
+    for (const policy of policies) expect(policy, policy).toContain("(select public.current_garage_id())");
+  });
+
+  it("lists who each table's policies allow in a comment above them", () => {
+    for (const table of [...tenantTables.filter((table) => table !== "invoice_number_sequences"), "garages", "garage_domains", "garage_members", "admin_profiles", "unmatched_inbound_emails"]) {
+      expect(tenancyMigration, table).toMatch(new RegExp(`\\n-- ${table}(?: \\([^)]*\\))?\\n--   "`));
+    }
+  });
+
+  it("gives anon nothing", () => {
+    expect(tenancyMigration).toContain("revoke all on all tables in schema public from public, anon, authenticated, service_role;");
+    expect(tenancyMigration).toContain("revoke all on all functions in schema public from public, anon, authenticated, service_role;");
+    expect(tenancyMigration).toContain("alter default privileges for role postgres in schema public revoke all on tables from public, anon, authenticated, service_role;");
+    const grants = tenancyStatements.filter((statement) => /^grant /i.test(statement));
+    expect(grants.filter((statement) => /\b(anon|public)\b(?!\.)/.test(statement.replace(/public\.\w+/g, "")))).toEqual([]);
+    const policies = tenancyStatements.filter((statement) => /^create policy/i.test(statement));
+    expect(policies.filter((statement) => /\bto (anon|public)\b/i.test(statement))).toEqual([]);
+  });
+
+  it.each([
+    "claim_twilio_webhook_event(text, text, text)",
+    "finish_twilio_webhook_event(text, text, text, text)",
+    "apply_messaging_keyword(uuid, text, text)",
+  ])("keeps the Twilio webhook function %s service-role only (P3.8)", (signature) => {
+    const statements = sqlStatements(allMigrations);
+    expect(statements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`))).toEqual([`grant execute on function public.${signature} to service_role`]);
+    expect(statements).toContain(`revoke all on function public.${signature} from public, anon, authenticated`);
+  });
+
+  it.each(serviceRoleFunctions)("keeps %s service-role only", (signature) => {
+    const grants = tenancyStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`));
+    expect(grants).toEqual([`grant execute on function public.${signature} to service_role`]);
+  });
+
+  it("removes SOB's single-business authorisation", () => {
+    expect(tenancyMigration).toContain("drop function public.is_admin();");
+    expect(tenancyMigration).toContain("drop function public.enforce_allowed_admin_email();");
+    const afterTenancy = tenancyMigration.replace(/--[^\n]*/g, "").replace("drop function public.is_admin();", "");
+    expect(afterTenancy).not.toContain("is_admin(");
+    expect(tenancyMigration).not.toMatch(/sobautofix|temitopeagbola/i);
+    expect(tenancyMigration).toContain("check (booking_reference ~ '^[A-Z]{2,4}-[0-9]{4,6}$')");
+    expect(tenancyMigration).toContain("alter column issuer_legal_name drop default");
+  });
+
+  it("defines the garage context helpers from the architecture contract", () => {
+    for (const name of ["request_garage_id", "garage_role", "current_garage_id", "current_garage_role", "is_platform_admin"]) {
+      const definition = functionDefinition(tenancyMigration, name);
+      expect(definition, name).toMatch(/\nstable\nsecurity definer\nset search_path = ''\n/);
+      expect(tenancyMigration).toMatch(new RegExp(`grant execute on function public\\.${name}\\([^)]*\\) to authenticated, service_role;`));
+    }
+    expect(functionDefinition(tenancyMigration, "request_garage_id")).toContain("current_setting('request.headers', true)");
+    expect(functionDefinition(tenancyMigration, "request_garage_id")).toContain("when others then\n    return null;");
+  });
+
+  it("keeps uploads inside the garage's storage folder", () => {
+    const storagePolicies = tenancyStatements.filter((statement) => /^create policy[^\n]+on storage\.objects/i.test(statement));
+    expect(storagePolicies).toHaveLength(5);
+    for (const policy of storagePolicies) expect(policy).toContain("(storage.foldername(name))[1] = (select public.current_garage_id())::text");
+    expect(tenancyMigration).toContain("check (split_part(object_path, '/', 1) = garage_id::text)");
+  });
+
+  it("uses separate public and private buckets", () => {
+    expect(baselineMigration).toContain("'public-media'");
+    expect(baselineMigration).toContain("('enquiry-attachments', 'enquiry-attachments', false");
   });
 
   it("limits rate-limit and retention functions to the service role", () => {
-    expect(migration).toContain("grant execute on function public.consume_rate_limit(text, text, integer, integer) to service_role;");
-    expect(migration).toContain("grant execute on function public.apply_enquiry_retention() to service_role;");
+    expect(tenancyMigration).toContain("grant execute on function public.consume_rate_limit(text, text, integer, integer) to service_role;");
+    expect(tenancyMigration).toContain("grant execute on function public.apply_enquiry_retention(uuid) to service_role;");
   });
 
-  it("keeps booking-created enquiry threads unique and service-role only", () => {
-    expect(bookingThreadMigration).toContain("create unique index if not exists enquiries_booking_thread_unique");
-    expect(bookingThreadMigration).toContain("where booking_id is not null");
-    expect(bookingThreadMigration).toContain("security invoker");
-    expect(bookingThreadMigration).toContain("revoke all on function public.create_booking_enquiry_thread(uuid, uuid)");
-    expect(bookingThreadMigration).toContain("from public, anon, authenticated");
-    expect(bookingThreadMigration).toContain("grant execute on function public.create_booking_enquiry_thread(uuid, uuid)");
-    expect(bookingThreadMigration).toContain("to service_role");
+  it("keeps booking-created enquiry threads unique per garage and service-role only", () => {
+    expect(tenancyMigration).toContain("create unique index enquiries_booking_thread_unique on public.enquiries (garage_id, booking_id)");
+    expect(tenancyMigration).toContain("where booking_id is not null");
+    expect(functionDefinition(tenancyMigration, "create_booking_enquiry_thread")).toContain("security invoker");
+    expect(tenancyMigration).toContain("grant execute on function public.create_booking_enquiry_thread(uuid, uuid, uuid) to service_role;");
+  });
+});
+
+describe("scheduling migration invariants (P2.1-P2.3)", () => {
+  it("follows the tenancy migrations", () => {
+    expect(migrationFiles.slice(0, 4)).toEqual([
+      "20261026000000_baseline.sql",
+      "20261026000100_tenancy.sql",
+      "20261026000200_tenancy_test_support.sql",
+      "20261027000100_scheduling.sql",
+    ]);
+    expect(schedulingMigration).toMatch(/^-- Autofix scheduling engine[\s\S]*-- Rollback notes/);
+  });
+
+  it("guards bookings with the no_overlap exclusion constraint", () => {
+    expect(schedulingMigration).toContain("create extension if not exists btree_gist with schema extensions;");
+    expect(schedulingMigration).toContain(
+      "constraint no_overlap exclude using gist (resource_id with =, during with &&)\n    where (status not in ('cancelled', 'no_show'))",
+    );
+    expect(schedulingMigration).toContain("  during tstzrange not null,");
+  });
+
+  it.each(schedulingTables)("creates %s as a garage-scoped tenant table with RLS and documented policies", (table) => {
+    expect(schedulingMigration).toMatch(new RegExp(
+      `create table public\\.${table} \\(\\n  id uuid primary key default gen_random_uuid\\(\\),\\n  garage_id uuid not null default public\\.current_garage_id\\(\\) references public\\.garages\\(id\\) on delete cascade,`,
+    ));
+    expect(schedulingMigration).toContain(`alter table public.${table} enable row level security;`);
+    expect(schedulingMigration, table).toMatch(new RegExp(`\\n-- ${table}\\n--   "`));
+    const policies = schedulingStatements.filter((statement) => statement.startsWith("create policy") && statement.includes(` on public.${table}\n`));
+    expect(policies.length).toBeGreaterThan(0);
+    for (const policy of policies) {
+      expect(policy).toContain("to authenticated");
+      expect(policy).toContain("(select public.current_garage_id())");
+    }
+  });
+
+  it("drops the Cal.com leftovers", () => {
+    for (const statement of [
+      "drop function public.create_booking_intent(",
+      "drop table public.bookings;",
+      "drop table public.booking_service_types;",
+      "drop table public.service_catalogue_systems;",
+      "drop table public.provider_webhook_events;",
+      "drop type public.booking_status;",
+    ]) expect(schedulingMigration).toContain(statement);
+    const createdBookings = schedulingMigration.slice(schedulingMigration.indexOf("create table public.bookings ("));
+    expect(createdBookings.slice(0, createdBookings.indexOf("\n);"))).not.toMatch(/provider_|booking_reference|appointment_start|service_type_id/);
+  });
+
+  it.each(engineFunctions)("keeps %s service-role only", (signature) => {
+    expect(schedulingMigration).toContain(`revoke all on function public.${signature} from public, anon, authenticated;`);
+    const grants = schedulingStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`));
+    expect(grants).toEqual([`grant execute on function public.${signature} to service_role`]);
+  });
+
+  it.each(internalEngineFunctions)("grants %s to no API role", (signature) => {
+    expect(schedulingMigration).toContain(`revoke all on function public.${signature} from public, anon, authenticated, service_role;`);
+    expect(schedulingStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`))).toEqual([]);
+  });
+
+  it("keeps the staff time grid service-role only and its internals ungranted (A90)", () => {
+    const grid = "staff_available_slots(uuid, uuid, date, date, text, uuid)";
+    expect(staffBookingStatements).toContain(`revoke all on function public.${grid} from public, anon, authenticated`);
+    expect(staffBookingStatements.filter((statement) => statement.startsWith("grant "))).toEqual([`grant execute on function public.${grid} to service_role`]);
+    for (const signature of [
+      "staff_available_slots_at(uuid, uuid, date, date, text, uuid, timestamptz)",
+      "booking_service_context(uuid, uuid, text, boolean)",
+      "booking_service_context(uuid, uuid, text)",
+      "create_booking_at(uuid, jsonb, timestamptz)",
+    ]) {
+      expect(staffBookingStatements, signature).toContain(`revoke all on function public.${signature} from public, anon, authenticated, service_role`);
+    }
+    for (const name of ["staff_available_slots", "staff_available_slots_at", "create_booking_at"]) {
+      expect(functionDefinition(staffBookingsMigration, name), name).toMatch(/\nsecurity definer\nset search_path = ''\n/);
+    }
+  });
+
+  it("ties staff rules to a member of the booking's garage and keeps the bay check (A90)", () => {
+    const createBookingAt = functionDefinition(staffBookingsMigration, "create_booking_at");
+    expect(createBookingAt).toContain("if booking_source not in ('phone', 'walk_in') then");
+    expect(createBookingAt).toMatch(/member\.garage_id = p_garage_id\s+and member\.user_id = staff_member/);
+    expect(createBookingAt).toContain("when exclusion_violation then");
+    expect(functionDefinition(staffBookingsMigration, "staff_available_slots_at")).toMatch(/member\.garage_id = p_garage_id\s+and member\.user_id = p_member_id/);
+  });
+
+  it("runs the engine as security definer with an empty search_path", () => {
+    for (const name of ["available_slots", "available_slots_at", "create_booking", "create_booking_at", "seed_garage_defaults"]) {
+      expect(functionDefinition(schedulingMigration, name), name).toMatch(/\nsecurity definer\nset search_path = ''\n/);
+    }
+    expect(functionDefinition(schedulingMigration, "available_slots")).toMatch(/\nstable\nsecurity definer\n/);
+    expect(functionDefinition(schedulingMigration, "create_booking")).toMatch(/\nvolatile\nsecurity definer\n/);
+    expect(functionDefinition(schedulingMigration, "create_booking_at")).toContain("when exclusion_violation then");
+  });
+
+  it("lets staff change only booking status and notes, never create bookings", () => {
+    expect(schedulingMigration).toContain("grant update (status, notes, admin_seen_at, cancellation_reason) on public.bookings to authenticated;");
+    const staffBookingGrants = schedulingStatements.filter((statement) => /^grant [^;]* on public\.bookings to authenticated/.test(statement));
+    expect(staffBookingGrants.map((statement) => statement.replace(/\s+/g, " "))).toEqual([
+      "grant select on public.bookings to authenticated",
+      "grant update (status, notes, admin_seen_at, cancellation_reason) on public.bookings to authenticated",
+    ]);
+  });
+
+  it("gives anon nothing", () => {
+    const grants = schedulingStatements.filter((statement) => /^grant /i.test(statement));
+    expect(grants.filter((statement) => /\b(anon|public)\b(?!\.)/.test(statement.replace(/public\.\w+/g, "")))).toEqual([]);
+    const policies = schedulingStatements.filter((statement) => /^create policy/i.test(statement));
+    expect(policies.filter((statement) => /\bto (anon|public)\b/i.test(statement))).toEqual([]);
   });
 });

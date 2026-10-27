@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({ exchangeCodeForSession: vi.fn(), verifyOtp: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({ auth: authMocks })) }));
-vi.mock("@/config/site", () => ({ siteConfig: { siteUrl: "https://sobautofix.com" } }));
+vi.mock("@/lib/tenancy/urls", () => ({ adminBaseUrl: () => "https://autofix.vitalos.co.uk" }));
 
 import { GET, POST } from "@/app/auth/confirm/route";
 
-const recoveryUrl = "https://sobautofix.com/auth/confirm?token_hash=hashed-token&type=recovery&next=/admin/reset-password";
+const recoveryUrl = "https://autofix.vitalos.co.uk/auth/confirm?token_hash=hashed-token&type=recovery&next=/app/reset-password";
 
-function recoveryPost(overrides: Record<string, string> = {}, origin = "https://sobautofix.com") {
-  const values = { token_hash: "hashed-token", type: "recovery", next: "/admin/reset-password", ...overrides };
-  return new NextRequest("https://sobautofix.com/auth/confirm", {
+function recoveryPost(overrides: Record<string, string> = {}, origin = "https://autofix.vitalos.co.uk") {
+  const values = { token_hash: "hashed-token", type: "recovery", next: "/app/reset-password", ...overrides };
+  return new NextRequest("https://autofix.vitalos.co.uk/auth/confirm", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", origin },
     body: new URLSearchParams(values),
@@ -21,8 +21,8 @@ function recoveryPost(overrides: Record<string, string> = {}, origin = "https://
 function proxiedRecoveryPost() {
   return new NextRequest("https://internal-deployment.vercel.app/auth/confirm", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://sobautofix.com" },
-    body: new URLSearchParams({ token_hash: "hashed-token", type: "recovery", next: "/admin/reset-password" }),
+    headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://autofix.vitalos.co.uk" },
+    body: new URLSearchParams({ token_hash: "hashed-token", type: "recovery", next: "/app/reset-password" }),
   });
 }
 
@@ -51,21 +51,39 @@ describe("recovery auth confirmation callback", () => {
     authMocks.verifyOtp.mockResolvedValue({ error: null });
     const response = await POST(recoveryPost());
     expect(authMocks.verifyOtp).toHaveBeenCalledWith({ token_hash: "hashed-token", type: "recovery" });
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/reset-password");
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/reset-password");
   });
 
   it("accepts the canonical production origin behind a proxy deployment host", async () => {
     authMocks.verifyOtp.mockResolvedValue({ error: null });
     const response = await POST(proxiedRecoveryPost());
     expect(authMocks.verifyOtp).toHaveBeenCalledWith({ token_hash: "hashed-token", type: "recovery" });
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/reset-password");
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/reset-password");
+  });
+
+  it("accepts the pre-/app recovery link from the Supabase template and lands on /app", async () => {
+    const legacyUrl = "https://autofix.vitalos.co.uk/auth/confirm?token_hash=hashed-token&type=recovery&next=/admin/reset-password";
+    const page = await GET(new NextRequest(legacyUrl));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('name="next" value="/app/reset-password"');
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
+
+    authMocks.verifyOtp.mockResolvedValue({ error: null });
+    const response = await POST(recoveryPost({ next: "/admin/reset-password" }));
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/reset-password");
+  });
+
+  it("does not treat other /admin paths as recovery destinations", async () => {
+    const response = await POST(recoveryPost({ next: "/admin/enquiries" }));
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
   });
 
   it("rejects a missing token, invalid type, and unsafe destination", async () => {
     const invalidValues: Array<Record<string, string>> = [{ token_hash: "" }, { type: "invalid" }, { next: "https://evil.example" }];
     for (const values of invalidValues) {
       const response = await POST(recoveryPost(values));
-      expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+      expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
     }
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
   });
@@ -73,19 +91,61 @@ describe("recovery auth confirmation callback", () => {
   it("rejects cross-origin POSTs without attempting verification", async () => {
     const response = await POST(recoveryPost({}, "https://evil.example"));
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
   });
 
   it("handles failed Supabase verification as an invalid link", async () => {
     authMocks.verifyOtp.mockResolvedValue({ error: new Error("expired token") });
     const response = await POST(recoveryPost());
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
   });
 
   it("rejects a GET without a token or code", async () => {
-    const response = await GET(new NextRequest("https://sobautofix.com/auth/confirm?next=/admin/reset-password"));
+    const response = await GET(new NextRequest("https://autofix.vitalos.co.uk/auth/confirm?next=/app/reset-password"));
     expect(authMocks.verifyOtp).not.toHaveBeenCalled();
     expect(authMocks.exchangeCodeForSession).not.toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe("https://sobautofix.com/admin/login?error=invalid-link");
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/login?error=invalid-link");
+  });
+});
+
+describe("sign-up email confirmation (P4.4)", () => {
+  const signupUrl = "https://autofix.vitalos.co.uk/auth/confirm?token_hash=signup-hash&type=email&next=/signup/garage";
+  const signupPost = (overrides: Record<string, string> = {}, origin = "https://autofix.vitalos.co.uk") => new NextRequest("https://autofix.vitalos.co.uk/auth/confirm", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", origin },
+    body: new URLSearchParams({ token_hash: "signup-hash", type: "email", next: "/signup/garage", ...overrides }),
+  });
+
+  beforeEach(() => {
+    authMocks.verifyOtp.mockReset();
+  });
+
+  it("shows a click-through page on GET and does not use the token", async () => {
+    const response = await GET(new NextRequest(signupUrl));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Confirm and continue");
+    expect(html).toContain('name="next" value="/signup/garage"');
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("verifies on a same-origin POST and continues the wizard", async () => {
+    authMocks.verifyOtp.mockResolvedValue({ error: null });
+    const response = await POST(signupPost());
+    expect(authMocks.verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "signup-hash" });
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/signup/garage");
+  });
+
+  it("sends a used link to sign-in-and-continue", async () => {
+    authMocks.verifyOtp.mockResolvedValue({ error: new Error("expired") });
+    const response = await POST(signupPost());
+    expect(response.headers.get("location")).toBe("https://autofix.vitalos.co.uk/signup/garage?link=invalid");
+  });
+
+  it("refuses other destinations and cross-origin posts", async () => {
+    expect((await POST(signupPost({ next: "/app" }))).headers.get("location")).toContain("/app/login?error=invalid-link");
+    expect((await POST(signupPost({}, "https://evil.example"))).headers.get("location")).toContain("/app/login?error=invalid-link");
+    expect(authMocks.verifyOtp).not.toHaveBeenCalled();
   });
 });

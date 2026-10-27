@@ -2,8 +2,8 @@ import { z } from "zod";
 
 const emailSchema = z.email();
 
-export function conversationSubject(enquiryType: string) {
-  return `Re: Your SOB Autofix ${enquiryType.replaceAll("_", " ")} enquiry`.slice(0, 180);
+export function conversationSubject(garageName: string, enquiryType: string) {
+  return `Re: Your ${garageName.trim() || "garage"} ${enquiryType.replaceAll("_", " ")} enquiry`.slice(0, 180);
 }
 
 export function buildEnquiryReplyAddress(token: string, inboundDomain: string) {

@@ -40,41 +40,44 @@ describe("admin TOTP MFA", () => {
   it("uses a unique friendly name for every authenticator replacement", () => {
     const first = createMfaReplacementFriendlyName("11111111-1111-4111-8111-111111111111");
     const second = createMfaReplacementFriendlyName("22222222-2222-4222-8222-222222222222");
-    expect(first).toBe("SOB Autofix Admin Replacement 11111111");
-    expect(second).toBe("SOB Autofix Admin Replacement 22222222");
+    expect(first).toBe("Autofix Replacement 11111111");
+    expect(second).toBe("Autofix Replacement 22222222");
     expect(first).not.toBe(second);
-    expect(first).not.toBe("SOB Autofix Admin Replacement");
+    expect(first).not.toBe("Autofix Replacement");
   });
 
   it("allows only local admin return paths", () => {
-    expect(safeAdminReturnTo("/admin/enquiries?status=new")).toBe("/admin/enquiries?status=new");
-    expect(safeAdminReturnTo("https://evil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("//evil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("javascript:alert(1)")).toBe("/admin");
-    expect(safeAdminReturnTo("/%2f%2fevil.example/admin")).toBe("/admin");
-    expect(safeAdminReturnTo("http://[%zz")).toBe("/admin");
-    expect(safeAdminReturnTo("/admin?returnTo=https%3A%2F%2Fevil.example")).toBe("/admin?returnTo=https%3A%2F%2Fevil.example");
-    expect(safeAdminReturnTo("/admin/mfa")).toBe("/admin");
+    expect(safeAdminReturnTo("/app/enquiries?status=new")).toBe("/app/enquiries?status=new");
+    expect(safeAdminReturnTo("https://evil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("//evil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("javascript:alert(1)")).toBe("/app");
+    expect(safeAdminReturnTo("/%2f%2fevil.example/admin")).toBe("/app");
+    expect(safeAdminReturnTo("http://[%zz")).toBe("/app");
+    expect(safeAdminReturnTo("/app?returnTo=https%3A%2F%2Fevil.example")).toBe("/app?returnTo=https%3A%2F%2Fevil.example");
+    expect(safeAdminReturnTo("/app/mfa")).toBe("/app");
+    expect(safeAdminReturnTo("/application")).toBe("/app");
+    expect(safeAdminReturnTo("/admin/enquiries")).toBe("/app");
   });
 
   it("implements enrollment, challenge, removal and route enforcement", () => {
-    const securityActions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
-    const challengeAction = read("src", "app", "admin", "mfa", "actions.ts");
-    const protectedLayout = read("src", "app", "admin", "(protected)", "layout.tsx");
+    const securityActions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
+    const challengeAction = read("src", "app", "app", "mfa", "actions.ts");
+    const protectedLayout = read("src", "app", "app", "(protected)", "layout.tsx");
     const proxy = read("src", "proxy.ts");
     expect(securityActions).toContain("auth.mfa.enroll");
     expect(securityActions).toContain("challengeAndVerify");
     expect(securityActions).toContain("auth.mfa.unenroll");
     expect(challengeAction).toContain("That verification code is incorrect or has expired.");
-    expect(protectedLayout).toContain("getAdminUser({ requireMfa: false, allowTrustedDevice: true })");
+    expect(protectedLayout).toContain("getAdminContext({ requireMfa: false, allowTrustedDevice: true })");
     expect(protectedLayout).toContain('admin.mfaState === "enrollment_required"');
     expect(protectedLayout).toContain('admin.mfaState === "challenge_required"');
-    expect(proxy).toContain('challengeUrl.pathname = "/admin/mfa"');
-    expect(read("src", "lib", "supabase", "server.ts")).toContain("const profileClient = createAdminClient()");
+    expect(proxy).toContain('challengeUrl.pathname = "/app/mfa"');
+    // The MFA policy is read with the service role (platform table); the admin context gates on it.
+    expect(read("src", "lib", "tenancy", "admin.ts")).toContain("isMandatoryAdminMfaEnabled(service)");
   });
 
   it("does not persist authenticator secrets in application storage", () => {
-    const securityActions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const securityActions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     expect(securityActions).not.toContain('from("mfa');
     expect(securityActions).not.toContain('from("site_settings").insert');
     expect(securityActions).not.toContain("console.");
@@ -92,7 +95,7 @@ describe("admin TOTP MFA", () => {
   });
 
   it("enforces AAL2 in database authorization after MFA enrollment", () => {
-    const migration = read("supabase", "migrations", "202608130001_require_mfa_for_enrolled_admin.sql");
+    const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
     expect(migration).toContain("auth.mfa_factors");
     expect(migration).toContain("factor.status = 'verified'");
     expect(migration).toContain("auth.jwt() ->> 'aal'");

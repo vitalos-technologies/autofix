@@ -1,103 +1,76 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PriceMode, ServiceLocationMode } from "@/lib/booking-engine/types";
 
-export type CatalogueService = {
+// A garage's services (`services`, P2.1), for admin lists and invoice line
+// items. The Cal.com-era catalogue (vehicle systems + event-type mappings) is
+// gone; services are edited in Setup (P3.4). Admin pages pass their RLS garage
+// client and every query is still filtered by `garage_id`.
+
+export type GarageService = {
   id: string;
-  key: string;
   name: string;
   description: string;
-  locationMode: "workshop" | "mobile" | "both";
-  providerEventTypeId: number | null;
-  onlineBookingEnabled: boolean;
-  sortOrder: number;
+  durationMin: number;
+  pricePence: number | null;
+  priceMode: PriceMode;
+  locationMode: ServiceLocationMode;
+  onlineEnabled: boolean;
+  isMot: boolean;
+  sort: number;
 };
 
+/** Services grouped for pickers (the invoice form). One group per garage for now. */
 export type CatalogueSystem = {
   id: string;
   key: string;
   name: string;
   description: string;
   sortOrder: number;
-  services: CatalogueService[];
+  services: GarageService[];
 };
 
-type CatalogueRow = {
+type ServiceRow = {
   id: string;
-  system_id: string;
-  service_key: string;
-  display_name: string;
-  description: string;
-  location_mode: "workshop" | "mobile" | "both";
-  provider_event_type_id: number | null;
-  online_booking_enabled: boolean;
-  sort_order: number;
+  name: string;
+  description: string | null;
+  duration_min: number;
+  price_pence: number | null;
+  price_mode: PriceMode;
+  location_mode: ServiceLocationMode;
+  online_enabled: boolean | null;
+  is_mot: boolean | null;
+  sort: number | null;
 };
 
-type SystemRow = { id: string; system_key: string; display_name: string; description: string; sort_order: number };
-
-export async function listServiceCatalogue(options: { bookableOnly?: boolean } = {}): Promise<CatalogueSystem[]> {
-  const client = createAdminClient();
-  if (!client) return [];
-
-  const systemsQuery = client
-    .from("service_catalogue_systems")
-    .select("id,system_key,display_name,description,sort_order")
+export async function listGarageServices(client: SupabaseClient | null, garageId: string): Promise<GarageService[]> {
+  if (!client || !garageId) return [];
+  const { data, error } = await client
+    .from("services")
+    .select("id,name,description,duration_min,price_pence,price_mode,location_mode,online_enabled,is_mot,sort")
+    .eq("garage_id", garageId)
     .is("deleted_at", null)
-    .order("sort_order", { ascending: true });
-  let serviceData: unknown[] | null = null;
-  let serviceFailed = false;
-  if (options.bookableOnly) {
-    const result = await client
-      .from("booking_service_types")
-      .select("id,system_id,service_key,display_name,description,location_mode,provider_event_type_id,online_booking_enabled,sort_order")
-      .is("deleted_at", null)
-      .not("system_id", "is", null)
-      .eq("online_booking_enabled", true)
-      .eq("provider", "calcom")
-      .not("provider_event_type_id", "is", null)
-      .order("sort_order", { ascending: true });
-    serviceData = result.data;
-    serviceFailed = Boolean(result.error);
-  } else {
-    const result = await client
-      .from("booking_service_types")
-      .select("id,system_id,service_key,display_name,description,location_mode,provider_event_type_id,online_booking_enabled,sort_order")
-      .is("deleted_at", null)
-      .not("system_id", "is", null)
-      .order("sort_order", { ascending: true });
-    serviceData = result.data;
-    serviceFailed = Boolean(result.error);
-  }
-
-  const { data: systemData, error: systemError } = await systemsQuery;
-  if (systemError || serviceFailed || !systemData || !serviceData) return [];
-
-  const systems = new Map<string, CatalogueSystem>((systemData as SystemRow[]).map((row) => [row.id, {
+    .order("sort", { ascending: true })
+    .order("name", { ascending: true });
+  if (error || !data) return [];
+  return (data as ServiceRow[]).map((row) => ({
     id: row.id,
-    key: row.system_key,
-    name: row.display_name,
-    description: row.description,
-    sortOrder: row.sort_order,
-    services: [],
-  }]));
-  for (const row of serviceData as unknown as CatalogueRow[]) {
-    const system = systems.get(row.system_id);
-    if (!system) continue;
-    system.services.push({
-      id: row.id,
-      key: row.service_key,
-      name: row.display_name,
-      description: row.description,
-      locationMode: row.location_mode,
-      providerEventTypeId: row.provider_event_type_id,
-      onlineBookingEnabled: row.online_booking_enabled,
-      sortOrder: row.sort_order,
-    });
-  }
+    name: row.name,
+    description: row.description ?? "",
+    durationMin: row.duration_min,
+    pricePence: row.price_pence,
+    priceMode: row.price_mode,
+    locationMode: row.location_mode,
+    onlineEnabled: Boolean(row.online_enabled),
+    isMot: Boolean(row.is_mot),
+    sort: row.sort ?? 0,
+  }));
+}
 
-  return [...systems.values()]
-    .filter((system) => !options.bookableOnly || system.services.length > 0)
-    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "en-GB"))
-    .map((system) => ({ ...system, services: system.services.toSorted((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "en-GB")) }));
+/** The garage's services as one picker group (empty when it has none). */
+export async function listServiceCatalogue(client: SupabaseClient | null, garageId: string): Promise<CatalogueSystem[]> {
+  const services = await listGarageServices(client, garageId);
+  if (!services.length) return [];
+  return [{ id: "services", key: "services", name: "Services", description: "", sortOrder: 0, services }];
 }

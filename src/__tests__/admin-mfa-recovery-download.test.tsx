@@ -2,9 +2,9 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { formatMfaRecoveryCodesDownload, RecoveryCodeDisplay } from "@/app/admin/(protected)/configuration/security/recovery-codes-panel";
+import { formatMfaRecoveryCodesDownload, RecoveryCodeDisplay } from "@/app/app/(protected)/configuration/security/recovery-codes-panel";
 
-vi.mock("@/app/admin/(protected)/configuration/security/actions", () => ({
+vi.mock("@/app/app/(protected)/configuration/security/actions", () => ({
   regenerateMfaRecoveryCodes: vi.fn(),
 }));
 

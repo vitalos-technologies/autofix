@@ -4,14 +4,31 @@ on:
   push:
   pull_request:
 
+# Pushes to the same branch replace each other's runs instead of queueing on the VM.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Jobs run on autofix's self-hosted runners on the AWS build VM (infrastructure/RUNNER.md). To go back to
+# GitHub-hosted runners, set the repository variable RUNS_ON to "ubuntu-24.04" (JSON, with the quotes).
+#
+# Several runners share one machine and one user. Every job that starts Supabase or serves the app runs
+# scripts/ci/supabase-isolate.sh first: it gives the job its own Supabase project (autofix-ci-<N>, ports
+# shifted by N*100) and its own app ports (3400 + N*10 + 1..4), N being the runner's number. Each runner
+# runs one job at a time, so stacks and ports never collide and no shared concurrency group is needed.
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -22,15 +39,25 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # pgTAP, the PostgREST suites (incl. the Gate 1 tenancy suite), the demo seed, the host-routing
+  # smoke and the invoice PDF access tests.
   database-tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
+      - name: Sample VM memory during the job (shared build VM capacity check)
+        run: |
+          free -h
+          nohup bash -c 'while true; do echo "$(date +%s) $(awk "/MemAvailable/ {print \$2}" /proc/meminfo)" >> "$RUNNER_TEMP/mem.log"; sleep 5; done' >/dev/null 2>&1 &
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -39,58 +66,186 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
       - name: Start isolated local Supabase
-        run: supabase start
+        # Only the services the tests use; vector/logflare would mount the Docker socket, which rootless Docker doesn't expose.
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
       - name: Rebuild local database from migrations
         run: supabase db reset --local --no-seed
       - name: Run PostgreSQL policy and integrity tests
         run: supabase test db --local supabase/tests/database
       - name: Export local-only API credentials
-        shell: bash
+        run: bash scripts/ci/supabase-env.sh
+      - name: Seed demo data (twice, to prove it is idempotent)
         run: |
-          eval "$(supabase status -o env)"
-          echo "INTEGRATION_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "INTEGRATION_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}" >> "$GITHUB_ENV"
-          echo "INTEGRATION_SUPABASE_SECRET_KEY=${SECRET_KEY:-$SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
-      - name: Run PostgREST and concurrency tests
+          pnpm db:seed
+          pnpm db:seed
+      # tests/integration/**/*.test.ts: includes booking-concurrency.test.ts (Gate 2: 100 parallel create_booking() on 3 bays).
+      - name: Run PostgREST, tenancy (Gate 1) and booking concurrency (Gate 2) tests
         run: pnpm exec vitest run --config vitest.integration.config.ts
-      - name: Install Chromium for authenticated PDF tests
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium for browser tests
+        run: pnpm exec playwright install chromium
+      - name: Build against local Supabase
+        run: pnpm build
+      - name: Host-routing smoke against the production build
+        run: PLAYWRIGHT_PORT="$PLAYWRIGHT_SMOKE_PORT" pnpm test:e2e:smoke
+      # Runs `pnpm dev`, so it comes after the production build.
       - name: Run isolated authenticated PDF access tests
         run: pnpm test:e2e:local-invoicing
+      - name: Keep Playwright reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-tests-playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Remove isolated local Supabase data
         if: always()
-        run: supabase stop --no-backup
+        run: scripts/ci/supabase-stop.sh
+      - name: Report VM memory (lowest MemAvailable during this job)
+        if: always()
+        run: |
+          free -h
+          sort -k2 -n "$RUNNER_TEMP/mem.log" | head -1 | awk '{printf "Lowest available memory during the job: %.1f GiB\n", $2/1048576}'
+          awk 'NR==1{first=$2} {last=$2} END{printf "Available at start %.1f GiB, at end %.1f GiB, %d samples\n", first/1048576, last/1048576, NR}' "$RUNNER_TEMP/mem.log"
 
+  # Booking pages live on garage hosts (http://hartley-road.localhost:<port>/), which resolve through the
+  # database, so browser tests run against a seeded Supabase too.
   browser-tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e --project=chromium
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
+      - name: Start isolated local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
+      - name: Rebuild local database from migrations
+        run: supabase db reset --local --no-seed
+      - name: Export local-only API credentials
+        run: bash scripts/ci/supabase-env.sh
+      # The booking pages seal the af_booking cookie and sign manage links; production builds refuse to without keys.
+      # Throwaway per-job values, never stored anywhere.
+      - name: Generate this job's booking keys
+        run: |
+          state_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          manage_key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$state_key"
+          echo "::add-mask::$manage_key"
+          {
+            echo "BOOKING_STATE_SECRET=$state_key"
+            echo "BOOKING_MANAGEMENT_SECRET=$manage_key"
+          } >> "$GITHUB_ENV"
+      - name: Seed demo data
+        run: pnpm db:seed
+      - run: pnpm exec playwright install chromium
+      - name: Build against local Supabase
+        run: pnpm build
+      # Gate 2. playwright.garage.config.ts pins BOOKING_ENGINE=supabase (create_booking() in this job's Supabase).
+      - name: 5-step booking flow on the real engine (desktop, Pixel 5, 390x844; axe on every step)
+        run: pnpm test:e2e:booking
+      - name: Manage booking on the seeded garage host (390px)
+        run: pnpm test:e2e:manage
+      - name: Setup pages for a TOTP owner on its own garage, checked on its booking site (axe at 390 and 1440)
+        run: pnpm test:e2e:settings
+      - name: Garage admin on the admin host (TOTP sign-in, Today, bookings, diary, garage switch; 1440 and 390px)
+        run: pnpm test:e2e:admin
+      - name: Super admin for a TOTP platform admin (404s, plan/status, read-only impersonation, job retry; axe at 390 and 1440)
+        run: pnpm test:e2e:super-admin
+      - name: Booking page and domain settings (free link, QR, custom domain on mock Vercel, embed CSP, Askbridge; axe at 390 and 1440)
+        run: pnpm test:e2e:booking-page
+      - name: Sign-up to a live booking page in under 15 minutes (local Mailpit, mock Places; axe at 390 and 1440)
+        run: pnpm test:e2e:signup
+      - name: Gate 3, a reminder link books a car credited to the reminder (schedule via /api/jobs/drain, mock SMS, /r/ link, 5 steps, Today's won back; axe at 390 and 1440)
+        run: pnpm test:e2e:gate3
+      - name: Admin-host browser tests (desktop and Pixel 5; customer import, invoice access)
+        run: pnpm test:e2e
+      - name: Keep Playwright reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-tests-playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove isolated local Supabase data
+        if: always()
+        run: scripts/ci/supabase-stop.sh
 
   lighthouse:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.1
+          # Both runners share one user and $HOME; the default ~/setup-pnpm made concurrent jobs delete each other's pnpm.
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm build
-      - run: pnpm test:lighthouse
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.113.0
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
+      - name: Start isolated local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
+      - name: Rebuild local database from migrations
+        run: supabase db reset --local --no-seed
+      - name: Export local-only API credentials
+        run: bash scripts/ci/supabase-env.sh
+      - name: Seed demo data
+        run: pnpm db:seed
+      - run: pnpm exec playwright install chromium
+      - name: Use Playwright's Chromium for Lighthouse (no system Chrome on the runner)
+        run: echo "CHROME_PATH=$(node -e 'console.log(require("@playwright/test").chromium.executablePath())')" >> "$GITHUB_ENV"
+      - name: Build against local Supabase
+        run: pnpm build
+      - name: Lighthouse (mobile) on http://hartley-road.localhost:$LIGHTHOUSE_PORT/
+        run: pnpm test:lighthouse
+      - name: Keep Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove isolated local Supabase data
+        if: always()
+        run: scripts/ci/supabase-stop.sh

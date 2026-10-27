@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { recordUserSecurityEvent } from "@/lib/admin/audit";
 import { createAdminClient } from "@/lib/supabase/server";
 import { clearTrustedDeviceCookie } from "@/lib/auth/trusted-device-server";
 import {
@@ -140,13 +141,7 @@ export async function completeMfaRecovery(userId: string, sessionId: string, new
     .select("id")
     .maybeSingle();
   if (error || data?.id !== sessionId) return false;
-  await client.from("admin_audit_log").insert({
-    actor_id: userId,
-    action: "mfa_factor_replaced",
-    entity_type: "admin_security",
-    entity_id: userId,
-    detail: { recoverySessionId: sessionId, newFactorId },
-  });
+  await recordUserSecurityEvent(userId, "mfa_factor_replaced", { recoverySessionId: sessionId, newFactorId }, {}, client);
   await clearMfaRecoveryCookie();
   return true;
 }
@@ -160,13 +155,7 @@ export async function revokeMfaRecoveryMaterial(userId: string, reason: string) 
     client.from("admin_mfa_recovery_sessions").update({ revoked_at: revokedAt }).eq("user_id", userId).is("completed_at", null).is("revoked_at", null),
   ]);
   if (codes.error || sessions.error) return false;
-  await client.from("admin_audit_log").insert({
-    actor_id: userId,
-    action: "mfa_recovery_material_revoked",
-    entity_type: "admin_security",
-    entity_id: userId,
-    detail: { reason },
-  });
+  await recordUserSecurityEvent(userId, "mfa_recovery_material_revoked", { reason }, {}, client);
   await clearMfaRecoveryCookie();
   return true;
 }

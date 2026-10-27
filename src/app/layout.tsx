@@ -1,39 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, Inter } from "next/font/google";
-import siteIcon from "../../assets/sobautofix_siteicon.png";
-import { SiteChrome } from "@/components/layout/site-chrome";
-import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
-import { siteConfig } from "@/config/site";
-import { getSiteSettings } from "@/lib/settings/repository";
-import { getPublicNavigation } from "@/lib/navigation/repository";
+import { fontVariables } from "./fonts";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional", preload: false });
-const barlow = Barlow_Condensed({ subsets: ["latin"], weight: "700", variable: "--font-barlow", display: "optional", preload: false });
-
+// The app icon is `src/app/icon.svg` (Next.js metadata file convention).
 export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.siteUrl),
-  title: { default: `${siteConfig.tagline} | ${siteConfig.name}`, template: `%s | ${siteConfig.name}` },
-  description: "Professional vehicle diagnostics, electrical fault finding, repairs, servicing and vehicle sales in Doncaster.",
-  applicationName: siteConfig.name,
-  icons: {
-    icon: [{ url: siteIcon.src, type: "image/png" }],
-    apple: [{ url: siteIcon.src, type: "image/png" }],
-  },
-  verification: { google: process.env.GOOGLE_SEARCH_CONSOLE_VERIFICATION },
+  title: { default: "Autofix", template: "%s | Autofix" },
+  description: "Online booking and garage management.",
+  applicationName: "Autofix",
+  // The admin host must never be indexed. Garage booking sites set their own
+  // robots rules in the /_site layout.
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#030712" };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [settings, navigation] = await Promise.all([getSiteSettings(), getPublicNavigation()]);
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" data-scroll-behavior="smooth" className={`${inter.variable} ${barlow.variable}`}>
-      <body>
-        <VehicleSessionProvider>
-          <SiteChrome settings={settings} navigation={navigation}>{children}</SiteChrome>
-        </VehicleSessionProvider>
-      </body>
+    <html lang="en-GB" data-scroll-behavior="smooth" className={fontVariables}>
+      {/* No main landmark here: the admin shell, the booking site layout and each standalone page render their own. */}
+      <body>{children}</body>
     </html>
   );
 }

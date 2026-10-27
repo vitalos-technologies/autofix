@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/app/admin/(protected)/invoices/actions", () => ({
+vi.mock("@/app/app/(protected)/invoices/actions", () => ({
   saveInvoiceDraftAction: vi.fn(),
 }));
 

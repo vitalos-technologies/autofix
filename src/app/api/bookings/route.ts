@@ -1,35 +1,63 @@
-import { NextRequest, NextResponse } from "next/server";
-import { BookingWorkflowError, createBooking } from "@/lib/bookings/repository";
-import { createBookingSchema } from "@/lib/bookings/schema";
+import type { NextRequest } from "next/server";
+import { z } from "zod";
+import { getBookingEngine } from "@/lib/booking-engine";
+import { bookingErrorMessages, bookingErrorStatus } from "@/lib/booking-engine/errors";
+import { bodyErrorResponse, errorResponse, jsonResponse, readJsonBody, requesterIp, validationIssues } from "@/lib/booking-engine/http";
+import { manageBookingUrl } from "@/lib/booking-engine/manage";
+import { createBookingInputSchema } from "@/lib/booking-engine/types";
+import { toE164UK } from "@/lib/messaging/phone";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { resolveRouteGarage } from "@/lib/tenancy/route";
+import { verifyTurnstile } from "@/lib/turnstile";
 
-function requesterIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+// The body is the booking only. The garage is the request host's; `source` is
+// always "online" here and a reminder attribution only ever comes from a
+// verified reminder link (server side), so neither may be sent. The schema is
+// strict: a garage id (or anything else unexpected) in the body is a 422.
+const publicBookingSchema = createBookingInputSchema
+  .omit({ source: true, reminderSendId: true })
+  .extend({ turnstileToken: z.string().trim().min(1).max(4096).optional() });
+
+const tooMany = () => errorResponse(429, "RATE_LIMITED", bookingErrorMessages.RATE_LIMITED);
+
+/** Turnstile is enforced whenever its secret is configured. */
+function turnstileConfigured() {
+  return Boolean(process.env.TURNSTILE_SECRET_KEY?.trim());
 }
 
 export async function POST(request: NextRequest) {
-  const ip = requesterIp(request);
-  if (!(await consumeRateLimit(ip, "booking_create_ip", 5, 600))) {
-    return NextResponse.json({ error: { code: "rate_limited", message: "Too many booking attempts. Please wait before trying again." } }, { status: 429 });
-  }
-  const parsed = createBookingSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: { code: "invalid_request", message: "Check the booking details and try again." } }, { status: 400 });
-  }
-  if (!(await consumeRateLimit(`${ip}:${parsed.data.customer.email}`, "booking_create_details", 5, 1_800))) {
-    return NextResponse.json({ error: { code: "rate_limited", message: "Too many booking attempts. Please wait before trying again." } }, { status: 429 });
-  }
-  try {
-    const booking = await createBooking(parsed.data);
-    return NextResponse.json({ booking }, { status: 201, headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    if (error instanceof BookingWorkflowError) {
-      const status = error.code === "slot_unavailable" || error.code === "processing" ? 409
-        : error.code === "service_unavailable" ? 422
-          : 503;
-      return NextResponse.json({ error: { code: error.code, message: error.message } }, { status, headers: { "Cache-Control": "no-store" } });
-    }
-    return NextResponse.json({ error: { code: "provider_unavailable", message: "We couldn't complete this booking. Please try again." } }, { status: 503 });
-  }
-}
+  const { garage, response } = await resolveRouteGarage();
+  if (response) return response;
 
+  const ip = requesterIp(request);
+  if (!(await consumeRateLimit(ip, "booking_create_ip", 5, 600)) || !(await consumeRateLimit(garage.id, "booking_create_garage", 200, 600))) {
+    return tooMany();
+  }
+
+  const body = await readJsonBody(request);
+  if (!body.ok) return bodyErrorResponse(body.status);
+  const parsed = publicBookingSchema.safeParse(body.value);
+  if (!parsed.success) {
+    return errorResponse(422, "INVALID_BOOKING", bookingErrorMessages.INVALID_BOOKING, { issues: validationIssues(parsed.error) });
+  }
+  const { turnstileToken, ...booking } = parsed.data;
+
+  if (turnstileConfigured() && !(await verifyTurnstile(turnstileToken, ip))) {
+    return errorResponse(403, "TURNSTILE_FAILED", bookingErrorMessages.TURNSTILE_FAILED);
+  }
+
+  // Per customer as well (the identifier is hashed before it is stored).
+  const phoneKey = toE164UK(booking.customer.phone) ?? booking.customer.phone;
+  if (!(await consumeRateLimit(`${garage.id}:${ip}:${phoneKey}`, "booking_create_details", 5, 1_800))) return tooMany();
+
+  const result = await getBookingEngine().createBooking(garage.id, { ...booking, source: "online" });
+  if (!result.ok) {
+    return errorResponse(bookingErrorStatus[result.code], result.code, result.message, result.alternatives ? { alternatives: result.alternatives } : {});
+  }
+
+  const { reference, status, startsAt, endsAt, manageToken } = result.booking;
+  return jsonResponse({
+    booking: { reference, status, startsAt, endsAt, manageUrl: manageBookingUrl(garage, manageToken) },
+    replayed: result.replayed,
+  }, result.replayed ? 200 : 201);
+}

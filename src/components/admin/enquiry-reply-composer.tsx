@@ -29,7 +29,7 @@ export function EnquiryReplyComposer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="composer-heading" className="text-xl font-extrabold text-[#071127]">Write a message</h2>
         <div className="inline-flex rounded-xl bg-[#F1F5F9] p-1" aria-label="Message type">
-          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-[#1974E2] shadow-sm" : "text-[#586575]"}`}>Reply to customer</button>
+          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-accent shadow-sm" : "text-[#586575]"}`}>Reply to customer</button>
           <button type="button" onClick={() => setMode("note")} aria-pressed={mode === "note"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "note" ? "bg-amber-100 text-amber-950 shadow-sm" : "text-[#586575]"}`}>Internal note</button>
         </div>
       </div>
@@ -46,7 +46,7 @@ export function EnquiryReplyComposer({
       ) : (
         <form action={submitNote} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <input type="hidden" name="enquiryId" value={enquiryId} />
-          <p className="text-sm font-bold text-amber-950">Only SOB Autofix staff can see this. It will never be emailed.</p>
+          <p className="text-sm font-bold text-amber-950">Only your garage team can see this. It will never be emailed.</p>
           <label htmlFor="note-body" className="sr-only">Internal note</label>
           <textarea id="note-body" name="body" key={noteState.clientRequestId} defaultValue={noteState.draft} required maxLength={20000} rows={5} disabled={pending} className="mt-3 w-full resize-y rounded-xl border border-amber-300 bg-white px-4 py-3 leading-7 text-[#071127] outline-none focus:ring-2 focus:ring-amber-400/30" placeholder="Add a private note..." />
           <ComposerFooter state={noteState} pending={pending} label="Save as note" />

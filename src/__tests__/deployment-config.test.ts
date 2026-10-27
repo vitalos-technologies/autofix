@@ -6,8 +6,10 @@ const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Arra
 const envExample = readFileSync(".env.example", "utf8");
 
 describe("production deployment configuration", () => {
-  it("uses only a daily retention cron on Vercel Hobby", () => {
-    expect(vercel.crons).toEqual([{ path: "/api/cron/retention", schedule: "15 3 * * *" }]);
+  it("uses one daily cron on Vercel Hobby, inside the reminders send window", () => {
+    // 11:00 UTC is 11:00 (GMT) or 12:00 (BST) in London: after the 10:00 reminder time, inside
+    // 09:00–19:00, and Hobby's within-the-hour start still lands before 13:00.
+    expect(vercel.crons).toEqual([{ path: "/api/cron/daily", schedule: "0 11 * * *" }]);
   });
 
   it("uses the Supabase secret-key contract without the legacy variable", () => {
@@ -18,7 +20,10 @@ describe("production deployment configuration", () => {
     expect(requiredProductionVariables).toContain("RESEND_WEBHOOK_SECRET");
     expect(requiredProductionVariables).toContain("CLOUDFLARE_EMAIL_WEBHOOK_SECRET");
     expect(requiredProductionVariables).not.toContain("RESEND_INBOUND_DOMAIN");
-    expect(envExample).toContain("ENQUIRY_REPLY_DOMAIN=reply.sobautofix.com");
+    expect(envExample).toContain("ENQUIRY_REPLY_DOMAIN=reply.autofix.vitalos.co.uk");
+    // Single-business notification addresses are gone: staff alerts go to each garage's own email.
+    expect(requiredProductionVariables).not.toContain("ENQUIRY_NOTIFICATION_EMAIL");
+    expect(requiredProductionVariables).not.toContain("RESEND_REPLY_TO");
   });
 
   it("does not make safe-fallback integrations production blockers", () => {
@@ -29,7 +34,7 @@ describe("production deployment configuration", () => {
   });
 
   it("keeps booking credentials server-only and separately degradable", () => {
-    expect(requiredBookingVariables).toEqual(["CALCOM_API_KEY", "CALCOM_WEBHOOK_SECRET", "CALCOM_DEFAULT_TIMEZONE", "BOOKING_MANAGEMENT_SECRET"]);
+    expect(requiredBookingVariables).toEqual(["BOOKING_MANAGEMENT_SECRET"]);
     for (const name of requiredBookingVariables) {
       expect(envExample).toContain(`${name}=`);
       expect(name).not.toMatch(/^NEXT_PUBLIC_/);

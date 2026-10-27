@@ -1,17 +1,27 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { calculateInvoiceTotals, calculateLineTotalPence, formatPence, invoicePaymentSummary, poundsToPence } from "@/lib/invoices/money";
 import { invoiceDraftSchema, paymentSchema } from "@/lib/invoices/schema";
-import { renderInvoicePdf } from "@/lib/invoices/pdf";
+import { invoiceFileName, loadGarageLogo, renderInvoicePdf as renderGaragePdf } from "@/lib/invoices/pdf";
 import type { Invoice } from "@/lib/invoices/types";
+import type { Garage } from "@/lib/tenancy/garage";
+import { testGarage } from "./support/garage";
+
+const garage = testGarage({ invoicePayment: { accountName: "Hartley Road Motors Ltd", sortCode: "00-11-22", accountNumber: "12345678" } });
+const renderInvoicePdf = (invoice: Invoice, invoiceGarage: Garage = garage) => renderGaragePdf(invoice, invoiceGarage);
+// A 1x1 transparent PNG standing in for a garage's uploaded logo.
+const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 const root = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(root, ...parts), "utf8");
-const migration = read("supabase", "migrations", "202608110008_invoicing.sql");
+const baseline = read("supabase", "migrations", "20261026000000_baseline.sql");
+const migration = read("supabase", "migrations", "20261026000100_tenancy.sql");
 
 describe("garage invoicing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("parses GBP to integer pence without floating-point arithmetic", () => {
     expect(poundsToPence("1,234.56")).toBe(123456n);
     expect(formatPence(123456n)).toBe("£1,234.56");
@@ -43,7 +53,8 @@ describe("garage invoicing", () => {
   });
 
   it("allocates sequential numbers safely under concurrency", () => {
-    expect(migration).toMatch(/on conflict \(invoice_year\) do update\s+set last_value/);
+    expect(migration).toMatch(/on conflict \(garage_id, invoice_year\) do update\s+set last_value/);
+    expect(migration).toContain("primary key (garage_id, invoice_year)");
     expect(migration).toContain("lpad(allocated_sequence::text, 6, '0')");
     expect(migration).not.toMatch(/max\s*\(\s*invoice_number/i);
   });
@@ -55,23 +66,23 @@ describe("garage invoicing", () => {
     expect(migration).toContain("ONLY_DRAFT_INVOICES_CAN_BE_DELETED");
   });
 
-  it("protects all invoice data with admin RLS", () => {
-    for (const table of ["invoice_number_sequences", "invoices", "invoice_items", "invoice_email_attempts"]) expect(migration).toContain(`alter table public.${table} enable row level security;`);
-    expect(migration).toContain("using (public.is_admin())");
-    expect(migration).toContain("revoke all on table public.invoices from public, anon");
+  it("protects all invoice data with garage RLS", () => {
+    for (const table of ["invoice_number_sequences", "invoices", "invoice_items", "invoice_email_attempts"]) expect(baseline).toContain(`alter table public.${table} enable row level security;`);
+    expect(migration).toContain(`create policy "garage members read invoices" on public.invoices\n  for select to authenticated using (garage_id = (select public.current_garage_id()));`);
+    expect(migration).toContain("revoke all on all tables in schema public from public, anon, authenticated, service_role;");
     expect(migration).not.toMatch(/to anon[^;]+invoices/i);
   });
 
   it("uses persisted bookings and warns before duplicates", () => {
-    const page = read("src", "app", "admin", "(protected)", "invoices", "new", "page.tsx");
+    const page = read("src", "app", "app", "(protected)", "invoices", "new", "page.tsx");
     expect(page).toContain('from("bookings")');
     expect(page).toContain("An invoice already exists for this booking");
     expect(page).not.toContain("fetch(\"https://");
   });
 
   it("supports protected invoice search fields", () => {
-    const page = read("src", "app", "admin", "(protected)", "invoices", "page.tsx");
-    const dashboardMigration = read("supabase", "migrations", "202608110009_invoice_dashboard_query.sql");
+    const page = read("src", "app", "app", "(protected)", "invoices", "page.tsx");
+    const dashboardMigration = migration;
     for (const field of ["invoice_number", "customer_name", "customer_email", "customer_phone", "vehicle_registration"]) expect(dashboardMigration).toContain(field);
     expect(page).toContain("loadInvoiceDashboard");
     expect(page).not.toContain(".limit(500)");
@@ -80,14 +91,16 @@ describe("garage invoicing", () => {
 
   it("authenticates the PDF route and disables caching", () => {
     const route = read("src", "app", "api", "admin", "invoices", "[id]", "pdf", "route.ts");
-    expect(route).toContain("getAdminUser"); expect(route).toContain("Unauthorised"); expect(route).toContain("private, no-store"); expect(route).toContain('"Content-Type": "application/pdf"');
+    expect(route).toContain("getAdminContext"); expect(route).toContain("Unauthorised"); expect(route).toContain("private, no-store"); expect(route).toContain('"Content-Type": "application/pdf"');
   });
 
   it("routes invoice delivery through the claimed persistent send workflow", () => {
     const repository = read("src", "lib", "invoices", "repository.ts");
     expect(repository).toContain('rpc("claim_invoice_email_send"');
     expect(repository).toContain('rpc("finalize_invoice_email_send"');
-    expect(repository).toContain("renderInvoicePdf(invoice)");
+    expect(repository).toContain("renderInvoicePdf(invoice, garage)");
+    expect(repository).toContain('rpc("finalize_invoice_email_send", { p_garage_id: garage.id');
+    expect(repository).toContain('rpc("fail_invoice_email_send", { p_garage_id: garage.id');
     expect(repository).not.toContain('.from("invoice_email_attempts").insert');
   });
 
@@ -99,10 +112,15 @@ describe("garage invoicing", () => {
     const parsed = await parsePdf(buffer);
     expect(parsed.pages).toBeGreaterThan(1);
     expect(parsed.pageTexts.every((page) => page.includes("UNPAID"))).toBe(true);
-    expect(parsed.pageImageCounts.every((count) => count > 0)).toBe(true);
-    expect(parsed.text).toContain("SOB-2026-000001");
+    // No logo: every page carries the garage's name instead.
+    expect(parsed.pageImageCounts.every((count) => count === 0)).toBe(true);
+    expect(parsed.pageTexts.every((page) => page.includes("HARTLEY ROAD MOTORS"))).toBe(true);
+    expect(parsed.pageTexts.every((page) => page.includes("Invoice produced with Autofix"))).toBe(true);
+    expect(parsed.text).toContain("HRM-2026-000001");
     const text = parsed.text;
     expect(text).toContain("UNPAID");
+    expect(text).toContain("hartley-road.");
+    expect(text).not.toMatch(/SOB|sobautofix/i);
     expect(text).toContain("A Customer With A Deliberately Long Trading Name Limited");
     expect(text).toContain("Electrical fault tracing");
     expect(text).toContain("TOTAL GBP");
@@ -161,7 +179,14 @@ describe("garage invoicing", () => {
       invoice_payments: [{ id: "payment-1", amount_pence: 30000, paid_at: "2026-08-12T12:00:00Z", payment_method: "bank_transfer" as const, payment_reference: "PART-1", created_at: "2026-08-12T12:00:00Z" }],
     };
     const { text } = await parsePdf(await renderInvoicePdf(invoice));
-    for (const value of ["TOTAL GBP", "£1,000.00", "AMOUNT PAID", "£300.00", "BALANCE DUE", "£700.00", "30-54-66", "45-67-68 60"]) expect(text).toContain(value);
+    for (const value of ["TOTAL GBP", "£1,000.00", "AMOUNT PAID", "£300.00", "BALANCE DUE", "£700.00", "Pay to: Hartley Road Motors Ltd", "00-11-22", "12345678"]) expect(text).toContain(value);
+  }, 20_000);
+
+  it("leaves bank details out when the garage has none", async () => {
+    const { text } = await parsePdf(await renderInvoicePdf(representativeInvoice("issued", 1), testGarage({ invoicePayment: null })));
+    expect(text).toContain("Payment due by 18 August 2026.");
+    expect(text).not.toContain("Sort code");
+    expect(text).not.toContain("Pay to");
   }, 20_000);
 
   it("renders the immutable issuer snapshot instead of deploy-time business settings", async () => {
@@ -173,17 +198,25 @@ describe("garage invoicing", () => {
     expect(text).toContain("Company no. 00000001");
   }, 20_000);
 
-  it("embeds the approved optimized official logo without a runtime network request", async () => {
-    const logo = readFileSync(join(root, "public", "brand", "sob-autofix-logo-invoice.png"));
-    expect(logo.subarray(1, 4).toString()).toBe("PNG");
-    expect(logo.readUInt32BE(16)).toBe(340);
-    expect(logo.readUInt32BE(20)).toBe(227);
-    expect(logo.length).toBeLessThan(150_000);
-
-    const parsed = await parsePdf(await renderInvoicePdf(representativeInvoice("issued", 1)));
+  it("embeds the garage's own logo when it has an https logo", async () => {
+    const fetchLogo = vi.fn(async () => new Response(tinyPng, { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchLogo);
+    const parsed = await parsePdf(await renderInvoicePdf(representativeInvoice("issued", 1), testGarage({ logoUrl: "https://cdn.example.test/hartley.png" })));
+    expect(fetchLogo).toHaveBeenCalledWith(new URL("https://cdn.example.test/hartley.png"), expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(parsed.pageImageCounts).toHaveLength(1);
     expect(parsed.pageImageCounts[0]).toBeGreaterThan(0);
   }, 20_000);
+
+  it("falls back to the garage's name when the logo is unusable", async () => {
+    const fetchLogo = vi.fn(async () => new Response("<html>", { headers: { "content-type": "text/html" } }));
+    await expect(loadGarageLogo("https://cdn.example.test/hartley.png", fetchLogo)).resolves.toBeNull();
+    await expect(loadGarageLogo("http://cdn.example.test/hartley.png", fetchLogo)).resolves.toBeNull();
+    await expect(loadGarageLogo("not a url", fetchLogo)).resolves.toBeNull();
+    await expect(loadGarageLogo("https://cdn.example.test/down.png", vi.fn(async () => { throw new Error("offline"); }))).resolves.toBeNull();
+    expect(fetchLogo).toHaveBeenCalledTimes(1);
+    expect(invoiceFileName({ invoice_number: "HRM-2026-000001" })).toBe("Invoice-HRM-2026-000001.pdf");
+    expect(invoiceFileName({ invoice_number: null })).toBe("Invoice-Draft.pdf");
+  });
 
   it("renders safely when optional vehicle, notes, due-date and payment values are absent", async () => {
     const invoice = {
@@ -224,7 +257,7 @@ describe("garage invoicing", () => {
       ["void-invoice.pdf", representativeInvoice("void")],
       ["one-line-invoice.pdf", representativeInvoice("issued", 1)],
       ["multi-line-invoice.pdf", representativeInvoice("issued", 48)],
-      ["long-customer-details-invoice.pdf", { ...representativeInvoice("issued", 3), customer_name: "A Customer With An Exceptionally Long Automotive Engineering And Fleet Services Trading Name Limited", customer_email: "accounts-payable-and-workshop-authorisations@very-long-customer-domain.example", customer_address: "Unit 128, Long Industrial Estate Approach, North Business Park\nNorton\nDoncaster\nSouth Yorkshire\nDN6 9HF", notes: "Controlled visual QA invoice with deliberately extended notes to verify that customer-facing workshop observations, authorisation context and follow-up guidance wrap naturally without colliding with totals, payment terms or the branded footer." }],
+      ["long-customer-details-invoice.pdf", { ...representativeInvoice("issued", 3), customer_name: "A Customer With An Exceptionally Long Automotive Engineering And Fleet Services Trading Name Limited", customer_email: "accounts-payable-and-workshop-authorisations@very-long-customer-domain.example", customer_address: "Unit 128, Long Industrial Estate Approach, North Business Park\nBessacarr\nDoncaster\nSouth Yorkshire\nDN4 1AA", notes: "Controlled visual QA invoice with deliberately extended notes to verify that customer-facing workshop observations, authorisation context and follow-up guidance wrap naturally without colliding with totals, payment terms or the branded footer." }],
       ["long-line-items-invoice.pdf", { ...representativeInvoice("issued", 10), invoice_items: representativeInvoice("issued", 10).invoice_items.map((item, index) => ({ ...item, description: `${item.description} - detailed inspection, evidence-led diagnosis, component testing and documented workshop findings for line ${index + 1}` })) }],
     ];
     for (const [name, invoice] of fixtures) writeFileSync(join(output, name), await renderInvoicePdf(invoice));
@@ -234,7 +267,7 @@ describe("garage invoicing", () => {
 function representativeInvoice(status: Invoice["status"], itemCount = 16): Invoice {
   const items = Array.from({ length: itemCount }, (_, position) => ({ id: `item-${position}`, description: position === 0 ? "Electrical fault tracing with a deliberately long diagnostic description that wraps cleanly across the invoice table" : `Workshop service line ${position + 1}`, quantity: "1.000", unit_price_pence: 4500, line_total_pence: 4500, position }));
   const subtotal = itemCount * 4500;
-  return { id: "61b6fbaf-21e8-4eb8-92df-0522f11a9474", invoice_number: status === "draft" ? null : "SOB-2026-000001", invoice_year: status === "draft" ? null : 2026, invoice_sequence: status === "draft" ? null : 1, revision: 1, replaces_invoice_id: null, status, source_type: "manual", booking_id: null, enquiry_id: null, customer_id: null, vehicle_id: null, currency: "GBP", customer_name: "A Customer With A Deliberately Long Trading Name Limited", customer_email: "customer@example.com", customer_phone: "07000 000000", customer_address: "1 Very Long Workshop Approach, Norton, Doncaster, DN6 9HF", vehicle_registration: "AB12CDE", vehicle_make: "BMW", vehicle_model: "320d", service_name: "Electrical fault finding", appointment_start: null, issuer_legal_name: "SOB Autofix Limited", issuer_trading_name: "SOB Autofix", issuer_tagline: "Professional Diagnostics. Not Guesswork.", issuer_address: "Cumbrae\nStation Road\nNorton\nDoncaster\nDN6 9HF\nUnited Kingdom", issuer_email: "sobautofix@gmail.com", issuer_phone: "07469273483", issuer_company_number: "16182532", issue_date: "2026-08-11", due_date: "2026-08-18", subtotal_pence: subtotal, discount_pence: 0, tax_pence: 0, total_pence: subtotal, notes: "Thank you for your business.", payment_terms: "Payment due within 7 days.", issued_at: status === "draft" ? null : "2026-08-11T12:00:00Z", paid_at: status === "paid" ? "2026-08-11T12:00:00Z" : null, payment_method: status === "paid" ? "card" : null, payment_reference: status === "paid" ? "ABC123" : null, voided_at: status === "void" ? "2026-08-11T12:00:00Z" : null, created_by: null, updated_by: null, created_at: "2026-08-11T12:00:00Z", updated_at: "2026-08-11T12:00:00Z", invoice_items: items };
+  return { id: "61b6fbaf-21e8-4eb8-92df-0522f11a9474", invoice_number: status === "draft" ? null : "HRM-2026-000001", invoice_year: status === "draft" ? null : 2026, invoice_sequence: status === "draft" ? null : 1, revision: 1, replaces_invoice_id: null, status, source_type: "manual", booking_id: null, enquiry_id: null, customer_id: null, vehicle_id: null, currency: "GBP", customer_name: "A Customer With A Deliberately Long Trading Name Limited", customer_email: "customer@example.com", customer_phone: "07000 000000", customer_address: "1 Very Long Workshop Approach, Bessacarr, Doncaster, DN4 1AA", vehicle_registration: "AB12CDE", vehicle_make: "BMW", vehicle_model: "320d", service_name: "Electrical fault finding", appointment_start: null, issuer_legal_name: "Hartley Road Motors Ltd", issuer_trading_name: "Hartley Road Motors", issuer_tagline: "Servicing, MOT and repairs", issuer_address: "4 Hartley Road\nDoncaster\nDN1 2AB", issuer_email: "bookings@hartleyroad.example", issuer_phone: "+441302000101", issuer_company_number: "01234567", issue_date: "2026-08-11", due_date: "2026-08-18", subtotal_pence: subtotal, discount_pence: 0, tax_pence: 0, total_pence: subtotal, notes: "Thank you for your business.", payment_terms: "Payment due within 7 days.", issued_at: status === "draft" ? null : "2026-08-11T12:00:00Z", paid_at: status === "paid" ? "2026-08-11T12:00:00Z" : null, payment_method: status === "paid" ? "card" : null, payment_reference: status === "paid" ? "ABC123" : null, voided_at: status === "void" ? "2026-08-11T12:00:00Z" : null, created_by: null, updated_by: null, created_at: "2026-08-11T12:00:00Z", updated_at: "2026-08-11T12:00:00Z", invoice_items: items };
 }
 
 function retainedProductionInvoiceFixture(): Invoice {
@@ -243,8 +276,8 @@ function retainedProductionInvoiceFixture(): Invoice {
     issue_date: "2026-08-13",
     due_date: "2026-08-20",
     paid_at: "2026-08-13T12:00:00Z",
-    customer_name: "SOB Autofix Production Verification 2026-08-13",
-    customer_email: "sobautofix@gmail.com",
+    customer_name: "Hartley Road Motors Production Verification 2026-08-13",
+    customer_email: "verification@hartleyroad.example",
     customer_phone: null,
     customer_address: "Controlled internal production test",
     vehicle_registration: "TEST2026",

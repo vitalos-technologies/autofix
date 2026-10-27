@@ -25,6 +25,7 @@ import {
   MFA_RECOVERY_COOKIE_OPTIONS,
 } from "@/lib/auth/mfa-recovery";
 import { consumeMfaRecoveryCode, createMfaRecoveryCodeSet } from "@/lib/auth/mfa-recovery-server";
+import { baselineMigration, sqlStatements, tenancyMigration } from "./support/migrations";
 
 const read = (...parts: string[]) => readFileSync(join(process.cwd(), ...parts), "utf8");
 
@@ -59,7 +60,7 @@ describe("administrator MFA recovery", () => {
     }));
     expect(JSON.stringify(harness.rpc.mock.calls)).not.toContain(code);
     expect(harness.cookieSet).toHaveBeenCalledWith(
-      "sob_admin_mfa_recovery",
+      "af_mfa_recovery",
       expect.stringMatching(/^[0-9a-f]{64}$/),
       MFA_RECOVERY_COOKIE_OPTIONS,
     );
@@ -89,7 +90,7 @@ describe("administrator MFA recovery", () => {
   });
 
   it("uses one guarded UPDATE as the atomic single-use boundary", () => {
-    const migration = read("supabase", "migrations", "202608130008_admin_mfa_recovery.sql");
+    const migration = baselineMigration + tenancyMigration;
     expect(migration).toMatch(/update public\.admin_mfa_recovery_codes\s+set used_at = now\(\)\s+where user_id = p_user_id[\s\S]+and code_hash = p_code_hash[\s\S]+and used_at is null[\s\S]+and revoked_at is null[\s\S]+returning id into l_code_id;/i);
     expect(migration).not.toMatch(/select id[\s\S]+from public\.admin_mfa_recovery_codes[\s\S]+set used_at/i);
   });
@@ -108,27 +109,29 @@ describe("administrator MFA recovery", () => {
   });
 
   it("revokes old sets, active recovery sessions, and trusted devices on regeneration", () => {
-    const migration = read("supabase", "migrations", "202608130008_admin_mfa_recovery.sql");
+    const migration = baselineMigration + tenancyMigration;
     expect(migration).toContain("set revoked_at = now()\n  where user_id = p_user_id and used_at is null and revoked_at is null");
     expect(migration).toContain("update public.admin_mfa_recovery_sessions");
     expect(migration).toContain("update public.admin_trusted_devices");
-    const actions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
-    expect(actions).toContain("const admin = await getAdminUser();");
+    const actions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
+    expect(actions).toContain("const admin = await getAdminContext();");
     expect(actions).toContain("if (!admin?.mfaVerified)");
   });
 
   it("keeps all recovery storage and RPCs behind the service role", () => {
-    const migration = read("supabase", "migrations", "202608130008_admin_mfa_recovery.sql");
+    const migration = baselineMigration + tenancyMigration;
     for (const table of ["admin_mfa_recovery_codes", "admin_mfa_recovery_sessions", "admin_mfa_policy"]) {
       expect(migration).toContain(`alter table public.${table} enable row level security`);
       expect(migration).toContain(`revoke all on table public.${table} from public, anon, authenticated`);
     }
     expect(migration).toContain("grant execute on function public.consume_admin_mfa_recovery_code(uuid, text, text, timestamptz) to service_role");
-    expect(migration).not.toMatch(/grant (select|insert|update|delete)[^;]+to (anon|authenticated)/i);
+    const recoveryGrants = sqlStatements(migration).filter((statement) => /^grant /i.test(statement) && /admin_mfa_|admin_trusted_devices/.test(statement));
+    expect(recoveryGrants.length).toBeGreaterThan(0);
+    expect(recoveryGrants.filter((statement) => /\bto\b[^;]*\b(anon|authenticated)\b/i.test(statement))).toEqual([]);
   });
 
   it("keeps factor replacement controlled until a new genuine TOTP reaches AAL2", () => {
-    const actions = read("src", "app", "admin", "mfa", "recover", "actions.ts");
+    const actions = read("src", "app", "app", "mfa", "recover", "actions.ts");
     expect(actions.indexOf("challengeAndVerify")).toBeLessThan(actions.indexOf("auth.admin.mfa.deleteFactor"));
     expect(actions).toContain('assurance?.currentLevel !== "aal2"');
     expect(actions).toContain("recovery.old_factor_ids");
@@ -137,7 +140,7 @@ describe("administrator MFA recovery", () => {
   });
 
   it("supports an authenticated atomic-style handover without removing the current factor first", () => {
-    const actions = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
+    const actions = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
     const start = actions.indexOf("export async function startMfaReplacement");
     const verify = actions.indexOf("export async function verifyMfaReplacement");
     const replacement = actions.slice(start, actions.indexOf("export async function startMfaEnrollment"));
@@ -151,22 +154,23 @@ describe("administrator MFA recovery", () => {
   });
 
   it("does not let an email recovery session enter factor or recovery-code management", () => {
-    const recovery = read("src", "app", "admin", "mfa", "recover", "actions.ts");
-    const security = read("src", "app", "admin", "(protected)", "configuration", "security", "actions.ts");
-    const server = read("src", "lib", "supabase", "server.ts");
+    const recovery = read("src", "app", "app", "mfa", "recover", "actions.ts");
+    const security = read("src", "app", "app", "(protected)", "configuration", "security", "actions.ts");
+    const server = read("src", "lib", "tenancy", "admin.ts");
     expect(recovery).toContain("consumeMfaRecoveryCode");
-    expect(security).toContain("const admin = await getAdminUser();");
+    expect(security).toContain("const admin = await getAdminContext();");
     expect(server).toContain("if (requireMfa && requiresMfaChallenge(assurance) && !trustedDevice) return null");
     expect(server).toContain("if (requireMfa && mandatoryMfa && !mfaRequired && !mfaVerified) return null");
   });
 
-  it("ships mandatory MFA disabled and provides enrollment-only routing for later activation", () => {
-    const migration = read("supabase", "migrations", "202608130008_admin_mfa_recovery.sql");
+  it("ships mandatory MFA enabled for garage owners and provides enrollment-only routing", () => {
+    const migration = baselineMigration + tenancyMigration;
     expect(migration).toContain("mandatory_mfa_enabled boolean not null default false");
-    expect(migration).toContain("values (true, false)");
-    expect(read("src", "proxy.ts")).toContain('enrollmentUrl.pathname = "/admin/mfa/enroll"');
-    const enrollmentPage = read("src", "app", "admin", "mfa", "enroll", "page.tsx");
-    expect(enrollmentPage).toContain('if (admin.mfaRequired) redirect("/admin/mfa")');
+    expect(migration).toContain("insert into public.admin_mfa_policy (singleton, mandatory_mfa_enabled)\nvalues (true, true)");
+    expect(migration).toContain("public.current_garage_role() = 'owner'\n        and coalesce((select policy.mandatory_mfa_enabled from public.admin_mfa_policy policy where policy.singleton), false)");
+    expect(read("src", "proxy.ts")).toContain('enrollmentUrl.pathname = "/app/mfa/enroll"');
+    const enrollmentPage = read("src", "app", "app", "mfa", "enroll", "page.tsx");
+    expect(enrollmentPage).toContain('    if (admin.mfaRequired) redirect(destination === "/app" ? "/app/mfa" : `/app/mfa?returnTo=${encodeURIComponent(destination)}`)');
     expect(enrollmentPage).toContain("<MfaSecurityPanel />");
   });
 });

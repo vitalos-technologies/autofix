@@ -1,11 +1,18 @@
 import "server-only";
 
-import { createAdminClient, getAdminUser } from "@/lib/supabase/server";
+import { garageEmailBrand } from "@/lib/email/brand";
+import { isValidEmailAddress } from "@/lib/email/identity";
 import { renderInvoiceEmail } from "@/lib/email/templates/invoice";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { deliverInvoiceEmail } from "./email-delivery";
 import { formatPence } from "./money";
-import { renderInvoicePdf } from "./pdf";
+import { invoiceFileName, renderInvoicePdf } from "./pdf";
 import type { Invoice } from "./types";
+
+// Invoice reads and staff RPCs go through the admin's RLS garage client (the
+// selected garage travels as x-garage-id). Only the provider outcome RPCs run
+// with the service role, and they take the garage id explicitly.
 
 export type InvoiceEmailSendSummary = {
   id: string;
@@ -19,23 +26,24 @@ export type InvoiceEmailSendSummary = {
 };
 
 export async function requireInvoiceAdmin() {
-  const auth = await getAdminUser();
+  const auth = await getAdminContext();
   if (!auth) throw new Error("Unauthorised");
-  return { auth, client: auth.client };
+  return { auth, client: auth.client, garage: auth.garage };
 }
 
 export async function getInvoiceForAdmin(id: string): Promise<Invoice | null> {
-  const { client } = await requireInvoiceAdmin();
-  const { data, error } = await client.from("invoices").select("*,invoice_items(id,description,quantity,unit_price_pence,line_total_pence,position),invoice_payments(id,amount_pence,paid_at,payment_method,payment_reference,created_at)").eq("id", id).is("deleted_at", null).order("position", { referencedTable: "invoice_items", ascending: true }).order("paid_at", { referencedTable: "invoice_payments", ascending: true }).maybeSingle();
+  const { client, garage } = await requireInvoiceAdmin();
+  const { data, error } = await client.from("invoices").select("*,invoice_items(id,description,quantity,unit_price_pence,line_total_pence,position),invoice_payments(id,amount_pence,paid_at,payment_method,payment_reference,created_at)").eq("garage_id", garage.id).eq("id", id).is("deleted_at", null).order("position", { referencedTable: "invoice_items", ascending: true }).order("paid_at", { referencedTable: "invoice_payments", ascending: true }).maybeSingle();
   if (error) throw new Error("Invoice could not be loaded.");
   return data as unknown as Invoice | null;
 }
 
 export async function getInvoiceEmailSendsForAdmin(invoiceId: string): Promise<InvoiceEmailSendSummary[]> {
-  const { client } = await requireInvoiceAdmin();
+  const { client, garage } = await requireInvoiceAdmin();
   const { data, error } = await client
     .from("invoice_email_sends")
     .select("id,recipient,invoice_revision,document_status,status,last_error_code,requested_at,sent_at")
+    .eq("garage_id", garage.id)
     .eq("invoice_id", invoiceId)
     .order("requested_at", { ascending: false })
     .limit(20);
@@ -70,13 +78,14 @@ export async function duplicateInvoice(id: string) {
 }
 
 export async function sendInvoiceEmail(id: string, recipient: string, logicalSendId: string) {
-  const { client } = await requireInvoiceAdmin();
+  const { client, garage } = await requireInvoiceAdmin();
   const service = createAdminClient();
   if (!service) throw new Error("Invoice email persistence is not configured.");
   const invoice = await getInvoiceForAdmin(id);
   if (!invoice || (invoice.status !== "issued" && invoice.status !== "paid")) throw new Error("Only issued or paid invoices can be emailed.");
   const reference = invoice.invoice_number || "Invoice";
   const rendered = renderInvoiceEmail({
+    brand: garageEmailBrand(garage),
     status: invoice.status,
     customerName: invoice.customer_name,
     invoiceNumber: reference,
@@ -93,10 +102,12 @@ export async function sendInvoiceEmail(id: string, recipient: string, logicalSen
     invoiceRevision: invoice.revision,
     invoiceStatus: invoice.status,
     recipient,
-    subject: `Invoice ${reference} from SOB Autofix`,
+    senderName: garage.name,
+    replyTo: isValidEmailAddress(garage.email) ? garage.email! : undefined,
+    subject: `Invoice ${reference} from ${garage.name}`,
     text: rendered.text,
     html: rendered.html,
-    attachment: { filename: `SOB-Invoice-${reference}.pdf`, content: await renderInvoicePdf(invoice) },
+    attachment: { filename: invoiceFileName(invoice), content: await renderInvoicePdf(invoice, garage) },
   }, {
     claim: async (claim) => {
       const { data, error } = await client.rpc("claim_invoice_email_send", {
@@ -115,11 +126,11 @@ export async function sendInvoiceEmail(id: string, recipient: string, logicalSen
       return { disposition: "reconciliation_required" };
     },
     finalizeSent: async ({ attemptId, claimToken, providerId }) => {
-      const { data, error } = await service.rpc("finalize_invoice_email_send", { p_attempt_id: attemptId, p_claim_token: claimToken, p_provider_id: providerId });
+      const { data, error } = await service.rpc("finalize_invoice_email_send", { p_garage_id: garage.id, p_attempt_id: attemptId, p_claim_token: claimToken, p_provider_id: providerId });
       if (error || data == null) throw new Error(error?.message || "The sent invoice email could not be finalized.");
     },
     recordAttemptOutcome: async ({ attemptId, claimToken, outcome, errorCode, providerId }) => {
-      const { data, error } = await service.rpc("fail_invoice_email_send", { p_attempt_id: attemptId, p_claim_token: claimToken, p_error_code: errorCode, p_ambiguous: outcome === "ambiguous", p_provider_id: providerId || null });
+      const { data, error } = await service.rpc("fail_invoice_email_send", { p_garage_id: garage.id, p_attempt_id: attemptId, p_claim_token: claimToken, p_error_code: errorCode, p_ambiguous: outcome === "ambiguous", p_provider_id: providerId || null });
       if (error || data == null) throw new Error(error?.message || "The invoice email outcome could not be recorded.");
     },
   });

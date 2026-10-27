@@ -1,0 +1,95 @@
+{
+  "registration": "AB12CDE",
+  "make": "VAUXHALL",
+  "model": "ASTRA",
+  "firstUsedDate": "2012-03-23",
+  "fuelType": "Petrol",
+  "primaryColour": "Blue",
+  "registrationDate": "2012-03-23",
+  "manufactureDate": "2012-03-01",
+  "engineSize": "1398",
+  "hasOutstandingRecall": "Unknown",
+  "motTests": [
+    {
+      "registrationAtTimeOfTest": "AB12CDE",
+      "completedDate": "2026-03-14T10:42:17.000Z",
+      "testResult": "PASSED",
+      "expiryDate": "2027-03-22",
+      "odometerValue": "84213",
+      "odometerUnit": "MI",
+      "odometerResultType": "READ",
+      "motTestNumber": "512345678901",
+      "dataSource": "DVSA",
+      "defects": [
+        {
+          "text": "Nearside Front Tyre worn close to legal limit/worn on edge (5.2.3 (e))",
+          "type": "ADVISORY",
+          "dangerous": false
+        },
+        {
+          "text": "Front Brake disc worn, pitted or scored, but not seriously weakened (1.1.14 (a) (ii))",
+          "type": "ADVISORY",
+          "dangerous": false
+        }
+      ]
+    },
+    {
+      "registrationAtTimeOfTest": "AB12CDE",
+      "completedDate": "2026-03-10T09:05:51.000Z",
+      "testResult": "FAILED",
+      "expiryDate": null,
+      "odometerValue": "84190",
+      "odometerUnit": "MI",
+      "odometerResultType": "READ",
+      "motTestNumber": "512345678900",
+      "dataSource": "DVSA",
+      "defects": [
+        {
+          "text": "Offside Headlamp aim too high (4.1.2 (a))",
+          "type": "MAJOR",
+          "dangerous": false
+        },
+        {
+          "text": "Nearside Rear Brake hose damaged and leaking (1.1.11 (c))",
+          "type": "DANGEROUS",
+          "dangerous": true
+        },
+        {
+          "text": "Registration plate lamp inoperative (4.7.1 (b) (ii))",
+          "type": "MINOR",
+          "dangerous": false
+        }
+      ]
+    },
+    {
+      "registrationAtTimeOfTest": "AB12CDE",
+      "completedDate": "2025-03-18T14:20:03.000Z",
+      "testResult": "PASSED",
+      "expiryDate": "2026-03-22",
+      "odometerValue": "76540",
+      "odometerUnit": "MI",
+      "odometerResultType": "READ",
+      "motTestNumber": "412345678902",
+      "dataSource": "DVSA",
+      "defects": []
+    },
+    {
+      "registrationAtTimeOfTest": "AB12CDE",
+      "completedDate": "2024-03-20T11:00:00.000Z",
+      "testResult": "PASSED",
+      "expiryDate": "2025-03-22",
+      "odometerValue": null,
+      "odometerUnit": null,
+      "odometerResultType": "UNREADABLE",
+      "motTestNumber": "312345678903",
+      "dataSource": "DVSA",
+      "defects": [
+        {
+          "text": "Oil leak, but not excessive (8.4.1 (a) (i))",
+          "type": "MINOR",
+          "dangerous": false
+        }
+      ]
+    }
+  ]
+}

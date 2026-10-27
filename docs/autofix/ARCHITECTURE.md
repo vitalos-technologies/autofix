@@ -1,0 +1,425 @@
+# Autofix architecture contract
+
+Shared contract for the lane agents. SPEC.md says *what*; this file pins the names every lane codes against. Change it only together with the code.
+
+## Tenancy in the database (P1.4, P1.5)
+
+Core tables (migration `<ts>_tenancy.sql`):
+
+| Table | Columns (beyond `id uuid pk`, `created_at`, `updated_at`) |
+| --- | --- |
+| `garages` | `slug` (unique, `^[a-z0-9](-?[a-z0-9])*$`, 3–40), `name`, `legal_name`, `company_number`, `phone` (E.164), `whatsapp` (E.164), `email`, `address jsonb` (`line1`, `line2`, `town`, `postcode`), `timezone` default `Europe/London`, `logo_url`, `accent` default `#155fba` (`^#[0-9a-f]{6}$`), `plan` (`trial`/`growth`/`front_desk`), `mot_enabled` bool default false, `booking_prefix` (`^[A-Z]{2,4}$`), `slot_step_min` default 15, `approve_online` bool default false, `service_area text[]`, `cancellation_cutoff_h` default 24, `sms_sender` (≤ 11 chars), `status` (`onboarding`/`active`/`suspended`/`cancelled`), `settings jsonb`, `cancelled_at` |
+| `garage_domains` | `garage_id`, `hostname` (unique, lower case), `kind` (`subdomain`/`custom`), `status` (`pending_dns`/`verifying`/`active`/`failed`), `verification jsonb`, `last_checked_at`, `error`, `deleted_at` |
+| `garage_members` | `garage_id`, `user_id → auth.users`, `role` (`owner`/`manager`/`technician`), unique (`garage_id`, `user_id`) |
+| `platform_admins` | `user_id` pk → `auth.users` |
+
+SQL helpers (all `stable`, `security definer`, `search_path = ''`):
+
+- `public.request_garage_id() → uuid`: the `x-garage-id` request header (PostgREST `request.headers`), or `null` if absent/invalid.
+- `public.garage_role(p_garage_id uuid) → text`: `auth.uid()`'s role in that garage, or `null`. Since P4.5 also `'owner'` for the garage of the caller's open super-admin impersonation, in read-only transactions only (see "Super admin").
+- `public.current_garage_id() → uuid`: `request_garage_id()` when the caller is `service_role` or a member of it; otherwise `null`.
+- `public.current_garage_role() → text`: role in `current_garage_id()`.
+- `public.is_platform_admin() → boolean`.
+
+Every tenant table: `garage_id uuid not null default public.current_garage_id() references public.garages(id) on delete cascade`, an index leading with `garage_id`, RLS on, and policies of the form `using (garage_id = (select public.current_garage_id()))` (+ `with check` on writes, + `(select public.current_garage_role()) = 'owner'` for owner-only actions). Child tables carry `garage_id` too and reference the parent through a composite FK `(garage_id, parent_id) → parent(garage_id, id)`. `anon` has no grants on tenant tables. Security-definer functions filter every statement by garage explicitly; they never trust a garage id that the caller could choose without checking membership.
+
+## Tenancy in the app (P1.3, P1.7)
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/tenancy/hosts.ts` | `classifyHost(host, env?)` → `{ kind: "admin" } \| { kind: "subdomain", slug } \| { kind: "custom", hostname } \| { kind: "dev-garage", slug } \| { kind: "unknown" }` (pure, unit tested) |
+| `src/lib/tenancy/resolve.ts` | `resolveGarageByHost(host)` → `GarageRecord \| null` (service role, 60 s in-memory cache) |
+| `src/lib/tenancy/garage.ts` | `type Garage`, `getGarage()` (server: host → garage for public pages/routes, throws `notFound()` when unknown), `requireSiteGarage(garageId)` (checks the `/_site/[garageId]` param equals the host's garage) |
+| `src/lib/tenancy/admin.ts` | `getAdminContext()` → `{ user, garage, role, memberships, client }` where `client` is the RLS client carrying `x-garage-id`; selected garage from the `af_garage` cookie validated against `garage_members`, defaulting to the first membership |
+| `src/components/garage/garage-provider.tsx` | `GarageProvider` + `useGarage()` for client components (public fields only) |
+
+Env: `NEXT_PUBLIC_ADMIN_HOST` (`autofix.vitalos.co.uk`), `NEXT_PUBLIC_TENANT_ROOT_DOMAIN` (`autofix.vitalos.co.uk`), `DEV_TENANT_ROOT_DOMAIN` (`localhost:3000`).
+
+## Routes
+
+| Host | Internal route |
+| --- | --- |
+| admin host (`autofix.vitalos.co.uk`, `localhost:3000`) | `/app/…` garage admin (was SOB `/admin`), `/admin/…` super admin (P4.5), `/signup`, `/api/…` |
+| `<slug>.autofix.vitalos.co.uk`, verified custom host, `<slug>.localhost:3000`, `localhost:3000/?__garage=<slug>` (dev only) | `/_site/<garageId>/…` (folder `src/app/%5Fsite/[garageId]`); `/api/…` is not rewritten and resolves the garage from the host |
+| unknown | 404 |
+
+Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`, `/confirmed/[reference]`, `/manage`, `/r/[token]`, `/privacy`, `/unsubscribe` (form), `/unsubscribe/[token]` (signed link, opts out on open) and `/unsubscribe/[token]/resumed`. Legal (P4.9): `src/lib/legal/*` (drafts embedded from `docs/autofix/legal/`, `renderPrivacyNotice`, `renderDpa`, `dpaTextHash`, `acceptDpaAction`), `src/lib/consent/*` (`unsubscribeUrl(garage, customerId)`, `optOutWithToken`, `optOutByPhone`, `resumeWithToken`), `src/components/legal/*` (`LegalDocumentBody`, `DraftFlag`, `DpaAcceptance`); admin `/app/settings/agreements`; SQL `garage_agreements`, `accept_garage_agreement()`, `opt_out_customer()`, `resume_customer_reminders()` (`20261028000300_dpa_acceptance.sql`).
+
+Manage booking (P2.9): `/manage` shows the reference + registration form (server action, POST only) or, with an `af_manage` session, the booking; `/manage?token=…` (the email link) hands the token to the `/manage/link` route handler, which opens the session and answers 303 to `/manage`, so the token never stays in the address; `/manage/reschedule` (`?date=` only) and `/manage/cancel` change the session's booking through `rescheduleBooking()`/`cancelBooking()`; SOB's `/manage-booking` is a 308 to `/manage`. The only other query strings are `?link=invalid|limited|unavailable` and `?done=moved|cancelled`. Server code: `src/lib/booking-flow/manage-actions.ts` (server actions), `manage-server.ts` (session read/write, customer view, reschedule slots), `manage-view.ts` (client-safe states and wording). These pages always read the database (`BOOKING_ENGINE=fake` does not apply to them).
+
+## Migrations
+
+`supabase/migrations/20261026000000_baseline.sql` (SOB squash) then `20261026000100_tenancy.sql`, `20261026000200_tenancy_test_support.sql` (service-role-only, read-only catalogue helpers `tenancy_tables()`, `tenancy_policies()`, `tenancy_function_grants()`, `tenancy_fingerprint()`, `tenancy_sample_row()`, `tenancy_storage_fingerprint()` for the tenancy suite), `…_scheduling.sql` (P2.1), `…_reminders.sql` (P3.6), and later ones. Never edit a migration after it has shipped to a shared database.
+
+**Every new table with `garage_id` needs an entry in `FIXTURES` in `tests/integration/tenancy.test.ts`** (how to create a row in a garage, and a harmless update probe); until it has one the Gate 1 suite fails with "no fixture for table <name>".
+
+## Booking engine (Phase 2)
+
+### Schema (`<ts>_scheduling.sql`, P2.1)
+
+| Table | Columns (all tenant tables: `garage_id` as above) |
+| --- | --- |
+| `resources` | `name`, `kind` (`bay`/`mobile`/`technician`), `active` bool, `sort` int |
+| `opening_hours` | `weekday` smallint (ISO 1 = Mon … 7 = Sun), `opens` time, `closes` time (`closes > opens`); several rows per weekday allowed (split day) |
+| `closures` | `starts_on` date, `ends_on` date (inclusive, `>= starts_on`), `reason` |
+| `services` | `name`, `description`, `duration_min`, `buffer_min`, `price_pence` (null for quote), `price_mode` (`fixed`/`from`/`quote`), `location_mode` (`workshop`/`mobile`/`both`), `resource_kind` (`bay`/`mobile`/`technician`), `online_enabled`, `needs_approval`, `min_notice_h` (default 2), `max_days_ahead` (default 60), `is_mot`, `sort`, `deleted_at`, `deleted_by`. `resource_kind` is the workshop resource; a mobile visit always takes a `mobile` resource, so `resource_kind = 'mobile'` exactly when `location_mode = 'mobile'` |
+| `bookings` (reshaped) | `reference` (unique per garage), `customer_id`, `vehicle_id`, `service_id`, `resource_id`, `starts_at`, `ends_at` (customer-facing appointment), `during tstzrange` (what the resource is blocked for: travel before + duration + buffer + travel after), `status` (`requested`/`confirmed`/`arrived`/`in_progress`/`waiting_parts`/`ready`/`collected`/`cancelled`/`no_show`), `source` (`online`/`phone`/`walk_in`/`reminder`/`missed_call`/`ai_agent`), `location_mode` (`workshop`/`mobile`), `postcode`, `address`, `symptoms text[]`, `notes`, `idempotency_key` (unique per garage), `manage_token_hash`, `reminder_send_id` (FK added in P3.6), `price_pence` (snapshot), `cancelled_at` (kept in step with `status` by a trigger), `cancellation_reason`, `admin_seen_at`, `deleted_at`/`deleted_by` (admin trash). Constraint `no_overlap exclude using gist (resource_id with =, during with &&) where (status not in ('cancelled','no_show'))` |
+| `booking_events` | `booking_id` (composite FK), `type` (`created`/`status_changed`/`rescheduled`/`cancelled`/`note`/`notification_sent`…), `actor` (`customer`/`staff`/`system`/`agent`), `actor_id`, `at`, `data jsonb` |
+| `garages` (+) | `mobile_travel_min` int default 30 |
+| `customers` (+) | `channel` (`sms`/`whatsapp`/`email`, default `sms`), `reminder_consent` bool default false, `consent_at`, `consent_source` (`booking`/`import`/`soft_opt_in`/`staff`), `consent_text` (exact wording agreed to, PECR record), `opted_out_at`; unique (`garage_id`, `phone`); `phone` is E.164 (checked), and null only for anonymised customers (retention no longer writes `'REDACTED'`) |
+| `vehicles` (+) | `registration` normalised (upper case, no spaces), unique (`garage_id`, `registration`); `fuel` (SOB's `fuel_type`, renamed), `year`, `mot_expiry` date, `mot_checked_at`, `last_mileage`, `last_service_at`, `updated_at` |
+
+Cal.com leftovers dropped: `provider_*` booking columns, `booking_service_types`, `service_catalogue_systems`, `provider_webhook_events`, `create_booking_intent()`, the `booking_status` enum (status is text with a check). SOB's `booking_audit_log` and `booking_notification_events` stay, re-pointed at the new `bookings`; `booking_events` supersedes `booking_audit_log` (drop it once nothing writes it).
+
+Staff grants (RLS on top): setup tables (`resources`, `opening_hours`, `closures`, `services`) are read by every member and written by owners/managers; `bookings` select plus `update (status, notes, admin_seen_at, cancellation_reason)` only (moving or re-assigning a booking needs a server-side function); `booking_events` select plus inserting `type = 'note'`, `actor = 'staff'`, `actor_id = auth.uid()`. A trigger writes a `status_changed` (or `cancelled`) event for every status change, naming the member (`staff`) or `system`, so app code must not insert those itself.
+
+### SQL (service-role only; `revoke … from public, anon, authenticated`)
+
+- `available_slots(p_garage_id uuid, p_service_id uuid, p_from date, p_to date, p_location_mode text default null) returns table (starts_at timestamptz, ends_at timestamptz, free_count int)`. Dates are local dates in the garage's time zone (inclusive). Every candidate start is returned, `free_count = 0` means taken (the UI strikes it through). Starts are generated every `garages.slot_step_min` from each opening window's `opens` while `start + duration <= closes`, built as `(date + time) at time zone garages.timezone`; closures removed; starts before `now() + min_notice_h` or after `now() + max_days_ahead` dropped; `free_count` = active resources of `services.resource_kind` with no live booking overlapping the would-be `during`.
+- `create_booking(p_garage_id uuid, p_booking jsonb) returns jsonb`. Input keys: `service_id`, `starts_at`, `location_mode`, `postcode`, `address`, `symptoms`, `notes`, `source`, `idempotency_key`, `manage_token_hash`, `reminder_send_id`, `customer {name, phone (E.164), email, channel (sms/whatsapp/email), reminder_consent bool, consent_source, consent_text}`, `vehicle {registration (normalised), make, model, colour, fuel, year, mot_expiry, last_mileage}`. One transaction: upsert customer by `(garage_id, phone)`, vehicle by `(garage_id, registration)`, pick the least-busy free resource of the kind for that day, insert, `booking_events` row, return `{booking_id, reference, status, starts_at, ends_at, customer_id, vehicle_id, replayed}`. Same idempotency key → the existing booking. Status `requested` if `services.needs_approval` or `garages.approve_online`, otherwise `confirmed` (`source = ai_agent` is always `requested`). Errors are raised with `errcode 'P0001'` and a message starting with a code: `SLOT_UNAVAILABLE`, `SERVICE_UNAVAILABLE`, `OUTSIDE_SERVICE_AREA`, `INVALID_BOOKING`. Reference: `booking_prefix || '-' || 4 random digits` (5–6 digits once a garage has used most 4-digit numbers), unique per garage.
+- `seed_garage_defaults(p_garage_id uuid) returns jsonb` (service role): Mon–Fri 08:00–17:30 and Sat 08:30–13:00, Bays 1–3 + Mobile van, six services (MOT, Diagnostics, Full service, Interim service, Brakes, Something else; the MOT row is always created and stays unbookable until `mot_enabled`). Each group only when the garage has none; returns `{opening_hours, resources, services, reminder_rules}` counts added (the four default reminder rules since P3.6, each kind only when missing).
+
+As built (P2.1–P2.3), in addition to the above:
+
+- `available_slots` raises instead of returning nothing when the request cannot be served: `SERVICE_UNAVAILABLE` (unknown, deleted or offline service, another garage's service, MOT while `mot_enabled` is off, a location mode the service does not offer, garage not `onboarding`/`active`) and `INVALID_BOOKING` (missing dates, `p_from > p_to`, unknown location mode). `p_location_mode` null means mobile for mobile-only services and workshop otherwise. The date range is clamped to today .. `now() + max_days_ahead`. Starts step from each window's opening in real (UTC) time; for windows that do not span 01:00–02:00 local time this is the same as wall-clock steps on clock-change days.
+- `create_booking` rules: `starts_at` must carry a UTC offset; `idempotency_key` is optional in SQL (the API always sends one) and is checked before anything else, so a retry gets its booking even after the slot has closed. Error precedence: `INVALID_BOOKING` for malformed input, then `SERVICE_UNAVAILABLE`, then `OUTSIDE_SERVICE_AREA` (outward code of the normalised postcode against `garages.service_area`), then `INVALID_BOOKING` for a start that is not an opening-window start on the slot step, then `SLOT_UNAVAILABLE` for a closure day, notice/max window, or no free resource. Consent: only when `reminder_consent` is true and the customer has no consent on record are `consent_at`, `consent_source` (default `booking`) and `consent_text` written together; an existing consent record and `opted_out_at` are never changed. A matched vehicle moves to the booking's customer. Created events: `actor` is `agent` for `ai_agent`, `staff` for `phone`/`walk_in`, otherwise `customer`. Allocation per garage is serialised by a transaction-level advisory lock; the `no_overlap` retry still covers other writers. `reminder_send_id` is credited only under the P3.6 attribution rules ("Admin, reminders and jobs" below); otherwise it is ignored.
+- Clock-injectable internals for tests, granted to no API role: `available_slots_at(…, p_now timestamptz)` and `create_booking_at(p_garage_id, p_booking, p_now timestamptz)`; the public functions call them with `now()`.
+- Staff bookings (`20261028002200_staff_bookings.sql`, pgTAP 025, DECISIONS A177-A181): `p_booking` may carry `staff {member_id uuid, override_hours bool}`, only with `source` `phone`/`walk_in` and only when `member_id` is an owner, manager, technician or front-desk member of `p_garage_id` (else `INVALID_BOOKING`). Then services with `online_enabled = false` are bookable, the notice period and `max_days_ahead` are replaced by "from the start of today (garage time) up to 730 days ahead", and the status is always `confirmed`. Opening hours and closures still apply unless `override_hours` (then any whole minute); deleted services, MOT, garage status, location mode, service area, the free-resource check and `no_overlap` always apply. The created event gets `actor_id` = the member and `data.staff_rules` (+ `hours_override`). `booking_service_context(garage, service, mode, include_offline boolean)` is the shared check; the three-argument form (online) calls it with `false`.
+- `staff_available_slots(p_garage_id, p_service_id, p_from, p_to, p_location_mode, p_member_id)` (service role; internal `staff_available_slots_at(…, p_now)`): `available_slots` with the staff relaxations for that member (opening hours and closures apply), at most 31 days per call.
+- `manage_admin_trash` entities are now `enquiries`, `bookings`, `invoices`, `services` (`catalogue_systems`/`catalogue_services` are gone). Only `cancelled`, `no_show` or `collected` bookings can be trashed, because a live booking keeps its resource.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/booking-engine/repository.ts` | `listOnlineServices(garageId)`, `getAvailableSlots({garageId, serviceId, from, to, locationMode})` (30 s in-memory cache keyed by all args, cleared on create), `getStaffSlots({…, memberId})` (`staff_available_slots`, uncached, ≤ 31 days), `createBooking(garageId, input, options?)` → `{ok: true, booking} \| {ok: false, code, alternatives?}` (on `SLOT_UNAVAILABLE` returns the 3 nearest free slots, from the staff grid for a staff booking). `options.staff = {memberId, overrideHours?}` (`staffBookingContextSchema`) is server-set from the admin session only and sent as `create_booking`'s `staff` object (A177) |
+| `src/lib/booking-engine/state.ts` | Booking flow cookie `af_booking`: AES-256-GCM sealed (key from `BOOKING_STATE_SECRET`, falls back to `BOOKING_MANAGEMENT_SECRET`), httpOnly, `SameSite=Lax`, `Secure` in production, 2 h, bound to the garage id. Holds vehicle, service, location mode, postcode, symptoms, note, chosen start |
+| `src/lib/booking-engine/manage.ts` | Manage tokens (HMAC, stored hashed), lookup by reference + registration (POST body, never the URL), reschedule/cancel with the garage's cancellation cutoff. Token = `HMAC-SHA-256(BOOKING_MANAGEMENT_SECRET, "booking-manage-link:v1:<garage_id>:<idempotency_key>")` base64url (43 chars), stored as hex SHA-256 in `manage_token_hash`, link `/manage?token=…`; `af_manage` session cookie (signed, httpOnly, 30 min, garage + booking id). Reschedule shifts `during` by the move (keeps travel/buffer), keeps the resource when free else another active one of its kind, writes `booking_events` |
+| `src/lib/booking-engine/notify.ts`, `src/lib/bookings/notifications.ts` | `notifyBooking({type: created/confirmed/rescheduled/cancelled, garageId, bookingId})` (`confirmed`: staff accepted a request, A176: customer email + text only, skipped if no longer confirmed) after each change (queues a `notifications.booking` job, deduped per booking event, and drains it with `after()`; sends directly when the queue is unreachable): customer email + `.ics`, staff alert, SMS/WhatsApp on the customer's channel (opt-out re-checked), reserved in `booking_notification_events`, logged as `booking_events` `notification_sent` |
+
+Routes (garage from host): `GET /api/services`, `GET /api/slots?service=&from=&to=&mode=` (no registration in the query), `POST /api/bookings` (JSON body; Turnstile; rate limit per IP and per garage; idempotency key; 409 `{code: "SLOT_UNAVAILABLE", alternatives: [...]}`), `GET /api/bookings/manage?token=` (signed link), `POST /api/bookings/manage` (reference + registration → sets a 30-minute manage cookie), `PATCH /api/bookings/manage` (`{action: "cancel"} \| {action: "reschedule", startsAt}`). The 5 booking pages use server actions that read/write `af_booking` and call the same repository. Bodies are strict JSON (a `garageId`, `source` or `reminderSendId` in the body is a 422); errors are `{code, message, alternatives?, issues?}`. Statuses: services 200/404/503; slots 200/404/422/429/503 (max 14 local days); bookings 201 created/200 replay/400/403 Turnstile/404/409/415/422/429/503; manage GET 200/401/404/429/503, POST 200/404/422/429/503, PATCH 200/401/404/409/422/429/503.
+
+## Admin, reminders and jobs (Phase 3)
+
+### Schema (`<ts>_reminders.sql`, P3.6)
+
+| Table | Columns |
+| --- | --- |
+| `reminder_rules` (tenant) | `kind` (`mot`/`service`/`review`/`missed_call`), `enabled`, `offset_days int[]` (MOT `{28,7}` before expiry; service `{335}` after last service; review `{1}` after collection), `channel` (`sms`/`whatsapp`/`email`/`customer` = the customer's preferred channel), `template` text, unique (`garage_id`, `kind`). Defaults inserted by `seed_garage_defaults(p_garage_id)` (also seeds opening hours, services, resources at sign-up) |
+| `reminder_sends` (tenant) | `rule_id`, `vehicle_id`, `customer_id`, `kind`, `due_date`, `offset_days`, `send_at`, `channel`, `status` (`scheduled`/`sending`/`sent`/`delivered`/`failed`/`cancelled`/`skipped`), `skip_reason`, `provider_msg_id`, `link_token_hash`, `link_expires_at`, `opened_at`, `booking_id`, `body` (rendered), `sent_at`; unique (`garage_id`, `vehicle_id`, `kind`, `due_date`, `offset_days`) so scheduling is idempotent |
+| `messages` (tenant) | `customer_id`, `channel`, `direction` (`inbound`/`outbound`), `to_address`, `from_address`, `body`, `provider`, `provider_msg_id` (unique when set), `status`, `reminder_send_id`, `booking_id`, `call_id`, `error_code` |
+| `calls` (tenant) | `provider_call_sid` (unique), `from_number`, `to_number`, `status`, `missed` bool, `voicemail_url`, `duration_s`, `text_back_message_id`, `handled_at`, `handled_by` |
+| `garage_phone_numbers` (tenant) | `number` E.164 unique, `purpose` (`forwarding`), `provider_sid` — maps Twilio's called number → garage |
+| `jobs` (platform, service role only) | `kind`, `garage_id` (nullable), `payload jsonb`, `dedupe_key` (unique when set), `run_at`, `status` (`queued`/`running`/`done`/`failed`), `attempts`, `max_attempts` default 5, `locked_until`, `last_error` |
+| `vehicle_facts` (platform, service role only) | `reg_hash` pk (HMAC-SHA-256 of the normalised reg with `VEHICLE_FACTS_PEPPER`), `facts jsonb`, `fetched_at` — no customer data |
+
+SQL: `claim_jobs(p_kind text, p_limit int) returns setof jobs` (`for update skip locked`; sets `status = running`, `locked_until = now() + interval '5 minutes'`, `attempts + 1`; re-claims rows whose lock expired), `finish_job(p_id uuid)`, `fail_job(p_id uuid, p_error text)` (exponential backoff `2^attempts` minutes, `failed` after `max_attempts`). `create_booking` gains attribution: when `reminder_send_id` is given and belongs to the garage, `source = reminder` and `reminder_sends.booking_id` is set in the same transaction. `reminder_won_back(p_garage_id, p_from, p_to)` → bookings + pence credited (invoice total when an invoice links to the booking, else `bookings.price_pence`).
+
+As built (P3.6, `20261028001000_reminders.sql`; DECISIONS A49–A58). Every function below is `security definer`, `search_path = ''`, executable by `service_role` only; errors are `22023` (bad arguments) or `P0001 GARAGE_NOT_FOUND`.
+
+| Function | Returns | Notes |
+| --- | --- | --- |
+| `enqueue_job(p_kind text, p_payload jsonb default '{}', p_run_at timestamptz default null, p_dedupe_key text default null, p_garage_id uuid default null)` | `jobs` (the row) | `p_run_at` null = now. Same (non-blank) `dedupe_key` → the existing job whatever its state; keys are unique for ever, so put the day in keys of recurring work. Kinds are dotted lower case (`reminders.send`) |
+| `claim_jobs(p_kind text, p_limit int)` | `setof jobs` | One kind (required), `p_limit` ≥ 1 (capped at 100), oldest `run_at` first. A running job whose lock expired is claimed again (attempts + 1) unless it had used its last attempt: then it is `failed` with `LOCK_EXPIRED…` |
+| `finish_job(p_id uuid)` | `boolean` | `true` when a running job became `done` (`finished_at` set); `false` otherwise |
+| `fail_job(p_id uuid, p_error text, p_retry boolean default true)` | `text` | New status: `queued` (retry at now + 2^attempts min: 2, 4, 8, 16…) or `failed` (attempts = `max_attempts`, or `p_retry => false`); `null` when the job was not running. `last_error` ≤ 2000 chars |
+| `schedule_reminders(p_garage_id uuid, p_today date)` | `jsonb` `{mot, service, review, cancelled}` (rows added/re-armed per kind, pending rows cancelled) | `p_today` is the garage-local date. Idempotent. See below |
+| `claim_reminder_sends(p_garage_id uuid, p_now timestamptz, p_limit int)` | `table (id uuid, rule_id uuid, kind text, due_date date, offset_days int, send_at timestamptz, channel text, template text, customer_id uuid, customer_name text, phone text, email text, vehicle_id uuid, registration text, make text, model text)` | Due rows (`scheduled`, `send_at <= p_now`) → `sending` (returned) or `skipped` (`skip_reason`); `p_limit` ≥ 1 (capped at 200) counts claimed rows only. No quiet hours here: call it only inside the send window |
+| `reminder_won_back(p_garage_id uuid, p_from date, p_to date)` | `table (sent int, bookings int, pence bigint)`, one row | Garage-local dates, inclusive, `p_from <= p_to` |
+| `apply_message_retention(p_garage_id uuid)` | `integer` (rows changed) | Clears `messages.body` (sets `redacted_at`), `reminder_sends.body` and `calls.voicemail_url` older than 12 months; run per garage from the retention job |
+| `seed_garage_defaults(p_garage_id uuid)` | `jsonb` `{opening_hours, resources, services, reminder_rules}` | Now also adds the 4 default rules (each kind only if missing) |
+
+- **Default rules** (also added to every garage that existed when the migration ran): `mot` on `{28,7}`, `service` on `{335}`, `review` **off** `{1}`, `missed_call` on `{0}`, all `channel = customer`, templates = `DEFAULT_TEMPLATES` bodies (no opt-out line: `renderTemplate(…, {channel})` adds it). Since `20261028002300_reminder_wording.sql` (A184) these are the one-text wording; that migration's `apply_one_text_reminder_wording()` (owner only) moved rules still exactly on the old default. `reminder_rules` columns staff may write: insert `kind, enabled, offset_days, channel, template`; update `enabled, offset_days, channel, template`.
+- **Scheduling** (`schedule_reminders`): per enabled rule and offset, a row when its send day is between `p_today − 3` and `p_today + 30`, for customers with `reminder_consent`, no `opted_out_at`, not anonymised, with an address for the channel (rule channel, or `customers.channel` for `customer`). `mot`: `due_date = vehicles.mot_expiry` (≥ today, only while `garages.mot_enabled`), send day = due − offset. `service`: anchor = local date of `vehicles.last_service_at`, else of the last collected non-MOT booking; `due_date` = anchor + 1 year; send day = anchor + offset. `review`: `due_date` = local day the booking was collected (its `status_changed → collected` event, else `ends_at`); send day = due + offset; the booking's customer. `send_at` = send day 10:00 in `garages.timezone` (09:00 UTC on 29 Mar 2026, 10:00 UTC on 25 Oct 2026). Pending MOT/service rows whose due date no longer matches the vehicle are `cancelled` (`due_date_changed`) and re-armed if it comes back. Suspended/cancelled garages get nothing new.
+- **Claim re-checks** (`skip_reason`, first that applies): `no_customer`, `rule_missing`, `rule_disabled`, `rule_changed` (offset no longer in the rule), `mot_disabled`, `anonymised`, `opted_out`, `no_consent`, `no_address`, `due_date_changed`, `expired` (MOT/service due date passed, or > 7 days late), `already_booked` (a sibling send for the same due date has a live booking; an MOT booked from 60 days before the due date; a future service visit). A claimed row is re-pointed at the vehicle's current owner and its channel re-resolved. After the claim the sender (service role) writes `link_token_hash` + `link_expires_at`, `body`, then `status` (`sent`/`failed`), `provider_msg_id`, `sent_at`, `error_code`; webhooks move it to `delivered`/`failed`. Constraints: `sent`/`delivered` need `sent_at`; `skipped`/`cancelled` need `skip_reason`; the link hash is 64 hex and comes with its expiry.
+- **Attribution** (`create_booking`): `reminder_send_id` counts when the send is the garage's, has gone out (`sending`, `sent`, `delivered`, `failed`), and its `vehicle_id` and `customer_id` are the booking's (matched by registration and phone). Then `bookings.source = 'reminder'`, `bookings.reminder_send_id` set, the send's `booking_id` = this booking (the latest wins), and the `created` event's data carries `reminder_send_id`. Otherwise the id is ignored and a requested `source: 'reminder'` is stored as `online`. Status and event actor follow the requested source (an `ai_agent` booking stays `requested`). FK `bookings (garage_id, reminder_send_id) → reminder_sends` on delete set null.
+- **Won back**: `sent` = sends with `sent_at` in range; `bookings`/`pence` = bookings with `reminder_send_id`, created in range, not `cancelled`/`no_show`/trashed; pence = sum of the booking's `issued`/`paid` invoices if any, else `bookings.price_pence`, else 0.
+- **Other tables**: `messages.status` is `queued`/`sending`/`sent`/`delivered`/`failed` (outbound) or `received` (inbound); the customer's side of a text is E.164 (`to_address` outbound, `from_address` inbound; strip `whatsapp:`); `provider_msg_id` unique when set; `body` null only after retention. `calls.status` uses Twilio's CallStatus values (`no-answer`, `in-progress`, …); `from_number` null when withheld; staff may only set `handled_at` and `handled_by` (= themselves). `garage_phone_numbers.purpose` is `forwarding` or `messaging`; owners add (`number`, `purpose`), change `purpose`, remove; only the service role sets `provider_sid`, and webhooks route only numbers with `provider_sid`. Staff read `reminder_rules`, `reminder_sends`, `messages`, `calls`, `garage_phone_numbers`; `jobs` and `vehicle_facts` have RLS on and no API-role grants.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/messaging/channel.ts` | `interface MessageChannel { kind; send(message): Promise<SendResult> }`, `getChannel(kind)` (mock unless `MESSAGING_MODE=live`), `renderTemplate(template, vars)` (`{first_name}`, `{vehicle}`, `{reg}`, `{due_date}`, `{link}`, `{garage}`; always ends "Reply STOP to opt out" for SMS/WhatsApp), `smsSegments(body)` |
+| `src/lib/messaging/twilio.ts` | SMS + WhatsApp adapters, `verifyTwilioSignature(url, params, signature, authToken)` |
+| `src/lib/messaging/quiet-hours.ts` | `isWithinSendWindow(at, timezone)` (09:00–19:00 Mon–Sat), `nextSendWindow(at, timezone)` |
+| `src/lib/jobs/*` | `enqueueJob(kind, payload, {runAt, dedupeKey, garageId})` (`queue.ts`), `drainJobs({kinds?, budgetMs})` (`runner.ts`), `JOB_DEFINITIONS` (`registry.ts`: kind, handler, timeout), `CRON_JOBS`/`isCronAuthorized`/`cronDedupeKey` (`cron.ts`), `handleCronRequest`/`handleDrainRequest` (`http.ts`), handlers in `handlers/*` (see "As built (P3.7–P3.9)") |
+| `src/lib/reminders/*` | `sendGarageReminders()` + `sendWindow()` (`send.ts`), `composeReminder()` (`compose.ts`), `createReminderLinkToken()`/`hashReminderLinkToken()` (`link-token.ts`: 16 random bytes base64url, 22 characters, A185; 43-character tokens from before still open; SHA-256 hex stored, 30-day expiry), `formatReminderDate(iso, sendAt)` (`compose.ts`: `{due_date}` as "24 Nov", with the year beyond 180 days), `openReminderLink()`/`reminderService()` (`open-link.ts`), `handleReminderLinkRequest()` (`link-route.ts`). Scheduling stays in SQL (`schedule_reminders`) |
+| `src/lib/messaging/twilio-webhooks.ts` | `handleTwilioWebhook(request, kind, {repo})` with `TwilioWebhookRepo` (Supabase: `twilio-webhook-repository.ts`); `webhook-request.ts`: `twilioWebhookUrl()`, `readVerifiedTwilioRequest()`, `twimlResponse()` |
+
+### As built (P3.7–P3.9; DECISIONS A93–A99)
+
+Migration `20261028002000_twilio_webhooks.sql` (service role only, `security definer`, `search_path = ''`; pgTAP 023):
+
+| Object | Notes |
+| --- | --- |
+| `twilio_webhook_events` (platform, A10) | `event_key` pk (`inbound:<MessageSid>`, `status:<MessageSid>:<status>`, `voice:<CallSid>:<CallStatus>`), `kind` (`sms`/`whatsapp`/`status`/`voice`), `provider_sid`, `processing_status` (`processing`/`processed`/`ignored`/`failed`), `outcome`, `error_code`, `attempts`, `received_at`, `processed_at`. Ids and codes only, never numbers or bodies |
+| `claim_twilio_webhook_event(p_event_key, p_kind, p_provider_sid) → boolean` | true for a new event, a failed one, or one stuck in `processing` > 5 min; false for a duplicate |
+| `finish_twilio_webhook_event(p_event_key, p_status, p_outcome, p_error_code) → boolean` | |
+| `apply_messaging_keyword(p_garage_id, p_phone, p_intent) → jsonb {customers, cancelled, unchanged}` | `stop`: `opt_out_customer(garage, null, phone, 'sms_stop')` (audited once) and cancels the customer's `scheduled` reminders (`skip_reason = opted_out`); `start`: clears `opted_out_at` only with `reminder_consent`, audited `customer.opted_in` (`sms_start`) |
+
+Job kinds (`JOB_KINDS`, drained in this order; payloads are ids and dates only, zod-strict; a payload without `garageId` is the platform "fan-out" job that queues one job per garage):
+
+| Kind | Payload | Does |
+| --- | --- | --- |
+| `reminders.schedule` | `{garageId?, today?}` | fan-out: active garages, key `reminders.schedule:<garage>:<local day>`; per garage: `schedule_reminders(garage, local today)` |
+| `reminders.send` | `{garageId?}` | fan-out: active garages, key `reminders.send:<garage>:<10-min UTC slot>`; per garage: outside the send window re-queues itself at `nextSendWindow()` (key `…:window:<instant>`); else `claim_reminder_sends()` in batches of 10, per row a new link token, the rule template (`renderTemplate`, refused with `failed`/`template_placeholders` when a placeholder has no value), a `messages` row in `sending`, the send (`getChannel`, two-way number, no alphanumeric sender), then `sent` + provider id + `sent_at`. Ambiguous results: `failed` (`ambiguous:…`), never resent. Rate limit / 5xx / missing configuration: rows back to `scheduled`, batch stops (retry after Retry-After, backoff, or next run). Twilio 21610: mirrored as a STOP. Email reminders end with the signed `unsubscribeUrl()` (fallback: the `/unsubscribe` form) |
+| `notifications.booking` | `{type, garageId, bookingId, previousStartsAt?}` | `sendBookingNotifications()`; key `notifications.booking:<garage>:<booking>:<type>:<once or hash of previous start>` |
+| `calls.text_back` | `{garageId, callId}` | P4.1: the missed-call text-back (see "Missed calls"); key `calls.text_back:<call id>`, drained after the voice webhook's response |
+| `messages.reply` | `{garageId, inboundMessageId, kind: "help"}` | the HELP answer (garage name, phone, email + opt-out line) to the sender on the inbound channel; key `messages.reply:help:<message id>`; not repeated to the same number within 10 min |
+| `domains.check` | `{}` | `runDomainsCheck()` over `garage_domains` (custom, `pending_dns`/`verifying`; `verification.pending_since` restarts the 48 h window); Vercel rate limit → re-queued after Retry-After; no Vercel configuration → logged, done |
+| `retention` | `{garageId?}` | fan-out: every garage (A24), then deletes `vehicle_facts` older than 30 days and `done`/`failed` jobs finished more than 14 days ago; per garage: `apply_enquiry_retention` + `apply_message_retention` |
+| `customers.enrich` | `{garageId?, importId?}` | fan-out: garages with `vehicles.enrichment_status = pending`; per garage: `enrichImportedVehicles()` within the attempt, re-queued while `remaining` (now; after Retry-After; 15 min when only failed lookups remain). The import action queues it for the rest of an import |
+| `mot.refresh` | `{garageId?, after?}` | fan-out: active garages with MOT on; per garage: vehicles of consenting, not opted-out, not anonymised owners where `mot_checked_at` is null or > 30 days old, or > 20 h old with expiry unknown or ≤ 60 days ahead, 25 at a time in id order (`after` cursor), via `getConfiguredMotHistoryLookup()` (DVSA; mock outside production); a different expiry updates the vehicle and cancels its `scheduled` MOT reminders for other dates (`due_date_changed`), then `schedule_reminders()`; rate limit → continuation after Retry-After |
+
+Runner: one claim at a time per kind; attempt timeout per kind (12–18 s; handlers get `deadline` 3 s earlier to stop starting work); success `finish_job`; `JobError(retry: false)` → `fail_job(…, false)`; anything else → `fail_job` with backoff; `jobs.last_error` and logs carry safe codes only (`db_<code>`, our codes, class names). Logs: one JSON line per job (`scope: jobs`, `event`, `job_id`, `kind`, `garage_id`, `ms`, `outcome`, counts).
+
+Routes and auth:
+
+| Route | Auth | Does |
+| --- | --- | --- |
+| `GET /api/cron/[job]` (`daily`, `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention`, `platform.close_impersonations`, `customers.enrich`) | `Authorization: Bearer $CRON_SECRET`, constant-time (SHA-256 digests), secret ≥ 16 chars | queues the fan-out kinds with key `cron:<kind>:<UTC day or slot>`, drains every kind for ≤ 20 s; 401/404/503/500 (drain failed); counts only |
+| `POST /api/jobs/drain` | same | optional strict JSON `{kinds?, budgetMs? (1000–50000)}`; 401/400/415/422/503 |
+| `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` | `X-Twilio-Signature` on the raw body against `TWILIO_WEBHOOK_BASE_URL` (else forwarded proto/host) + path + query; no `TWILIO_AUTH_TOKEN` → 503; form-encoded only (415), ≤ 64 KB (413) | claim the event, then: inbound text → `messages` (garage only from `garage_phone_numbers` with `provider_sid`), STOP/START via `apply_messaging_keyword`, HELP → `messages.reply` job drained after the response (skipped when `OptOutType` is set); a STOP to an unrouted number opts out the number at every garage that texted it in 12 months; status → `messages` / `reminder_sends` forward only (`isLaterStatus`; reminders only `sent` → `delivered`/`failed`, error `twilio:<code>`); voice → `calls` row and P4.1's dial-through / voicemail / text-back flow ("Missed calls" below; `<Reject/>` when unrouted). Always TwiML 200 except 403/415/413/503 above and 500 when the work failed (the event is `failed`, so Twilio's retry runs it again) |
+| `GET /r/[token]` (garage host → `/_site/[garageId]/r/[token]`) | the token; rate limit 30 / 10 min per garage + IP (`reminder_link`) | 303 to `/time` (service with a workshop mode) or `/service` (no matching service, mobile-only service, review), sealed `af_booking` draft `{vehicle {registration, make, model, motExpiry only with MOT on}, serviceId, locationMode, reminderSendId, idempotencyKey}`, first `opened_at`; problems → 303 `/r?link=expired\|invalid\|limited\|unavailable` (`/r` page). `Referrer-Policy: no-referrer`, `no-store` |
+
+The booking flow sends `draft.reminderSendId` to `createBooking` (attribution in `create_booking`, A52) and drops it when the customer changes the car.
+
+Response headers: a header set in `next.config.ts` `headers()` replaces the same header set by a route handler, so the stricter `Referrer-Policy` of the token links (`/r/:token`, `/manage/link`, `/manage-booking`, `/signup/invite/:token`: `no-referrer`; `/auth/confirm`: `strict-origin`) is also restated there (A188, checked by `tests/e2e/smoke.spec.ts`). A new route that needs its own `Referrer-Policy` needs a rule there too.
+
+Gate 3 (P3.12, A186, A187): `tests/e2e/gate3.spec.ts` (`pnpm test:e2e:gate3`) runs schedule (server, `POST /api/jobs/drain` with `CRON_SECRET`; playwright.garage.config.ts gives the server `PLAYWRIGHT_CRON_SECRET` from `tests/helpers/jobs.ts` and `MESSAGING_MODE=mock`) → send (`drainJobs()` in the test process with the clock pinned inside the send window, mock outbox) → `/r/{token}` in the browser → the five steps → attribution → Today's won back. App modules are loaded into Playwright with `importAppModule()` (`tests/helpers/app-modules.ts`, jiti with the `@/` and `server-only` aliases of vitest.config.ts).
+
+### Missed calls (P4.1, `20261028002100_missed_calls.sql`; DECISIONS A160–A165)
+
+| Object | Notes |
+| --- | --- |
+| `calls` (+) | `dial_status` (Twilio DialCallStatus `completed`/`answered`/`busy`/`no-answer`/`failed`/`canceled`, null when the call went straight to voicemail), `voicemail_duration_s`. `voicemail_url` holds the Twilio recording link (`https://api.twilio.com/2010-04-01/Accounts/AC…/Recordings/RE…` only); `text_back_message_id` the text-back's `messages` row. Staff still update only `handled_at`, `handled_by` |
+| `claim_call_text_back(p_garage_id, p_call_id, p_channel, p_body, p_provider) → jsonb` | service role. `{status: claimed, message_id, customer_id, to}` after inserting the outbound `messages` row (`sending`, `call_id`) and linking it on the call, or `{status: skipped, reason}`: `not_found`, `not_missed`, `withheld`, `already_sent`, `opted_out`, `recent_text_back` (this garage texted this number about a call in the last 24 h; checked under an advisory lock per garage and number). pgTAP 024 |
+
+Voice flow (`POST /api/webhooks/twilio/voice`, one URL; `?step=` is part of the signed URL):
+
+| Request | Event key | Writes | Answer |
+| --- | --- | --- | --- |
+| incoming call (`CallStatus` ringing/queued/in-progress), number provisioned (`provider_sid`) | `voice:<CallSid>:<status>` | `calls` row; `missed = false` when the garage's own phone is rung first, else `missed = true` and `calls.text_back` queued (key `calls.text_back:<call id>`) and drained after the response | `<Dial timeout=20 answerOnBridge action=?step=dial><Number>own phone</Number></Dial>`, else greeting + voicemail: `<Say>` "Sorry, <garage> can't take your call right now. Please leave a message after the tone and we'll get back to you." + `<Record maxLength=120 timeout=5 trim action=?step=recorded recordingStatusCallback=?step=recording>` + goodbye. Unprovisioned number: `<Reject/>` |
+| `?step=dial` (`DialCallStatus`) | `voice:<CallSid>:dial` | `dial_status`; `busy`/`no-answer`/`failed`/`canceled` → `missed = true` + text-back queued | missed: the voicemail TwiML; answered: `<Hangup/>` |
+| `?step=recorded` | none | none | "Thanks for your message. Goodbye." `<Hangup/>` |
+| `?step=recording` (`RecordingStatus` completed) | `voice:<CallSid>:recording` | `voicemail_url`, `voicemail_duration_s` (by CallSid) | empty |
+| status callbacks (completed, no-answer, …) | `voice:<CallSid>:<status>` | status forward only, `duration_s` | empty |
+
+The garage's own phone is a `garage_phone_numbers` row with `purpose = forwarding` and **no** `provider_sid` (entered by the owner), UK geographic, 03 or mobile only, never the called number; it is skipped when `ForwardedFrom` is that number or the caller rang this garage on another call in the last 2 minutes (our forward coming back). A repeated incoming request gets the same TwiML without writes.
+
+Job `calls.text_back` (`{garageId, callId}`, `src/lib/calls/text-back.ts`): skips answered, withheld, already-texted calls, non-UK-mobile numbers and calls older than 10 minutes; needs the garage's `missed_call` rule enabled; skips opted-out customers and numbers whose latest STOP/START to the garage was STOP; renders the rule template (`{garage}`, `{link}` = booking page, `{first_name}` for a known customer; a missing value sends nothing) with the opt-out line; channel WhatsApp when the rule (or, for `customer`, the caller's customer record) says so, else SMS; claims through `claim_call_text_back`, sends from the two-way number (no quiet hours: a reply to a live caller), records the result on the message, never retries after the claim.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/calls/missed-calls.ts` | `listMissedCallsNeedingOk(rlsClient, garageId, {limit?})` → `MissedCallCard[]` `{id, at, callerName, maskedNumber ("07••• •••123", null when withheld), callBackHref ("tel:+44…"), voicemailHref ("/api/admin/calls/{id}/voicemail"), voicemailSeconds, textedBack}` (unhandled missed calls, newest first; [] on error); `countMissedCallsNeedingOk(rlsClient, garageId)` |
+| `src/lib/calls/actions.ts` ("use server") | `markMissedCallHandled(callId)` → `{ok, changed}` / `{ok: false, code}`; `markMissedCallHandledAction(formData)` (hidden `callId`) for the card's "Mark handled" button. Sets `handled_at`/`handled_by` = the member through the RLS client, audits `call.handled`, revalidates `/app` |
+| `src/lib/calls/voicemail.ts` + `GET /api/admin/calls/[id]/voicemail` | Admin session (trusted device allowed); reads the call through the RLS client, accepts only this Twilio account's recording link, streams `<link>.mp3` with the account's credentials (`private, no-store`), audits `call.voicemail_played` |
+| `src/lib/calls/twiml.ts` | `dialTwiml`, `voicemailTwiml`, `afterRecordingTwiml`, `voiceStepUrl`, `isTwilioRecordingUrl` |
+
+### Customers & cars (P3.11, `20261028000200_customer_imports.sql`)
+
+| Table / column | |
+| --- | --- |
+| `customer_imports` (tenant) | `created_by`, `file_name`, `status` (`importing`/`completed`/`failed`), `total_rows`, `valid_rows`, `invalid_rows`, `duplicate_rows`, `imported_rows`, `customers_created`, `customers_updated`, `vehicles_created`, `vehicles_updated`, `consent_recorded`, `declaration_text`, `declaration_accepted_at`, `errors jsonb` (≤ 500 `{row, field, message}`), `completed_at`. Staff select only |
+| `customers` (+) | `import_id` (composite FK, set null) |
+| `vehicles` (+) | `import_id`, `enrichment_status` (`pending`/`done`/`not_found`/`failed`, null = never queued), `enrichment_attempts` |
+
+SQL (authenticated owners/managers of the selected garage, MFA rule as invoices): `start_customer_import(p_file_name, p_summary jsonb, p_declaration_text) → uuid`, `import_customer_rows(p_import_id, p_rows jsonb) → jsonb counts` (rows `{name, phone E.164, email, registration normalised|null, consent}`, ≤ 1,000), `finish_customer_import(p_import_id, p_status) → customer_imports`. `apply_enquiry_retention` keeps live-consent customers and anonymises never-enquired customers only after 24 months without change (DECISIONS A46).
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/customers/csv.ts` (client-safe) | `parseCustomerCsv(text)` → `{fatal, columns, hasConsentColumn, totalRows, rows, errors, warnings, duplicates}`, `importBatches(rows, 500)`, `detectColumns`, `isUkRegistration`, `normaliseImportMobile`, `formatUkMobile` |
+| `src/lib/customers/import.ts` | `runCustomerImport(rlsClient, {fileName, parsed, declarationText})` |
+| `src/lib/customers/queries.ts` | `listCustomers(rlsClient, {query, page})`, `getCustomerDetail(rlsClient, id)`, `listRecentImports(rlsClient)` |
+| `src/lib/customers/enrichment.ts` | `enrichImportedVehicles({garageId, importId?, limit?, concurrency?, pauseMs?, budgetMs?}) → {checked, enriched, notFound, failed, remaining, stoppedReason, retryAfterMs?}` (service role, explicit garage filter, idempotent). registered as job `customers.enrich` (payload `{garageId, importId?}`), re-enqueued while `remaining` (P3.7) |
+| `src/lib/vehicle/configured-provider.ts` (+) | `getConfiguredEnrichmentLookup(env)`: DVSA, else DVLA, else mock in mock mode; never VDG |
+
+Routes: `GET /api/cron/[job]` (`Authorization: Bearer CRON_SECRET`; enqueues then drains for up to 20 s — Vercel Hobby only runs daily crons), `POST /api/jobs/drain` (same secret), `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` (signature on the raw body, `twilio_webhook_events` first), `GET /r/[token]` on the garage host. Admin pages on the admin host under `/app`: `/app` (Today), `/app/diary`, `/app/bookings`, `/app/bookings/[id]`, `/app/customers`, `/app/customers/[id]`, `/app/customers/import`, `/app/reminders`, `/app/messages`, `/app/settings/{services,hours,resources,branding,booking-page,team}`.
+
+### Admin shell, Today, Diary and Bookings (as built, P3.1–P3.3)
+
+Also on the admin host: `/app/more` (phone "More" tab: every section, the garage switcher, account actions), `/app/bookings/new` (staff phone / walk-in booking), `/app/diary?week=YYYY-MM-DD` (any date in the week; Monday-first) and `/app/diary?day=YYYY-MM-DD` (one day on the DiaryGrid), `/app/bookings?status=&from=&to=&page=&search=1`. `(protected)/not-found.tsx` keeps the shell for `notFound()` in the admin; `src/app/not-found.tsx` is the root one. The root layout renders no `<main>`: the admin shell, the booking site layout (`/_site/[garageId]/layout.tsx`), the sign-in/MFA pages, the dev galleries and the root not-found each render their own.
+
+| Module | Exports |
+| --- | --- |
+| `src/app/app/(protected)/layout.tsx` | `AdminShell` (`src/components/admin-ui`) with `defaultAdminNav({ newBookings })` (Workshop / Customers / Setup incl. Agreements; Bookings badge = open requests), garage switcher → `switchGarage`, search → `searchAdmin`, booking page link `garageBaseUrl(garage)`, bell = `getAdminNotificationSummary(client).count` kept live by `NotificationRefresher` (polls `/api/admin/notifications/count`, `router.refresh()` on change), account menu with `signOut`. Nav links mark the current page on the client (`NavLink` + `usePathname`): the layout does not re-render on client navigation |
+| `src/lib/admin/data.ts` (server) | Reads through the RLS client passed in: `loadResources`, `loadBookingsStarting(from, to)`, `loadOpenRequests`, `countOpenRequests`, `loadOpeningHours`, `loadRecentActivity` (`admin_audit_log`, labelled by `src/lib/admin/dashboard.ts`), `loadReminderWeek` (`null` when `reminder_sends` can't be read; booked = bookings with a `reminder_send_id`), `listBookings(filters)`, `countBookingsByStatus`, `loadBookingDetail` (+ `booking_events`), `cleanSearch` |
+| `src/lib/admin/booking-status.ts` | `STAFF_STATUS_TRANSITIONS` (requested → confirmed/cancelled; confirmed → arrived/in_progress/no_show/cancelled; arrived → in_progress/cancelled; in_progress → waiting_parts/ready/cancelled; waiting_parts → in_progress/ready/cancelled; ready → collected/in_progress; collected, cancelled, no_show final), `canChangeStatus`, labels |
+| `src/lib/admin/booking-changes.ts` (server) | `changeBookingStatus(actor, id, to, { reason })`: RLS update of `status` (+ `cancellation_reason`) conditional on the status just read (`stale` otherwise); accept also sets `admin_seen_at`; cancel → `notifyBooking({ type: "cancelled" })`; accept (`requested` → `confirmed`) → `notifyBooking({ type: "confirmed" })` (A176); releasing a bay → `clearSlotCache`. The trigger writes the timeline event. `addBookingNote(actor, id, text)`: `booking_events` `note`, actor `staff`, `actor_id` = member |
+| `src/app/app/(protected)/bookings/status-actions.ts` | `acceptBookingAction`, `quickStatusAction` (cards; problems → `/app/bookings/[id]?notice=<code>`), `changeBookingStatusFormAction`, `addBookingNoteAction` (useActionState). All via `requireStaffWriter()` (`src/lib/admin/staff.ts`: AAL2 session; a trusted device reads only) |
+| `src/lib/admin/search.ts`, `search-actions.ts` | `searchAdmin(formData)` (POST only): exact reference → the booking; otherwise the term goes in the `af_admin_search` cookie (httpOnly, SameSite strict, path `/app`, 15 min) and the browser goes to `/app/bookings?search=1`. Matching: reference `ilike`, customer name `ilike`, mobile → E.164 `eq`, registration normalised `eq` (as the manage lookup) |
+| `src/lib/admin/staff-booking.ts` (server) | `staffBookingSchema` (incl. `overrideHours`), `createStaffBooking(garageId, memberId, input)` → `getBookingEngine().createBooking(…, {staff: {memberId, overrideHours}})` with `source` `phone`/`walk_in` (staff rules, A177-A179); ticked consent → `consent_source = staff` with `STAFF_CONSENT_WORDING`. `/app/bookings/new/actions.ts`: `getStaffSlotsAction` (`getStaffSlots` for the signed-in member), `createStaffBookingAction` (member = `admin.user.id`; form field `overrideHours=on`) |
+| `src/lib/admin/{dates,today,diary,timeline,bookings}.ts` | Pure: garage-local day/week ranges (clock-change safe), Today shaping (`shapeToday`, `diaryHours`, `todayChips`), week grid (`shapeWeek`), `booking_events` in words, row mapping |
+
+### Reminders page and missed calls on Today (as built, P3.10; DECISIONS A166–A175)
+
+`/app/reminders` (`?edit=<kind>#rule-editor` opens the rule editor in the aside, `?confirm=review#review-confirm` the review-request consent note; `?done=` / `?error=` flash keys). Neither query ever holds a registration or booking state. Today's "Needs your OK" shows missed calls from the P4.1 library. `/app/bookings/new` lists every service that isn't deleted (offline ones labelled) and has "Outside opening hours" (`overrideHours=on` + a free `datetime-local`, A175).
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/reminders/rules.ts` (pure, client-safe) | `RULE_KINDS` (`mot`, `service`, `missed_call`, `review`), `RULE_CHANNELS`, `RULE_NAMES`, `RULE_SWITCH_LABELS`, `CHANNEL_OPTIONS`, `allowedPlaceholders(kind)` (the six reminder placeholders; `first_name`, `link`, `garage` for the text-back), `checkTemplate(kind, text)` → `{ ok, errors, warnings, unknown }` (unknown placeholders refused as the senders refuse them, `{garage}` required, 1000 characters), `describeRule(kind, offsets)`, `parseOffsets("28, 7")`, `OFFSET_LABELS`, `defaultTemplate(kind)`, `REVIEW_CONSENT_NOTE` (A54), `SAMPLE_LINK_TOKEN` (22 characters, as a real token), `sampleTemplateValues({ kind, garageName, bookingBaseUrl, dueDate })` (pass `formatReminderDate(…)` as `dueDate`) |
+| `src/lib/admin/reminders.ts` (server, RLS client + explicit `garage_id`) | `loadReminderRules(client, garageId)`, `loadReminderMonth(client, garageId, monthFirst, tz)` → `{ sent, booked, pence, optedOut }` (A53's definition without the service-role `reminder_won_back()`; Today's "Won back by reminders" uses it too), `loadDueSoon(client, garageId, { today, timeZone, motEnabled, motRuleOn })` (`reminder_sends` due in 30 days + MOT cars from `vehicles` when `mot_enabled`), `nextMonthStart` |
+| `src/lib/admin/reminder-view.ts` (pure) | `shapeDueSoon` (one row per car, kind and due date: booked > sent > scheduled > failed > skipped; MOT cars without a send say why), `sendStatus`, `bookedShare`, `KIND_LABELS` |
+| `src/lib/reminders/test-send.ts` (server) | `sendReminderTest({ garage, user, rule, sampleDueDate })` (own sign-in mobile, else own email; `getChannel` = mock unless `MESSAGING_MODE=live`; `consumeRateLimit(user, "reminder_test", 5, 600)`; audit `reminder.test_sent` with kind/channel/outcome only), `testRecipient`, `composeTest` |
+| `src/lib/reminders/replan.ts` (server) | `replanReminders(garageId)`: best-effort `reminders.schedule` job after a rule change |
+| `src/app/app/(protected)/reminders/actions.ts` | `toggleRuleAction` (form: `kind`, `enabled`, `confirmed=yes` for review requests), `saveRuleAction` (useActionState: `kind`, `template`, `offsets`, `channel`), `sendTestAction` (`kind`). All `requireSetupContext` (AAL2 in this session) + `roleAllows(admin, "manage")`; a missing rule is inserted with the defaults |
+| `src/lib/admin/staff-times.ts` (pure) | `checkOverrideTime(value, { today, timeZone })` (5-minute marks, today to +730 days, the spring-forward gap refused), `OVERRIDE_HOURS_HINT`; `zonedInstant()` in `src/lib/admin/dates.ts` |
+| `src/components/admin-ui` | `MissedCallCard` (`listMissedCallsNeedingOk` rows; Call back `tel:`, Mark handled → `markMissedCallHandledAction`, Texted back badge), `VoicemailPlayer` (fetches `/api/admin/calls/[id]/voicemail` only when pressed), `TemplateEditor` `errors` / `warnings` props, `AutomationRow` `fields` / `editLabel` props |
+
+### Messages & calls (as built; DECISIONS A196–A205)
+
+Routes: `/app/messages` (conversations), `/app/messages/[customerId]` (thread + reply), `/app/messages/calls` (calls). Migration `20261028003000_messages_inbox.sql`: `messages.read_at` / `read_by` (staff column grant + policy "garage members mark inbound messages read"), `claim_staff_reply(uuid, uuid, uuid, text, text)` (service role). pgTAP `027_messages_inbox`.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/messages/view.ts` (pure) | `shapeConversations`, `countUnread`, `threadItems` (day lines, labels, delivery, STOP/START system lines), `messageLabel`, `deliveryStatus`, `replyBlock` (the reply box's reason, mirroring `claim_staff_reply()`), `maskedAddress`, `shortWhen`, `CHANNEL_NAMES` |
+| `src/lib/messages/inbox.ts` (server, RLS client + explicit `garage_id`) | `loadInbox(client, garageId)` → `{ conversations, unknown, unreadTotal }`, `loadThread(client, garageId, customerId)`, `hasMessagingNumber`, `countUnreadMessages`, `markThreadRead(client, garageId, customerId, userId)` |
+| `src/lib/messages/reply.ts` (server; service role for the claim and the record only) | `sendStaffReply({ garage, member, customerId, body })`, `canReply(role)` (owner, manager, front desk), `REPLY_MAX_LENGTH` (1000), `REPLY_RATE_LIMIT` (20 / 10 min) |
+| `src/lib/calls/recent-calls.ts` (server, RLS) | `listRecentCalls(client, garageId, { limit })` → `RecentCall` (the `MissedCallCard` shape + missed, handled, duration) |
+| `src/app/app/(protected)/messages/actions.ts` | `replyAction` (useActionState; `requireStaffWriter`, form `customerId`, `body`), `markThreadReadAction(customerId)` (any member, from the thread page once shown), `markCallHandledAction` (P4.1's `markMissedCallHandled`, then refreshes the Calls tab) |
+
+Setup pages (P3.4, as built): `/app/settings/services` (+ `/new`, `/[id]`), `/app/settings/hours`, `/app/settings/resources`, `/app/settings/branding`. Rules shared by forms and actions: `src/lib/settings/setup.ts` (client-safe: `canManageSetup(role)` owner/manager, `canChangeGarage(role)` owner, `parseServiceForm`, `parseOpeningHoursForm` + `diffOpeningWindows`, `parseClosureForm`, `parseBookingRulesForm`, `parseServiceArea`, `parseResourceForm`, `chooseAccent`, `sniffLogoType`, `logoPath`). Server plumbing: `src/lib/settings/server.ts` (`requireSetupContext(returnTo)` = `getAdminContext()` with MFA, `roleAllows`, `databaseProblem`, `afterSetupChange(garageId, paths)` clears the slot cache and revalidates). Server actions sit next to each page (`settings/*/actions.ts`), write only through `admin.client` with `garage_id`/`id = admin.garage.id`, and return `SetupFormState` (`useActionState`) or redirect with `?done=`/`?error=` codes. The logo goes to `public-media/<garage_id>/logo.<ext>` through the RLS client's storage API.
+
+## Agent tool API (Phase 4, P4.2)
+
+Contract: `docs/autofix/agent-api.yaml` (OpenAPI 3.1) for Workforce and Askbridge. `POST /api/agent/v1/{lookup_vehicle,list_services,available_slots,create_booking,get_booking,garage_profile}` on the admin host, `Authorization: Bearer afat_…`, strict JSON bodies (no garage id, no `source`, registrations only in bodies). Errors `{code, message, issues?, alternatives?}`: 401 `UNAUTHORIZED`, 403 `FORBIDDEN`/`GARAGE_INACTIVE`, 404 `NOT_FOUND`/`VEHICLE_NOT_FOUND`, 409 `SLOT_UNAVAILABLE` (+ up to 3 `alternatives`), 422 `INVALID_REQUEST`/`INVALID_BOOKING`/`SERVICE_UNAVAILABLE`/`OUTSIDE_SERVICE_AREA`, 429 `RATE_LIMITED`, 503 `UNAVAILABLE` (+ 400/413/415 for bad bodies).
+
+### Schema (`20261028000100_agent_tokens.sql`)
+
+| Table | Columns |
+| --- | --- |
+| `agent_tokens` (tenant) | `name`, `token_hash` (hex HMAC-SHA-256 with `AGENT_TOKEN_PEPPER`, unique), `scopes text[]` (tool names, default all six), `last_used_at`, `revoked_at`. No staff grants; select policy for owners/managers as a backstop |
+| `agent_call_log` (tenant) | `token_id` (composite FK, set null), `tool`, `outcome` (`OK` or the error code), `http_status`, `latency_ms`, `booking_id` (composite FK, set null). Staff read; service role writes. Never phone numbers, registrations or tokens |
+
+SQL: `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` (service role; never returns the hash), `list_agent_tokens()` and `revoke_agent_token(p_token_id) → boolean` (authenticated owners/managers of the selected garage, security definer).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/agent-api/schemas.ts` | `agentTools`, `agentInputSchemas` (zod, one per tool), error codes/status/messages, response types matching the OpenAPI components |
+| `src/lib/agent-api/tokens.ts` | `generateAgentToken()`, `hashAgentToken(token)`, `bearerToken(header)`, `agentTokenHashesMatch()` (constant time), `tokenAllows(scopes, tool)` |
+| `src/lib/agent-api/store.ts` | `AgentApiStore` (`findToken`, `recordCall`, `garageProfile`, `findBooking`), `getAgentApiStore()` / `setAgentApiStoreForTests()`, `issueAgentToken({garageId, name, scopes})` → raw token once |
+| `src/lib/agent-api/handler.ts` | `handleAgentToolRequest(tool, request)`: token → garage status → scope → rate limits → body → tool (booking engine, vehicle provider with MOT only when `mot_enabled`, `findBookingForManage`) → `agent_call_log` row + `agent_api.call` log line |
+
+## Super admin (Phase 4, P4.5)
+
+### As built (DECISIONS A120–A129)
+
+Migration `20261028000500_platform_admin.sql`; pgTAP `021_platform_admin.test.sql`; integration `tests/integration/platform-admin.test.ts`; Playwright `tests/e2e/super-admin.spec.ts` (project `super-admin` in `playwright.garage.config.ts`, `pnpm test:e2e:super-admin`).
+
+| Table | Columns | Access |
+| --- | --- | --- |
+| `platform_impersonations` | `garage_id` (not null, cascade), `admin_user_id → auth.users`, `reason` (5–500), `started_at`, `expires_at` (≤ 2 h after start), `ended_at`, `end_reason` (`ended`/`replaced`/`expired`); one open row per admin | service role only (RLS on, no policies); exempt from the 007 default/select-policy rules like `jobs` |
+| `platform_audit_log` | `actor_id`, `action` (`platform.*`), `target_garage_id` (set null on delete), `entity_type`, `entity_id`, `reason`, `detail jsonb`, `created_at` | append-only, service role select/insert only |
+
+SQL (security definer, `search_path = ''`):
+
+- Internal (no API grant): `platform_admin_allowed()` (platform admin + `aal2`), `require_platform_admin()` (42501 `PLATFORM_ADMIN_REQUIRED`), `impersonated_garage_id()` (open, unexpired session; read-only transaction; AAL2), `record_platform_action()` (platform log + the garage's `admin_audit_log`), `clean_platform_reason()`, `close_expired_impersonations_for(uuid)`.
+- `garage_role(uuid)` replaced: member role, else `'owner'` for `impersonated_garage_id()`.
+- `authenticated` (each checks platform admin + AAL2): `platform_garages(p_search, p_status, p_plan, p_limit, p_offset)` (members, bookings in 30 days, last booking, custom domain + status, `total_count`), `platform_garage(id) → jsonb`, `platform_update_garage(id, plan, status, reason)`, `platform_audit_entries(garage_id?, limit)`, `platform_start_impersonation(garage_id, reason, minutes)`, `platform_end_impersonation()` (platform admin, no AAL2 needed), `current_impersonation()`, `log_impersonation_event(action, path)`, `platform_job_health() → jsonb`, `platform_retry_job(id, reason)`.
+- `service_role`: `close_expired_impersonations() → integer`.
+
+App:
+
+| Module / route | What |
+| --- | --- |
+| `src/lib/platform/policy.ts` | Pure rules: `platformAccess()`, `isReadRequest()` / `isPrefetch()`, `toImpersonation()`, `cleanReason()`, `redactJobError()`, plan/status lists, `IMPERSONATION_COOKIE` (`af_impersonation`) |
+| `src/lib/platform/access.ts` | `getPlatformAdmin()` (cached; `is_platform_admin()` + assurance on the user's own client), `requirePlatformAdmin()` (pages: `notFound()` / redirect `/admin/verify`), `getAllowedPlatformAdmin()` |
+| `src/lib/platform/store.ts` | Typed RPC wrappers (`listGarages`, `getGarage`, `updateGarage`, `listAuditEntries`, `startImpersonation`, `endImpersonation`, `currentImpersonation`, `getJobHealth` (redacts), `retryJob`), `PlatformError` |
+| `src/lib/platform/actions.ts` | Server actions: `updateGarageAction`, `startImpersonationAction` (sets the hint cookie, redirects to `/app`), `endImpersonationAction`, `retryJobAction`, `verifyPlatformMfaAction`, `startPlatformEnrolmentAction`, `signOutPlatformAction` |
+| `src/lib/platform/api.ts` | `withPlatformAdmin()` (404 for non-admins, same-origin JSON for mutations, error mapping) |
+| `src/lib/platform/jobs.ts` | `platformCloseImpersonationsHandler` for job kind `platform.close_impersonations` (registered in `src/lib/jobs`: hourly period, also in the `daily` cron) |
+| `src/components/platform/impersonation-banner.tsx` | `ImpersonationBanner({ impersonation, surface })`: "Viewing <garage> as Vitalos support. Read-only … Ends at HH:MM" + End impersonation |
+| `src/lib/tenancy/request-headers.ts` | `x-autofix-method`, `x-autofix-path`, set by `src/proxy.ts` on every admin-host request (client values overwritten) |
+| `src/lib/tenancy/admin.ts` | `AdminContext.impersonation`; with the hint cookie and an open session the impersonated garage is the only membership (role `owner`); server actions and non-GET requests get `null` and are logged as blocked writes; GETs are logged as page views (not prefetches) |
+| `/admin` | Garages list: search name/slug, filter status/plan, 25 a page (GET form; `?q=&status=&plan=&page=`) |
+| `/admin/garages/[garageId]` | Counts, plan + status with reason, "View as support" (reason, minutes), domains, support sessions, platform history |
+| `/admin/jobs` | Job health: counts by kind/status, oldest queued, expired locks, recent failures (redacted) with Retry, reminder sends skipped/failed per garage in 7 days |
+| `/admin/verify` | TOTP challenge or enrolment for platform admins |
+| `/api/platform/garages` (GET), `/api/platform/garages/[garageId]` (GET, PATCH), `/api/platform/impersonation` (GET, POST, DELETE), `/api/platform/health` (GET), `/api/platform/jobs/[jobId]/retry` (POST) | JSON mirrors of the pages; 404 for everyone but platform admins at AAL2 |
+
+`/admin` has its own layout (navy platform bar, no garage shell) and shows the banner while the admin has an open session. **The garage admin layout must mount the banner**: in `src/app/app/(protected)/layout.tsx`, render `{admin.impersonation ? <ImpersonationBanner impersonation={admin.impersonation} /> : null}` above the shell content (lead / UI lane). `/app/login` sends platform admins with no garage to `/admin`.
+
+
+## Booking page, domains and Askbridge (P4.3, P4.6), as built
+
+Migration `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140–A153). pgTAP `022_domains_askbridge.test.sql`.
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `set_booking_page_settings(p_embed_origins jsonb default null, p_askbridge jsonb default null) → jsonb` | authenticated, **owner** of the selected garage (else `42501`) | Atomic merge into `garages.settings`: `embedOrigins` (≤ 10 `https://host[:port]`) and/or `askbridge` `{enabled bool, widgetId ^[A-Za-z0-9_-]{4,64}$}` (`enabled` needs an id); null leaves a key alone; `22023` on bad input. Returns `{embedOrigins, askbridge}` |
+| `enqueue_askbridge_sync(p_garage_id uuid)` | service role, triggers | One `askbridge.sync` job (`{garageId}`) per garage per UTC minute, run the minute after, only for active/onboarding garages with the chat on |
+| triggers `*_askbridge_sync` | — | After changes to `garages` (profile columns, status, `settings.faqs`, `settings.askbridge`), `services`, `opening_hours`, `closures`, `garage_domains` (status / `deleted_at` only) |
+
+`garage_domains.verification` (service role only) now holds `{records: [{type: CNAME\|TXT, name, host, value, purpose}], pending_since}`.
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/booking-page/embed-origins.ts` (client-safe) | `normaliseEmbedOrigin`, `parseEmbedOrigins(text)`, `embedOriginsFromSettings(settings)`, `MAX_EMBED_ORIGINS` |
+| `src/lib/booking-page/security-headers.ts` (pure) | `bookingSiteCsp({embedOrigins, widgetOrigin, dev})`, `bookingSiteHeaders()`, `ADMIN_SECURITY_HEADERS`; applied by `src/proxy.ts` to every response (admin/unknown: `X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`; garage hosts: CSP, no `X-Frame-Options`). `next.config.ts` no longer sets `X-Frame-Options` |
+| `src/lib/booking-page/domain-view.ts` (client-safe) | `parseStoredVerification`, `dnsRecordsForDisplay` (→ `DnsRecordTable`), `failedStepFor` (→ `DomainStatusSteps`), `checkAvailableInMs`, `isDomainInProgress` |
+| `src/lib/booking-page/domains-server.ts` | `getCustomDomain(client, garageId)`, `connectCustomDomain(garageId, hostname, {rls, service, domains?})`, `checkCustomDomainNow` / `retryCustomDomain(garageId, {service, domains?, now?})`, `removeCustomDomain(garageId, {rls, service})`, `createSupabaseDomainsCheckRepo(client, {garageId?, id?, limit?})` (scoped to one garage/row for "Check now"; clears the host cache on each status write; the `domains.check` job keeps its own repo in `src/lib/jobs/handlers/domains-check.ts`) |
+| `src/lib/booking-page/qr.ts` | `qrMatrix`, `qrSvg(text, {title})`, `qrPng(text, scale)` (`uqr` + zlib; no external service) |
+| `src/lib/tenancy/resolve.ts` (+) | `HostGarage` gains `embedOrigins`, `widgetEnabled` (from `settings`); cache on `globalThis`; `clearHostCache({hostnames?, slugs?})` |
+| `src/lib/tenancy/garage.ts` (+) | `Garage.askbridgeWidgetId` (set only while the chat is on) |
+| `src/lib/askbridge/config.ts` (client-safe) | `askbridgeFromSettings`, `parseAskbridgeWidgetId`, `askbridgeScriptUrl(env)`, `askbridgeWidgetFor(settings, env)` |
+| `src/lib/askbridge/sync.ts` | `runAskbridgeSync(payload, deps)` (**job kind `askbridge.sync`** for the runner), `AskbridgeSyncError {retryable}`, `buildAskbridgeKnowledge`, `signAskbridgeBody` / `verifyAskbridgeSignature`, `askbridgeIdempotencyKey`, `getAskbridgeReadiness`, `askbridgeOutbox()` (mock) |
+| `src/lib/agent-api/handler.ts` (+) | `agentGarageProfile(record)` (the `garage_profile` body, shared with the sync) |
+| `src/components/askbridge/askbridge-widget.tsx` | `AskbridgeWidget` (`next/script` `lazyOnload`), rendered by the garage layout only when the chat is on and `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` is valid |
+
+Routes: `/app/settings/booking-page` (free link + copy + QR, own address: connect / DNS records / status steps / Check now / Try again / remove, embed snippets + allowed sites, branding summary, Askbridge chat; owners edit, others read; in `SetupNav`), `GET /app/settings/booking-page/qr?format=png|svg` (signed-in members, attachment). Server actions in `settings/booking-page/actions.ts` (`connectDomainAction`, `checkDomainAction`, `removeDomainAction`, `saveEmbedOriginsAction`, `saveAskbridgeAction`), each audited (`booking_page.*`, `askbridge.*`) and clearing the host cache. `/api/health` reports `checks.askbridge`.
+
+Contract with Askbridge: [askbridge.md](askbridge.md). Local stub `scripts/askbridge-widget-stub.mjs`; `pnpm test:lighthouse:askbridge` (`lighthouserc.askbridge.cjs`, reports in `output/lighthouse-askbridge/`); `pnpm test:e2e:booking-page` (Playwright project `booking-page-settings`).
+
+## Sign-up and onboarding (Phase 4, P4.4)
+
+As built (`20261028000400_signup.sql`; DECISIONS A100–A112). Done when a new garage is live on its free link in under 15 minutes: `tests/e2e/signup.spec.ts` records about 45 s locally.
+
+### Routes (admin host)
+
+| Route | What |
+| --- | --- |
+| `/signup` | Step 0: account (name, email, password ≥ 12). `signUpAction` (`src/app/signup/actions.ts`): Turnstile when both keys are set, 5 sign-ups per IP and 3 per email per hour, `supabase.auth.signUp` with `emailRedirectTo` `/auth/confirm?next=/signup/garage` and `user_metadata.display_name` |
+| `/signup/check-email` | "Check your email" (no address in the page or URL) |
+| `/auth/confirm?token_hash=…&type=email&next=/signup/garage` | GET shows a click-through page; POST (same origin) verifies the token and answers 303 to `/signup/garage` (`?link=invalid` on failure) |
+| `/signup/garage` | Steps 1–2 (signed in, email confirmed; otherwise "Sign in to continue"): `GarageWizard` with `searchPlacesAction`, `placeDetailsAction`, `checkSlugAction`, `createGarageAction` (`src/app/signup/garage/actions.ts`) |
+| `/app/onboarding` | Redirects to the next step. Outside the admin shell; `requireOnboardingOwner(path, {mfa})` (`src/app/app/onboarding/context.ts`) = owner of the selected garage, MFA verified for steps 4–6 and Done |
+| `/app/onboarding/security` | Step 3: link to `/app/mfa/enroll?returnTo=/app/onboarding/security` |
+| `/app/onboarding/services` | Step 4: MOT yes/no (`garages.mot_enabled`) and the seeded services to keep (others archived) — `saveOnboardingServicesAction` |
+| `/app/onboarding/agreement` | Step 5: `DpaAcceptance` + `acceptDpaAction` (P4.9) |
+| `/app/onboarding/team` | Step 6: `InviteForm`, pending invites, "Finish and go live" (`finishOnboardingAction` → `complete_garage_onboarding()`) |
+| `/app/onboarding/done` | Booking link (copy), "Book a test", next steps |
+| `/signup/invite/[token]` | Route handler: token → httpOnly `af_invite` cookie (path `/signup/invite`, 1 h), 303 to `/signup/invite` |
+| `/signup/invite` | Accept: join (right account), sign out (wrong account), password (existing account) or name + password (new account, created confirmed with the service role) — `src/app/signup/invite/actions.ts` |
+| `/app/settings/team` | Members (owners: change role, remove), invite form and pending invites (owners/managers: send again, withdraw) |
+
+Proxy: `/signup/*` gets the session refresh `/app` gets (no MFA rules there); the mandatory-enrolment redirect skips `/app/onboarding/*`, which enforces MFA itself. `/app/mfa/enroll` honours `returnTo` and stays (with Continue) for 5 minutes after a factor is verified, so the recovery codes are shown.
+
+### Schema and SQL
+
+| Object | |
+| --- | --- |
+| `garage_members.role` | + `front_desk` (technician's rights for now) |
+| `garage_invites` (tenant) | `email` (lower case), `role` (`manager`/`technician`/`front_desk`), `token_hash` (hex SHA-256, unique), `invited_by`, `expires_at` (7 days from the last send), `accepted_at`, `accepted_by`, `revoked_at`, `sent_count`, `last_sent_at`. One open invite per (`garage_id`, `email`). RLS select policy for owners/managers as a backstop; no staff grants |
+| `create_garage(p_user_id uuid, p_garage jsonb) → jsonb` | Service role. Keys `name`, `slug`, `phone` (E.164), `email`, `website`, `google_place_id`, `address {line1, line2, town, postcode}`, `opening_hours [{weekday, opens, closes}]`. Returns `{garage_id, slug, status, opening_hours_from_places, seeded}`. Errors `P0001`: `USER_NOT_FOUND`, `EMAIL_NOT_CONFIRMED`, `INVALID_GARAGE: <field>`, `SLUG_RESERVED`, `SLUG_TAKEN`, `GARAGE_LIMIT_REACHED` (3 per user per 24 h) |
+| `complete_garage_onboarding() → text` | Owner of the selected garage (`garage_actor_allowed()`); `DPA_NOT_ACCEPTED` until a DPA row exists; sets `active` and `settings.onboarding.completed_at`; idempotent |
+| `create_garage_invite(p_email, p_role, p_token_hash) → jsonb`, `resend_garage_invite(p_invite_id, p_token_hash) → jsonb`, `revoke_garage_invite(p_invite_id) → boolean`, `list_garage_invites() → table` | Owners/managers of the selected garage (`garage_actor_allowed()`); `INVITE_ALREADY_MEMBER`, `INVALID_INVITE: <field>`, `INVITE_NOT_FOUND`; audited `invite.created/resent/revoked` |
+| `accept_garage_invite(p_token_hash) → jsonb` | Any signed-in user whose email is the invited one: `{garage_id, role, already_member}`; `INVITE_NOT_FOUND`, `INVITE_EXPIRED`, `INVITE_EMAIL_MISMATCH`, `GARAGE_UNAVAILABLE`; audited `invite.accepted` |
+| `list_garage_team() → table (user_id, email, display_name, role, joined_at, is_self)` | Members of the selected garage; emails only for owners/managers (and yourself) |
+| `reserved_garage_slugs()`, `garage_booking_prefix(name)`, `auth_email_exists(email)`, `garage_invite_expiry()` | Helpers; service role only |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/signup/slug.ts` (client-safe) | `slugify`, `slugProblem`, `slugAlternatives`, `SLUG_PROBLEM_MESSAGES` |
+| `src/lib/signup/schema.ts` (client-safe) | `parseAccountForm`, `parseGarageDetails`, `parseSlug`, `parseOpeningHours`, `parseGarageForm`, `createGaragePayload`, `parseInviteForm`, `INVITE_ROLES`, `ROLE_LABELS`, `ROLE_DESCRIPTIONS`, `PASSWORD_MIN_LENGTH` |
+| `src/lib/signup/server.ts` | `getSignupSession`, `checkSlugAvailability`, `createGarageForUser` (RPC, admin profile, `af_garage` cookie, host cache cleared), `createGarageError`, `requestIp`, `passSignupHumanCheck`, `onboardingBookingUrl` |
+| `src/lib/signup/invite-token.ts` | `generateInviteToken`, `hashInviteToken`, `isInviteToken`, `inviteUrl`, `INVITE_COOKIE` |
+| `src/lib/places/*` | `types.ts` (`PlaceSummary`, `PlaceDetails`, `PlacesProvider`), `map.ts` (`mapPlaceDetails`, `placeOpeningHours`, `placeAddress`, `placePhone`, `describeOpeningHours`), `fixtures.ts`, `provider.ts` (`getPlacesProvider`, `resolvePlacesMode`, `createGooglePlacesProvider`, `createMockPlacesProvider`) |
+| `src/lib/team/server.ts`, `src/lib/team/actions.ts` | `listTeam`, `listPendingInvites`, `createInvite`, `resendInvite`, `revokeInvite`, `previewInvite`, `composeInviteEmail`; actions `inviteStaffAction`, `resendInviteAction`, `revokeInviteAction`, `changeMemberRoleAction`, `removeMemberAction` |
+| `src/components/onboarding/*`, `src/components/team/*` | `OnboardingFrame`, `OnboardingProgress`, `TextField`, `Notice`, `ONBOARDING_STEPS`/`ONBOARDING_PATHS`; `InviteForm`, `ResendInviteButton`, `MemberList`, `PendingInviteList` |
+
+No background job kinds: invite emails are sent inline through `getChannel("email")`.

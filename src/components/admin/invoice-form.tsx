@@ -3,7 +3,7 @@
 import { Check, ChevronDown, Pencil, Plus, Save, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { saveInvoiceDraftAction, type InvoiceFormState } from "@/app/admin/(protected)/invoices/actions";
+import { saveInvoiceDraftAction, type InvoiceFormState } from "@/app/app/(protected)/invoices/actions";
 import { serviceCatalogue } from "@/config/service-catalogue";
 import { calculateInvoiceTotals, formatPence, poundsToPence } from "@/lib/invoices/money";
 import type { InvoiceSourceType } from "@/lib/invoices/types";
@@ -23,7 +23,7 @@ export type InvoiceServiceCategory = { id: string; name: string; services: reado
 
 const baseState: InvoiceFormState = { error: "" };
 const input = "mt-2 block min-h-11 w-full rounded-xl border border-[#D7E0E9] bg-white px-4 text-sm font-medium text-[#071127] outline-none focus:border-[#1974E2] focus:ring-4 focus:ring-[#1974E2]/10";
-const label = "text-xs font-extrabold tracking-wide text-[#667586] uppercase";
+const label = "text-xs font-extrabold tracking-wide text-grey-600 uppercase";
 const quantityOptions = ["0.25", "0.5", "0.75", ...Array.from({ length: 20 }, (_, index) => String(index + 1))];
 
 export function InvoiceForm({ initial, existingSourceInvoices = [], serviceCategories = serviceCatalogue }: { initial: InvoiceFormInitial; existingSourceInvoices?: ExistingSourceInvoice[]; serviceCategories?: readonly InvoiceServiceCategory[] }) {
@@ -40,7 +40,7 @@ export function InvoiceForm({ initial, existingSourceInvoices = [], serviceCateg
     {existingSourceInvoices.length > 0 && <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
       <h2 className="text-lg font-extrabold">An active invoice already exists for this source</h2>
       <p className="mt-2 text-sm leading-6">Review the existing record before deliberately creating another draft.</p>
-      <ul className="mt-3 grid gap-2 text-sm font-bold">{existingSourceInvoices.map((invoice) => <li key={invoice.id}><Link className="underline" href={`/admin/invoices/${invoice.id}`}>{invoice.reference}</Link> <span className="font-medium">({invoice.status})</span></li>)}</ul>
+      <ul className="mt-3 grid gap-2 text-sm font-bold">{existingSourceInvoices.map((invoice) => <li key={invoice.id}><Link className="underline" href={`/app/invoices/${invoice.id}`}>{invoice.reference}</Link> <span className="font-medium">({invoice.status})</span></li>)}</ul>
       <label className="mt-4 flex items-start gap-3 text-sm font-bold"><input required type="checkbox" name="confirmDuplicateSource" value="true" className="mt-1 size-4" />I have reviewed the existing invoice and intend to create another draft.</label>
     </section>}
     <FormSection title="Customer"><div className="grid gap-4 sm:grid-cols-2"><Field name="customer_name" title="Customer name" value={initial.customerName} required /><Field name="customer_email" title="Email" value={initial.customerEmail} type="email" /><Field name="customer_phone" title="Phone" value={initial.customerPhone} /><TextField name="customer_address" title="Address" value={initial.customerAddress} /></div></FormSection>
@@ -53,7 +53,7 @@ export function InvoiceForm({ initial, existingSourceInvoices = [], serviceCateg
       setItems((current) => [...current, { key, description: "", quantity: "1", unitPrice: "0.00", locked: false }]);
       setActiveItemKey(key);
     }} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C9D5E2] px-4 text-sm font-extrabold text-[#1446A5]"><Plus size={17} /> Add item</button>}>
-      <p className="mt-1 text-sm text-[#667586]">Choose a catalogue service for the active row, enter its price, then save the row to lock it.</p><div className="mt-5 grid gap-4">{items.map((item, index) => <div key={item.key} onFocusCapture={() => { if (!item.locked) setActiveItemKey(item.key); }} className={`grid gap-3 rounded-xl p-4 transition lg:grid-cols-[1fr_9rem_10rem_6.5rem] lg:items-end ${item.locked ? "bg-[#F1F7F3]" : activeItemKey === item.key ? "bg-[#F8FAFC] ring-2 ring-[#1974E2]/25" : "bg-[#F8FAFC]"}`}><EditableField title="Description" value={item.description} disabled={item.locked} change={(value) => update(setItems, item.key, "description", value)} /><QuantityField value={item.quantity} disabled={item.locked} itemNumber={index + 1} change={(value) => update(setItems, item.key, "quantity", value)} /><EditableField title="Unit price (£)" value={item.unitPrice} disabled={item.locked} change={(value) => update(setItems, item.key, "unitPrice", value)} /><div className="flex gap-2"><button type="button" aria-label={`${item.locked ? "Edit" : "Save"} item ${index + 1}`} title={`${item.locked ? "Edit" : "Save"} item`} disabled={!item.locked && !item.description.trim()} onClick={() => {
+      <p className="mt-1 text-sm text-grey-600">Choose a catalogue service for the active row, enter its price, then save the row to lock it.</p><div className="mt-5 grid gap-4">{items.map((item, index) => <div key={item.key} onFocusCapture={() => { if (!item.locked) setActiveItemKey(item.key); }} className={`grid gap-3 rounded-xl p-4 transition lg:grid-cols-[1fr_9rem_10rem_6.5rem] lg:items-end ${item.locked ? "bg-[#F1F7F3]" : activeItemKey === item.key ? "bg-[#F8FAFC] ring-2 ring-[#1974E2]/25" : "bg-[#F8FAFC]"}`}><EditableField title="Description" value={item.description} disabled={item.locked} change={(value) => update(setItems, item.key, "description", value)} /><QuantityField value={item.quantity} disabled={item.locked} itemNumber={index + 1} change={(value) => update(setItems, item.key, "quantity", value)} /><EditableField title="Unit price (£)" value={item.unitPrice} disabled={item.locked} change={(value) => update(setItems, item.key, "unitPrice", value)} /><div className="flex gap-2"><button type="button" aria-label={`${item.locked ? "Edit" : "Save"} item ${index + 1}`} title={`${item.locked ? "Edit" : "Save"} item`} disabled={!item.locked && !item.description.trim()} onClick={() => {
         setItems((current) => current.map((candidate) => candidate.key === item.key ? { ...candidate, locked: !candidate.locked } : candidate));
         if (item.locked) setActiveItemKey(item.key);
       }} className="grid size-11 place-items-center rounded-xl border border-[#B8CBE0] text-[#1446A5] disabled:cursor-not-allowed disabled:opacity-35">{item.locked ? <Pencil size={17} /> : <Save size={17} />}</button><button type="button" aria-label={`Remove item ${index + 1}`} disabled={items.length === 1} onClick={() => {
@@ -125,16 +125,16 @@ function VehicleAndServiceFields({ initial, serviceCategories, onServiceSelect }
     {lookupState.message && <p role={lookupState.error ? "alert" : "status"} className={`rounded-xl border p-3 text-sm font-semibold ${lookupState.error ? "border-amber-200 bg-amber-50 text-amber-900" : "border-green-200 bg-green-50 text-green-800"}`}>{lookupState.message}</p>}
     <div>
       <input type="hidden" name="service_name" value={service} />
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><p className={label}>Service catalogue</p><p className="mt-1 text-sm text-[#667586]">Search or open a vehicle system, then choose a service.</p></div>{service && <div className="rounded-xl bg-[#EAF3FF] px-4 py-3 text-sm font-extrabold text-[#1446A5]"><Check className="mr-2 inline" size={16} />{service}{!canonical ? " (current)" : ""}</div>}</div>
-      <label className="relative mt-4 block"><span className="sr-only">Search services</span><Search aria-hidden="true" className="absolute top-1/2 left-4 -translate-y-1/2 text-[#667586]" size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search services…" className={`${input} mt-0 pl-11`} /></label>
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><p className={label}>Service catalogue</p><p className="mt-1 text-sm text-grey-600">Search or open a vehicle system, then choose a service.</p></div>{service && <div className="rounded-xl bg-[#EAF3FF] px-4 py-3 text-sm font-extrabold text-[#1446A5]"><Check className="mr-2 inline" size={16} />{service}{!canonical ? " (current)" : ""}</div>}</div>
+      <label className="relative mt-4 block"><span className="sr-only">Search services</span><Search aria-hidden="true" className="absolute top-1/2 left-4 -translate-y-1/2 text-grey-600" size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search services…" className={`${input} mt-0 pl-11`} /></label>
       <div className="mt-4 max-h-[30rem] overflow-y-auto rounded-xl border border-[#D7E0E9] bg-[#F8FAFC] p-2">
         {filteredCategories.map((category) => <details key={category.id} open={Boolean(query) || undefined} className="group rounded-lg bg-white open:shadow-sm">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-extrabold text-[#071127] focus-visible:outline-2 focus-visible:outline-[#1974E2]"><span>{category.name} <span className="font-medium text-[#667586]">({category.services.length})</span></span><ChevronDown aria-hidden="true" className="text-[#1974E2] transition group-open:rotate-180" size={17} /></summary>
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-extrabold text-[#071127] focus-visible:outline-2 focus-visible:outline-[#1974E2]"><span>{category.name} <span className="font-medium text-grey-600">({category.services.length})</span></span><ChevronDown aria-hidden="true" className="text-accent transition group-open:rotate-180" size={17} /></summary>
           <div className="grid gap-1 border-t border-[#E4EAF0] p-2 sm:grid-cols-2">
             {category.services.map((option) => <button key={option} type="button" aria-pressed={service === option} onClick={() => selectService(option)} className={`min-h-11 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${service === option ? "bg-[#1974E2] text-white" : "text-[#263446] hover:bg-[#EAF3FF] hover:text-[#1446A5]"}`}>{option}</button>)}
           </div>
         </details>)}
-        {filteredCategories.length === 0 && <p className="p-5 text-center text-sm font-semibold text-[#667586]">No services match that search. You can still describe custom work in the invoice items below.</p>}
+        {filteredCategories.length === 0 && <p className="p-5 text-center text-sm font-semibold text-grey-600">No services match that search. You can still describe custom work in the invoice items below.</p>}
       </div>
     </div>
   </div>;

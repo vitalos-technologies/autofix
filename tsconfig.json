@@ -42,6 +42,10 @@
     "node_modules",
     "test-results",
     "playwright-report",
-    ".lighthouseci"
+    ".lighthouseci",
+    ".claude",
+    ".next/dev",
+    ".next/invoice-tests/dev",
+    "output"
   ]
 }

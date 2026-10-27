@@ -2,13 +2,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testGarage } from "./support/garage";
 
 const mocks = vi.hoisted(() => ({
-  createClient: vi.fn(),
+  getAdminContext: vi.fn(),
   notFound: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient, createAdminReadClient: mocks.createClient }));
+// The page reads through the admin's RLS garage client (x-garage-id).
+vi.mock("@/lib/tenancy/admin", () => ({ getAdminContext: mocks.getAdminContext }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...await importOriginal<typeof import("next/navigation")>(),
   notFound: mocks.notFound,
@@ -16,14 +18,14 @@ vi.mock("next/navigation", async (importOriginal) => ({
 vi.mock("@/lib/enquiries/inbound-config", () => ({ getCloudflareInboundConfig: () => ({}) }));
 vi.mock("@/components/admin/mark-enquiry-read", () => ({ MarkEnquiryRead: () => null }));
 vi.mock("@/components/admin/enquiry-reply-composer", () => ({ EnquiryReplyComposer: () => null }));
-vi.mock("@/app/admin/(protected)/actions", () => ({
+vi.mock("@/app/app/(protected)/actions", () => ({
   markEnquiryThreadReadAction: vi.fn(),
   saveInternalNoteAction: vi.fn(),
   sendEnquiryReplyAction: vi.fn(),
   updateEnquiryStatus: vi.fn(),
 }));
 
-import EnquiryConversationPage from "@/app/admin/(protected)/enquiries/[id]/page";
+import EnquiryConversationPage from "@/app/app/(protected)/enquiries/[id]/page";
 
 const enquiryId = "11111111-1111-4111-8111-111111111111";
 const enquiry = {
@@ -89,7 +91,7 @@ describe("admin enquiry detail routing", () => {
 
   it("uses the enquiry ID for both the detail row and its conversation messages", async () => {
     const harness = queryHarness();
-    mocks.createClient.mockResolvedValue(harness.client);
+    mocks.getAdminContext.mockResolvedValue({ client: harness.client, garage: testGarage() });
 
     const page = await EnquiryConversationPage({ params: Promise.resolve({ id: enquiryId }) });
 
@@ -102,26 +104,34 @@ describe("admin enquiry detail routing", () => {
   });
 
   it("keeps the inbox link stable on the enquiry ID", () => {
-    const inbox = readFileSync(join(process.cwd(), "src/app/admin/(protected)/enquiries/page.tsx"), "utf8");
-    expect(inbox).toContain('href={`/admin/enquiries/${enquiry.id}`}');
-    expect(inbox).not.toContain('href={`/admin/enquiries/${conversation.id}`}');
+    const inbox = readFileSync(join(process.cwd(), "src/app/app/(protected)/enquiries/page.tsx"), "utf8");
+    expect(inbox).toContain('href={`/app/enquiries/${enquiry.id}`}');
+    expect(inbox).not.toContain('href={`/app/enquiries/${conversation.id}`}');
   });
 
   it("renders conversation messages in stable newest-to-oldest order", async () => {
     const harness = queryHarness({ messagesData: [
-      { id: "b", direction: "outbound", message_type: "email", sender_name: "SOB Autofix", text_body: "Second message", delivery_status: "sent", created_at: "2026-08-11T18:00:00.000Z" },
+      { id: "b", direction: "outbound", message_type: "email", sender_name: "Sam Owner", text_body: "Second message", delivery_status: "sent", created_at: "2026-08-11T18:00:00.000Z" },
       { id: "a", direction: "inbound", message_type: "email", sender_name: "Customer", text_body: "First message", delivery_status: "received", created_at: "2026-08-11T17:00:00.000Z" },
     ] });
-    mocks.createClient.mockResolvedValue(harness.client);
+    mocks.getAdminContext.mockResolvedValue({ client: harness.client, garage: testGarage() });
 
     const markup = renderToStaticMarkup(await EnquiryConversationPage({ params: Promise.resolve({ id: enquiryId }) }));
 
     expect(markup.indexOf("Second message")).toBeLessThan(markup.indexOf("First message"));
+    // Outbound mail is labelled with the selected garage's name.
+    expect(markup).toContain("Hartley Road Motors");
+    expect(markup).not.toMatch(/SOB/);
+  });
+
+  it("is not found without an admin context", async () => {
+    mocks.getAdminContext.mockResolvedValue(null);
+    await expect(EnquiryConversationPage({ params: Promise.resolve({ id: enquiryId }) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("returns not found only when the enquiry genuinely does not exist", async () => {
     const harness = queryHarness({ enquiryData: null });
-    mocks.createClient.mockResolvedValue(harness.client);
+    mocks.getAdminContext.mockResolvedValue({ client: harness.client, garage: testGarage() });
 
     await expect(EnquiryConversationPage({ params: Promise.resolve({ id: enquiryId }) })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mocks.notFound).toHaveBeenCalledOnce();
@@ -129,7 +139,7 @@ describe("admin enquiry detail routing", () => {
 
   it("does not disguise a database query failure as a missing enquiry", async () => {
     const harness = queryHarness({ enquiryData: null, enquiryError: { message: "schema error" } });
-    mocks.createClient.mockResolvedValue(harness.client);
+    mocks.getAdminContext.mockResolvedValue({ client: harness.client, garage: testGarage() });
 
     await expect(EnquiryConversationPage({ params: Promise.resolve({ id: enquiryId }) })).rejects.toThrow("Could not load the enquiry");
     expect(mocks.notFound).not.toHaveBeenCalled();
