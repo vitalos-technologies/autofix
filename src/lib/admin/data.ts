@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ADMIN_BOOKING_SELECT, toAdminBooking, type AdminBooking, type AdminBookingRow } from "@/lib/admin/bookings";
 import { addDays, DEFAULT_TIME_ZONE, localDayRange, startOfLocalDay } from "@/lib/admin/dates";
-import type { DiaryResourceRow, MissedCall, OpeningWindow, ReminderWeek, WonBack } from "@/lib/admin/today";
+import type { DiaryResourceRow, OpeningWindow, ReminderWeek } from "@/lib/admin/today";
 import { bookingStatuses, type BookingStatus } from "@/lib/booking-engine/types";
 import { toE164UK } from "@/lib/messaging/phone";
 
@@ -74,27 +74,6 @@ export async function loadOpeningHours(client: SupabaseClient): Promise<Map<numb
   return byDay;
 }
 
-/**
- * Bookings from reminders made this month and what they are worth (`bookings.price_pence`).
- * TODO(P3.6): switch to `reminder_won_back(p_garage_id, p_from, p_to)`, which credits the invoice
- * total when an invoice is linked; until then the booking's price snapshot stands in.
- */
-export async function loadWonBack(client: SupabaseClient, monthFirst: string, timeZone = DEFAULT_TIME_ZONE): Promise<WonBack> {
-  const [year = 0, month = 1] = monthFirst.split("-").map(Number);
-  const nextMonth = `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-01`;
-  const { data, error } = await client
-    .from("bookings")
-    .select("price_pence,status")
-    .is("deleted_at", null)
-    .eq("source", "reminder")
-    .gte("created_at", startOfLocalDay(monthFirst, timeZone).toISOString())
-    .lt("created_at", startOfLocalDay(nextMonth, timeZone).toISOString())
-    .limit(5000);
-  if (error) return { bookings: 0, pence: 0 };
-  const live = ((data ?? []) as Array<{ price_pence: number | null; status: string }>).filter((row) => row.status !== "cancelled" && row.status !== "no_show");
-  return { bookings: live.length, pence: live.reduce((total, row) => total + (row.price_pence ?? 0), 0) };
-}
-
 async function headCount(query: PromiseLike<{ count: number | null; error: unknown }>): Promise<number | null> {
   const { count, error } = await query;
   return error ? null : (count ?? 0);
@@ -109,25 +88,10 @@ export async function loadReminderWeek(client: SupabaseClient, from: string, to:
   const [due, sent, booked] = await Promise.all([
     headCount(sends().eq("status", "scheduled").gte("send_at", from).lt("send_at", to)),
     headCount(sends().in("status", ["sent", "delivered"]).gte("sent_at", from).lt("sent_at", to)),
-    headCount(client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("source", "reminder").gte("created_at", from).lt("created_at", to)),
+    headCount(client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).not("reminder_send_id", "is", null).gte("created_at", from).lt("created_at", to)),
   ]);
   if (due === null || sent === null || booked === null) return null;
   return { due, sent, booked };
-}
-
-/** Unhandled missed calls (`calls`, P3.6), newest first; `null` until that table exists. */
-export async function loadMissedCalls(client: SupabaseClient, limit = 5): Promise<MissedCall[] | null> {
-  const { data, error } = await client
-    .from("calls")
-    .select("id,from_number,created_at")
-    .eq("missed", true)
-    .is("handled_at", null)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) return null;
-  return ((data ?? []) as Array<{ id: string; from_number: string | null; created_at: string }>)
-    .filter((row) => row.from_number)
-    .map((row) => ({ id: row.id, fromNumber: row.from_number as string, at: row.created_at }));
 }
 
 export type ActivityEntry = { id: number; actorId: string | null; action: string; entityType: string; detail: unknown; at: string };

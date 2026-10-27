@@ -20,12 +20,14 @@ type ServiceRow = {
   price_mode: PriceMode;
   location_mode: ServiceLocationMode;
   is_mot: boolean | null;
+  online_enabled: boolean | null;
 };
 
 /**
  * Staff booking for a customer on the phone or at the counter (`source` phone / walk_in). Times
- * come from the booking engine, the same as the online booking page. Services are read through
- * the garage's RLS client.
+ * come from the booking engine with the staff rules (A177-A180). Services are read through the
+ * garage's RLS client: every service that isn't deleted, offered online or not (A182), and MOT
+ * services only when the garage does MOTs.
  */
 export default async function NewBookingPage() {
   const admin = await getAdminContext({ allowTrustedDevice: true });
@@ -34,9 +36,9 @@ export default async function NewBookingPage() {
   const [{ data, error }, opening] = await Promise.all([
     admin.client
       .from("services")
-      .select("id,name,duration_min,price_pence,price_mode,location_mode,is_mot")
+      .select("id,name,duration_min,price_pence,price_mode,location_mode,is_mot,online_enabled")
+      .eq("garage_id", admin.garage.id)
       .is("deleted_at", null)
-      .eq("online_enabled", true)
       .order("sort", { ascending: true })
       .order("name", { ascending: true }),
     loadOpeningHours(admin.client),
@@ -44,7 +46,7 @@ export default async function NewBookingPage() {
   const services: StaffService[] = ((data ?? []) as ServiceRow[])
     // MOT services exist only for garages with MOT switched on.
     .filter((row) => admin.garage.motEnabled || !row.is_mot)
-    .map((row) => ({ id: row.id, name: row.name, durationMin: row.duration_min, pricePence: row.price_pence, priceMode: row.price_mode, locationMode: row.location_mode }));
+    .map((row) => ({ id: row.id, name: row.name, durationMin: row.duration_min, pricePence: row.price_pence, priceMode: row.price_mode, locationMode: row.location_mode, onlineEnabled: row.online_enabled !== false }));
   const today = localDateKey(new Date(), timeZone);
   const days = Array.from({ length: 21 }, (_, index) => addDays(today, index));
   // Opening hours unknown: offer every day and let the engine say there are no times.
@@ -74,7 +76,7 @@ export default async function NewBookingPage() {
           }
         />
       ) : (
-        <NewBookingForm services={services} days={days} closedDays={closedDays} timeZone={timeZone} idempotencyKey={randomUUID()} />
+        <NewBookingForm services={services} days={days} closedDays={closedDays} timeZone={timeZone} today={today} idempotencyKey={randomUUID()} />
       )}
     </div>
   );

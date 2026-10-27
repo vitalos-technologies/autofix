@@ -4,6 +4,8 @@ import { useActionState, useId, useState, type ReactNode } from "react";
 import { buttonClass, Panel, SubmitButton } from "@/components/admin-ui";
 import { PlateInput, SegmentedControl } from "@/components/book";
 import { formatDuration, formatServicePrice, formatSlotLabel } from "@/components/book/format";
+import { checkOverrideTime, OVERRIDE_HOURS_HINT, OVERRIDE_MAX_DAYS, OVERRIDE_STEP_MINUTES } from "@/lib/admin/staff-times";
+import { addDays } from "@/lib/admin/dates";
 import type { LocationMode, PriceMode, ServiceLocationMode } from "@/lib/booking-engine/types";
 import { cn } from "@/lib/utils";
 import { SlotPicker } from "../_components/slot-picker";
@@ -16,6 +18,8 @@ export type StaffService = {
   pricePence: number | null;
   priceMode: PriceMode;
   locationMode: ServiceLocationMode;
+  /** Offered on the booking page too. Staff can book the others (A178). */
+  onlineEnabled: boolean;
 };
 
 const idle: StaffBookingState = { status: "idle", message: "" };
@@ -64,12 +68,15 @@ export function NewBookingForm({
   days,
   closedDays,
   timeZone,
+  today,
   idempotencyKey,
 }: {
   services: StaffService[];
   days: string[];
   closedDays: string[];
   timeZone: string;
+  /** The garage's local date (YYYY-MM-DD): the earliest day for an outside-hours time. */
+  today: string;
   idempotencyKey: string;
 }) {
   const [state, action] = useActionState(createStaffBookingAction, idle);
@@ -78,7 +85,13 @@ export function NewBookingForm({
   const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
   const [mode, setMode] = useState<LocationMode>("workshop");
   const [startsAt, setStartsAt] = useState<string | null>(null);
+  const [overrideHours, setOverrideHours] = useState(false);
+  const [freeTime, setFreeTime] = useState("");
   const id = useId();
+  // Outside opening hours (A179): a typed time wins over the grid until a grid time is picked again.
+  const free = overrideHours && freeTime ? checkOverrideTime(freeTime, { today, timeZone }) : null;
+  const chosen = free ? (free.ok ? free.startsAt : null) : startsAt;
+  const freeError = free && !free.ok ? free.error : undefined;
   const errors = state.fieldErrors ?? {};
   const service = services.find((item) => item.id === serviceId) ?? services[0];
   const modes: LocationMode[] = service?.locationMode === "both" ? ["workshop", "mobile"] : [service?.locationMode === "mobile" ? "mobile" : "workshop"];
@@ -89,7 +102,7 @@ export function NewBookingForm({
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="source" value={source} />
       <input type="hidden" name="locationMode" value={locationMode} />
-      <input type="hidden" name="startsAt" value={startsAt ?? ""} />
+      <input type="hidden" name="startsAt" value={chosen ?? ""} />
 
       {state.status === "error" ? (
         <div role="alert" className="rounded-card border border-[#f3c4c4] bg-[#fdecec] px-4 py-3.5 text-[14px] font-semibold text-[#991b1b]">
@@ -142,6 +155,7 @@ export function NewBookingForm({
                   {services.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name} · {formatDuration(item.durationMin)} · {formatServicePrice(item.pricePence, item.priceMode)}
+                      {item.onlineEnabled ? "" : " · not offered online"}
                     </option>
                   ))}
                 </select>
@@ -175,13 +189,55 @@ export function NewBookingForm({
 
             <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
               <legend className={cn(labelClass, "mb-2 p-0")}>When</legend>
+              <div className="flex flex-col gap-3 rounded-input border border-grey-200 bg-grey-50 p-3">
+                <div className="flex flex-col gap-0.5">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[15px] font-semibold text-navy-950">
+                    <input
+                      type="checkbox"
+                      name="overrideHours"
+                      checked={overrideHours}
+                      onChange={(event) => setOverrideHours(event.target.checked)}
+                      aria-describedby={`${id}-override-hint`}
+                      className="size-5 shrink-0 accent-[var(--garage-accent)]"
+                    />
+                    Outside opening hours
+                  </label>
+                  <p id={`${id}-override-hint`} className="m-0 pl-[30px] text-[13px] text-grey-600">
+                    {OVERRIDE_HOURS_HINT}
+                  </p>
+                </div>
+                {overrideHours ? (
+                  <Field id={`${id}-free-time`} label="Date and time" hint="In the garage's time, on the 5 minutes. Picking a time from the list instead clears this." error={freeError}>
+                    {(describedBy) => (
+                      <input
+                        id={`${id}-free-time`}
+                        type="datetime-local"
+                        step={OVERRIDE_STEP_MINUTES * 60}
+                        min={`${today}T00:00`}
+                        max={`${addDays(today, OVERRIDE_MAX_DAYS)}T23:55`}
+                        value={freeTime}
+                        onChange={(event) => {
+                          setFreeTime(event.target.value);
+                          if (event.target.value) setStartsAt(null);
+                        }}
+                        aria-describedby={describedBy}
+                        aria-invalid={freeError ? true : undefined}
+                        className={cn(inputClass, "sm:max-w-[280px]")}
+                      />
+                    )}
+                  </Field>
+                ) : null}
+              </div>
               <SlotPicker
                 days={days}
                 closedDays={closedDays}
                 timeZone={timeZone}
                 loadSlots={(date) => getStaffSlotsAction(serviceId, date, locationMode)}
-                value={startsAt}
-                onChange={setStartsAt}
+                value={free ? null : startsAt}
+                onChange={(value) => {
+                  setStartsAt(value);
+                  setFreeTime("");
+                }}
                 reloadKey={`${serviceId}:${locationMode}`}
                 label="Day"
               />
@@ -238,7 +294,7 @@ export function NewBookingForm({
           </Panel>
 
           <SubmitButton className={buttonClass("primary", "md", "min-h-[54px] w-full text-[16px]")}>
-            {startsAt ? `Book in for ${formatSlotLabel(startsAt, timeZone)}` : "Book it in"}
+            {chosen ? `Book in for ${formatSlotLabel(chosen, timeZone)}` : "Book it in"}
           </SubmitButton>
         </div>
       </div>

@@ -14,13 +14,9 @@ export type DiaryResourceRow = { id: string; name: string };
 export type OpeningWindow = { opens: string; closes: string };
 
 /** Bookings that came from a reminder this month (placeholder until `reminder_won_back()`, P3.6). */
-export type WonBack = { bookings: number; pence: number };
 
 /** Reminders panel counts, or `null` while the reminders tables do not exist (before P3.6). */
 export type ReminderWeek = { due: number; sent: number; booked: number };
-
-/** An unanswered missed call (P3.6 `calls`), or none before that table exists. */
-export type MissedCall = { id: string; fromNumber: string; at: string };
 
 export type TodayInput = {
   /** Every booking starting today (any status). */
@@ -155,10 +151,14 @@ export function shapeToday({ today, requests, requestCount, opening, now, timeZo
 
 export type TodayChip = { label: string; tone: "navy" | "neutral" | "warning" | "success"; href?: string };
 
-/** The phone Today counts: "9 cars", "2 to approve", "1 waiting parts", "3 ready". */
-export function todayChips(figures: TodayFigures, approveHref = "#needs-ok-phone"): TodayChip[] {
+/**
+ * The phone Today counts: "9 cars", "2 to approve", "1 missed call", "1 waiting parts", "3 ready".
+ * Requests and missed calls both link to the "Needs your OK" stack.
+ */
+export function todayChips(figures: TodayFigures, approveHref = "#needs-ok-phone", missedCalls = 0): TodayChip[] {
   const chips: TodayChip[] = [{ label: plural(figures.carsToday, "car"), tone: "navy" }];
   if (figures.toApprove > 0) chips.push({ label: `${figures.toApprove} to approve`, tone: "neutral", href: approveHref });
+  if (missedCalls > 0) chips.push({ label: plural(missedCalls, "missed call"), tone: "warning", href: approveHref });
   if (figures.waitingParts > 0) chips.push({ label: `${figures.waitingParts} waiting parts`, tone: "warning" });
   if (figures.ready > 0) chips.push({ label: `${figures.ready} ready`, tone: "success" });
   return chips;

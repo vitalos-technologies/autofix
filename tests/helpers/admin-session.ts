@@ -334,3 +334,151 @@ export async function deleteBookings(ids: readonly string[]) {
   if (ids.length === 0) return;
   await serviceClient().from("bookings").delete().in("id", [...ids]);
 }
+
+/** A workshop service staff can book but customers can't (`online_enabled = false`, A178). */
+export async function createOfflineService(garage: SeededGarage): Promise<{ id: string; name: string }> {
+  const name = `Fleet check ${randomUUID().slice(0, 6)}`;
+  const { data, error } = await serviceClient()
+    .from("services")
+    .insert({ garage_id: garage.id, name, duration_min: 30, price_pence: 3000, price_mode: "fixed", location_mode: "workshop", resource_kind: "bay", online_enabled: false, sort: 990 })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Could not add an offline service: ${error?.message}`);
+  return { id: data.id as string, name };
+}
+
+export async function deleteServices(ids: readonly string[]) {
+  if (ids.length) await serviceClient().from("services").delete().in("id", [...ids]);
+}
+
+// ---------------------------------------------------------------------------
+// Reminders and missed calls (P3.10)
+// ---------------------------------------------------------------------------
+
+/** Everything a fixture below made, for `deleteReminderFixtures`. */
+export type ReminderCleanup = { customers: string[]; vehicles: string[]; calls: string[]; messages: string[] };
+
+export function emptyCleanup(): ReminderCleanup {
+  return { customers: [], vehicles: [], calls: [], messages: [] };
+}
+
+/** A customer on a fresh drama number (07700 900500–900998), retrying when the number is taken. */
+async function insertCustomer(garageId: string, name: string, consent: boolean) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const phone = `+447700900${randomInt(500, 999)}`;
+    const { data, error } = await serviceClient()
+      .from("customers")
+      .insert({
+        garage_id: garageId,
+        name,
+        phone,
+        channel: "sms",
+        preferred_contact: "phone",
+        reminder_consent: consent,
+        ...(consent ? { consent_at: new Date().toISOString(), consent_source: "staff", consent_text: "Remind me when the MOT and service are due." } : {}),
+      })
+      .select("id,phone")
+      .single();
+    if (!error && data) return data as { id: string; phone: string };
+    if (error?.code !== "23505") throw new Error(`Could not add customer ${name}: ${error?.message}`);
+  }
+  throw new Error(`No free test number for ${name}`);
+}
+
+export type DueFixture = { customerId: string; customerName: string; registration: string; dueDate: string };
+
+/**
+ * Two cars with an MOT due soon at `garage`: one whose owner agreed to reminders, with the MOT rule's
+ * two sends (28 days before: sent; 7 days before: scheduled), and one whose owner did not.
+ */
+export async function createDueReminders(garage: SeededGarage, cleanup: ReminderCleanup): Promise<{ consenting: DueFixture; declined: DueFixture }> {
+  const service = serviceClient();
+  const { data: rule, error: ruleError } = await service.from("reminder_rules").select("id").eq("garage_id", garage.id).eq("kind", "mot").single();
+  if (ruleError || !rule) throw new Error(`No MOT rule: ${ruleError?.message}`);
+  const make = async (name: string, consent: boolean, days: number): Promise<DueFixture> => {
+    const customer = await insertCustomer(garage.id, name, consent);
+    cleanup.customers.push(customer.id);
+    const registration = randomRegistration();
+    const dueDate = londonDate(days);
+    const { data: vehicle, error } = await service
+      .from("vehicles")
+      .insert({ garage_id: garage.id, customer_id: customer.id, registration, make: "Toyota", model: "Yaris", mot_expiry: dueDate })
+      .select("id")
+      .single();
+    if (error || !vehicle) throw new Error(`Could not add a car for ${name}: ${error?.message}`);
+    cleanup.vehicles.push(vehicle.id);
+    if (consent) {
+      const sentAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+      const sends = await service.from("reminder_sends").insert([
+        { garage_id: garage.id, rule_id: rule.id, vehicle_id: vehicle.id, customer_id: customer.id, kind: "mot", due_date: dueDate, offset_days: 28, send_at: sentAt, channel: "sms", status: "sent", claimed_at: sentAt, sent_at: sentAt },
+        { garage_id: garage.id, rule_id: rule.id, vehicle_id: vehicle.id, customer_id: customer.id, kind: "mot", due_date: dueDate, offset_days: 7, send_at: `${londonDate(days - 7)}T09:00:00Z`, channel: "sms", status: "scheduled" },
+      ]);
+      if (sends.error) throw new Error(`Could not add reminder sends: ${sends.error.message}`);
+    }
+    return { customerId: customer.id, customerName: name, registration, dueDate };
+  };
+  return { consenting: await make("Priya Remindertest", true, 20), declined: await make("Mark Noconsenttest", false, 25) };
+}
+
+export type MissedCallFixture = { id: string; callerName: string; fromNumber: string };
+
+/** An unanswered call from a known customer, with a voicemail and the text-back already sent. */
+export async function createMissedCall(garage: SeededGarage, callerName: string, cleanup: ReminderCleanup): Promise<MissedCallFixture> {
+  const service = serviceClient();
+  const customer = await insertCustomer(garage.id, callerName, false);
+  cleanup.customers.push(customer.id);
+  const { data: message, error: messageError } = await service
+    .from("messages")
+    .insert({ garage_id: garage.id, customer_id: customer.id, channel: "sms", direction: "outbound", to_address: customer.phone, body: "Sorry we missed your call.", provider: "mock", status: "sent" })
+    .select("id")
+    .single();
+  if (messageError || !message) throw new Error(`Could not add the text-back: ${messageError?.message}`);
+  cleanup.messages.push(message.id);
+  const hex = () => randomUUID().replace(/-/g, "");
+  const { data: call, error } = await service
+    .from("calls")
+    .insert({
+      garage_id: garage.id,
+      provider_call_sid: `CA${hex()}`,
+      from_number: customer.phone,
+      to_number: "+441302000000",
+      status: "no-answer",
+      missed: true,
+      voicemail_url: `https://api.twilio.com/2010-04-01/Accounts/AC${hex()}/Recordings/RE${hex()}`,
+      voicemail_duration_s: 42,
+      text_back_message_id: message.id,
+      created_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (error || !call) throw new Error(`Could not add a missed call: ${error?.message}`);
+  cleanup.calls.push(call.id);
+  return { id: call.id, callerName, fromNumber: customer.phone };
+}
+
+export async function deleteReminderFixtures(cleanup: ReminderCleanup) {
+  const service = serviceClient();
+  if (cleanup.calls.length) await service.from("calls").delete().in("id", cleanup.calls);
+  if (cleanup.messages.length) await service.from("messages").delete().in("id", cleanup.messages);
+  if (cleanup.vehicles.length) await service.from("vehicles").delete().in("id", cleanup.vehicles);
+  if (cleanup.customers.length) await service.from("customers").delete().in("id", cleanup.customers);
+}
+
+type RuleSnapshot = { kind: string; enabled: boolean; offset_days: number[]; channel: string; template: string };
+
+/** The garage's reminder rules as they are, to put back after a spec changes them. */
+export async function snapshotReminderRules(garageId: string): Promise<RuleSnapshot[]> {
+  const { data, error } = await serviceClient().from("reminder_rules").select("kind,enabled,offset_days,channel,template").eq("garage_id", garageId);
+  if (error) throw new Error(`Could not read reminder rules: ${error.message}`);
+  return (data ?? []) as RuleSnapshot[];
+}
+
+export async function restoreReminderRules(garageId: string, rules: readonly RuleSnapshot[]) {
+  for (const rule of rules) {
+    await serviceClient()
+      .from("reminder_rules")
+      .update({ enabled: rule.enabled, offset_days: rule.offset_days, channel: rule.channel, template: rule.template })
+      .eq("garage_id", garageId)
+      .eq("kind", rule.kind);
+  }
+}

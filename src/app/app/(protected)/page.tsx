@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { BellRing, CalendarPlus, PhoneMissed, Plus, Warehouse } from "lucide-react";
+import { BellRing, CalendarPlus, Plus, Warehouse } from "lucide-react";
 import {
   ApprovalCard,
   buttonClass,
@@ -12,6 +12,7 @@ import {
   JobCard,
   KpiCard,
   KpiGrid,
+  MissedCallCard,
   PageHeader,
   Panel,
   SummaryChips,
@@ -21,21 +22,22 @@ import {
 } from "@/components/admin-ui";
 import { IN_WORKSHOP, quickActionLabel, quickStatusActions } from "@/lib/admin/booking-status";
 import { auditActionLabel, auditEntityLabel, formatRelativeTime } from "@/lib/admin/dashboard";
-import { bookingDetail, bookingHref, formatUkPhone, telLink, vehicleName, type AdminBooking } from "@/lib/admin/bookings";
+import { bookingDetail, bookingHref, telLink, vehicleName, type AdminBooking } from "@/lib/admin/bookings";
 import {
   AdminDataError,
   loadBookingsStarting,
   loadRecentActivity,
-  loadMissedCalls,
   loadOpeningHours,
   loadOpenRequests,
   loadReminderWeek,
   loadResources,
-  loadWonBack,
   type ActivityEntry,
 } from "@/lib/admin/data";
+import { loadReminderMonth } from "@/lib/admin/reminders";
 import { formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayRange, localWeekRange, monthStart } from "@/lib/admin/dates";
-import { formatWholePounds, shapeToday, todayChips, type MissedCall, type ReminderWeek } from "@/lib/admin/today";
+import { formatWholePounds, shapeToday, todayChips, type ReminderWeek } from "@/lib/admin/today";
+import { markMissedCallHandledAction } from "@/lib/calls/actions";
+import { countMissedCallsNeedingOk, listMissedCallsNeedingOk } from "@/lib/calls/missed-calls";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
 import { cn } from "@/lib/utils";
@@ -88,9 +90,10 @@ export default async function TodayPage() {
       loadBookingsStarting(admin.client, day.from, day.to),
       loadOpenRequests(admin.client, now),
       loadOpeningHours(admin.client),
-      loadWonBack(admin.client, monthStart(dateKey), timeZone),
+      loadReminderMonth(admin.client, admin.garage.id, monthStart(dateKey), timeZone),
       loadReminderWeek(admin.client, week.from, week.to),
-      loadMissedCalls(admin.client),
+      listMissedCallsNeedingOk(admin.client, admin.garage.id, { limit: 10 }),
+      countMissedCallsNeedingOk(admin.client, admin.garage.id),
       loadRecentActivity(admin.client),
     ]);
   } catch (error) {
@@ -129,7 +132,7 @@ export default async function TodayPage() {
     );
   }
 
-  const [resources, today, requests, opening, wonBack, reminders, missedCalls, activity] = loaded;
+  const [resources, today, requests, opening, reminderMonth, reminders, calls, missedCount, activity] = loaded;
   const view = shapeToday({
     today,
     requests: requests.rows,
@@ -140,9 +143,10 @@ export default async function TodayPage() {
     firstName: firstName(admin.profile.display_name),
   });
   const { figures } = view;
-  const chips = todayChips(figures);
-  const calls = missedCalls ?? [];
+  const missed = Math.max(missedCount, calls.length);
+  const chips = todayChips(figures, undefined, missed);
   const waiting = view.approvals.length + calls.length;
+  const wonBack = { pence: reminderMonth?.pence ?? 0, bookings: reminderMonth?.booked ?? 0 };
 
   return (
     <div className="flex flex-col gap-3.5 lg:gap-[22px]">
@@ -180,7 +184,7 @@ export default async function TodayPage() {
               />
             ))}
             {calls.map((call) => (
-              <MissedCallCard key={call.id} call={call} timeZone={timeZone} tone="navy" />
+              <MissedCallCard key={call.id} call={call} timeZone={timeZone} tone="navy" markHandledAction={markMissedCallHandledAction} />
             ))}
             {requests.count > view.approvals.length ? (
               <Link href="/app/bookings?status=requested" className={cn(textLinkClass, "self-start text-[14px]")}>
@@ -277,7 +281,7 @@ export default async function TodayPage() {
             <RecentActivityPanel id="activity" entries={activity} userId={admin.user.id} now={now} />
           </div>
           <div className={sideColumn}>
-            <Panel id="needs-ok" title="Needs your OK" count={requests.count + calls.length} countLabel={`${requests.count + calls.length} waiting`}>
+            <Panel id="needs-ok" title="Needs your OK" count={requests.count + missed} countLabel={`${requests.count + missed} waiting`}>
               {waiting > 0 ? (
                 <ul className="m-0 flex list-none flex-col p-0">
                   {view.approvals.map((booking) => (
@@ -300,7 +304,7 @@ export default async function TodayPage() {
                   ))}
                   {calls.map((call) => (
                     <li key={call.id} className="border-b border-[#eef2f6] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
-                      <MissedCallCard call={call} timeZone={timeZone} tone="light" />
+                      <MissedCallCard call={call} timeZone={timeZone} tone="light" markHandledAction={markMissedCallHandledAction} />
                     </li>
                   ))}
                 </ul>
@@ -318,34 +322,6 @@ export default async function TodayPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function MissedCallCard({ call, timeZone, tone }: { call: MissedCall; timeZone: string; tone: "light" | "navy" }) {
-  const navy = tone === "navy";
-  const tel = telLink(call.fromNumber);
-  const time = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(call.at));
-  return (
-    <article className={cn("flex flex-col gap-2.5 font-sans leading-[normal]", navy ? "rounded-card bg-navy-950 p-3.5 text-white" : "text-grey-800")}>
-      <p className="m-0 flex items-center gap-2">
-        <PhoneMissed size={18} strokeWidth={2} aria-hidden="true" className={navy ? "text-[#f6d55c]" : "text-grey-700"} />
-        <span className={cn("text-[12px] font-bold tracking-[0.06em] uppercase", navy ? "text-[#f6d55c]" : "text-grey-700")}>Missed call</span>
-        <span className={cn("text-[12px]", navy ? "text-[#b8c4d4]" : "text-grey-600")}>· {time}</span>
-      </p>
-      <p className="m-0 text-[14px]">
-        <strong>{formatUkPhone(call.fromNumber)}</strong>
-      </p>
-      <div className="flex gap-2">
-        {tel ? (
-          <a href={tel} className={buttonClass(navy ? "onDarkPrimary" : "primary", "sm", "flex-1 rounded-[11px] text-[14px]")}>
-            Call back
-          </a>
-        ) : null}
-        <Link href="/app/bookings/new" className={buttonClass(navy ? "onDark" : "secondary", "sm", "flex-1 rounded-[11px] text-[14px]")}>
-          Book them in
-        </Link>
-      </div>
-    </article>
   );
 }
 
