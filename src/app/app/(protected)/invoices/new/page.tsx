@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { InvoiceForm, type ExistingSourceInvoice, type InvoiceFormInitial } from "@/components/admin/invoice-form";
 import { InvoiceDraftsWorkspace, type InvoiceDraftSummary } from "@/components/admin/invoice-drafts-workspace";
 import { BackLink } from "@/components/ui/back-link";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { listServiceCatalogue } from "@/lib/service-catalogue/repository";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 
@@ -16,8 +16,9 @@ type InvoiceDraft = { id: string; customer_name: string; service_name: string | 
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: Promise<{ source?: string; bookingId?: string; enquiryId?: string; q?: string }> }) {
   const params = await searchParams;
-  const serviceCategories = (await listServiceCatalogue()).map((system) => ({ id: system.key, name: system.name, services: system.services.map((service) => service.name) }));
-  const client = await createAdminReadClient();
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  const client = admin?.client ?? null;
+  const serviceCategories = (await listServiceCatalogue(client, admin?.garage.id ?? "")).map((system) => ({ id: system.key, name: system.name, services: system.services.map((service) => service.name) }));
   const source = params.source;
   let selected: InvoiceFormInitial | null = source === "manual" ? emptyInvoice("manual") : null;
   let bookingRows: Booking[] = [];

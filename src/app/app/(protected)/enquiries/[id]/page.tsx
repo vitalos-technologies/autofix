@@ -4,9 +4,10 @@ import { Mail, MessageCircle, Phone, ReceiptText, UserRound } from "lucide-react
 import { AdminLoadingLink } from "@/components/admin/admin-loading-link";
 import { EnquiryReplyComposer } from "@/components/admin/enquiry-reply-composer";
 import { MarkEnquiryRead } from "@/components/admin/mark-enquiry-read";
+import { garageInitials } from "@/components/book/format";
 import { BackLink } from "@/components/ui/back-link";
 import { getCloudflareInboundConfig } from "@/lib/enquiries/inbound-config";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { markEnquiryThreadReadAction, saveInternalNoteAction, sendEnquiryReplyAction, updateEnquiryStatus } from "../../actions";
 
 type MessageRow = {
@@ -35,8 +36,11 @@ type EnquiryRow = {
 
 export default async function EnquiryConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const client = await createAdminReadClient();
-  if (!client) notFound();
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  if (!admin) notFound();
+  // RLS client for the selected garage: another garage's enquiry id is not found.
+  const { client } = admin;
+  const garageName = admin.garage.name;
   const [{ data: enquiryData, error: enquiryError }, { data: messagesData, error: messagesError }, { data: linkedInvoiceData }] = await Promise.all([
     client.from("enquiries").select("id,type,service_slug,description,location_postcode,status,notification_status,created_at,customers(name,email,phone),vehicles(registration,make,model,colour,year),enquiry_attachments(id,object_path,file_name)").eq("id", id).is("deleted_at", null).maybeSingle(),
     client.from("enquiry_messages").select("id,direction,message_type,sender_name,text_body,delivery_status,created_at").eq("enquiry_id", id).order("created_at", { ascending: true }).order("id", { ascending: true }),
@@ -104,7 +108,7 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
           <span className="text-sm text-[#667586]">{messages.length} {messages.length === 1 ? "message" : "messages"}</span>
         </div>
         <div className="mt-2.5 grid gap-2">
-          {messages.map((message) => <ThreadMessage key={message.id} message={message} />)}
+          {messages.map((message) => <ThreadMessage key={message.id} message={message} garageName={garageName} />)}
           {!messages.length && <p className="rounded-2xl border border-[#E4EAF0] bg-white p-8 text-center text-[#667586]">No conversation messages are available.</p>}
         </div>
         {enquiry.enquiry_attachments.length > 0 && (
@@ -127,15 +131,15 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
   );
 }
 
-function ThreadMessage({ message }: { message: MessageRow }) {
+function ThreadMessage({ message, garageName }: { message: MessageRow; garageName: string }) {
   const internal = message.direction === "internal";
   const outbound = message.direction === "outbound";
-  const heading = message.message_type === "website_enquiry" ? "Customer enquiry" : message.message_type === "automatic_confirmation" ? "SOB Autofix · Automatic confirmation" : internal ? "Internal note" : outbound ? "SOB Autofix" : "Customer";
+  const heading = message.message_type === "website_enquiry" ? "Customer enquiry" : message.message_type === "automatic_confirmation" ? `${garageName} · Automatic confirmation` : internal ? "Internal note" : outbound ? garageName : "Customer";
   return (
     <article className={`rounded-xl border p-3 ${internal ? "border-amber-300 bg-amber-50" : outbound ? "border-[#8EBEF5] bg-[#EAF3FF]" : "border-emerald-200 bg-white"}`}>
       <div className="flex items-start gap-2.5">
         <span aria-hidden="true" className={`grid size-8 shrink-0 place-items-center rounded-full text-[0.6rem] font-black shadow-sm ${internal ? "bg-amber-200 text-amber-950" : outbound ? "bg-[#1446A5] text-white" : "bg-emerald-100 text-emerald-800"}`}>
-          {internal ? "IN" : outbound ? "SOB" : <UserRound size={16} />}
+          {internal ? "IN" : outbound ? garageInitials(garageName) : <UserRound size={16} />}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">

@@ -1,16 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-import { ADMIN_EMAIL } from "@/config/admin";
+
+// A garage member (owner) account to sign in as; set with the enquiry fixture ids.
+const adminEmail = process.env.E2E_ADMIN_EMAIL || "";
 
 const enquiryIds = (process.env.E2E_ADMIN_ENQUIRY_IDS || "").split(",").map((value) => value.trim()).filter(Boolean);
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
 
 test("enquiry inbox opens existing enquiry threads and keeps missing IDs as 404", async ({ page, isMobile }) => {
-  test.skip(!supabaseUrl || !supabaseSecretKey || !enquiryIds.length, "Authenticated enquiry fixtures are not configured");
+  test.skip(!supabaseUrl || !supabaseSecretKey || !enquiryIds.length || !adminEmail, "Authenticated enquiry fixtures are not configured");
 
   const admin = createClient(supabaseUrl!, supabaseSecretKey!, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: ADMIN_EMAIL });
+  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: adminEmail });
   expect(error).toBeNull();
   const tokenHash = data.properties?.hashed_token;
   expect(tokenHash).toBeTruthy();

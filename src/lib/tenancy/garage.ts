@@ -4,11 +4,15 @@ import { createClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import type { PublicGarage } from "@/components/garage/garage-provider";
 import { resolveHost } from "@/lib/tenancy/resolve";
 
 export type GarageAddress = { line1?: string; line2?: string; town?: string; postcode?: string };
 
-/** Public garage profile used by booking sites, emails and the admin. Never holds secrets. */
+/** Bank details printed on invoices (`garages.settings.invoicePayment`). */
+export type GarageInvoicePayment = { accountName: string; sortCode: string; accountNumber: string };
+
+/** Garage profile used by booking sites, emails and the admin. Never holds secrets. */
 export type Garage = {
   id: string;
   slug: string;
@@ -31,9 +35,17 @@ export type Garage = {
   cancellationCutoffH: number;
   smsSender: string | null;
   status: string;
+  /** Active, verified custom booking host (e.g. `book.hartleyroad.co.uk`), if any. */
+  customDomain: string | null;
+  /** Short strap line from `settings.tagline`, shown on invoices and emails. */
+  tagline: string | null;
+  /** Invoice bank details from `settings.invoicePayment`; null hides the payment block. */
+  invoicePayment: GarageInvoicePayment | null;
 };
 
-type GarageRow = {
+type GarageDomainRow = { hostname: string; kind?: string | null; status?: string | null; deleted_at?: string | null; created_at?: string | null };
+
+export type GarageRow = {
   id: string;
   slug: string;
   name: string;
@@ -55,7 +67,33 @@ type GarageRow = {
   cancellation_cutoff_h?: number | null;
   sms_sender?: string | null;
   status: string;
+  settings?: Record<string, unknown> | null;
+  garage_domains?: GarageDomainRow[] | null;
 };
+
+/** Columns read for a garage profile (plus its domains, for links in emails). */
+export const GARAGE_SELECT = "*, garage_domains(hostname,kind,status,deleted_at,created_at)";
+
+function text(value: unknown, max = 200) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+}
+
+function invoicePaymentFrom(settings: Record<string, unknown> | null | undefined): GarageInvoicePayment | null {
+  const raw = settings?.invoicePayment;
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const accountName = text(value.accountName, 120);
+  const sortCode = text(value.sortCode, 20);
+  const accountNumber = text(value.accountNumber, 20);
+  return accountName && sortCode && accountNumber ? { accountName, sortCode, accountNumber } : null;
+}
+
+function activeCustomDomain(domains: GarageDomainRow[] | null | undefined) {
+  const active = (domains ?? [])
+    .filter((domain) => domain.kind === "custom" && domain.status === "active" && !domain.deleted_at && domain.hostname)
+    .sort((left, right) => String(left.created_at ?? "").localeCompare(String(right.created_at ?? "")));
+  return active[0]?.hostname ?? null;
+}
 
 export function garageFromRow(row: GarageRow): Garage {
   return {
@@ -80,6 +118,9 @@ export function garageFromRow(row: GarageRow): Garage {
     cancellationCutoffH: row.cancellation_cutoff_h ?? 24,
     smsSender: row.sms_sender ?? null,
     status: row.status,
+    customDomain: activeCustomDomain(row.garage_domains),
+    tagline: text(row.settings?.tagline, 160),
+    invoicePayment: invoicePaymentFrom(row.settings),
   };
 }
 
@@ -90,11 +131,13 @@ function serviceClient() {
   return createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Loads a garage by id with the service role. Deduplicated per request. */
 export const getGarageById = cache(async (garageId: string): Promise<Garage | null> => {
   const client = serviceClient();
-  if (!client || !/^[0-9a-f-]{36}$/i.test(garageId)) return null;
-  const { data, error } = await client.from("garages").select("*").eq("id", garageId).maybeSingle();
+  if (!client || !UUID_PATTERN.test(garageId)) return null;
+  const { data, error } = await client.from("garages").select(GARAGE_SELECT).eq("id", garageId).maybeSingle();
   if (error) throw new Error(`garage load failed: ${error.code ?? "unknown"}`);
   return data ? garageFromRow(data as GarageRow) : null;
 });
@@ -133,7 +176,7 @@ export function garageLocation(garage: Pick<Garage, "address">) {
 }
 
 /** The subset of a garage that is safe to hand to client components. */
-export function publicGarage(garage: Garage) {
+export function publicGarage(garage: Garage): PublicGarage {
   return {
     id: garage.id,
     slug: garage.slug,
@@ -141,11 +184,14 @@ export function publicGarage(garage: Garage) {
     phone: garage.phone,
     whatsapp: garage.whatsapp,
     email: garage.email,
+    line1: garage.address.line1 ?? null,
+    line2: garage.address.line2 ?? null,
     town: garage.address.town ?? null,
     postcode: garage.address.postcode ?? null,
     timezone: garage.timezone,
     logoUrl: garage.logoUrl,
     accent: garage.accent,
     motEnabled: garage.motEnabled,
+    bookingPrefix: garage.bookingPrefix,
   };
 }

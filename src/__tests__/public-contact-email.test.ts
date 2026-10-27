@@ -1,15 +1,24 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { siteConfig } from "@/config/site";
-import { contactLinks } from "@/config/site";
-import { approvedInvoiceReplyTo, productionEmailSender } from "@/lib/email/identity";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getResendConfig, senderFor } from "@/lib/email/resend";
 
-describe("public contact email separation", () => {
-  it("publishes the domain address while retaining protected delivery identities", () => {
-    expect(siteConfig.email).toBe("info@sobautofix.com");
-    expect(contactLinks.email).toBe("mailto:info@sobautofix.com");
-    expect(productionEmailSender).toBe("SOB Autofix <notifications@sobautofix.com>");
-    expect(approvedInvoiceReplyTo).toBe("info@sobautofix.com");
+describe("platform sender and garage contact details", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sends from one platform address with the garage's name as display name", () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("RESEND_FROM_EMAIL", "Autofix <notifications@autofix.vitalos.co.uk>");
+    vi.stubEnv("RESEND_REPLY_TO", "");
+    const config = getResendConfig();
+    expect(config).toMatchObject({ fromAddress: "notifications@autofix.vitalos.co.uk", replyTo: null });
+    expect(senderFor(config!, "Hartley Road Motors")).toBe('"Hartley Road Motors" <notifications@autofix.vitalos.co.uk>');
+    expect(senderFor(config!)).toBe("Autofix <notifications@autofix.vitalos.co.uk>");
+  });
+
+  it("refuses an unusable sender instead of guessing one", () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("RESEND_FROM_EMAIL", "Autofix <not-an-address>");
+    expect(getResendConfig()).toBeNull();
   });
 
   it("takes invoice issuer contact details from the garage instead of SOB defaults", () => {
@@ -19,11 +28,11 @@ describe("public contact email separation", () => {
     expect(migration).not.toContain("sobautofix.com");
   });
 
-  it("keeps routing, sender and masked-reply configuration unchanged", () => {
+  it("documents the platform sender and reply domain without single-business values", () => {
     const env = readFileSync(".env.example", "utf8");
-    expect(env).toContain("RESEND_FROM_EMAIL=SOB Autofix <notifications@sobautofix.com>");
-    expect(env).toContain("RESEND_REPLY_TO=sobautofix@gmail.com");
-    expect(env).toContain("ENQUIRY_NOTIFICATION_EMAIL=sobautofix@gmail.com");
-    expect(env).toContain("ENQUIRY_REPLY_DOMAIN=reply.sobautofix.com");
+    expect(env).toContain("RESEND_FROM_EMAIL=Autofix <notifications@autofix.vitalos.co.uk>");
+    expect(env).toContain("ENQUIRY_REPLY_DOMAIN=reply.autofix.vitalos.co.uk");
+    expect(env).not.toContain("ENQUIRY_NOTIFICATION_EMAIL");
+    expect(env).not.toMatch(/sobautofix/i);
   });
 });

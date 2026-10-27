@@ -1,31 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
-  approvedBookingReplyTo,
-  approvedEnquiryFallbackReplyTo,
-  approvedInvoiceReplyTo,
+  formatMailbox,
   isValidEmailAddress,
-  productionEmailSender,
+  mailboxAddress,
   resolveReplyTo,
+  senderDisplayName,
 } from "@/lib/email/identity";
 
 describe("transactional email identity", () => {
-  it("uses the approved production sender", () => {
-    expect(productionEmailSender).toBe("SOB Autofix <notifications@sobautofix.com>");
-    expect(approvedBookingReplyTo).toBe("info@sobautofix.com");
-    expect(approvedEnquiryFallbackReplyTo).toBe("info@sobautofix.com");
-    expect(approvedInvoiceReplyTo).toBe("info@sobautofix.com");
+  it("reads the platform sender address from RESEND_FROM_EMAIL", () => {
+    expect(mailboxAddress("Autofix <notifications@autofix.vitalos.co.uk>")).toBe("notifications@autofix.vitalos.co.uk");
+    expect(mailboxAddress("notifications@autofix.vitalos.co.uk")).toBe("notifications@autofix.vitalos.co.uk");
+    expect(mailboxAddress("Autofix <not-an-address>")).toBeNull();
+    expect(mailboxAddress(undefined)).toBeNull();
   });
 
-  it("defaults customer replies to the business address", () => {
-    expect(resolveReplyTo("sobautofix@gmail.com")).toBe("sobautofix@gmail.com");
+  it("puts the garage's name on the platform address", () => {
+    expect(formatMailbox("Hartley Road Motors", "notifications@autofix.vitalos.co.uk")).toBe('"Hartley Road Motors" <notifications@autofix.vitalos.co.uk>');
   });
 
-  it("allows a validated customer address for internal notifications", () => {
-    expect(resolveReplyTo("sobautofix@gmail.com", "customer@example.com")).toBe("customer@example.com");
+  it("cannot be used to inject another address or header through the display name", () => {
+    expect(senderDisplayName('Evil" <boss@example.com>\r\nBcc: x@example.com')).toBe("Evil boss example.com Bcc: x example.com");
+    expect(formatMailbox("<attacker@example.com>", "notifications@autofix.vitalos.co.uk")).toBe('"attacker example.com" <notifications@autofix.vitalos.co.uk>');
+    expect(senderDisplayName("   ")).toBe("Autofix");
+  });
+
+  it("defaults replies to the given address and accepts a validated override", () => {
+    expect(resolveReplyTo("bookings@hartleyroad.example")).toBe("bookings@hartleyroad.example");
+    expect(resolveReplyTo("bookings@hartleyroad.example", "customer@example.com")).toBe("customer@example.com");
   });
 
   it("rejects malformed reply-to values", () => {
     expect(isValidEmailAddress("not-an-email")).toBe(false);
-    expect(() => resolveReplyTo("sobautofix@gmail.com", "not-an-email")).toThrow();
+    expect(() => resolveReplyTo("bookings@hartleyroad.example", "not-an-email")).toThrow();
   });
 });

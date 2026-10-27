@@ -20,9 +20,9 @@ export const requiredProductionVariables = [
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SECRET_KEY",
   "RESEND_API_KEY",
+  // Platform sender; each garage's name is the display name and its own
+  // address the reply-to (RESEND_REPLY_TO is an optional fallback).
   "RESEND_FROM_EMAIL",
-  "RESEND_REPLY_TO",
-  "ENQUIRY_NOTIFICATION_EMAIL",
   "ENQUIRY_REPLY_DOMAIN",
   "RESEND_WEBHOOK_SECRET",
   "CLOUDFLARE_EMAIL_WEBHOOK_SECRET",

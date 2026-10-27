@@ -1,16 +1,21 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { approvedEnquiryFallbackReplyTo } from "@/lib/email/identity";
+import { garageEmailBrand } from "@/lib/email/brand";
+import { isValidEmailAddress } from "@/lib/email/identity";
 import { getResendConfig, sendTransactionalEmail } from "@/lib/email/resend";
 import { renderBusinessEnquiryNotification, renderEnquiryReceived } from "@/lib/email/templates/enquiries";
 import { createAdminClient } from "@/lib/supabase/server";
+import type { Garage } from "@/lib/tenancy/garage";
 import { createInitialEnquiryMessage, getEnquiryReplyAddress } from "./thread-repository";
 import type { EnquiryRequest } from "./schema";
 
+// Public enquiries are written with the service role for the host's garage:
+// every insert carries that garage_id and every read is filtered by it.
+
 type NotificationInput = Omit<EnquiryRequest, "turnstileToken">;
 
-export async function createEnquiry(input: EnquiryRequest) {
+export async function createEnquiry(garage: Garage, input: EnquiryRequest) {
   const admin = createAdminClient();
   if (!admin) {
     if (process.env.NODE_ENV === "production") throw new Error("Enquiry service is not configured");
@@ -18,6 +23,7 @@ export async function createEnquiry(input: EnquiryRequest) {
   }
 
   const { data: customer, error: customerError } = await admin.from("customers").insert({
+    garage_id: garage.id,
     name: input.contact.name,
     email: input.contact.email || null,
     phone: input.contact.phone,
@@ -28,6 +34,7 @@ export async function createEnquiry(input: EnquiryRequest) {
   let vehicleId: string | null = null;
   if (input.vehicle) {
     const { data: vehicle, error } = await admin.from("vehicles").insert({
+      garage_id: garage.id,
       customer_id: customer.id,
       registration: input.vehicle.registration,
       make: input.vehicle.make || null,
@@ -45,6 +52,7 @@ export async function createEnquiry(input: EnquiryRequest) {
   }
 
   const { data: enquiry, error: enquiryError } = await admin.from("enquiries").insert({
+    garage_id: garage.id,
     type: input.type,
     customer_id: customer.id,
     vehicle_id: vehicleId,
@@ -56,24 +64,31 @@ export async function createEnquiry(input: EnquiryRequest) {
   if (enquiryError) throw new Error("Could not save enquiry");
 
   try {
-    await createInitialEnquiryMessage(enquiry.id, { type: input.type, customerName: input.contact.name, customerEmail: input.contact.email, description: input.description });
+    await createInitialEnquiryMessage(garage, enquiry.id, { type: input.type, customerName: input.contact.name, customerEmail: input.contact.email, description: input.description });
   } catch {
-    await admin.from("enquiries").delete().eq("id", enquiry.id);
-    if (vehicleId) await admin.from("vehicles").delete().eq("id", vehicleId);
-    await admin.from("customers").delete().eq("id", customer.id);
+    await admin.from("enquiries").delete().eq("garage_id", garage.id).eq("id", enquiry.id);
+    if (vehicleId) await admin.from("vehicles").delete().eq("garage_id", garage.id).eq("id", vehicleId);
+    await admin.from("customers").delete().eq("garage_id", garage.id).eq("id", customer.id);
     throw new Error("Could not create the enquiry conversation");
   }
 
-  const notificationStatus = await sendNotifications(enquiry.id, input);
-  await admin.from("enquiries").update({ notification_status: notificationStatus }).eq("id", enquiry.id);
+  const notificationStatus = await sendNotifications(garage, enquiry.id, input);
+  await admin.from("enquiries").update({ notification_status: notificationStatus }).eq("garage_id", garage.id).eq("id", enquiry.id);
   return { id: enquiry.id, persisted: true, notificationStatus };
 }
 
-export async function sendNotifications(enquiryId: string, input: NotificationInput) {
+/**
+ * Staff alert to the garage's own inbox and a receipt to the customer, both
+ * under the garage's name. A garage with no email address gets no staff alert.
+ */
+export async function sendNotifications(garage: Garage, enquiryId: string, input: NotificationInput) {
   const emailConfig = getResendConfig();
   const admin = createAdminClient();
   if (!emailConfig) return "failed" as const;
+  const brand = garageEmailBrand(garage);
+  const garageEmail = isValidEmailAddress(garage.email) ? garage.email! : null;
   const templateInput = {
+    brand,
     enquiryId,
     type: input.type,
     customerName: input.contact.name,
@@ -85,28 +100,31 @@ export async function sendNotifications(enquiryId: string, input: NotificationIn
     location: input.locationPostcode,
     description: input.description,
   };
-  const businessEmail = renderBusinessEnquiryNotification(templateInput);
 
   try {
     const customerReplyTo = input.contact.email
-      ? await getEnquiryReplyAddress(enquiryId, input.type) || approvedEnquiryFallbackReplyTo
-      : null;
-    const result = await sendTransactionalEmail({
-      to: emailConfig.notificationRecipient,
-      subject: `New ${input.type.replace("_", " ")} enquiry`,
-      text: businessEmail.text,
-      html: businessEmail.html,
-      replyTo: input.contact.email || emailConfig.replyTo,
-    });
-    await admin?.from("notification_attempts").insert({ enquiry_id: enquiryId, recipient_type: "business", status: "sent", provider_id: result.data?.id || null });
+      ? await getEnquiryReplyAddress(garage, enquiryId, input.type) || garageEmail || undefined
+      : undefined;
+    if (garageEmail) {
+      const businessEmail = renderBusinessEnquiryNotification(templateInput);
+      const result = await sendTransactionalEmail({
+        senderName: garage.name,
+        to: garageEmail,
+        subject: `New ${input.type.replace("_", " ")} enquiry`,
+        text: businessEmail.text,
+        html: businessEmail.html,
+        replyTo: input.contact.email || undefined,
+      });
+      await admin?.from("notification_attempts").insert({ garage_id: garage.id, enquiry_id: enquiryId, recipient_type: "business", status: "sent", provider_id: result.data?.id || null });
+    }
     if (input.contact.email) {
       const customerEmail = renderEnquiryReceived(templateInput);
-      const customerResult = await sendTransactionalEmail({ to: input.contact.email, subject: "We received your SOB Autofix request", text: customerEmail.text, html: customerEmail.html, replyTo: customerReplyTo || approvedEnquiryFallbackReplyTo });
-      await admin?.from("notification_attempts").insert({ enquiry_id: enquiryId, recipient_type: "customer", status: "sent", provider_id: customerResult.data?.id || null });
+      const customerResult = await sendTransactionalEmail({ senderName: garage.name, to: input.contact.email, subject: `We received your ${garage.name} request`, text: customerEmail.text, html: customerEmail.html, replyTo: customerReplyTo });
+      await admin?.from("notification_attempts").insert({ garage_id: garage.id, enquiry_id: enquiryId, recipient_type: "customer", status: "sent", provider_id: customerResult.data?.id || null });
     }
-    return "sent" as const;
+    return garageEmail || input.contact.email ? "sent" as const : "failed" as const;
   } catch (error) {
-    await admin?.from("notification_attempts").insert({ enquiry_id: enquiryId, recipient_type: "business", status: "failed", error_code: error instanceof Error ? error.name : "unknown" });
+    await admin?.from("notification_attempts").insert({ garage_id: garage.id, enquiry_id: enquiryId, recipient_type: "business", status: "failed", error_code: error instanceof Error ? error.name : "unknown" });
     return "failed" as const;
   }
 }
@@ -122,10 +140,11 @@ type RetryRow = {
   vehicles: { registration: string | null; make: string | null; model: string | null; derivative: string | null; year: number | null; colour: string | null; fuel_type: string | null; transmission: string | null; engine_capacity_cc: number | null; body_type: string | null } | null;
 };
 
-export async function retryEnquiryNotifications(enquiryId: string) {
+/** Admin retry for one enquiry of the admin's selected garage. */
+export async function retryEnquiryNotifications(garage: Garage, enquiryId: string) {
   const admin = createAdminClient();
   if (!admin) throw new Error("Notification service is not configured");
-  const { data, error } = await admin.from("enquiries").select("id,type,service_slug,description,location_postcode,driveable,customers(name,email,phone,preferred_contact),vehicles(registration,make,model,derivative,year,colour,fuel_type,transmission,engine_capacity_cc,body_type)").eq("id", enquiryId).single();
+  const { data, error } = await admin.from("enquiries").select("id,type,service_slug,description,location_postcode,driveable,customers(name,email,phone,preferred_contact),vehicles(registration,make,model,derivative,year,colour,fuel_type,transmission,engine_capacity_cc,body_type)").eq("garage_id", garage.id).eq("id", enquiryId).single();
   if (error || !data) throw new Error("Enquiry could not be loaded");
   const row = data as unknown as RetryRow;
   if (!row.customers) throw new Error("Customer details are unavailable");
@@ -150,7 +169,7 @@ export async function retryEnquiryNotifications(enquiryId: string) {
       bodyType: row.vehicles.body_type || undefined,
     } : undefined,
   };
-  const status = await sendNotifications(enquiryId, input);
-  await admin.from("enquiries").update({ notification_status: status }).eq("id", enquiryId);
+  const status = await sendNotifications(garage, enquiryId, input);
+  await admin.from("enquiries").update({ notification_status: status }).eq("garage_id", garage.id).eq("id", enquiryId);
   return status;
 }

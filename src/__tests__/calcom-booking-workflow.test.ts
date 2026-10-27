@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { otherTestGarage, testGarage } from "./support/garage";
 
 const harness = vi.hoisted(() => {
   type Row = Record<string, unknown>;
@@ -160,6 +161,7 @@ vi.mock("@/lib/bookings/services", () => ({
 }));
 vi.mock("@/lib/bookings/notifications", () => ({ sendBookingNotification: harness.sendNotification }));
 vi.mock("@/lib/email/resend", () => ({ sendTransactionalEmail: harness.sendEmail }));
+vi.mock("@/lib/tenancy/garage", () => ({ getGarageById: vi.fn() }));
 
 import {
   BookingWorkflowError,
@@ -171,6 +173,7 @@ import {
 import type { CreateBookingInput } from "@/lib/bookings/schema";
 import { SchedulingProviderError } from "@/lib/scheduling/provider";
 
+const garage = testGarage();
 const bookingId = "70ca0b0b-1df7-42f4-8fe1-329c54ace42d";
 const idempotencyKey = "f5898238-32a1-4764-b57b-529fa953c941";
 const originalStart = "2026-08-18T08:00:00.000Z";
@@ -178,7 +181,8 @@ const originalStart = "2026-08-18T08:00:00.000Z";
 function bookingRow(overrides: Record<string, unknown> = {}) {
   return {
     id: bookingId,
-    booking_reference: "SOB-123456",
+    garage_id: garage.id,
+    booking_reference: "HRM-4821",
     status: "pending",
     service_type_id: "service-id",
     service_key: "vehicle-diagnostics",
@@ -190,7 +194,7 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     original_appointment_end: "2026-08-18T09:00:00.000Z",
     timezone: "Europe/London",
     location_mode: "workshop",
-    location: "SOB Autofix workshop",
+    location: "Hartley Road Motors workshop",
     service_address: null,
     service_postcode: null,
     notes: null,
@@ -279,11 +283,12 @@ describe("Cal.com booking repository workflows", () => {
   it("persists a successful provider create and returns the existing booking on an idempotent retry", async () => {
     const input = createInput();
 
-    const first = await createBooking(input);
-    const retry = await createBooking(input);
+    const first = await createBooking(garage, input);
+    const retry = await createBooking(garage, input);
 
+    expect(harness.getBookableService).toHaveBeenCalledWith(garage.id, "vehicle-diagnostics", "workshop");
     expect(first).toMatchObject({
-      reference: "SOB-123456",
+      reference: "HRM-4821",
       status: "confirmed",
       appointmentStart: originalStart,
     });
@@ -296,14 +301,16 @@ describe("Cal.com booking repository workflows", () => {
     });
     expect(harness.admin.rpc).toHaveBeenCalledTimes(2);
     expect(harness.admin.rpc).toHaveBeenCalledWith("create_booking_intent", expect.objectContaining({
+      p_garage_id: garage.id,
       p_idempotency_key: idempotencyKey,
       p_appointment_start: originalStart,
+      p_location: "4 Hartley Road, Doncaster, DN1 2AB",
     }));
     expect(harness.provider.createBooking).toHaveBeenCalledTimes(1);
     expect(harness.provider.createBooking).toHaveBeenCalledWith(expect.objectContaining({
       eventTypeId: 123,
       start: originalStart,
-      metadata: { sobBookingId: bookingId, sobBookingReference: "SOB-123456" },
+      metadata: { autofixGarageId: garage.id, autofixBookingId: bookingId, autofixBookingReference: "HRM-4821" },
     }));
     expect(harness.state.booking).toMatchObject({
       provider_booking_uid: "provider-uid",
@@ -315,6 +322,7 @@ describe("Cal.com booking repository workflows", () => {
     });
     expect(harness.state.audits).toEqual([
       expect.objectContaining({
+        garage_id: garage.id,
         booking_id: bookingId,
         action: "confirmed",
         actor_type: "provider",
@@ -322,17 +330,26 @@ describe("Cal.com booking repository workflows", () => {
       }),
     ]);
     expect(harness.sendNotification).toHaveBeenCalledTimes(1);
-    expect(harness.sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+    expect(harness.sendNotification).toHaveBeenCalledWith(garage, expect.objectContaining({
       id: bookingId,
-      reference: "SOB-123456",
+      reference: "HRM-4821",
       appointmentStart: originalStart,
     }), "confirmed");
+  });
+
+  it("never reaches a booking stored for another garage", async () => {
+    const other = otherTestGarage();
+    await expect(findBooking(other, { bookingReference: "HRM-4821", registration: "AB12CDE" })).resolves.toBeNull();
+    await expect(cancelBooking(other, bookingId)).resolves.toEqual({ outcome: "not_found" });
+    await expect(rescheduleBooking(other, bookingId, "2026-08-20T09:00:00+01:00")).resolves.toMatchObject({ outcome: "ineligible", booking: undefined });
+    expect(harness.provider.cancelBooking).not.toHaveBeenCalled();
+    expect(harness.provider.rescheduleBooking).not.toHaveBeenCalled();
   });
 
   it("rechecks the selected create slot and stops before reserving an unavailable time", async () => {
     harness.provider.getAvailableSlots.mockResolvedValue([{ start: "2026-08-18T10:00:00.000Z" }]);
 
-    await expect(createBooking(createInput())).rejects.toMatchObject({
+    await expect(createBooking(garage, createInput())).rejects.toMatchObject({
       name: "BookingWorkflowError",
       code: "slot_unavailable",
     } satisfies Partial<BookingWorkflowError>);
@@ -348,7 +365,7 @@ describe("Cal.com booking repository workflows", () => {
       new SchedulingProviderError("Calendar temporarily unavailable", "unavailable", 503),
     );
 
-    await expect(createBooking(createInput())).rejects.toMatchObject({
+    await expect(createBooking(garage, createInput())).rejects.toMatchObject({
       name: "BookingWorkflowError",
       code: "provider_unavailable",
     } satisfies Partial<BookingWorkflowError>);
@@ -373,15 +390,15 @@ describe("Cal.com booking repository workflows", () => {
   it("keeps a provider-created appointment pending reconciliation when the local update fails", async () => {
     harness.state.bookingUpdateError = { code: "database_unavailable" };
 
-    await expect(createBooking(createInput())).rejects.toMatchObject({
+    await expect(createBooking(garage, createInput())).rejects.toMatchObject({
       name: "BookingWorkflowError",
       code: "persistence",
-      message: "Your appointment was created but SOB-123456 needs calendar reconciliation. Please contact SOB Autofix.",
+      message: "Your appointment was created but HRM-4821 needs calendar reconciliation. Please contact Hartley Road Motors.",
     } satisfies Partial<BookingWorkflowError>);
 
     expect(harness.provider.createBooking).toHaveBeenCalledTimes(1);
     expect(harness.provider.createBooking).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: { sobBookingId: bookingId, sobBookingReference: "SOB-123456" },
+      metadata: { autofixGarageId: garage.id, autofixBookingId: bookingId, autofixBookingReference: "HRM-4821" },
     }));
     expect(harness.state.booking).toMatchObject({
       status: "pending",
@@ -392,7 +409,7 @@ describe("Cal.com booking repository workflows", () => {
     expect(harness.state.audits).toHaveLength(0);
     expect(harness.sendNotification).not.toHaveBeenCalled();
 
-    await expect(createBooking(createInput())).rejects.toMatchObject({
+    await expect(createBooking(garage, createInput())).rejects.toMatchObject({
       name: "BookingWorkflowError",
       code: "processing",
     } satisfies Partial<BookingWorkflowError>);
@@ -401,15 +418,15 @@ describe("Cal.com booking repository workflows", () => {
 
   it("requires both management lookup factors to match the same booking", async () => {
     const lookup = {
-      bookingReference: "SOB-123456",
+      bookingReference: "HRM-4821",
       registration: "AB12CDE",
     };
 
-    await expect(findBooking(lookup)).resolves.toMatchObject({
+    await expect(findBooking(garage, lookup)).resolves.toMatchObject({
       id: bookingId,
-      booking: { reference: "SOB-123456" },
+      booking: { reference: "HRM-4821" },
     });
-    await expect(findBooking({ ...lookup, registration: "XY99ZZZ" })).resolves.toBeNull();
+    await expect(findBooking(garage, { ...lookup, registration: "XY99ZZZ" })).resolves.toBeNull();
   });
 
   it("rechecks a reschedule against the current provider UID and preserves booking history", async () => {
@@ -437,7 +454,7 @@ describe("Cal.com booking repository workflows", () => {
       metadata: {},
     });
 
-    const result = await rescheduleBooking(bookingId, requestedStart);
+    const result = await rescheduleBooking(garage, bookingId, requestedStart);
 
     expect(harness.provider.getAvailableSlots).toHaveBeenCalledWith({
       eventTypeId: 123,
@@ -449,7 +466,7 @@ describe("Cal.com booking repository workflows", () => {
     expect(harness.provider.rescheduleBooking).toHaveBeenCalledWith(
       "old-provider-uid",
       requestedStart,
-      "Customer requested reschedule through SOB Autofix",
+      "Customer requested reschedule through Autofix",
     );
     expect(harness.state.booking).toMatchObject({
       provider_booking_uid: "new-provider-uid",
@@ -485,6 +502,7 @@ describe("Cal.com booking repository workflows", () => {
     });
     expect(harness.sendNotification).toHaveBeenCalledTimes(1);
     expect(harness.sendNotification).toHaveBeenCalledWith(
+      garage,
       expect.objectContaining({ appointmentStart: providerStart }),
       "rescheduled",
     );
@@ -505,16 +523,16 @@ describe("Cal.com booking repository workflows", () => {
       };
     });
 
-    const result = await cancelBooking(bookingId);
+    const result = await cancelBooking(garage, bookingId);
 
     expect(harness.state.sequence.slice(0, 2)).toEqual(["provider:cancel", "local:update"]);
     expect(harness.provider.cancelBooking).toHaveBeenCalledWith(
       "provider-uid",
-      "Customer requested cancellation through SOB Autofix",
+      "Customer requested cancellation through Autofix",
     );
     expect(harness.state.booking).toMatchObject({
       status: "cancelled",
-      cancellation_reason: "Customer requested cancellation through SOB Autofix",
+      cancellation_reason: "Customer requested cancellation through Autofix",
       provider_sync_state: "synced",
       provider_error_code: null,
     });
@@ -528,7 +546,7 @@ describe("Cal.com booking repository workflows", () => {
     });
     expect(result).toMatchObject({ outcome: "cancelled", booking: { status: "cancelled" } });
     expect(harness.sendNotification).toHaveBeenCalledTimes(1);
-    expect(harness.sendNotification).toHaveBeenCalledWith(expect.any(Object), "cancelled");
+    expect(harness.sendNotification).toHaveBeenCalledWith(garage, expect.any(Object), "cancelled");
   });
 
   it("leaves local state untouched when provider cancellation fails", async () => {
@@ -541,7 +559,7 @@ describe("Cal.com booking repository workflows", () => {
       throw new SchedulingProviderError("Provider rejected cancellation", "unavailable", 503);
     });
 
-    await expect(cancelBooking(bookingId)).rejects.toMatchObject({ code: "unavailable" });
+    await expect(cancelBooking(garage, bookingId)).rejects.toMatchObject({ code: "unavailable" });
 
     expect(harness.state.sequence).toEqual(["provider:cancel"]);
     expect(harness.state.booking).toMatchObject({ status: "confirmed", provider_sync_state: "pending" });
@@ -557,7 +575,7 @@ describe("Cal.com booking repository workflows", () => {
       cancelled_at: "2026-08-12T10:00:00.000Z",
     });
 
-    const result = await rescheduleBooking(bookingId, "2026-08-20T09:00:00+01:00");
+    const result = await rescheduleBooking(garage, bookingId, "2026-08-20T09:00:00+01:00");
 
     expect(result).toMatchObject({
       outcome: "ineligible",
@@ -579,7 +597,7 @@ describe("Cal.com booking repository workflows", () => {
     );
     const details = {
       id: bookingId,
-      reference: "SOB-123456",
+      reference: "HRM-4821",
       customerName: "Test Customer",
       customerEmail: "test@example.com",
       registration: "AB12CDE",
@@ -588,21 +606,22 @@ describe("Cal.com booking repository workflows", () => {
       appointmentStart: "2026-08-20T09:00:00+01:00",
       appointmentEnd: "2026-08-20T10:00:00+01:00",
       timezone: "Europe/London",
-      location: "SOB Autofix workshop",
+      location: "Hartley Road Motors workshop",
       calendarSequence: 1,
       calendarTimestamp: "2026-08-13T09:00:00.000Z",
     };
 
-    await sendBookingNotification(details, "rescheduled");
-    await sendBookingNotification({ ...details, appointmentStart: "2026-08-20T08:00:00.000Z" }, "rescheduled");
+    await sendBookingNotification(garage, details, "rescheduled");
+    await sendBookingNotification(garage, { ...details, appointmentStart: "2026-08-20T08:00:00.000Z" }, "rescheduled");
 
     expect(harness.state.notificationEvents).toHaveLength(2);
     expect(harness.sendEmail).toHaveBeenCalledTimes(2);
     const message = harness.sendEmail.mock.calls[0]?.[0];
     expect(message.attachments).toHaveLength(1);
-    expect(message.replyTo).toBe("info@sobautofix.com");
-    expect(message.attachments[0].filename).toBe("SOB-123456.ics");
-    expect(message.attachments[0].content.toString("utf8")).toContain("UID:SOB-123456@sobautofix.com");
+    expect(message.senderName).toBe("Hartley Road Motors");
+    expect(message.replyTo).toBe("bookings@hartleyroad.example");
+    expect(message.attachments[0].filename).toBe("HRM-4821.ics");
+    expect(message.attachments[0].content.toString("utf8")).toContain("UID:HRM-4821.hartley-road@");
     expect(message.html).toContain("Add to Google Calendar");
     expect(message.html).toContain("Add to Calendar");
   });

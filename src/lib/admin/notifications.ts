@@ -1,22 +1,23 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AdminNotificationSummary = {
   count: number;
   enquiryCount: number;
   bookingCount: number;
-  unmatchedCount: number;
 };
 
-export async function getAdminNotificationSummary(): Promise<AdminNotificationSummary> {
-  const client = createAdminClient();
-  if (!client) return { count: 0, enquiryCount: 0, bookingCount: 0, unmatchedCount: 0 };
+/**
+ * Attention counts for the selected garage. Takes the admin's RLS garage
+ * client, so every query only sees that garage's rows.
+ */
+export async function getAdminNotificationSummary(client: SupabaseClient | null): Promise<AdminNotificationSummary> {
+  if (!client) return { count: 0, enquiryCount: 0, bookingCount: 0 };
 
-  const [enquiryAlerts, unreadThreads, unmatchedInbound, repliedEnquiries, bookingAlerts, bookingDeliveryAlerts] = await Promise.all([
+  const [enquiryAlerts, unreadThreads, repliedEnquiries, bookingAlerts, bookingDeliveryAlerts] = await Promise.all([
     client.from("enquiries").select("id,status,notification_status").is("deleted_at", null).or("status.eq.new,notification_status.in.(pending,failed)"),
     client.from("enquiry_conversations").select("enquiry_id,enquiries!inner(deleted_at)").is("enquiries.deleted_at", null).gt("unread_count", 0),
-    client.from("unmatched_inbound_emails").select("id", { count: "exact", head: true }).is("linked_enquiry_id", null).is("ignored_at", null).neq("reason", "automated_ignored"),
     client.from("enquiry_messages").select("enquiry_id").eq("direction", "outbound").eq("message_type", "email").in("delivery_status", ["sent", "delivered"]),
     client.from("bookings").select("id").is("deleted_at", null).or("admin_seen_at.is.null,provider_sync_state.in.(pending,failed)"),
     client.from("booking_notification_events").select("booking_id,bookings!inner(deleted_at)").is("bookings.deleted_at", null).in("status", ["pending", "failed"]),
@@ -33,12 +34,10 @@ export async function getAdminNotificationSummary(): Promise<AdminNotificationSu
     ...(bookingAlerts.data || []).map((item) => item.id),
     ...(bookingDeliveryAlerts.data || []).map((item) => item.booking_id),
   ]);
-  const unmatchedCount = unmatchedInbound.count || 0;
 
   return {
-    count: enquiryIds.size + bookingIds.size + unmatchedCount,
+    count: enquiryIds.size + bookingIds.size,
     enquiryCount: enquiryIds.size,
     bookingCount: bookingIds.size,
-    unmatchedCount,
   };
 }

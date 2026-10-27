@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type CatalogueService = {
   id: string;
@@ -36,13 +36,18 @@ type CatalogueRow = {
 
 type SystemRow = { id: string; system_key: string; display_name: string; description: string; sort_order: number };
 
-export async function listServiceCatalogue(options: { bookableOnly?: boolean } = {}): Promise<CatalogueSystem[]> {
-  const client = createAdminClient();
-  if (!client) return [];
+/**
+ * One garage's service catalogue. Admin pages pass their RLS garage client;
+ * public booking routes pass the service role and the host's garage. Either
+ * way every query is filtered by `garage_id`.
+ */
+export async function listServiceCatalogue(client: SupabaseClient | null, garageId: string, options: { bookableOnly?: boolean } = {}): Promise<CatalogueSystem[]> {
+  if (!client || !garageId) return [];
 
   const systemsQuery = client
     .from("service_catalogue_systems")
     .select("id,system_key,display_name,description,sort_order")
+    .eq("garage_id", garageId)
     .is("deleted_at", null)
     .order("sort_order", { ascending: true });
   let serviceData: unknown[] | null = null;
@@ -51,6 +56,7 @@ export async function listServiceCatalogue(options: { bookableOnly?: boolean } =
     const result = await client
       .from("booking_service_types")
       .select("id,system_id,service_key,display_name,description,location_mode,provider_event_type_id,online_booking_enabled,sort_order")
+      .eq("garage_id", garageId)
       .is("deleted_at", null)
       .not("system_id", "is", null)
       .eq("online_booking_enabled", true)
@@ -63,6 +69,7 @@ export async function listServiceCatalogue(options: { bookableOnly?: boolean } =
     const result = await client
       .from("booking_service_types")
       .select("id,system_id,service_key,display_name,description,location_mode,provider_event_type_id,online_booking_enabled,sort_order")
+      .eq("garage_id", garageId)
       .is("deleted_at", null)
       .not("system_id", "is", null)
       .order("sort_order", { ascending: true });

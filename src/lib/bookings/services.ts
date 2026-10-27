@@ -1,5 +1,8 @@
 import "server-only";
 
+// Cal.com-era service mappings (replaced by the native engine in P2.4).
+// Public callers pass the host's garage; every query is scoped by garage_id.
+
 import { getSchedulingProvider } from "@/lib/calcom/client";
 import type { BookingServiceOption } from "./types";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -25,8 +28,9 @@ type BookingServiceRow = {
   location_mode: "workshop" | "mobile" | "both";
 };
 
-export function bookingTimezone() {
-  const configured = process.env.CALCOM_DEFAULT_TIMEZONE?.trim() || "Europe/London";
+/** The scheduling time zone: the garage's own, validated. */
+export function bookingTimezone(garageTimezone?: string | null) {
+  const configured = garageTimezone?.trim() || "Europe/London";
   try {
     new Intl.DateTimeFormat("en-GB", { timeZone: configured }).format(new Date());
     return configured;
@@ -48,8 +52,8 @@ function mapService(row: BookingServiceRow): BookingServiceMapping | null {
   };
 }
 
-export async function listPublicBookingServices(): Promise<BookingServiceOption[]> {
-  const catalogue = await listServiceCatalogue({ bookableOnly: true });
+export async function listPublicBookingServices(garageId: string): Promise<BookingServiceOption[]> {
+  const catalogue = await listServiceCatalogue(createAdminClient(), garageId, { bookableOnly: true });
   return catalogue.flatMap((system) => system.services.map((service) => ({
     key: service.key,
     name: service.name,
@@ -61,12 +65,13 @@ export async function listPublicBookingServices(): Promise<BookingServiceOption[
   })));
 }
 
-export async function getBookableService(serviceKey: string, locationMode: "workshop" | "mobile") {
+export async function getBookableService(garageId: string, serviceKey: string, locationMode: "workshop" | "mobile") {
   const admin = createAdminClient();
   if (!admin) return null;
   const { data, error } = await admin
     .from("booking_service_types")
     .select("id,service_key,display_name,description,provider,provider_event_type_id,location_mode,service_catalogue_systems!inner(deleted_at)")
+    .eq("garage_id", garageId)
     .eq("service_key", serviceKey)
     .eq("online_booking_enabled", true)
     .is("deleted_at", null)
@@ -79,20 +84,23 @@ export async function getBookableService(serviceKey: string, locationMode: "work
 }
 
 export async function getAvailableSlotsForService(input: {
+  garageId: string;
+  timezone?: string | null;
   serviceKey: string;
   locationMode: "workshop" | "mobile";
   start: string;
   end: string;
 }) {
-  const service = await getBookableService(input.serviceKey, input.locationMode);
+  const service = await getBookableService(input.garageId, input.serviceKey, input.locationMode);
   if (!service) return null;
+  const timeZone = bookingTimezone(input.timezone);
   const slots = await getSchedulingProvider().getAvailableSlots({
     eventTypeId: service.providerEventTypeId,
     start: input.start,
     end: input.end,
-    timeZone: bookingTimezone(),
+    timeZone,
   });
-  return { service, slots, timeZone: bookingTimezone() };
+  return { service, slots, timeZone };
 }
 
 export async function getAvailableRescheduleSlots(input: {
@@ -100,26 +108,13 @@ export async function getAvailableRescheduleSlots(input: {
   providerBookingUid: string;
   start: string;
   end: string;
+  timezone?: string | null;
 }) {
   return getSchedulingProvider().getAvailableSlots({
     eventTypeId: input.providerEventTypeId,
     start: input.start,
     end: input.end,
-    timeZone: bookingTimezone(),
+    timeZone: bookingTimezone(input.timezone),
     bookingUidToReschedule: input.providerBookingUid,
   });
-}
-
-export async function getBookingServiceReadiness() {
-  const admin = createAdminClient();
-  if (!admin) return { configured: false, mappedServices: 0 };
-  const { count, error } = await admin
-    .from("booking_service_types")
-    .select("id", { count: "exact", head: true })
-    .not("system_id", "is", null)
-    .is("deleted_at", null)
-    .eq("online_booking_enabled", true)
-    .eq("provider", "calcom")
-    .not("provider_event_type_id", "is", null);
-  return { configured: !error && Boolean(process.env.CALCOM_API_KEY) && (count || 0) > 0, mappedServices: error ? 0 : count || 0 };
 }

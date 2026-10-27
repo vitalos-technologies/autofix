@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 // Temporary home for SOB's wizard until the 5-step flow replaces it (P2.8).
 export default async function BookPage({ params }: { params: Promise<{ garageId: string }> }) {
-  const garage = await requireSiteGarage((await params).garageId);
+  await requireSiteGarage((await params).garageId);
   return (
     <section className="hero-grid min-h-[calc(100vh-4.5rem)] overflow-hidden py-6 text-white max-lg:!bg-none max-lg:!bg-white max-lg:!text-[#202A36] sm:py-10 lg:min-h-[calc(100vh-5rem)] lg:py-14" data-motion="off">
       <Container className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,0.58fr)_minmax(36rem,1.2fr)] lg:gap-10 xl:gap-14">
@@ -29,7 +29,7 @@ export default async function BookPage({ params }: { params: Promise<{ garageId:
         </div>
 
         <div className="-mx-5 min-w-0 overflow-hidden bg-white text-[#202A36] shadow-[0_24px_70px_rgba(0,0,0,0.3)] sm:mx-0 sm:rounded-3xl">
-          <BookingWizard motEnabled={garage.motEnabled} />
+          <BookingWizard />
         </div>
       </Container>
     </section>

@@ -40,10 +40,10 @@ describe("admin TOTP MFA", () => {
   it("uses a unique friendly name for every authenticator replacement", () => {
     const first = createMfaReplacementFriendlyName("11111111-1111-4111-8111-111111111111");
     const second = createMfaReplacementFriendlyName("22222222-2222-4222-8222-222222222222");
-    expect(first).toBe("SOB Autofix Admin Replacement 11111111");
-    expect(second).toBe("SOB Autofix Admin Replacement 22222222");
+    expect(first).toBe("Autofix Replacement 11111111");
+    expect(second).toBe("Autofix Replacement 22222222");
     expect(first).not.toBe(second);
-    expect(first).not.toBe("SOB Autofix Admin Replacement");
+    expect(first).not.toBe("Autofix Replacement");
   });
 
   it("allows only local admin return paths", () => {
@@ -68,11 +68,12 @@ describe("admin TOTP MFA", () => {
     expect(securityActions).toContain("challengeAndVerify");
     expect(securityActions).toContain("auth.mfa.unenroll");
     expect(challengeAction).toContain("That verification code is incorrect or has expired.");
-    expect(protectedLayout).toContain("getAdminUser({ requireMfa: false, allowTrustedDevice: true })");
+    expect(protectedLayout).toContain("getAdminContext({ requireMfa: false, allowTrustedDevice: true })");
     expect(protectedLayout).toContain('admin.mfaState === "enrollment_required"');
     expect(protectedLayout).toContain('admin.mfaState === "challenge_required"');
     expect(proxy).toContain('challengeUrl.pathname = "/app/mfa"');
-    expect(read("src", "lib", "supabase", "server.ts")).toContain("const profileClient = createAdminClient()");
+    // The MFA policy is read with the service role (platform table); the admin context gates on it.
+    expect(read("src", "lib", "tenancy", "admin.ts")).toContain("isMandatoryAdminMfaEnabled(service)");
   });
 
   it("does not persist authenticator secrets in application storage", () => {

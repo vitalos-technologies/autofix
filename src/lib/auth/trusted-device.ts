@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const TRUSTED_DEVICE_COOKIE = "sob_admin_trusted_device";
+export const TRUSTED_DEVICE_COOKIE = "af_trusted_device";
 export const TRUSTED_DEVICE_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 export const TRUSTED_DEVICE_COOKIE_OPTIONS = {
   httpOnly: true,

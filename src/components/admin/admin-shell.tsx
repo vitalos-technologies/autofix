@@ -1,19 +1,23 @@
 "use client";
 
-import { RefreshCw, Search } from "lucide-react";
-import Link from "next/link";
+import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AdminNavigation } from "@/components/admin/admin-navigation";
+import { GarageSwitcher, type GarageSwitcherMembership } from "@/components/admin/garage-switcher";
 import { NotificationMenu } from "@/components/admin/notification-menu";
 
 type AdminShellProps = {
   children: React.ReactNode;
   displayName: string;
   notificationCount: number;
+  /** The selected garage; `bookingUrl` is its public booking site. */
+  garage: { id: string; name: string; bookingUrl: string };
+  memberships: GarageSwitcherMembership[];
 };
 
-export function AdminShell({ children, displayName, notificationCount }: AdminShellProps) {
+// The admin is Autofix-branded; the garage's name appears only in the switcher.
+export function AdminShell({ children, displayName, notificationCount, garage, memberships }: AdminShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [liveNotificationCount, setLiveNotificationCount] = useState(notificationCount);
@@ -85,12 +89,13 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
 
   return (
     <div className={`min-h-screen bg-[#F4F7FA] lg:grid ${sidebarCollapsed ? "lg:grid-cols-[68px_minmax(0,1fr)]" : "lg:grid-cols-[232px_minmax(0,1fr)]"}`}>
-      <AdminNavigation displayName={displayName} notificationCount={liveNotificationCount} collapsed={sidebarCollapsed} onToggleCollapsed={() => setSidebarCollapsed((value) => !value)} />
+      <AdminNavigation displayName={displayName} notificationCount={liveNotificationCount} collapsed={sidebarCollapsed} onToggleCollapsed={() => setSidebarCollapsed((value) => !value)} garage={garage} memberships={memberships} />
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#E4EAF0] bg-white px-5 py-3 lg:px-8 xl:px-10">
           <div className="flex items-center justify-between gap-4">
             <div className="hidden min-w-0 items-center gap-4 sm:flex">
-              <p className="shrink-0 text-sm font-bold text-[#071127]">SOB Autofix CMS</p>
+              <p className="shrink-0 text-sm font-bold text-[#071127]">Autofix</p>
+              <GarageSwitcher garage={garage} memberships={memberships} className="hidden md:flex" />
               <form onSubmit={searchAdmin} role="search" className="relative w-[clamp(20rem,32vw,34rem)]">
                 <label htmlFor="admin-search" className="sr-only">Search admin sections</label>
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#718096]" size={17} aria-hidden="true" />
@@ -105,7 +110,7 @@ export function AdminShell({ children, displayName, notificationCount }: AdminSh
                 <RefreshCw size={18} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
               </button>
               <NotificationMenu notificationCount={liveNotificationCount} />
-              <Link href="/book" className="whitespace-nowrap text-sm font-bold text-[#1974E2]">View booking page ↗</Link>
+              <a href={garage.bookingUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-bold text-[#1974E2]">View booking page <ExternalLink size={15} aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span></a>
             </div>
           </div>
         </header>

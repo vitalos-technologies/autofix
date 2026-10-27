@@ -14,7 +14,7 @@ import { AdminLoadingLink } from "@/components/admin/admin-loading-link";
 import { AdminListFilters, AdminPagination } from "@/components/admin/admin-list-controls";
 import { ADMIN_LIST_PAGE_SIZE, positiveAdminPage } from "@/lib/admin/pagination";
 import type { BookingStatus, ProviderSyncState } from "@/lib/bookings/types";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { manageTrashAction } from "../trash/actions";
@@ -44,7 +44,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   const status = params.status || "";
   const view = bookingViews.includes(params.view as BookingView) ? params.view as BookingView : "";
   const requestedPage = positiveAdminPage(params.page);
-  const client = await createAdminReadClient();
+  const client = await getAdminReadClient();
   const now = new Date();
   const today = dateKeyInLondon(now);
   const tomorrow = addUtcDays(today, 1);
@@ -221,7 +221,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
           <div className="mt-5 rounded-2xl border border-[#E4EAF0] bg-white p-10 text-center">
             <CalendarClock className="mx-auto text-[#1974E2]" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-bold text-[#071127]">No booking records yet</h2>
-            <p className="mt-2 text-sm text-[#667586]">Appointments will appear here after a customer completes the SOB Autofix booking flow.</p>
+            <p className="mt-2 text-sm text-[#667586]">Appointments will appear here after a customer completes your online booking flow.</p>
           </div>
         )}
         </AdminBookingListFrame>

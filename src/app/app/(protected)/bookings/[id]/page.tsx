@@ -17,7 +17,7 @@ import { z } from "zod";
 import { BookingEmailThreadButton } from "@/components/admin/booking-email-thread-button";
 import type { BookingStatus, ProviderSyncState } from "@/lib/bookings/types";
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
-import { createAdminReadClient } from "@/lib/supabase/server";
+import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
@@ -75,7 +75,7 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
 
-  const client = await createAdminReadClient();
+  const client = await getAdminReadClient();
   if (!client) notFound();
   const { data, error } = await client
     .from("bookings")
