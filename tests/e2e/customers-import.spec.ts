@@ -77,13 +77,15 @@ test("a manager imports customers, finds one by registration and opts them out",
     await expect(page.getByRole("link", { name: "Priya Patel" }).first()).toBeVisible();
 
     await page.getByLabel("Search customers").fill("tb65 ker");
-    await page.getByRole("button", { name: "Search" }).click();
+    // On phones the page header also has a "Search" toggle for the form; press the form's submit button.
+    await page.getByRole("button", { name: "Search" }).and(page.locator("[type=submit]")).click();
     await expect(page.getByRole("link", { name: "Tom Baker" }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Priya Patel" })).toHaveCount(0);
     expect(page.url()).not.toMatch(/tb65|TB65/i);
 
     await page.getByLabel("Search customers").fill("Priya");
-    await page.getByRole("button", { name: "Search" }).click();
+    // On phones the page header also has a "Search" toggle for the form; press the form's submit button.
+    await page.getByRole("button", { name: "Search" }).and(page.locator("[type=submit]")).click();
     await page.getByRole("link", { name: "Priya Patel" }).first().click();
     await expect(page.getByRole("heading", { name: "Priya Patel", level: 1 })).toBeVisible();
     await expect(page.getByText("Reminders on").first()).toBeVisible();
