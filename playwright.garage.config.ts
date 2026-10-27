@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { garageSpecs } from "./tests/e2e/garage-specs";
 import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 
 // Browser tests on garage hosts. Garage hosts resolve through the database, so
@@ -22,7 +23,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts", "legal.spec.ts"],
+  testMatch: garageSpecs,
   fullyParallel: false,
   workers: 1,
   retries: 0,
