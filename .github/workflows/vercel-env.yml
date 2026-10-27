@@ -45,10 +45,12 @@ jobs:
           SECRET__DVSA_MOT_API_KEY: ${{ secrets.DVSA_MOT_API_KEY }}
           SECRET__DVSA_MOT_CLIENT_ID: ${{ secrets.DVSA_MOT_CLIENT_ID }}
           SECRET__DVSA_MOT_CLIENT_SECRET: ${{ secrets.DVSA_MOT_CLIENT_SECRET }}
-          # Off until autofix has its own repository secrets: these names resolve to the organisation's
-          # shared keys (another product's Resend account), which Autofix must not send through.
+          # Off until autofix has its own repository secret: the name resolves to the organisation's
+          # shared key, which belongs to another product.
           # SECRET__GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
-          # SECRET__RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # Must stay a repository secret: without one this name falls back to the organisation's shared
+          # Resend key (another product's account).
+          SECRET__RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SECRET__RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
           SECRET__SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SECRET__SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
