@@ -22,10 +22,11 @@ describe("CMS trash", () => {
     const page = read("src/app/app/(protected)/trash/page.tsx");
     const actions = read("src/app/app/(protected)/trash/actions.ts");
     const navigation = read("src/components/admin/admin-navigation.tsx");
-    for (const entity of ["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]) {
+    for (const entity of ["enquiries", "bookings", "invoices"]) {
       expect(page).toContain(`entity: "${entity}"`);
     }
-    for (const removed of ["inventory", "news", "media", "reviews", "offers"]) {
+    // The Cal.com-era service catalogue left with P2.4; services are managed in Setup.
+    for (const removed of ["inventory", "news", "media", "reviews", "offers", "catalogue_systems", "catalogue_services"]) {
       expect(page).not.toContain(`entity: "${removed}"`);
       expect(actions).not.toContain(`"${removed}"`);
     }

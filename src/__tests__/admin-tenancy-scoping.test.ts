@@ -241,11 +241,14 @@ describe("admin pages stay on the garage's RLS client", () => {
   it("never reads a garage id from a form, query string or request body", () => {
     const pattern = /(formData|searchParams|params|body|input)\??\.(get\(\s*["']garage_?[iI]d["']|garage_?[iI]d\b)/;
     // Routes, pages and every server action ("use server" files in src/lib).
-    // Internal library inputs such as getAvailableSlotsForService({ garageId })
-    // are filled from the host or admin context by these callers.
+    // Internal library inputs such as getAvailableSlots({ garageId }) are
+    // filled from the host or admin context by these callers.
     const serverActions = files(join(root, "src/lib")).filter((path) => /^["']use server["']/.test(readFileSync(path, "utf8")));
-    expect(serverActions.map((path) => relative(root, path))).toContain("src/lib/bookings/manage-actions.ts");
-    const offenders = [...files(join(root, "src/app")), ...serverActions]
+    const scanned = [...files(join(root, "src/app")), ...serverActions];
+    for (const route of ["src/app/api/bookings/route.ts", "src/app/api/bookings/manage/route.ts", "src/app/api/slots/route.ts", "src/app/api/services/route.ts"]) {
+      expect(scanned.map((path) => relative(root, path))).toContain(route);
+    }
+    const offenders = scanned
       .filter((path) => !path.endsWith("switch-garage.ts"))
       .filter((path) => pattern.test(readFileSync(path, "utf8")))
       .map((path) => relative(root, path));

@@ -7,7 +7,8 @@ describe("admin notifications", () => {
     const source = readFileSync(join(process.cwd(), "src/lib/admin/notifications.ts"), "utf8");
     expect(source).toContain('client.from("bookings")');
     expect(source).toContain("admin_seen_at.is.null");
-    expect(source).toContain("provider_sync_state.in.(pending,failed)");
+    expect(source).toContain("status.eq.requested");
+    expect(source).not.toContain("provider_sync_state");
     expect(source).toContain('client.from("booking_notification_events")');
     // Unmatched inbound mail belongs to no garage, so it is not a garage notification.
     expect(source).toContain("count: enquiryIds.size + bookingIds.size,");
@@ -28,7 +29,8 @@ describe("admin notifications", () => {
     const actions = readFileSync(join(process.cwd(), "src/app/app/(protected)/bookings/actions.ts"), "utf8");
     expect(notifications).toContain("New booking awaiting review");
     expect(notifications).toContain("Booking email delivery failed");
-    expect(notifications).toContain("Calendar sync failed");
+    expect(notifications).toContain("Waiting for your OK");
+    expect(notifications).not.toContain("provider_sync_state");
     expect(bookingPage).toContain("<MarkBookingSeen");
     expect(actions).toContain("export async function markBookingSeenAction");
     expect(actions).toContain("admin_seen_at: new Date().toISOString()");

@@ -7,7 +7,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  RefreshCcw,
   UserRound,
   Wrench,
 } from "lucide-react";
@@ -15,61 +14,44 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { BookingEmailThreadButton } from "@/components/admin/booking-email-thread-button";
-import type { BookingStatus, ProviderSyncState } from "@/lib/bookings/types";
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
+import type { BookingSource, BookingStatus } from "@/lib/booking-engine/types";
 import { getAdminReadClient } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
+import { bookingStatusLabel, bookingStatusTone } from "../status";
 import { AdminBookingControls } from "./booking-controls";
 
+// Kept simple until the booking detail is rebuilt (P3.3).
+
+type Related<T> = T | T[] | null;
 type Customer = { name: string; email: string | null; phone: string | null };
-type Vehicle = {
-  registration: string | null;
-  make: string | null;
-  model: string | null;
-  year: number | null;
-  colour: string | null;
-  fuel_type: string | null;
-  transmission: string | null;
-};
-type AuditEntry = {
-  id: number;
-  action: string;
-  actor_type: "customer" | "provider" | "admin" | "system";
-  detail: unknown;
-  created_at: string;
-};
+type Vehicle = { registration: string | null; make: string | null; model: string | null; year: number | null; colour: string | null; fuel: string | null };
+type BookingEvent = { id: string; type: string; actor: string; at: string; data: unknown };
 type AdminBookingDetail = {
   id: string;
-  booking_reference: string;
+  reference: string;
   status: BookingStatus;
-  service_key: string | null;
-  service_name: string;
-  problem_description: string | null;
-  symptoms: unknown;
-  conditional_answers: unknown;
-  appointment_start: string;
-  appointment_end: string | null;
-  original_appointment_start: string;
-  original_appointment_end: string | null;
-  timezone: string;
+  source: BookingSource;
+  starts_at: string;
+  ends_at: string;
   location_mode: "workshop" | "mobile" | null;
-  location: string | null;
-  service_address: string | null;
-  service_postcode: string | null;
+  postcode: string | null;
+  address: string | null;
+  symptoms: unknown;
   notes: string | null;
   cancellation_reason: string | null;
   cancelled_at: string | null;
-  provider_sync_state: ProviderSyncState;
-  provider_event_updated_at: string | null;
   created_at: string;
   updated_at: string;
-  last_modified_at: string;
-  customers: Customer | Customer[] | null;
-  vehicles: Vehicle | Vehicle[] | null;
-  booking_audit_log: AuditEntry[] | null;
+  services: Related<{ name: string }>;
+  resources: Related<{ name: string }>;
+  customers: Related<Customer>;
+  vehicles: Related<Vehicle>;
 };
+
+const DETAIL_SELECT = "id,reference,status,source,starts_at,ends_at,location_mode,postcode,address,symptoms,notes,cancellation_reason,cancelled_at,created_at,updated_at,services(name),resources(name),customers(name,email,phone),vehicles(registration,make,model,year,colour,fuel)";
 
 export default async function AdminBookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -77,20 +59,18 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
 
   const client = await getAdminReadClient();
   if (!client) notFound();
-  const { data, error } = await client
-    .from("bookings")
-    .select("id,booking_reference,status,service_key,service_name,problem_description,symptoms,conditional_answers,appointment_start,appointment_end,original_appointment_start,original_appointment_end,timezone,location_mode,location,service_address,service_postcode,notes,cancellation_reason,cancelled_at,provider_sync_state,provider_event_updated_at,created_at,updated_at,last_modified_at,customers(name,email,phone),vehicles(registration,make,model,year,colour,fuel_type,transmission),booking_audit_log(id,action,actor_type,detail,created_at)")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const [{ data, error }, { data: eventRows }] = await Promise.all([
+    client.from("bookings").select(DETAIL_SELECT).eq("id", id).is("deleted_at", null).maybeSingle(),
+    client.from("booking_events").select("id,type,actor,at,data").eq("booking_id", id).order("at", { ascending: false }).limit(100),
+  ]);
   if (error || !data) notFound();
 
   const booking = data as unknown as AdminBookingDetail;
   const customer = relation(booking.customers);
   const vehicle = relation(booking.vehicles);
+  const serviceName = relation(booking.services)?.name || "Booking";
   const symptoms = safeStringArray(booking.symptoms);
-  const answers = safeConditionalAnswers(booking.conditional_answers);
-  const history = [...(booking.booking_audit_log || [])].sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const history = (eventRows || []) as BookingEvent[];
 
   return (
     <>
@@ -101,25 +81,18 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
 
       <header className="mt-4 flex flex-wrap items-start justify-between gap-5">
         <div>
-          <p className="font-mono text-sm font-black tracking-[.12em] text-[#1974E2]">{booking.booking_reference}</p>
+          <p className="font-mono text-sm font-black tracking-[.12em] text-[#1974E2]">{booking.reference}</p>
           <h1 className="mt-2 text-3xl font-extrabold text-[#071127] sm:text-4xl">{customer?.name || "Customer booking"}</h1>
-          <p className="mt-2 text-[#667586]">{booking.service_name} · {formatAppointmentRange(booking.appointment_start, booking.appointment_end)}</p>
+          <p className="mt-2 text-[#667586]">{serviceName} · {formatAppointmentRange(booking.starts_at, booking.ends_at)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <form action={startBookingEnquiryThreadAction}>
             <input type="hidden" name="bookingId" value={booking.id} />
-            <BookingEmailThreadButton label={`Email ${customer?.name || "customer"} about booking ${booking.booking_reference}`} showLabel />
+            <BookingEmailThreadButton label={`Email ${customer?.name || "customer"} about booking ${booking.reference}`} showLabel />
           </form>
           <BookingStatusBadge status={booking.status} />
-          <SyncStateBadge state={booking.provider_sync_state} />
         </div>
       </header>
-
-      {booking.provider_sync_state === "failed" && (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
-          <strong>Calendar sync needs attention.</strong> Check the appointment before promising any further change to the customer.
-        </div>
-      )}
 
       {booking.cancellation_reason && (
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950">
@@ -141,24 +114,23 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
               <DetailBlock icon={CarFront} title="Vehicle">
                 {vehicle?.registration && <p className="inline-block rounded-md bg-[#F4C542] px-2 py-1 font-mono font-black tracking-[.1em] text-black">{formatRegistration(vehicle.registration)}</p>}
                 <p className="mt-2 font-extrabold text-[#071127]">{[vehicle?.make, vehicle?.model].filter(Boolean).join(" ") || "Vehicle details not recorded"}</p>
-                <p className="mt-1 text-sm leading-6 text-[#667586]">{[vehicle?.year, vehicle?.colour, vehicle?.fuel_type, vehicle?.transmission].filter(Boolean).join(" · ")}</p>
+                <p className="mt-1 text-sm leading-6 text-[#667586]">{[vehicle?.year, vehicle?.colour, vehicle?.fuel].filter(Boolean).join(" · ")}</p>
               </DetailBlock>
             </div>
           </section>
 
           <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 sm:p-6" aria-labelledby="service-problem-heading">
-            <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><Wrench size={19} aria-hidden="true" /></span><div><h2 id="service-problem-heading" className="text-xl font-extrabold text-[#071127]">Service and problem details</h2><p className="mt-1 font-semibold text-[#586575]">{booking.service_name}</p></div></div>
+            <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><Wrench size={19} aria-hidden="true" /></span><div><h2 id="service-problem-heading" className="text-xl font-extrabold text-[#071127]">Service and notes</h2><p className="mt-1 font-semibold text-[#586575]">{serviceName}</p></div></div>
             <div className="mt-5 rounded-xl bg-[#F4F7FA] p-4">
-              <p className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Customer description</p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#071127]">{booking.problem_description || booking.notes || "No problem description was supplied."}</p>
+              <p className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Customer notes</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#071127]">{booking.notes || "No notes were added."}</p>
             </div>
             {symptoms.length > 0 && <div className="mt-5"><p className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Reported symptoms</p><ul className="mt-2 flex flex-wrap gap-2">{symptoms.map((symptom) => <li key={symptom} className="rounded-full bg-[#EAF3FF] px-3 py-1.5 text-xs font-bold text-[#1446A5]">{symptom}</li>)}</ul></div>}
-            {answers.length > 0 && <dl className="mt-5 grid gap-4 sm:grid-cols-2">{answers.map((answer) => <div key={answer.label}><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">{answer.label}</dt><dd className="mt-1 text-sm font-semibold text-[#071127]">{answer.value}</dd></div>)}</dl>}
           </section>
 
           <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 sm:p-6" aria-labelledby="location-heading">
-            <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><MapPin size={19} aria-hidden="true" /></span><div className="min-w-0"><h2 id="location-heading" className="text-xl font-extrabold text-[#071127]">Service location</h2><p className="mt-1 font-bold capitalize text-[#586575]">{booking.location_mode === "mobile" ? "Mobile appointment" : booking.location_mode === "workshop" ? "Workshop appointment" : "Recorded location"}</p></div></div>
-            <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[#071127]">{locationText(booking)}</p>
+            <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><MapPin size={19} aria-hidden="true" /></span><div className="min-w-0"><h2 id="location-heading" className="text-xl font-extrabold text-[#071127]">Location</h2><p className="mt-1 font-bold text-[#586575]">{booking.location_mode === "mobile" ? "Mobile visit" : "At the workshop"}{relation(booking.resources)?.name ? ` · ${relation(booking.resources)?.name}` : ""}</p></div></div>
+            {booking.location_mode === "mobile" && <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-[#071127]">{[booking.address, booking.postcode].filter(Boolean).join(", ") || "No address was recorded."}</p>}
           </section>
         </div>
 
@@ -166,9 +138,8 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5 sm:p-6" aria-labelledby="appointment-heading">
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]"><CalendarClock size={19} aria-hidden="true" /></span><h2 id="appointment-heading" className="pt-1 text-xl font-extrabold text-[#071127]">Appointment</h2></div>
             <dl className="mt-6 grid gap-5">
-              <DetailItem label="Current appointment" value={formatAppointmentRange(booking.appointment_start, booking.appointment_end)} />
-              <DetailItem label="Original appointment" value={formatAppointmentRange(booking.original_appointment_start, booking.original_appointment_end)} />
-              <DetailItem label="Display timezone" value={booking.timezone === "Europe/London" ? "UK time (Europe/London)" : booking.timezone} />
+              <DetailItem label="Appointment" value={formatAppointmentRange(booking.starts_at, booking.ends_at)} />
+              <DetailItem label="Booked via" value={sourceLabel(booking.source)} />
             </dl>
           </section>
 
@@ -176,28 +147,25 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF1F7] text-[#1446A5]"><Clock3 size={19} aria-hidden="true" /></span><h2 id="record-heading" className="pt-1 text-xl font-extrabold text-[#071127]">Booking record</h2></div>
             <dl className="mt-6 grid gap-5">
               <div><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Status</dt><dd className="mt-2"><BookingStatusBadge status={booking.status} /></dd></div>
-              <div><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Calendar sync</dt><dd className="mt-2"><SyncStateBadge state={booking.provider_sync_state} /></dd></div>
               <DetailItem label="Created" value={formatDateTime(booking.created_at)} />
               <DetailItem label="Updated" value={formatDateTime(booking.updated_at)} />
-              <DetailItem label="Last modified" value={formatDateTime(booking.last_modified_at || booking.updated_at)} />
-              {booking.provider_event_updated_at && <DetailItem label="Last calendar update" value={formatDateTime(booking.provider_event_updated_at)} />}
             </dl>
           </section>
 
-          <AdminBookingControls bookingId={booking.id} status={booking.status} currentAppointmentStart={booking.appointment_start} />
+          <AdminBookingControls bookingId={booking.id} status={booking.status} currentAppointmentStart={booking.starts_at} />
         </aside>
       </div>
 
       <section className="mt-6 rounded-2xl border border-[#E4EAF0] bg-white p-5 sm:p-6" aria-labelledby="history-heading">
-        <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF1F7] text-[#1446A5]"><History size={19} aria-hidden="true" /></span><div><h2 id="history-heading" className="text-xl font-extrabold text-[#071127]">Booking history</h2><p className="mt-1 text-sm text-[#667586]">A chronological record of customer, staff and calendar changes.</p></div></div>
+        <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF1F7] text-[#1446A5]"><History size={19} aria-hidden="true" /></span><div><h2 id="history-heading" className="text-xl font-extrabold text-[#071127]">Booking history</h2><p className="mt-1 text-sm text-[#667586]">Customer, staff and system changes, newest first.</p></div></div>
         {history.length > 0 ? (
           <ol className="mt-6 grid gap-3">
             {history.map((entry) => {
-              const detail = safeHistoryDetail(entry.detail);
+              const detail = historyDetail(entry);
               return (
                 <li key={entry.id} className="grid gap-2 rounded-xl border border-[#E4EAF0] p-4 sm:grid-cols-[1fr_auto] sm:items-start">
-                  <div><p className="font-extrabold text-[#071127]">{historyTitle(entry.action)}</p>{detail && <p className="mt-1 text-sm leading-6 text-[#586575]">{detail}</p>}<p className="mt-2 text-xs font-bold text-[#667586]">By {actorLabel(entry.actor_type)}</p></div>
-                  <time dateTime={entry.created_at} className="text-xs font-semibold text-[#667586] sm:text-right">{formatDateTime(entry.created_at)}</time>
+                  <div><p className="font-extrabold text-[#071127]">{historyTitle(entry.type)}</p>{detail && <p className="mt-1 text-sm leading-6 text-[#586575]">{detail}</p>}<p className="mt-2 text-xs font-bold text-[#667586]">By {actorLabel(entry.actor)}</p></div>
+                  <time dateTime={entry.at} className="text-xs font-semibold text-[#667586] sm:text-right">{formatDateTime(entry.at)}</time>
                 </li>
               );
             })}
@@ -217,27 +185,10 @@ function DetailItem({ label, value }: { label: string; value: string }) {
 }
 
 function BookingStatusBadge({ status }: { status: BookingStatus }) {
-  const styles: Record<BookingStatus, string> = {
-    pending: "bg-amber-100 text-amber-900",
-    confirmed: "bg-green-100 text-green-800",
-    rescheduled: "bg-[#EAF3FF] text-[#1446A5]",
-    cancelled: "bg-red-100 text-red-800",
-    completed: "bg-[#E4EAF0] text-[#586575]",
-  };
-  return <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-extrabold capitalize", styles[status])}>{status}</span>;
+  return <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-extrabold", bookingStatusTone(status))}>{bookingStatusLabel(status)}</span>;
 }
 
-function SyncStateBadge({ state }: { state: ProviderSyncState }) {
-  const details: Record<ProviderSyncState, { label: string; className: string; icon: typeof RefreshCcw }> = {
-    synced: { label: "Synced", className: "bg-green-100 text-green-800", icon: RefreshCcw },
-    pending: { label: "Pending sync", className: "bg-amber-100 text-amber-900", icon: Clock3 },
-    failed: { label: "Sync failed", className: "bg-red-100 text-red-800", icon: RefreshCcw },
-  };
-  const Icon = details[state].icon;
-  return <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-extrabold", details[state].className)}><Icon size={13} aria-hidden="true" />{details[state].label}</span>;
-}
-
-function relation<T>(value: T | T[] | null): T | null {
+function relation<T>(value: Related<T>): T | null {
   return Array.isArray(value) ? value[0] || null : value;
 }
 
@@ -245,55 +196,35 @@ function safeStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 10) : [];
 }
 
-function safeConditionalAnswers(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  const answers = value as Record<string, unknown>;
-  const labels: Record<string, string> = {
-    mileage: "Current mileage",
-    warningLight: "Warning light",
-    issueTiming: "When it happens",
-    vehicleAccessible: "Vehicle access",
-  };
-  return Object.entries(labels).flatMap(([key, label]) => {
-    const answer = answers[key];
-    return typeof answer === "string" && answer.trim() ? [{ label, value: answer.trim() }] : [];
-  });
-}
-
-function safeHistoryDetail(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const detail = value as Record<string, unknown>;
-  const previous = typeof detail.previousAppointmentStart === "string" && Number.isFinite(Date.parse(detail.previousAppointmentStart)) ? detail.previousAppointmentStart : null;
-  const current = typeof detail.appointmentStart === "string" && Number.isFinite(Date.parse(detail.appointmentStart)) ? detail.appointmentStart : null;
-  if (previous && current) return `${formatDateTime(previous)} → ${formatDateTime(current)}`;
-  if (current) return `Appointment: ${formatDateTime(current)}`;
-  if (previous) return `Previous appointment: ${formatDateTime(previous)}`;
+function historyDetail(entry: BookingEvent) {
+  if (!entry.data || typeof entry.data !== "object" || Array.isArray(entry.data)) return null;
+  const data = entry.data as Record<string, unknown>;
+  const from = typeof data.from === "string" && Number.isFinite(Date.parse(data.from)) ? data.from : null;
+  const to = typeof data.to === "string" && Number.isFinite(Date.parse(data.to)) ? data.to : null;
+  if (from && to) return `${formatDateTime(from)} → ${formatDateTime(to)}`;
+  if (entry.type === "notification_sent" && typeof data.kind === "string") return `${String(data.kind).replaceAll("_", " ")}: ${typeof data.status === "string" ? data.status : "sent"}`;
+  if (typeof data.reason === "string" && data.reason.trim()) return data.reason.trim().slice(0, 300);
   return null;
 }
 
-function historyTitle(action: string) {
+function historyTitle(type: string) {
   const titles: Record<string, string> = {
     created: "Booking created",
-    confirmed: "Appointment confirmed",
-    reschedule_started: "Reschedule started",
-    rescheduled: "Appointment rescheduled",
+    status_changed: "Status changed",
+    rescheduled: "Appointment moved",
     cancelled: "Booking cancelled",
-    completed: "Appointment completed",
-    provider_synced: "Calendar synced",
-    provider_sync_failed: "Calendar sync needs attention",
-    notification_sent: "Customer update sent",
-    notification_failed: "Customer update needs attention",
+    note: "Note added",
+    notification_sent: "Customer or garage update",
   };
-  return titles[action] || "Booking updated";
+  return titles[type] || "Booking updated";
 }
 
-function actorLabel(actor: AuditEntry["actor_type"]) {
-  return { customer: "customer", provider: "calendar", admin: "staff", system: "system" }[actor];
+function actorLabel(actor: string) {
+  return ({ customer: "customer", staff: "staff", system: "system", agent: "assistant" } as Record<string, string>)[actor] || "system";
 }
 
-function locationText(booking: AdminBookingDetail) {
-  if (booking.location) return booking.location;
-  return [booking.service_address, booking.service_postcode].filter(Boolean).join(", ") || "No location was recorded.";
+function sourceLabel(source: BookingSource) {
+  return ({ online: "Online booking", phone: "Phone", walk_in: "Walk-in", reminder: "Reminder", missed_call: "Missed call", ai_agent: "Assistant" } as Record<BookingSource, string>)[source] || "Online booking";
 }
 
 function formatAppointmentRange(startValue: string, endValue: string | null) {

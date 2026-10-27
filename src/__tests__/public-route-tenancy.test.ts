@@ -10,7 +10,7 @@ import { otherTestGarage, testGarage } from "./support/garage";
 const harness = vi.hoisted(() => ({
   garage: null as Garage | null,
   createEnquiry: vi.fn(),
-  getBookingCalendarNotification: vi.fn(),
+  loadBookingNotificationContext: vi.fn(),
   rateLimitCalls: [] as Array<[string, string]>,
 }));
 
@@ -21,8 +21,8 @@ vi.mock("@/lib/rate-limit", () => ({
     return true;
   }),
 }));
-vi.mock("@/lib/bookings/repository", () => ({
-  getBookingCalendarNotification: harness.getBookingCalendarNotification,
+vi.mock("@/lib/bookings/notification-context", () => ({
+  loadBookingNotificationContext: harness.loadBookingNotificationContext,
 }));
 vi.mock("@/lib/enquiries/repository", () => ({ createEnquiry: harness.createEnquiry }));
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: vi.fn(async () => true) }));
@@ -126,6 +126,6 @@ describe("public routes resolve the garage from the host", () => {
     harness.garage = null;
     const offHost = await calendarRoute(new NextRequest("https://autofix.vitalos.co.uk/api/bookings/calendar/HRM-4821?signature=x"), { params: Promise.resolve({ reference: "HRM-4821" }) });
     expect(offHost.status).toBe(404);
-    expect(harness.getBookingCalendarNotification).not.toHaveBeenCalled();
+    expect(harness.loadBookingNotificationContext).not.toHaveBeenCalled();
   });
 });

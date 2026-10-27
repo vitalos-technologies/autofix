@@ -2,14 +2,10 @@
 
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BookingWizard } from "@/components/booking/booking-wizard";
-import { GarageProvider } from "@/components/garage/garage-provider";
 import { VehicleSessionProvider } from "@/components/vehicle/vehicle-context";
 import { VehicleMotDetails } from "@/components/vehicle/vehicle-mot-details";
 import { VehicleSummary } from "@/components/vehicle/vehicle-summary";
-import { publicGarage } from "@/lib/tenancy/garage";
 import type { VehicleDetails } from "@/types/domain";
-import { testGarage } from "./support/garage";
 
 const vehicle: VehicleDetails = {
   registration: "AB12CDE",
@@ -56,19 +52,9 @@ describe("customer vehicle surfaces", () => {
     vi.unstubAllGlobals();
   });
 
-  it("hides MOT facts in the booking wizard when the garage has MOT switched off", async () => {
-    render(<GarageProvider garage={publicGarage(testGarage({ motEnabled: false }))}><VehicleSessionProvider><BookingWizard /></VehicleSessionProvider></GarageProvider>);
-    expect(await screen.findByText("Vauxhall Astra")).toBeInTheDocument();
-    expect(screen.queryByText("MOT expires")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("vehicle-mot-details")).not.toBeInTheDocument();
-  });
-
-  it("shows MOT facts in the booking wizard when the garage has MOT switched on", async () => {
-    render(<GarageProvider garage={publicGarage(testGarage({ motEnabled: true }))}><VehicleSessionProvider><BookingWizard /></VehicleSessionProvider></GarageProvider>);
-    expect(await screen.findByText("Vauxhall Astra")).toBeInTheDocument();
-    expect(screen.getByText("MOT expires")).toBeInTheDocument();
-    expect(screen.getByText("31 March 2027")).toBeInTheDocument();
-  });
+  // The SOB booking wizard is gone (P2.4); the new booking pages (P2.8) carry
+  // their own MOT visibility tests, and online MOT services are filtered by
+  // the engine (booking-engine-repository.test.ts).
 
   it("gates MOT facts in the enquiry vehicle summary the same way", () => {
     const { unmount } = render(<VehicleSessionProvider><VehicleSummary /></VehicleSessionProvider>);

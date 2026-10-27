@@ -32,7 +32,7 @@ describe("production deployment configuration", () => {
   });
 
   it("keeps booking credentials server-only and separately degradable", () => {
-    expect(requiredBookingVariables).toEqual(["CALCOM_API_KEY", "CALCOM_WEBHOOK_SECRET", "CALCOM_DEFAULT_TIMEZONE", "BOOKING_MANAGEMENT_SECRET"]);
+    expect(requiredBookingVariables).toEqual(["BOOKING_MANAGEMENT_SECRET"]);
     for (const name of requiredBookingVariables) {
       expect(envExample).toContain(`${name}=`);
       expect(name).not.toMatch(/^NEXT_PUBLIC_/);

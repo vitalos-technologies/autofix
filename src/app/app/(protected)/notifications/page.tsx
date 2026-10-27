@@ -15,14 +15,15 @@ type AlertRow = {
 
 type BookingAlertRow = {
   id: string;
-  booking_reference: string;
+  reference: string;
   status: string;
-  provider_sync_state: string;
   admin_seen_at: string | null;
-  service_name: string;
   created_at: string;
+  services: { name: string } | null;
   customers: { name: string; email: string | null; phone: string | null } | null;
 };
+
+const BOOKING_ALERT_SELECT = "id,reference,status,admin_seen_at,created_at,services(name),customers(name,email,phone)";
 
 type DisplayAlert = {
   key: string;
@@ -45,7 +46,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         client.from("enquiries").select("id,type,status,notification_status,created_at,customers(name,email,phone)").is("deleted_at", null).or("status.eq.new,notification_status.in.(pending,failed)").order("created_at", { ascending: false }).limit(100),
         client.from("enquiry_conversations").select("enquiry_id,unread_count,enquiries!inner(deleted_at)").is("enquiries.deleted_at", null).gt("unread_count", 0),
         client.from("enquiry_messages").select("enquiry_id").eq("direction", "outbound").eq("message_type", "email").in("delivery_status", ["sent", "delivered"]),
-        client.from("bookings").select("id,booking_reference,status,provider_sync_state,admin_seen_at,service_name,created_at,customers(name,email,phone)").is("deleted_at", null).or("admin_seen_at.is.null,provider_sync_state.in.(pending,failed)").order("created_at", { ascending: false }).limit(100),
+        client.from("bookings").select(BOOKING_ALERT_SELECT).is("deleted_at", null).or("admin_seen_at.is.null,status.eq.requested").order("created_at", { ascending: false }).limit(100),
         client.from("booking_notification_events").select("booking_id,status,bookings!inner(deleted_at)").is("bookings.deleted_at", null).in("status", ["pending", "failed"]),
       ])
     : [{ data: [], error: new Error("Database unavailable") }, { data: [] }, { data: [] }, { data: [], error: new Error("Database unavailable") }, { data: [], error: new Error("Database unavailable") }];
@@ -68,7 +69,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   let bookingAlerts = (bookingResult.data || []) as unknown as BookingAlertRow[];
   const missingBookingIds = [...bookingDeliveryStates.keys()].filter((id) => !bookingAlerts.some((booking) => booking.id === id));
   if (client && missingBookingIds.length) {
-    const { data: deliveryBookings } = await client.from("bookings").select("id,booking_reference,status,provider_sync_state,admin_seen_at,service_name,created_at,customers(name,email,phone)").in("id", missingBookingIds).is("deleted_at", null);
+    const { data: deliveryBookings } = await client.from("bookings").select(BOOKING_ALERT_SELECT).in("id", missingBookingIds).is("deleted_at", null);
     bookingAlerts = [...bookingAlerts, ...((deliveryBookings || []) as unknown as BookingAlertRow[])];
   }
 
@@ -92,22 +93,21 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     const deliveryStates = bookingDeliveryStates.get(booking.id) || new Set<string>();
     const reasons = [
       !booking.admin_seen_at ? "New booking awaiting review" : null,
-      booking.provider_sync_state === "failed" ? "Calendar sync failed" : booking.provider_sync_state === "pending" ? "Calendar sync pending" : null,
+      booking.status === "requested" ? "Waiting for your OK" : null,
       deliveryStates.has("failed") ? "Booking email delivery failed" : deliveryStates.has("pending") ? "Booking email delivery pending" : null,
     ].filter(Boolean);
     return {
       key: `booking:${booking.id}`,
       kind: "booking" as const,
-      title: booking.booking_reference,
-      subtitle: booking.service_name,
+      title: booking.reference,
+      subtitle: booking.services?.name || "Booking",
       customer: booking.customers?.name || "Customer booking",
       reason: reasons.join(" · ") || "Booking needs review",
       createdAt: booking.created_at,
       href: `/app/bookings/${booking.id}`,
       badges: [
         ...(!booking.admin_seen_at ? [{ label: "New" }] : []),
-        ...(booking.provider_sync_state === "failed" ? [{ label: "Sync failed", tone: "danger" as const }] : []),
-        ...(booking.provider_sync_state === "pending" ? [{ label: "Sync pending", tone: "pending" as const }] : []),
+        ...(booking.status === "requested" ? [{ label: "Needs your OK", tone: "pending" as const }] : []),
         ...(deliveryStates.has("failed") ? [{ label: "Email failed", tone: "danger" as const }] : []),
         ...(deliveryStates.has("pending") ? [{ label: "Email pending", tone: "pending" as const }] : []),
       ],

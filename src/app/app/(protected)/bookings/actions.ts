@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import {
-  cancelBooking,
-  getBookingRescheduleSlots,
-  rescheduleBooking,
-} from "@/lib/bookings/repository";
-import { recordAdminAudit } from "@/lib/admin/audit";
+import { getBookingEngine } from "@/lib/booking-engine";
+import { cancelBooking, findBookingForManage, rescheduleBooking } from "@/lib/booking-engine/manage";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
+
+// Staff booking actions. The garage is the signed-in member's selected garage
+// (getAdminContext), never a value from the form; booking ids from another
+// garage are simply "not found".
 
 const uuidSchema = z.string().uuid();
 
@@ -28,7 +28,7 @@ const dateWindowSchema = z.object({
   const start = Date.parse(`${value.start}T00:00:00Z`);
   const end = Date.parse(`${value.end}T00:00:00Z`);
   const days = (end - start) / 86_400_000;
-  if (!Number.isFinite(days) || days <= 0 || days > 14) {
+  if (!Number.isFinite(days) || days < 0 || days > 13) {
     context.addIssue({
       code: "custom",
       path: ["end"],
@@ -44,19 +44,6 @@ const appointmentSchema = z.object({
     "Choose a future appointment",
   ),
 });
-
-const serviceMappingSchema = z.object({
-  id: uuidSchema,
-  providerEventTypeId: z.preprocess(
-    (value) => value === "" || value == null ? null : value,
-    z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
-  ),
-  onlineBookingEnabled: z.boolean(),
-  locationMode: z.enum(["workshop", "mobile", "both"]),
-}).refine(
-  (value) => !value.onlineBookingEnabled || value.providerEventTypeId !== null,
-  { path: ["providerEventTypeId"], message: "Add a valid event type ID before enabling online booking" },
-);
 
 type SafeActionResult = {
   success: boolean;
@@ -82,15 +69,19 @@ export async function getAdminBookingSlotsAction(
   if (!parsed.success) return { success: false, message: "Choose a valid date range of up to 14 days." };
 
   try {
-    const result = await getBookingRescheduleSlots(admin.garage, parsed.data.bookingId, parsed.data.start, parsed.data.end);
-    if (!result) return { success: false, message: "This booking cannot be rescheduled." };
-    const slots = result.slots
-      .filter((slot) => Number.isFinite(Date.parse(slot.start)))
+    const booking = await findBookingForManage({ garageId: admin.garage.id, bookingId: parsed.data.bookingId });
+    if (!booking || !["requested", "confirmed"].includes(booking.status)) return { success: false, message: "This booking cannot be rescheduled." };
+    const available = await getBookingEngine().getAvailableSlots({
+      garageId: admin.garage.id,
+      serviceId: booking.serviceId,
+      from: parsed.data.start,
+      to: parsed.data.end,
+      locationMode: booking.locationMode,
+    });
+    const slots = available
+      .filter((slot) => slot.freeCount > 0 && slot.startsAt !== booking.startsAt)
       .slice(0, 200)
-      .map((slot) => ({
-        start: new Date(slot.start).toISOString(),
-        ...(slot.end && Number.isFinite(Date.parse(slot.end)) ? { end: new Date(slot.end).toISOString() } : {}),
-      }));
+      .map((slot) => ({ start: slot.startsAt, end: slot.endsAt }));
     return {
       success: true,
       message: slots.length ? "Available appointment times loaded." : "No appointment times are available in this date range.",
@@ -112,12 +103,12 @@ export async function rescheduleAdminBookingAction(
   if (!parsed.success) return { success: false, message: "Choose a valid future appointment time." };
 
   try {
-    const result = await rescheduleBooking(admin.garage, parsed.data.bookingId, parsed.data.appointmentStart, "admin");
-    if (result.outcome !== "rescheduled") {
-      return { success: false, message: "This booking can no longer be rescheduled." };
+    const result = await rescheduleBooking({ garageId: admin.garage.id, bookingId: parsed.data.bookingId, startsAt: parsed.data.appointmentStart, actor: "staff", actorId: admin.user.id });
+    if (!result.ok) {
+      return { success: false, message: result.code === "SLOT_UNAVAILABLE" ? "That time has just been taken. Reload the available times and try again." : "This booking can no longer be rescheduled." };
     }
     revalidateBookingPaths(parsed.data.bookingId);
-    return { success: true, message: "The booking has been rescheduled and the customer update has been requested." };
+    return { success: true, message: "The booking has been moved and the customer will be told." };
   } catch {
     return { success: false, message: "The booking could not be rescheduled. Reload the available times and try again." };
   }
@@ -131,11 +122,11 @@ export async function cancelAdminBookingAction(bookingId: string): Promise<SafeA
   if (!parsed.success) return { success: false, message: "This booking could not be found." };
 
   try {
-    const result = await cancelBooking(admin.garage, parsed.data, "admin");
-    if (result.outcome === "not_found") return { success: false, message: "This booking could not be found." };
-    if (result.outcome !== "cancelled") return { success: false, message: "This booking can no longer be cancelled." };
+    const result = await cancelBooking({ garageId: admin.garage.id, bookingId: parsed.data, actor: "staff", actorId: admin.user.id });
+    if (!result.ok && result.code === "NOT_FOUND") return { success: false, message: "This booking could not be found." };
+    if (!result.ok) return { success: false, message: "This booking can no longer be cancelled." };
     revalidateBookingPaths(parsed.data);
-    return { success: true, message: "The booking has been cancelled and the customer update has been requested." };
+    return { success: true, message: "The booking has been cancelled and the customer will be told." };
   } catch {
     return { success: false, message: "The booking could not be cancelled. Please try again." };
   }
@@ -187,61 +178,6 @@ export async function markBookingSeenAction(bookingId: string) {
   revalidatePath("/app", "layout");
   revalidatePath("/app/notifications");
   revalidatePath("/app/bookings");
-}
-
-export async function saveBookingServiceMappingAction(
-  _previousState: SafeActionResult,
-  formData: FormData,
-): Promise<SafeActionResult> {
-  const admin = await getVerifiedAdmin();
-  if (!admin) return { success: false, message: "Your admin session has expired. Refresh and sign in again." };
-
-  const parsed = serviceMappingSchema.safeParse({
-    id: formData.get("id"),
-    providerEventTypeId: formData.get("providerEventTypeId"),
-    onlineBookingEnabled: formData.get("onlineBookingEnabled") === "on",
-    locationMode: formData.get("locationMode"),
-  });
-  if (!parsed.success) {
-    const eventTypeIssue = parsed.error.issues.some((issue) => issue.path.includes("providerEventTypeId"));
-    return {
-      success: false,
-      message: eventTypeIssue
-        ? "Add a positive whole-number event type ID before enabling online booking."
-        : "Check the service mapping and try again.",
-    };
-  }
-
-  const { data, error } = await admin.client
-    .from("booking_service_types")
-    .update({
-      provider_event_type_id: parsed.data.providerEventTypeId,
-      online_booking_enabled: parsed.data.onlineBookingEnabled,
-      location_mode: parsed.data.locationMode,
-    })
-    .eq("garage_id", admin.garage.id)
-    .eq("id", parsed.data.id)
-    .is("deleted_at", null)
-    .select("id")
-    .maybeSingle();
-  if (error || !data) return { success: false, message: "The service mapping could not be saved." };
-
-  revalidatePath("/app/bookings/services");
-  revalidatePath("/_site/[garageId]", "layout");
-  const audited = await recordAdminAudit(admin.garage.id, {
-    actorId: admin.user.id,
-    action: "update",
-    entityType: "booking_service_mapping",
-    entityId: parsed.data.id,
-    detail: {
-      onlineBookingEnabled: parsed.data.onlineBookingEnabled,
-      locationMode: parsed.data.locationMode,
-    },
-  });
-  if (!audited) {
-    return { success: true, message: "The mapping was saved, but its audit entry could not be recorded." };
-  }
-  return { success: true, message: "Service mapping saved." };
 }
 
 function revalidateBookingPaths(bookingId: string) {

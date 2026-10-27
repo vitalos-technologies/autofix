@@ -19,7 +19,8 @@ export async function getAdminNotificationSummary(client: SupabaseClient | null)
     client.from("enquiries").select("id,status,notification_status").is("deleted_at", null).or("status.eq.new,notification_status.in.(pending,failed)"),
     client.from("enquiry_conversations").select("enquiry_id,enquiries!inner(deleted_at)").is("enquiries.deleted_at", null).gt("unread_count", 0),
     client.from("enquiry_messages").select("enquiry_id").eq("direction", "outbound").eq("message_type", "email").in("delivery_status", ["sent", "delivered"]),
-    client.from("bookings").select("id").is("deleted_at", null).or("admin_seen_at.is.null,provider_sync_state.in.(pending,failed)"),
+    // New bookings nobody has opened yet, and online requests waiting for the garage's OK.
+    client.from("bookings").select("id").is("deleted_at", null).or("admin_seen_at.is.null,status.eq.requested"),
     client.from("booking_notification_events").select("booking_id,bookings!inner(deleted_at)").is("bookings.deleted_at", null).in("status", ["pending", "failed"]),
   ]);
 

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAdminContext } from "@/lib/tenancy/admin";
 
-const entitySchema = z.enum(["enquiries", "bookings", "invoices", "catalogue_systems", "catalogue_services"]);
+const entitySchema = z.enum(["enquiries", "bookings", "invoices"]);
 const actionSchema = z.enum(["trash", "restore", "delete"]);
 const idsSchema = z.array(z.string().uuid()).min(1).max(100);
 
@@ -49,8 +49,6 @@ function revalidateTrashPaths(entity: z.infer<typeof entitySchema>) {
     enquiries: "/app/enquiries",
     bookings: "/app/bookings",
     invoices: "/app/invoices",
-    catalogue_systems: "/app/service-catalogue",
-    catalogue_services: "/app/service-catalogue",
   };
   revalidatePath(adminPath[entity]);
   revalidatePath("/app/trash");
