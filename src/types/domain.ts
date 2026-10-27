@@ -31,15 +31,6 @@ export type VehicleDetails = {
   taxDueDate?: string;
 };
 
-export type VehicleSession = {
-  vehicle: VehicleDetails | null;
-  vehicleConfirmed?: boolean;
-  selectedProblem?: string;
-  selectedSystem?: string;
-  selectedService?: string;
-  source?: string;
-};
-
 export type CustomerContact = {
   name: string;
   email?: string;
