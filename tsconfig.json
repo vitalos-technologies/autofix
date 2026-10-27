@@ -45,6 +45,7 @@
     ".lighthouseci",
     ".claude",
     ".next/dev",
+    ".next/invoice-tests/dev",
     "output"
   ]
 }
