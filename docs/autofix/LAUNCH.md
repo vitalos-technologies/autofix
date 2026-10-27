@@ -95,8 +95,11 @@ From `.env.example`, `src/lib/env.ts` (`requiredProductionVariables`, `requiredB
 | `SENTRY_DSN` | Sentry project `autofix` → Client Keys | No (DSN is not a secret, keep it out of git anyway) | Recommended |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | source-map upload at build (token **Sensitive**) | Partly | Recommended |
 | `GOOGLE_PLACES_API_KEY` | Google Cloud, Places API, restricted to the server | **Sensitive** | For sign-up autofill (P4.4) |
+| `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` | Askbridge widget script (https), from Askbridge | No | When the Askbridge chat goes live (P4.6) |
+| `ASKBRIDGE_SYNC_URL` | Askbridge knowledge endpoint (https) | **Sensitive** | When the Askbridge chat goes live |
+| `ASKBRIDGE_WEBHOOK_SECRET` | 32+ random chars, shared with Askbridge (signs knowledge syncs) | **Sensitive** | When the Askbridge chat goes live |
 
-Never set in production: `DEV_TENANT_ROOT_DOMAIN`, `PLAYWRIGHT_TEST`, `ENABLE_DEV_COMPONENTS`, `SEED_*`, `VERCEL_DOMAINS_LIVE_TEST`, `EMAIL_PREVIEW_DIR`, `INVOICE_PDF_QA_DIR`. `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`, `NODE_ENV`, `NEXT_RUNTIME` are set by the platform.
+Never set in production: a `http://127.0.0.1` `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` (local stub), `DEV_TENANT_ROOT_DOMAIN`, `PLAYWRIGHT_TEST`, `ENABLE_DEV_COMPONENTS`, `SEED_*`, `VERCEL_DOMAINS_LIVE_TEST`, `EMAIL_PREVIEW_DIR`, `INVOICE_PDF_QA_DIR`. `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`, `NODE_ENV`, `NEXT_RUNTIME` are set by the platform.
 
 ## 3. Domains
 

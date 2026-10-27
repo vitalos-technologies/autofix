@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // X-Frame-Options and Content-Security-Policy depend on the host (a garage may let its own website
+  // frame its booking pages), so `src/proxy.ts` sets them: src/lib/booking-page/security-headers.ts.
   async headers() {
     return [
       {
@@ -31,7 +33,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
         ],
       },

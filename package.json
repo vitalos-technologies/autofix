@@ -22,8 +22,10 @@
     "test:e2e:admin": "playwright test --config playwright.garage.config.ts --project=admin-chromium --project=admin-390",
     "test:e2e:settings": "playwright test --config playwright.garage.config.ts --project=settings",
     "test:e2e:super-admin": "playwright test --config playwright.garage.config.ts --project=super-admin",
+    "test:e2e:booking-page": "playwright test --config playwright.garage.config.ts --project=booking-page-settings",
     "test:e2e:legal": "playwright test --config playwright.garage.config.ts --project=legal-mobile",
     "test:lighthouse": "lhci autorun",
+    "test:lighthouse:askbridge": "node scripts/lighthouse-askbridge.mjs",
     "test:load": "node scripts/load/slots-load.mjs",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
@@ -45,6 +47,7 @@
     "react-hook-form": "^7.65.0",
     "resend": "^6.1.0",
     "tailwind-merge": "^3.3.1",
+    "uqr": "0.1.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {

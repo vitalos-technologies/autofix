@@ -19,6 +19,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 // src/lib/booking-engine/fake.ts) is for UI work under `pnpm dev` only.
 //   pnpm test:e2e:super-admin super-admin.spec.ts /admin (P4.5) for a platform admin signed in with password + TOTP: 404 for everyone else,
 //                        garages, plan/status, read-only impersonation, job health; axe at 390 and 1440
+//   booking-page-settings.spec.ts  /app/settings/booking-page: free link + QR, custom domain (mock Vercel), embed CSP
+//                          on the garage host, Askbridge setting, manager read only (project booking-page-settings)
 //   pnpm test:e2e:legal    legal.spec.ts    /privacy and /unsubscribe at 390px (also part of test:e2e:booking)
 const supabase = getLocalSupabaseConfig();
 const port = process.env.PLAYWRIGHT_PORT || "3430";
@@ -100,6 +102,8 @@ export default defineConfig({
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Super admin: its own garage, owner and platform admin; the spec checks 390 and 1440 itself.
     { name: "super-admin", testMatch: "super-admin.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // Booking page & domain settings (P4.3/P4.6): its own garage, owner and manager; axe at 390 and 1440.
+    { name: "booking-page-settings", testMatch: "booking-page-settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });
