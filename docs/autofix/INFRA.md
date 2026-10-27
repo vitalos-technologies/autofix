@@ -12,11 +12,12 @@ State as of 25 Oct 2026.
 | `_acme-challenge.autofix` NS → `ns1.vercel-dns.com`, `ns2.vercel-dns.com` | Cloudflare | Lets Vercel issue the `*.autofix.vitalos.co.uk` wildcard certificate |
 | Vercel team "Vitalos' projects" | Vercel, **Hobby** plan | Hosts vitalos.co.uk, Askbridge, Fauward |
 | GitHub repo `vitalos-technologies/autofix` | GitHub, private | Created 25 Oct 2026, empty until `/bootstrap` pushes |
+| Vercel project `autofix` | Team `vitalos-projects-8e978de2` (team ID `team_5uDOAjR2l4XPYSxXtcUmWNMC`), project ID `prj_MyFtTDfjEtEh2lCMkD6PHJWqTh2V` | Created and linked to the repo by Temitope on 27 Oct 2026; previews deploy per PR (e.g. `autofix-theta.vercel.app`). Set `VERCEL_PROJECT_ID` and `VERCEL_TEAM_ID` to these. No env vars or domains yet |
 | SOB Autofix | Vercel project `sobautofix` (separate team), Supabase, Cal.com | Source of the fork; keep running unchanged |
 
 ## To create (needs Temitope's OK where marked)
 
-1. **Vercel project `autofix`** in the Vitalos team, linked to the GitHub repo. Framework Next.js, Node 22.
+1. ~~**Vercel project `autofix`** in the Vitalos team, linked to the GitHub repo.~~ Done 27 Oct 2026 (see Exists). Check Settings → General: framework Next.js, Node 22, production branch `main`.
 2. **Domains on the project**: add `autofix.vitalos.co.uk` and `*.autofix.vitalos.co.uk`. For the wildcard: on the team Domains page select `vitalos.co.uk` → DNS Records → *Enable Vercel DNS* (keep Cloudflare nameservers). The `_acme-challenge.autofix` NS records already delegate validation. Check status under Settings → Domains.
 3. **`VERCEL_API_TOKEN`**: team-scoped token for the domains API, stored as a Sensitive env var on the project (never in git).
 4. **Vercel Pro** (spend) before the first paying garage: commercial use, unlimited custom domains, sub-daily crons.
