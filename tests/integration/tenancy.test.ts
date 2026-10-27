@@ -246,6 +246,28 @@ class GarageRows {
     source: "phone",
   }, "id")).id));
 
+  /** An E.164 number unique to this run and garage (tables with globally unique numbers). */
+  runNumber(prefix: string) {
+    const digits = (BigInt(`0x${localRunId}`) % 100_000_000n).toString().padStart(8, "0");
+    return `+44${prefix}${this.key === "A" ? "1" : "2"}${digits}`;
+  }
+
+  reminderRule = () => this.once("reminderRule", async () => String((await this.insert("reminder_rules", {
+    kind: "mot",
+    enabled: true,
+    offset_days: [28, 7],
+    channel: "customer",
+    template: `Tenancy probe ${this.key}: MOT due {due_date}. {link}`,
+  }, "id")).id));
+
+  call = () => this.once("call", async () => String((await this.insert("calls", {
+    provider_call_sid: `CAtenancy${this.key}${localRunId}`,
+    from_number: this.key === "A" ? "+447700900901" : "+447700900902",
+    to_number: this.runNumber("79"),
+    status: "no-answer",
+    missed: true,
+  }, "id")).id));
+
   enquiry = () => this.once("enquiry", async () => String((await this.insert("enquiries", {
     type: "general",
     customer_id: await this.customer(),
@@ -370,12 +392,40 @@ const FIXTURES: Record<string, Fixture> = {
   },
   // Rows come from provisioning (owner, manager, technician, shared manager).
   garage_members: { create: async () => undefined, patch: { role: "manager" } },
+  garage_phone_numbers: {
+    create: (rows) => rows.insert("garage_phone_numbers", {
+      number: rows.runNumber("78"),
+      purpose: "forwarding",
+      provider_sid: `PNtenancy${rows.key}${localRunId}`,
+    }),
+    patch: { purpose: "messaging" },
+  },
   invoice_email_attempts: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },
   invoice_email_sends: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },
   invoice_items: { create: (rows) => rows.issuedInvoice(), patch: { description: "Tampered" } },
   invoice_number_sequences: { create: (rows) => rows.issuedInvoice(), patch: { last_value: 999_999 } },
   invoice_payments: { create: (rows) => rows.invoicePayment(), patch: { amount_pence: 1 } },
   invoices: { create: (rows) => rows.issuedInvoice(), patch: { notes: "Tampered" } },
+  // Platform queue with an optional garage_id (service role only): staff get 42501 on every probe.
+  jobs: {
+    create: (rows) => rows.insert("jobs", { kind: "tenancy.probe", payload: { garage: rows.key }, dedupe_key: `tenancy:${rows.garage.id}` }),
+    patch: { status: "done" },
+  },
+  calls: { create: (rows) => rows.call(), patch: { handled_at: "2096-04-01T00:00:00.000Z" } },
+  messages: {
+    create: async (rows) => rows.insert("messages", {
+      customer_id: await rows.customer(),
+      call_id: await rows.call(),
+      channel: "sms",
+      direction: "outbound",
+      to_address: rows.key === "A" ? "+447700900901" : "+447700900902",
+      body: `Tenancy probe text ${rows.key}`,
+      provider: "mock",
+      provider_msg_id: `SMtenancy${rows.key}${localRunId}`,
+      status: "sent",
+    }),
+    patch: { body: "Tampered" },
+  },
   media_assets: {
     create: (rows) => rows.insert("media_assets", { object_path: `${rows.garage.id}/media/probe-${localRunId}.png`, alt_text: `Probe ${rows.key}` }),
     patch: { alt_text: "Tampered" },
@@ -401,6 +451,20 @@ const FIXTURES: Record<string, Fixture> = {
       source_uri: "https://example.test/review",
     }),
     patch: { text: "Tampered" },
+  },
+  reminder_rules: { create: (rows) => rows.reminderRule(), patch: { template: "Tampered {link}" } },
+  reminder_sends: {
+    create: async (rows) => rows.insert("reminder_sends", {
+      rule_id: await rows.reminderRule(),
+      vehicle_id: await rows.vehicle(),
+      customer_id: await rows.customer(),
+      kind: "mot",
+      due_date: "2096-05-01",
+      offset_days: 28,
+      send_at: "2096-04-03T09:00:00.000Z",
+      channel: "sms",
+    }),
+    patch: { status: "cancelled", skip_reason: "tampered" },
   },
   resources: { create: (rows) => rows.resource(), patch: { name: "Tampered" } },
   services: { create: (rows) => rows.service(), patch: { name: "Tampered" } },

@@ -395,12 +395,12 @@ reset role;
 
 set local role service_role;
 select is(
-  public.seed_garage_defaults('c1100000-0000-4000-8000-000000000001'),
+  public.seed_garage_defaults('c1100000-0000-4000-8000-000000000001') - 'reminder_rules',
   '{"services": 6, "resources": 4, "opening_hours": 6}'::jsonb,
-  'seed_garage_defaults creates opening hours, 3 bays and a van, and 6 services'
+  'seed_garage_defaults creates opening hours, 3 bays and a van, and 6 services (reminder rules: 013)'
 );
 select is(
-  public.seed_garage_defaults('c1100000-0000-4000-8000-000000000001'),
+  public.seed_garage_defaults('c1100000-0000-4000-8000-000000000001') - 'reminder_rules',
   '{"services": 0, "resources": 0, "opening_hours": 0}'::jsonb,
   'running it again adds nothing'
 );
