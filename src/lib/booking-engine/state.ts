@@ -186,6 +186,11 @@ function cookieOptions(maxAge: number, path = "/") {
   };
 }
 
+/** `af_booking` cookie options, for route handlers that set the draft on their own response (`/r/{token}`). */
+export function bookingStateCookieOptions() {
+  return cookieOptions(BOOKING_STATE_MAX_AGE_S);
+}
+
 /** The draft and flow bookkeeping for the host's garage. Empty when absent or not readable. */
 export async function readBookingSession(garageId: string): Promise<BookingFlowSession> {
   const store = await cookies();
