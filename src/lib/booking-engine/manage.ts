@@ -413,7 +413,7 @@ export async function rescheduleBooking(input: RescheduleInput): Promise<ManageO
 
   clearSlotCache(input.garageId);
   await recordEvent(client, input.garageId, booking.id, "rescheduled", input.actor, input.actorId, { from: booking.startsAt, to: newStart });
-  notifyBooking({ type: "rescheduled", garageId: input.garageId, bookingId: booking.id, previousStartsAt: booking.startsAt });
+  await notifyBooking({ type: "rescheduled", garageId: input.garageId, bookingId: booking.id, previousStartsAt: booking.startsAt });
 
   const fresh = await findBookingForManage({ garageId: input.garageId, bookingId: booking.id }, now).catch(() => null);
   return { ok: true, booking: fresh ?? { ...booking, startsAt: newStart, endsAt, during, resourceId }, changed: true };
@@ -453,7 +453,7 @@ export async function cancelBooking(input: CancelInput): Promise<ManageOutcome> 
 
   clearSlotCache(input.garageId);
   await recordEvent(client, input.garageId, booking.id, "cancelled", input.actor, input.actorId, { previous_status: booking.status, reason });
-  notifyBooking({ type: "cancelled", garageId: input.garageId, bookingId: booking.id });
+  await notifyBooking({ type: "cancelled", garageId: input.garageId, bookingId: booking.id });
 
   const cancelled: ManagedBooking = { ...booking, status: "cancelled", canChange: false, blockedReason: "status" };
   return { ok: true, booking: cancelled, changed: true };

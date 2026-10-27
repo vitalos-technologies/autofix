@@ -19,14 +19,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createCompositeProvider } from "./composite";
 import { DvlaProvider, type DvlaEnvironment } from "./dvla";
-import { DvsaMotHistoryClient, DVSA_MOT_DEFAULT_SCOPE, type DvsaCredentials } from "./dvsa";
+import { DvsaMotHistoryClient, DVSA_MOT_DEFAULT_SCOPE, type DvsaCredentials, type MotHistoryLookup } from "./dvsa";
 import {
   createMemoryVehicleFactsCache,
   createSupabaseVehicleFactsCache,
   VEHICLE_FACTS_PEPPER_MIN_LENGTH,
 } from "./facts-cache";
 import { mockVehicleProvider } from "./mock";
-import type { VehicleLookupProvider, VehicleSourceName } from "./provider";
+import { vehicleLookupError, type VehicleLookupProvider, type VehicleSourceName } from "./provider";
 import { VehicleDataGlobalProvider } from "./vehicle-data-global";
 
 export type VehicleLookupEnv = Readonly<Record<string, string | undefined>>;
@@ -207,6 +207,7 @@ export function getConfiguredVehicleProvider(env: VehicleLookupEnv = process.env
 export function resetConfiguredVehicleProviderForTests() {
   memo = undefined;
   enrichmentMemo = undefined;
+  motMemo = undefined;
 }
 
 /** What background enrichment needs from a vehicle source: MOT expiry, mileage and basic facts. */
@@ -284,4 +285,34 @@ export function getConfiguredEnrichmentLookup(env: VehicleLookupEnv = process.en
   }
   enrichmentMemo = { key, lookup };
   return lookup;
+}
+
+// ---------------------------------------------------------------------------------------------
+// MOT history for the nightly refresh (`mot.refresh`, SPEC "Nightly MOT refresh")
+
+let motMemo: { key: string; lookup: MotHistoryLookup } | undefined;
+
+/**
+ * Development and test stand-in: knows no vehicle, so a refresh only records that each car was
+ * checked and never changes an MOT date (seeded reminders stay as they are).
+ */
+export const mockMotHistoryLookup: MotHistoryLookup = {
+  async getMotHistory() {
+    throw vehicleLookupError("not_found", { source: "dvsa" });
+  },
+};
+
+/**
+ * The DVSA MOT History client when its credentials are set; the mock outside production when the
+ * lookup provider is `mock` (or unset); otherwise null and the refresh reports "not configured".
+ */
+export function getConfiguredMotHistoryLookup(env: VehicleLookupEnv = process.env): MotHistoryLookup | null {
+  const dvsa = readDvsa(env).config;
+  if (dvsa) {
+    const key = createHash("sha256").update(JSON.stringify(["dvsa-mot", dvsa])).digest("hex");
+    if (motMemo?.key !== key) motMemo = { key, lookup: new DvsaMotHistoryClient(dvsa) };
+    return motMemo.lookup;
+  }
+  if (!isProduction(env) && resolveVehicleLookupMode(env) === "mock") return mockMotHistoryLookup;
+  return null;
 }
