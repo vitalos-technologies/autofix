@@ -10,6 +10,15 @@ import { locationModes, type CreateBookingResult } from "@/lib/booking-engine/ty
 // through the same engine (`create_booking()`, so the bay is checked and the
 // no_overlap constraint still has the last word). The garage is always the
 // member's selected garage, passed in by the caller.
+//
+// Staff rules (DECISIONS A90, A176-A185): the caller also passes the signed-in
+// member's user id from the verified session. With it, `create_booking()`
+// lets the member book services not offered online, inside the notice period
+// (from the start of today), beyond the online window (up to two years) and
+// without approval (straight to confirmed). Opening hours and closures still
+// apply unless the member ticks `overrideHours`; the service area, MOT switch
+// and the bay check always do. The database checks the member belongs to the
+// garage.
 
 export const STAFF_SOURCES = ["phone", "walk_in"] as const;
 export type StaffSource = (typeof STAFF_SOURCES)[number];
@@ -46,14 +55,19 @@ export const staffBookingSchema = z
     customerEmail: z.union([z.literal(""), z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address").max(254))]).optional(),
     reminderConsent: z.boolean().default(false),
     notes: optional(2000),
+    /** The member explicitly books outside opening hours or on a closure day. */
+    overrideHours: z.boolean().default(false),
     idempotencyKey: z.string().uuid(),
   })
   .strict();
 
 export type StaffBookingInput = z.infer<typeof staffBookingSchema>;
 
-/** Books a phone or walk-in booking for the garage through the booking engine. */
-export async function createStaffBooking(garageId: string, input: StaffBookingInput): Promise<CreateBookingResult> {
+/**
+ * Books a phone or walk-in booking for the garage through the booking engine, with the staff rules
+ * for `memberId` (the signed-in member's user id, from the session; never from the form).
+ */
+export async function createStaffBooking(garageId: string, memberId: string, input: StaffBookingInput): Promise<CreateBookingResult> {
   return getBookingEngine().createBooking(garageId, {
     serviceId: input.serviceId,
     startsAt: input.startsAt,
@@ -73,5 +87,5 @@ export async function createStaffBooking(garageId: string, input: StaffBookingIn
       consentText: input.reminderConsent ? STAFF_CONSENT_WORDING : undefined,
     },
     vehicle: { registration: input.registration, make: input.make, model: input.model },
-  });
+  }, { staff: { memberId, overrideHours: input.overrideHours } });
 }

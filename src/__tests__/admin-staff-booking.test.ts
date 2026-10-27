@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BookingEngine, CreateBookingInput, CreateBookingResult } from "@/lib/booking-engine/types";
+import type { BookingEngine, CreateBookingInput, CreateBookingOptions, CreateBookingResult, SlotQuery, StaffSlotQuery } from "@/lib/booking-engine/types";
 import { otherTestGarage, testGarage } from "./support/garage";
 
 // Staff phone / walk-in bookings (/app/bookings/new): the server-side path for
@@ -11,10 +11,14 @@ const other = otherTestGarage();
 const SERVICE = "6f1c2b9e-1d3a-4c5b-8e7f-90a1b2c3d4e5";
 const KEY = "3b2f8c1e-0a4d-4e6f-9b7a-1c2d3e4f5a6b";
 const BOOKING = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const MEMBER = "7d1e2f3a-4b5c-4d6e-8f70-8192a3b4c5d6";
+const OTHER_MEMBER = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 
 const harness = vi.hoisted(() => ({
   context: null as null | Record<string, unknown>,
-  calls: [] as Array<{ garageId: string; input: CreateBookingInput }>,
+  calls: [] as Array<{ garageId: string; input: CreateBookingInput; options?: CreateBookingOptions }>,
+  onlineSlotQueries: [] as SlotQuery[],
+  staffSlotQueries: [] as StaffSlotQuery[],
   result: null as null | CreateBookingResult,
   revalidated: [] as string[],
 }));
@@ -29,9 +33,16 @@ vi.mock("@/lib/tenancy/admin", () => ({ getAdminContext: vi.fn(async () => harne
 vi.mock("@/lib/booking-engine", async () => {
   const engine: BookingEngine = {
     listOnlineServices: async () => [],
-    getAvailableSlots: async () => [{ startsAt: "2026-11-02T09:00:00.000Z", endsAt: "2026-11-02T10:00:00.000Z", freeCount: 2 }],
-    createBooking: async (garageId, input) => {
-      harness.calls.push({ garageId, input });
+    getAvailableSlots: async (query) => {
+      harness.onlineSlotQueries.push(query);
+      return [];
+    },
+    getStaffSlots: async (query) => {
+      harness.staffSlotQueries.push(query);
+      return [{ startsAt: "2026-11-02T09:00:00.000Z", endsAt: "2026-11-02T10:00:00.000Z", freeCount: 2 }];
+    },
+    createBooking: async (garageId, input, options) => {
+      harness.calls.push({ garageId, input, options });
       return harness.result!;
     },
   };
@@ -64,8 +75,10 @@ const valid = {
 const idle = { status: "idle" as const, message: "" };
 
 beforeEach(() => {
-  harness.context = { user: { id: "user-1" }, garage, mfaRequired: true, mfaVerified: true, mfaState: "verified", client: {} };
+  harness.context = { user: { id: MEMBER }, garage, mfaRequired: true, mfaVerified: true, mfaState: "verified", client: {} };
   harness.calls = [];
+  harness.onlineSlotQueries = [];
+  harness.staffSlotQueries = [];
   harness.revalidated = [];
   harness.result = {
     ok: true,
@@ -92,6 +105,19 @@ describe("staff booking", () => {
     });
     expect(input.customer.consentText).toBeUndefined();
     expect(harness.revalidated).toContain("/app");
+  });
+
+  it("books with the staff rules for the signed-in member, never a member id from the form (A90)", async () => {
+    await expect(createStaffBookingAction(idle, form({ ...valid, memberId: OTHER_MEMBER, staff: OTHER_MEMBER }))).rejects.toThrow("REDIRECT:");
+    expect(harness.calls[0]?.options).toEqual({ staff: { memberId: MEMBER, overrideHours: false } });
+    expect(JSON.stringify(harness.calls)).not.toContain(OTHER_MEMBER);
+  });
+
+  it("passes an explicit opening-hours override through", async () => {
+    await expect(createStaffBookingAction(idle, form({ ...valid, source: "walk_in", overrideHours: "on" }))).rejects.toThrow("REDIRECT:");
+    expect(harness.calls[0]?.options).toEqual({ staff: { memberId: MEMBER, overrideHours: true } });
+    await expect(createStaffBookingAction(idle, form({ ...valid, overrideHours: "yes" }))).rejects.toThrow("REDIRECT:");
+    expect(harness.calls[1]?.options).toEqual({ staff: { memberId: MEMBER, overrideHours: false } });
   });
 
   it("records the consent wording when staff tick the box, and accepts walk-ins", async () => {
@@ -131,6 +157,9 @@ describe("staff booking", () => {
       ok: true,
       slots: [{ starts_at: "2026-11-02T09:00:00.000Z", ends_at: "2026-11-02T10:00:00.000Z", free_count: 2 }],
     });
+    // The staff time grid (no notice or booking window), for the signed-in member.
+    expect(harness.staffSlotQueries).toEqual([{ garageId: garage.id, serviceId: SERVICE, from: "2026-11-02", to: "2026-11-02", locationMode: "workshop", memberId: MEMBER }]);
+    expect(harness.onlineSlotQueries).toEqual([]);
     await expect(getStaffSlotsAction("nope", "2026-11-02", "workshop")).resolves.toMatchObject({ ok: false });
     await expect(getStaffSlotsAction(SERVICE, "2026-13-01", "workshop")).resolves.toMatchObject({ ok: false });
     harness.context = { ...harness.context, mfaVerified: false, mfaState: "trusted" };

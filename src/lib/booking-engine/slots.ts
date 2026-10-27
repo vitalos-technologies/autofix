@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { BookingEngineError, bookingErrorCodeFromDatabase } from "@/lib/booking-engine/errors";
 import { isoInstant } from "@/lib/booking-engine/range";
-import type { LocationMode, Slot, SlotQuery } from "@/lib/booking-engine/types";
+import type { LocationMode, Slot, SlotQuery, StaffSlotQuery } from "@/lib/booking-engine/types";
 import { addCalendarDays, calendarDateInTimeZone } from "@/lib/bookings/date";
 
 // Free slots come from `available_slots()` (docs/autofix/ARCHITECTURE.md),
@@ -18,6 +18,8 @@ const MAX_CACHE_ENTRIES_PER_GARAGE = 500;
 export const MAX_SLOT_WINDOW_DAYS = 62;
 /** How far ahead alternatives are searched after a lost slot (same as the slots route window). */
 export const ALTERNATIVE_WINDOW_DAYS = 14;
+/** Longest window one `staff_available_slots()` call may cover (the SQL refuses more than 31 days). */
+export const MAX_STAFF_SLOT_WINDOW_DAYS = 31;
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 const uuid = z.string().uuid();
@@ -51,9 +53,9 @@ function isRealDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-function assertValidQuery(query: SlotQuery) {
+function assertValidQuery(query: SlotQuery, maxDays = MAX_SLOT_WINDOW_DAYS - 1) {
   const days = isRealDate(query.from) && isRealDate(query.to) ? daysBetween(query.from, query.to) : Number.NaN;
-  if (!uuid.safeParse(query.garageId).success || !uuid.safeParse(query.serviceId).success || !Number.isFinite(days) || days < 0 || days >= MAX_SLOT_WINDOW_DAYS) {
+  if (!uuid.safeParse(query.garageId).success || !uuid.safeParse(query.serviceId).success || !Number.isFinite(days) || days < 0 || days > maxDays) {
     throw new BookingEngineError("INVALID_BOOKING", "Choose a valid service and date range.");
   }
   if (query.locationMode !== undefined && query.locationMode !== "workshop" && query.locationMode !== "mobile") {
@@ -117,6 +119,27 @@ export async function fetchAvailableSlots(client: SupabaseClient, query: SlotQue
 }
 
 /**
+ * The staff time grid (`staff_available_slots()`, service role): services not
+ * offered online too, from the start of today with no notice or booking
+ * window; opening hours and closures still apply. Never cached, so a member
+ * always sees the bay as it is now.
+ */
+export async function fetchStaffSlots(client: SupabaseClient, query: StaffSlotQuery): Promise<Slot[]> {
+  assertValidQuery(query, MAX_STAFF_SLOT_WINDOW_DAYS);
+  if (!uuid.safeParse(query.memberId).success) throw new BookingEngineError("INVALID_BOOKING", "Sign in again to book for the garage.");
+  const { data, error } = await client.rpc("staff_available_slots", {
+    p_garage_id: query.garageId,
+    p_service_id: query.serviceId,
+    p_from: query.from,
+    p_to: query.to,
+    p_location_mode: query.locationMode ?? null,
+    p_member_id: query.memberId,
+  });
+  if (error) throw new BookingEngineError(bookingErrorCodeFromDatabase(error));
+  return parseSlots(data);
+}
+
+/**
  * The nearest free slots to a requested start: the same local day first
  * (closest in time, earlier or later), then the following days in order.
  */
@@ -143,6 +166,8 @@ export type AlternativesQuery = {
   now?: Date;
   /** Starts never to offer (a rescheduled booking's current time). */
   exclude?: string[];
+  /** A member booking with staff rules: alternatives come from the staff time grid. */
+  memberId?: string;
 };
 
 /** Fresh (uncached) alternatives after a slot was lost. Never throws: no alternatives is a valid answer. */
@@ -153,13 +178,14 @@ export async function findAlternativeSlots(client: SupabaseClient, query: Altern
   const from = requestedDay > today ? requestedDay : today;
   clearSlotCache(query.garageId);
   try {
-    const slots = await fetchAvailableSlots(client, {
+    const window = {
       garageId: query.garageId,
       serviceId: query.serviceId,
       from,
       to: addCalendarDays(from, ALTERNATIVE_WINDOW_DAYS - 1),
       locationMode: query.locationMode,
-    });
+    };
+    const slots = query.memberId ? await fetchStaffSlots(client, { ...window, memberId: query.memberId }) : await fetchAvailableSlots(client, window);
     const excluded = new Set((query.exclude ?? []).map((value) => Date.parse(value)));
     return nearestFreeSlots(slots.filter((slot) => !excluded.has(Date.parse(slot.startsAt))), query.requestedStart, query.timeZone);
   } catch {

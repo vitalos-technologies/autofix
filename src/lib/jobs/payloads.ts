@@ -20,7 +20,7 @@ export const customersEnrichPayload = z.object({ garageId: uuid.optional(), impo
 export const retentionPayload = z.object({ garageId: uuid.optional() }).strict();
 export const notificationsBookingPayload = z
   .object({
-    type: z.enum(["created", "rescheduled", "cancelled"]),
+    type: z.enum(["created", "confirmed", "rescheduled", "cancelled"]),
     garageId: uuid,
     bookingId: uuid,
     previousStartsAt: z.string().datetime({ offset: true }).optional(),

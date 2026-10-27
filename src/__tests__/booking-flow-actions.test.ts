@@ -109,6 +109,7 @@ beforeEach(() => {
   const recording: BookingEngine = {
     listOnlineServices: (garageId) => engine.listOnlineServices(garageId),
     getAvailableSlots: (query) => engine.getAvailableSlots(query),
+    getStaffSlots: (query) => engine.getStaffSlots(query),
     createBooking: async (garageId, input) => {
       created.push(input);
       return engine.createBooking(garageId, input);
@@ -365,6 +366,7 @@ describe("step 4 · details and confirm", () => {
     setBookingEngineForTests({
       listOnlineServices: (garageId) => engine.listOnlineServices(garageId),
       getAvailableSlots: (query) => engine.getAvailableSlots(query),
+      getStaffSlots: (query) => engine.getStaffSlots(query),
       createBooking: async () => ({ ok: false, code: "OUTSIDE_SERVICE_AREA", message: "outside" }),
     });
     const { state } = await run(confirmBookingAction, initialDetailsFormState, details);

@@ -137,6 +137,15 @@ describe("accept and quick status changes", () => {
     // The status trigger writes the timeline event; the action inserts none.
     expect(fake.queries.some((query) => query.table === "booking_events")).toBe(false);
     expect(harness.revalidated).toContain("/app");
+    // A88: the customer is told the booking is confirmed (queued as notifications.booking).
+    expect(harness.notified).toEqual([{ type: "confirmed", garageId: garage.id, bookingId: BOOKING }]);
+  });
+
+  it("sends no confirmation when someone else accepted it first, or for other changes", async () => {
+    useClient(bookingIn("requested", { updated: false }));
+    await expect(acceptBookingAction(form({ bookingId: BOOKING }))).rejects.toThrow(`REDIRECT:/app/bookings/${BOOKING}?notice=stale`);
+    useClient(bookingIn("confirmed"));
+    await quickStatusAction(form({ bookingId: BOOKING, status: "arrived" }));
     expect(harness.notified).toEqual([]);
   });
 

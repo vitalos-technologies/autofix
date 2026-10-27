@@ -137,19 +137,19 @@ select is(
   1, 'two rows with one phone make one customer'
 );
 select is(
-  (select name || '/' || email || '/' || consent_source from public.customers where phone = '+447700900321'),
+  (select name || '/' || email || '/' || consent_source from public.customers where garage_id = 'a1300000-0000-4000-8000-000000000001' and phone = '+447700900321'),
   'New Nora/nora@example.test/import', 'the first row names the customer; email lower-cased; consent source import'
 );
 select is(
-  (select consent_text from public.customers where phone = '+447700900321'),
+  (select consent_text from public.customers where garage_id = 'a1300000-0000-4000-8000-000000000001' and phone = '+447700900321'),
   'I confirm these customers gave their details to Import Garage A ...', 'consent_text is the declaration'
 );
 select is(
-  (select count(*)::integer from public.vehicles v join public.customers c on c.garage_id = v.garage_id and c.id = v.customer_id where c.phone = '+447700900321'),
+  (select count(*)::integer from public.vehicles v join public.customers c on c.garage_id = v.garage_id and c.id = v.customer_id where c.garage_id = 'a1300000-0000-4000-8000-000000000001' and c.phone = '+447700900321'),
   2, 'both of the customer''s cars are linked to them'
 );
 select is(
-  (select reminder_consent from public.customers where phone = '+447700900322'),
+  (select reminder_consent from public.customers where garage_id = 'a1300000-0000-4000-8000-000000000001' and phone = '+447700900322'),
   false, 'a row whose consent column says no records no consent'
 );
 select ok(
@@ -188,7 +188,7 @@ select ok(
   'garage B''s customer and vehicle are untouched'
 );
 select is(
-  (select count(*)::integer from public.vehicles where registration = 'IM12BBB'),
+  (select count(*)::integer from public.vehicles where garage_id in ('a1300000-0000-4000-8000-000000000001', 'b1300000-0000-4000-8000-000000000001') and registration = 'IM12BBB'),
   2, 'the same registration can exist once in each garage'
 );
 
@@ -257,7 +257,7 @@ select is(
 );
 reset role;
 select ok(
-  (select not reminder_consent and consent_at is null and consent_text is null from public.customers where phone = '+447700900331'),
+  (select not reminder_consent and consent_at is null and consent_text is null from public.customers where garage_id = 'a1300000-0000-4000-8000-000000000001' and phone = '+447700900331'),
   'the customer has no consent record'
 );
 

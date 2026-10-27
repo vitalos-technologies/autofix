@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { addDays, dateKeyInZone, isoWeekday, zonedTimeToInstant } from "@/lib/booking-flow/dates";
 import {
   createBookingInputSchema,
+  staffBookingContextSchema,
   type BookingEngine,
   type CreateBookingInput,
   type CreateBookingResult,
@@ -47,6 +48,8 @@ const OPENING: Record<number, Array<[number, number]>> = {
   7: [],
 };
 const STEP_MIN = 45;
+/** Staff bookings reach two years ahead (as `create_booking()`). */
+const STAFF_HORIZON_MS = 730 * 86_400_000;
 
 export type FakeBookingEngineOptions = {
   now?: () => Date;
@@ -103,15 +106,17 @@ export function createFakeBookingEngine(options: FakeBookingEngineOptions = {}):
     return store.bookings.some((item) => item.garageId === garageId && item.startMs < endMs && startMs < item.endMs);
   }
 
-  function slotsFor(query: SlotQuery): Slot[] {
+  /** `staff`: from the start of today and up to two years ahead, ignoring notice and the booking window. */
+  function slotsFor(query: SlotQuery, staff = false): Slot[] {
     const chosen = service(query.serviceId);
     if (!chosen) return [];
     if (query.locationMode && chosen.locationMode !== "both" && chosen.locationMode !== query.locationMode) return [];
     const nowMs = now().getTime();
-    const earliest = nowMs + chosen.minNoticeH * 3_600_000;
-    const latest = nowMs + chosen.maxDaysAhead * 86_400_000;
+    const today = dateKeyInZone(now(), timeZone);
+    const earliest = staff ? Number.NEGATIVE_INFINITY : nowMs + chosen.minNoticeH * 3_600_000;
+    const latest = nowMs + (staff ? STAFF_HORIZON_MS : chosen.maxDaysAhead * 86_400_000);
     const slots: Slot[] = [];
-    for (let date = query.from; date <= query.to; date = addDays(date, 1)) {
+    for (let date = staff && query.from < today ? today : query.from; date <= query.to; date = addDays(date, 1)) {
       for (const [opens, closes] of OPENING[isoWeekday(date)] ?? []) {
         for (let start = opens; start + chosen.durationMin <= closes; start += STEP_MIN) {
           const startsAt = zonedTimeToInstant(date, start, timeZone);
@@ -123,6 +128,14 @@ export function createFakeBookingEngine(options: FakeBookingEngineOptions = {}):
       }
     }
     return slots;
+  }
+
+  /** A member's explicit override: any whole minute from today, opening hours aside (the bay still has to be free). */
+  function overriddenSlot(garageId: string, chosen: OnlineService, startsAt: Date): Slot | null {
+    const startMs = startsAt.getTime();
+    if (startMs % 60_000 !== 0 || dateKeyInZone(startsAt, timeZone) < dateKeyInZone(now(), timeZone) || startMs > now().getTime() + STAFF_HORIZON_MS) return null;
+    const endMs = startMs + chosen.durationMin * 60_000;
+    return { startsAt: startsAt.toISOString(), endsAt: new Date(endMs).toISOString(), freeCount: busy(garageId, startMs, endMs + chosen.bufferMin * 60_000) ? 0 : 1 };
   }
 
   function nearestFree(garageId: string, serviceId: string, startsAt: Date, locationMode: CreateBookingInput["locationMode"]): Slot[] {
@@ -144,10 +157,19 @@ export function createFakeBookingEngine(options: FakeBookingEngineOptions = {}):
       return slotsFor(query);
     },
 
-    async createBooking(garageId, rawInput): Promise<CreateBookingResult> {
+    async getStaffSlots(query) {
+      return slotsFor(query, true);
+    },
+
+    async createBooking(garageId, rawInput, options = {}): Promise<CreateBookingResult> {
       const parsed = createBookingInputSchema.safeParse(rawInput);
       if (!parsed.success) return { ok: false, code: "INVALID_BOOKING", message: "The booking details are not valid." };
       const input = parsed.data;
+      const staffRules = options.staff === undefined ? null : staffBookingContextSchema.safeParse(options.staff);
+      if (staffRules && (!staffRules.success || (input.source !== "phone" && input.source !== "walk_in"))) {
+        return { ok: false, code: "INVALID_BOOKING", message: "The booking details are not valid." };
+      }
+      const staff = staffRules?.success ? staffRules.data : null;
 
       const replay = store.byKey.get(`${garageId}:${input.idempotencyKey}`);
       if (replay) return { ok: true, booking: replay.booking, replayed: true };
@@ -159,8 +181,10 @@ export function createFakeBookingEngine(options: FakeBookingEngineOptions = {}):
 
       const startsAt = new Date(input.startsAt);
       const date = dateKeyInZone(startsAt, timeZone);
-      const slot = slotsFor({ garageId, serviceId: chosen.id, from: date, to: date, locationMode: input.locationMode })
-        .find((candidate) => Date.parse(candidate.startsAt) === startsAt.getTime());
+      const slot = staff?.overrideHours
+        ? overriddenSlot(garageId, chosen, startsAt)
+        : slotsFor({ garageId, serviceId: chosen.id, from: date, to: date, locationMode: input.locationMode }, Boolean(staff))
+          .find((candidate) => Date.parse(candidate.startsAt) === startsAt.getTime());
       if (!slot || slot.freeCount <= 0) {
         return {
           ok: false,
@@ -175,7 +199,8 @@ export function createFakeBookingEngine(options: FakeBookingEngineOptions = {}):
       const booking: CreatedBooking = {
         id: fakeUuid(`booking:${garageId}:${input.idempotencyKey}`),
         reference: `${prefix}-${number}`,
-        status: chosen.needsApproval ? "requested" : "confirmed",
+        // A member's booking needs no approval.
+        status: chosen.needsApproval && !staff ? "requested" : "confirmed",
         startsAt: slot.startsAt,
         endsAt: slot.endsAt,
         customerId: fakeUuid(`customer:${garageId}:${input.customer.phone}`),
