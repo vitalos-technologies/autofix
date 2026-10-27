@@ -145,8 +145,35 @@ export type BookingDraft = {
   idempotencyKey?: string;
 };
 
+/**
+ * A member of the garage booking on the customer's behalf (phone / walk-in, DECISIONS A90, A176-A185).
+ * Server-set from the verified admin session, never from a request body: it is a separate argument so
+ * it can never ride in on `createBookingInputSchema`, which the public and agent APIs derive from.
+ */
+export const staffBookingContextSchema = z.object({
+  /** The signed-in member's user id; `create_booking()` checks they belong to the garage. */
+  memberId: z.string().uuid(),
+  /** The member explicitly booked outside opening hours or on a closure day. */
+  overrideHours: z.boolean().default(false),
+}).strict();
+export type StaffBookingContext = z.input<typeof staffBookingContextSchema>;
+
+export type CreateBookingOptions = {
+  /**
+   * Staff rules for a `phone` / `walk_in` booking: services not offered online, no notice or booking
+   * window (from the start of today, up to two years ahead), confirmed without approval. Opening
+   * hours and closures still apply unless `overrideHours`; the bay check and `no_overlap` always do.
+   */
+  staff?: StaffBookingContext;
+};
+
+/** The staff time grid for one member (`staff_available_slots()`, at most 31 days). */
+export type StaffSlotQuery = SlotQuery & { memberId: string };
+
 export interface BookingEngine {
   listOnlineServices(garageId: string): Promise<OnlineService[]>;
   getAvailableSlots(query: SlotQuery): Promise<Slot[]>;
-  createBooking(garageId: string, input: CreateBookingInput): Promise<CreateBookingResult>;
+  /** Like `getAvailableSlots`, with the staff rules of `CreateBookingOptions.staff` (opening hours and closures apply). */
+  getStaffSlots(query: StaffSlotQuery): Promise<Slot[]>;
+  createBooking(garageId: string, input: CreateBookingInput, options?: CreateBookingOptions): Promise<CreateBookingResult>;
 }

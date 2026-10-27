@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   allMigrations,
@@ -58,6 +60,10 @@ const internalEngineFunctions = [
   "maintain_booking_cancellation()",
   "log_booking_status_change()",
 ];
+
+/** Staff bookings (A90 follow-up, A176-A185). */
+const staffBookingsMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261028002200_staff_bookings.sql"), "utf8");
+const staffBookingStatements = sqlStatements(staffBookingsMigration);
 
 describe("Supabase migration security invariants", () => {
   it("starts from one SOB baseline followed by the tenancy migration", () => {
@@ -217,6 +223,31 @@ describe("scheduling migration invariants (P2.1-P2.3)", () => {
   it.each(internalEngineFunctions)("grants %s to no API role", (signature) => {
     expect(schedulingMigration).toContain(`revoke all on function public.${signature} from public, anon, authenticated, service_role;`);
     expect(schedulingStatements.filter((statement) => statement.startsWith(`grant execute on function public.${signature}`))).toEqual([]);
+  });
+
+  it("keeps the staff time grid service-role only and its internals ungranted (A90)", () => {
+    const grid = "staff_available_slots(uuid, uuid, date, date, text, uuid)";
+    expect(staffBookingStatements).toContain(`revoke all on function public.${grid} from public, anon, authenticated`);
+    expect(staffBookingStatements.filter((statement) => statement.startsWith("grant "))).toEqual([`grant execute on function public.${grid} to service_role`]);
+    for (const signature of [
+      "staff_available_slots_at(uuid, uuid, date, date, text, uuid, timestamptz)",
+      "booking_service_context(uuid, uuid, text, boolean)",
+      "booking_service_context(uuid, uuid, text)",
+      "create_booking_at(uuid, jsonb, timestamptz)",
+    ]) {
+      expect(staffBookingStatements, signature).toContain(`revoke all on function public.${signature} from public, anon, authenticated, service_role`);
+    }
+    for (const name of ["staff_available_slots", "staff_available_slots_at", "create_booking_at"]) {
+      expect(functionDefinition(staffBookingsMigration, name), name).toMatch(/\nsecurity definer\nset search_path = ''\n/);
+    }
+  });
+
+  it("ties staff rules to a member of the booking's garage and keeps the bay check (A90)", () => {
+    const createBookingAt = functionDefinition(staffBookingsMigration, "create_booking_at");
+    expect(createBookingAt).toContain("if booking_source not in ('phone', 'walk_in') then");
+    expect(createBookingAt).toMatch(/member\.garage_id = p_garage_id\s+and member\.user_id = staff_member/);
+    expect(createBookingAt).toContain("when exclusion_violation then");
+    expect(functionDefinition(staffBookingsMigration, "staff_available_slots_at")).toMatch(/member\.garage_id = p_garage_id\s+and member\.user_id = p_member_id/);
   });
 
   it("runs the engine as security definer with an empty search_path", () => {

@@ -215,8 +215,8 @@ select is(
   'P0001 SLOT_UNAVAILABLE', 'a fourth booking at 10:00 is refused with SLOT_UNAVAILABLE'
 );
 select is(
-  (select count(*)::integer from public.customers where phone = '+447700900504')
-  + (select count(*)::integer from public.vehicles where registration = 'CB12DDD'),
+  (select count(*)::integer from public.customers where garage_id = pg_temp.a()::uuid and phone = '+447700900504')
+  + (select count(*)::integer from public.vehicles where garage_id = pg_temp.a()::uuid and registration = 'CB12DDD'),
   0, 'a refused booking leaves no customer or vehicle behind'
 );
 select pg_temp.book('busy-1', pg_temp.a(), pg_temp.payload('a1200000-0000-4000-8000-000000000202', '2026-11-03T13:00:00Z', 5));
@@ -407,7 +407,7 @@ select is(
 select pg_temp.book('garage-b', pg_temp.b(), pg_temp.payload('b1200000-0000-4000-8000-000000000201', '2026-11-09T10:00:00Z', 40));
 select is(
   (select concat_ws('|', pg_temp.resource_of('garage-b'), (outcome.result->>'customer_id') <> (first.result->>'customer_id'),
-                    (select count(*) from public.customers where phone = '+447700900501'))
+                    (select count(*) from public.customers where garage_id in (pg_temp.a()::uuid, pg_temp.b()::uuid) and phone = '+447700900501'))
    from outcome join outcome first on first.label = 'first' where outcome.label = 'garage-b'),
   'Bay B1|t|2', 'the same customer booking garage B gets a separate garage B customer and garage B''s bay'
 );
