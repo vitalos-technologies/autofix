@@ -47,7 +47,7 @@ The job queue is the `jobs` table (P3.6). `GET /api/cron/<name>` (`Authorization
 | Plan | `vercel.json` crons |
 | --- | --- |
 | **Hobby (now)**: daily crons only, started any time within the hour | one cron: `/api/cron/daily` at `0 11 * * *` (11:00–11:59 UTC = 11:00–12:59 London: after the 10:00 reminder time and inside the 09:00–19:00 send window in GMT and BST). Reminders therefore go out once a day around midday; Sunday's wait for Monday's run; a domain moves one step a day; jobs left over (budget spent, retries with backoff) wait for the next run or a manual `POST /api/jobs/drain` |
-| **Pro** | `/api/cron/reminders.send` every 10 minutes (`*/10 * * * *`), `/api/cron/domains.check` every 5 (`*/5 * * * *`), `/api/cron/mot.refresh` at `0 2 * * *`, `/api/cron/reminders.schedule` at `0 6 * * *`, `/api/cron/retention` at `15 3 * * *`, `/api/cron/customers.enrich` hourly, and drop `daily` |
+| **Pro** | `/api/cron/reminders.send` every 10 minutes (`*/10 * * * *`), `/api/cron/domains.check` every 5 (`*/5 * * * *`), `/api/cron/mot.refresh` at `0 2 * * *`, `/api/cron/reminders.schedule` at `0 6 * * *`, `/api/cron/retention` at `15 3 * * *`, `/api/cron/customers.enrich` hourly, `/api/cron/platform.close_impersonations` hourly (`20 * * * *`), and drop `daily` |
 
 Without Pro an external scheduler can call `POST /api/jobs/drain` (or `GET /api/cron/reminders.send`) every 10 minutes with the bearer header instead. The send window is enforced inside the job (a run outside it re-queues itself for 09:00 on the next Monday–Saturday), so a scheduler never needs to know quiet hours.
 

@@ -12,6 +12,7 @@ export const JOB_KINDS = [
   "messages.reply",
   "domains.check",
   "retention",
+  "platform.close_impersonations",
   "customers.enrich",
   "mot.refresh",
 ] as const;

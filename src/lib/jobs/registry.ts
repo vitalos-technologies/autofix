@@ -8,6 +8,7 @@ import { notificationsBookingHandler } from "./handlers/notifications-booking";
 import { remindersScheduleHandler } from "./handlers/reminders-schedule";
 import { remindersSendHandler } from "./handlers/reminders-send";
 import { retentionHandler } from "./handlers/retention";
+import { platformCloseImpersonationsHandler } from "@/lib/platform/jobs";
 import { JOB_KINDS, type JobDefinition, type JobHandler, type JobKind } from "./types";
 
 // The typed handler registry. Order is JOB_KINDS: time-critical sends before
@@ -21,6 +22,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "messages.reply": { handler: messagesReplyHandler, timeoutMs: 12_000 },
   "domains.check": { handler: domainsCheckHandler, timeoutMs: 18_000 },
   retention: { handler: retentionHandler, timeoutMs: 18_000 },
+  "platform.close_impersonations": { handler: platformCloseImpersonationsHandler, timeoutMs: 10_000 },
   "customers.enrich": { handler: customersEnrichHandler, timeoutMs: 18_000 },
   "mot.refresh": { handler: motRefreshHandler, timeoutMs: 18_000 },
 };
