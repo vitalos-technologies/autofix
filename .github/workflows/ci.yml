@@ -176,6 +176,10 @@ jobs:
         run: pnpm test:e2e:admin
       - name: Super admin for a TOTP platform admin (404s, plan/status, read-only impersonation, job retry; axe at 390 and 1440)
         run: pnpm test:e2e:super-admin
+      - name: Booking page and domain settings (free link, QR, custom domain on mock Vercel, embed CSP, Askbridge; axe at 390 and 1440)
+        run: pnpm test:e2e:booking-page
+      - name: Sign-up to a live booking page in under 15 minutes (local Mailpit, mock Places; axe at 390 and 1440)
+        run: pnpm test:e2e:signup
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports

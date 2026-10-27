@@ -33,7 +33,7 @@ sql_paths = ["./seed.sql"]
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000/**"]
+additional_redirect_urls = ["http://127.0.0.1:3000/**", "http://localhost:3000/**", "http://localhost:*/**"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
@@ -46,11 +46,16 @@ password_requirements = ""
 [auth.email]
 enable_signup = true
 double_confirm_changes = true
-enable_confirmations = false
+# Sign-up (P4.4) confirms the address; local mail goes to Mailpit/Inbucket (port 54324).
+enable_confirmations = true
 secure_password_change = false
 max_frequency = "1s"
 otp_length = 6
 otp_expiry = 3600
+
+[auth.email.template.confirmation]
+subject = "Confirm your Autofix account"
+content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
 subject = "Reset your Autofix admin password"
@@ -60,6 +65,10 @@ content_path = "./supabase/templates/recovery.html"
 enabled = true
 subject = "Your Autofix admin password was changed"
 content_path = "./templates/password_changed_notification.html"
+
+# Local only: enough confirmation emails for repeated sign-up test runs.
+[auth.rate_limit]
+email_sent = 100
 
 [auth.mfa]
 max_enrolled_factors = 10
