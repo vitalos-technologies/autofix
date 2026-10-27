@@ -1,0 +1,40 @@
+name: Sync Vercel env
+
+# Run by hand (Actions > Sync Vercel env > Run workflow) after adding or changing a repository secret or
+# variable. scripts/ci/sync-vercel-env.mjs copies every one the app reads into the Vercel project.
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: Vercel environments to write. Preview deployments get MESSAGING_MODE too, so they would send real messages.
+        type: choice
+        default: production
+        options:
+          - production
+          - production,preview
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-env
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Copy repository secrets and variables into Vercel
+        run: node scripts/ci/sync-vercel-env.mjs
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+          VERCEL_TARGETS: ${{ inputs.targets }}
