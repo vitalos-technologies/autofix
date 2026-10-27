@@ -191,6 +191,9 @@ describe.skipIf(!configured).sequential("reminder pipeline against local Supabas
 
     const olly = await service.from("customers").select("opted_out_at").eq("id", ids[OLLY]!).single();
     expect(olly.data?.opted_out_at).toBeTruthy();
+    // The same audited opt-out as the unsubscribe page (P4.9), once.
+    const audit = await service.from("admin_audit_log").select("action,detail").eq("garage_id", garage.id).eq("entity_id", ids[OLLY]!);
+    expect(audit.data).toEqual([{ action: "customer.opted_out", detail: { source: "sms_stop" } }]);
     const send = await service.from("reminder_sends").select("status,skip_reason").eq("garage_id", garage.id).eq("customer_id", ids[OLLY]!).single();
     expect(send.data).toEqual({ status: "cancelled", skip_reason: "opted_out" });
     const inbound = await service.from("messages").select("direction,status,from_address,customer_id,body").eq("garage_id", garage.id).eq("provider_msg_id", sid("SM", 1));

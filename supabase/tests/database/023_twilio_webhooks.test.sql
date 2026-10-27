@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 set local timezone to 'UTC';
 
-select plan(36);
+select plan(38);
 
 -- Twilio webhooks (P3.8): the idempotency table and its claim/finish
 -- functions, and STOP/START through apply_messaging_keyword().
@@ -174,6 +174,11 @@ select is(
   (select opted_out_at from public.customers where id = 'a1710000-0000-4000-8000-000000000101'),
   (select opted_out_at from first_stop), 'and keeps the first opt-out time'
 );
+select is(
+  (select string_agg(detail->>'source', ',') from public.admin_audit_log
+   where garage_id = pg_temp.k() and action = 'customer.opted_out' and entity_id = 'a1710000-0000-4000-8000-000000000101'),
+  'sms_stop', 'STOP is audited once through opt_out_customer() with source sms_stop'
+);
 
 select is(
   public.apply_messaging_keyword(pg_temp.k(), '+447700917001', 'start'),
@@ -184,6 +189,11 @@ select is(
   public.apply_messaging_keyword(pg_temp.k(), '+447700917001', 'start'),
   '{"customers": 0, "cancelled": 0, "unchanged": 1}'::jsonb,
   'a second START changes nothing'
+);
+select is(
+  (select string_agg(detail->>'source', ',') from public.admin_audit_log
+   where garage_id = pg_temp.k() and action = 'customer.opted_in' and entity_id = 'a1710000-0000-4000-8000-000000000101'),
+  'sms_start', 'START is audited once with source sms_start'
 );
 
 select public.apply_messaging_keyword(pg_temp.k(), '+447700917002', 'stop');

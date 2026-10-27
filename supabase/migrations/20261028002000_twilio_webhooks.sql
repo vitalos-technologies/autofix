@@ -9,11 +9,12 @@
 --      (finish_twilio_webhook_event), so a replayed or retried request never
 --      does its work twice. Rows hold Twilio's ids and outcome codes only:
 --      never phone numbers or message bodies.
---   2. apply_messaging_keyword(p_garage_id, p_phone, p_intent): STOP sets
---      customers.opted_out_at for that garage and number at once and cancels
---      the customer's scheduled reminders (skip_reason opted_out); START clears
---      the opt-out only for customers with reminder consent on record. Both
---      are idempotent.
+--   2. apply_messaging_keyword(p_garage_id, p_phone, p_intent): STOP opts the
+--      garage's customer with that number out at once through
+--      opt_out_customer() (20261028000300, source sms_stop, audited) and
+--      cancels their scheduled reminders (skip_reason opted_out); START clears
+--      the opt-out only for customers with reminder consent on record
+--      (audited, source sms_start). Both are idempotent.
 --
 -- Rollback notes (manual; nothing here runs automatically): in one
 -- transaction drop function public.apply_messaging_keyword(uuid, text, text),
@@ -134,14 +135,15 @@ $$;
 -- 2. STOP / START (CLAUDE.md rule 5: honour STOP immediately)
 -- ---------------------------------------------------------------------------
 
--- p_intent 'stop': every customer of the garage with this number gets
--- opted_out_at (an earlier opt-out is kept), and their scheduled reminders
--- are cancelled with skip_reason opted_out. A row already claimed for sending
+-- p_intent 'stop': the garage's customer with this number is opted out through
+-- opt_out_customer(..., 'sms_stop') (P4.9: opted_out_at once, an earlier
+-- opt-out is kept, audited as customer.opted_out), and their scheduled
+-- reminders are cancelled with skip_reason opted_out. A row already claimed for sending
 -- is re-checked by nobody, so it may still go out within seconds; every later
 -- claim skips the customer (claim_reminder_sends: opted_out).
 -- p_intent 'start': clears opted_out_at only for customers who have reminder
 -- consent on record (a START never creates consent; a customer without it
--- stays as they are). Cancelled reminders are not re-armed: the next
+-- stays as they are), audited as customer.opted_in (source sms_start). Cancelled reminders are not re-armed: the next
 -- schedule_reminders() run creates the ones still ahead.
 -- Returns {customers, cancelled, unchanged}: rows changed, reminders
 -- cancelled, and matching customers left as they were (already opted out for
@@ -157,6 +159,8 @@ declare
   changed integer := 0;
   cancelled integer := 0;
   matching integer := 0;
+  outcome jsonb;
+  restarted uuid;
 begin
   if p_garage_id is null or p_phone is null or p_intent is null then
     raise exception 'INVALID_ARGUMENT: garage, phone and intent are required' using errcode = '22023';
@@ -176,12 +180,14 @@ begin
   where customer.garage_id = p_garage_id and customer.phone = p_phone;
 
   if p_intent = 'stop' then
-    update public.customers customer
-    set opted_out_at = now()
-    where customer.garage_id = p_garage_id
-      and customer.phone = p_phone
-      and customer.opted_out_at is null;
-    get diagnostics changed = row_count;
+    -- The same audited opt-out as the unsubscribe page (P4.9): opt_out_customer()
+    -- sets opted_out_at once and writes customer.opted_out (source sms_stop).
+    if matching > 0 then
+      outcome := public.opt_out_customer(p_garage_id, null, p_phone, 'sms_stop');
+      if coalesce((outcome->>'changed')::boolean, false) then
+        changed := 1;
+      end if;
+    end if;
 
     update public.reminder_sends send
     set status = 'cancelled', skip_reason = 'opted_out'
@@ -193,13 +199,20 @@ begin
       );
     get diagnostics cancelled = row_count;
   else
-    update public.customers customer
-    set opted_out_at = null
-    where customer.garage_id = p_garage_id
-      and customer.phone = p_phone
-      and customer.opted_out_at is not null
-      and customer.reminder_consent;
-    get diagnostics changed = row_count;
+    for restarted in
+      update public.customers customer
+      set opted_out_at = null
+      where customer.garage_id = p_garage_id
+        and customer.phone = p_phone
+        and customer.opted_out_at is not null
+        and customer.reminder_consent
+        and customer.anonymised_at is null
+      returning customer.id
+    loop
+      changed := changed + 1;
+      insert into public.admin_audit_log (garage_id, actor_id, action, entity_type, entity_id, detail)
+      values (p_garage_id, null, 'customer.opted_in', 'customer', restarted::text, jsonb_build_object('source', 'sms_start'));
+    end loop;
   end if;
 
   return jsonb_build_object('customers', changed, 'cancelled', cancelled, 'unchanged', matching - changed);
