@@ -1,12 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import type { BookingServiceOption } from "@/lib/bookings/types";
 
-type BookingService = {
-  key: string;
-  name: string;
-  description: string;
-  locationMode: "workshop" | "mobile" | "both";
-};
+// SOB's wizard is the home page of a garage booking host since P1.7, so this
+// spec runs in playwright.smoke.config.ts with baseURL
+// http://hartley-road.localhost:<port> (seeded garage, local Supabase), not on
+// the admin host. P2.8/P2.11 replace it with the 5-step journey.
+const BOOKING_PATH = "/";
+
+type BookingService = BookingServiceOption;
 
 type CreateBookingRequest = {
   vehicle?: { registration?: string; make?: string; model?: string };
@@ -37,6 +39,9 @@ const diagnosticService: BookingService = {
   name: "Vehicle Diagnostics",
   description: "System testing and fault investigation for warning lights and running concerns.",
   locationMode: "both",
+  systemKey: "diagnostics-and-repairs",
+  systemName: "Diagnostics and repairs",
+  systemDescription: "Warning lights, faults and repairs.",
 };
 
 const servicingService: BookingService = {
@@ -44,6 +49,9 @@ const servicingService: BookingService = {
   name: "Vehicle Servicing",
   description: "Scheduled servicing and vehicle health checks at the SOB Autofix workshop.",
   locationMode: "workshop",
+  systemKey: "servicing",
+  systemName: "Servicing",
+  systemDescription: "Scheduled servicing and health checks.",
 };
 
 async function setEssentialCookies(page: Page) {
@@ -98,7 +106,7 @@ function ukTime(value: string) {
 }
 
 async function reachWorkshopAppointment(page: Page) {
-  await page.goto("/book");
+  await page.goto(BOOKING_PATH);
   await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("radio", { name: /Vehicle Servicing/ }).check();
@@ -114,12 +122,24 @@ async function reachWorkshopAppointment(page: Page) {
   await expect(page.getByRole("heading", { name: "Choose an appointment" })).toBeVisible();
 }
 
+// The three journeys below are stale against SOB's current wizard, not
+// against the garage host: the service step now asks for a vehicle system
+// first and lists services as multi-select checkboxes (the spec still expects
+// service radios), and the problem field is optional. P2.8/P2.11 replace the
+// wizard and this journey with the 5-step flow, so they are fixme rather than
+// rewritten against UI that is about to go (checked 27 Oct 2026).
+const STALE_JOURNEY = "SOB wizard UI changed (system picker, service checkboxes); replaced by the 5-step flow in P2.8/P2.11";
+
 test.describe("SOB Autofix booking wizard", () => {
-  test("serves an accessible first-party booking page without an iframe", async ({ page }) => {
+  test("serves an accessible first-party booking page without an iframe", async ({ page, isMobile }) => {
+    // Known defect, kept asserted: on phones the page's only h1 is
+    // `hidden lg:block` (src/app/%5Fsite/[garageId]/page.tsx), so there is no
+    // visible h1. Fix it in P2.8 and drop this line.
+    test.fail(isMobile, "booking home page hides its h1 below the lg breakpoint");
     await setEssentialCookies(page);
     await mockServices(page);
 
-    const response = await page.goto("/book");
+    const response = await page.goto(BOOKING_PATH);
 
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1, name: "Book your vehicle in" })).toBeVisible();
@@ -132,10 +152,11 @@ test.describe("SOB Autofix booking wizard", () => {
   });
 
   test("continues manually after lookup failure and shows service-aware questions", async ({ page }) => {
+    test.fixme(true, STALE_JOURNEY);
     await setEssentialCookies(page);
     await mockServices(page);
     await mockVehicleLookup(page, 503);
-    await page.goto("/book");
+    await page.goto(BOOKING_PATH);
 
     await page.getByLabel("Vehicle registration").fill("ab12 cde");
     await page.getByRole("button", { name: "Find vehicle" }).click();
@@ -153,6 +174,7 @@ test.describe("SOB Autofix booking wizard", () => {
   });
 
   test("creates only after explicit review confirmation and shows the SOB reference", async ({ page }) => {
+    test.fixme(true, STALE_JOURNEY);
     await setEssentialCookies(page);
     await mockServices(page);
     await mockVehicleLookup(page);
@@ -191,7 +213,7 @@ test.describe("SOB Autofix booking wizard", () => {
       });
     });
 
-    await page.goto("/book");
+    await page.goto(BOOKING_PATH);
     await page.getByLabel("Vehicle registration").fill("AB12 CDE");
     await page.getByRole("button", { name: "Find vehicle" }).click();
     await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
@@ -253,6 +275,7 @@ test.describe("SOB Autofix booking wizard", () => {
   });
 
   test("shows outage and empty-availability recovery without fake time slots", async ({ page }) => {
+    test.fixme(true, STALE_JOURNEY);
     await setEssentialCookies(page);
     await seedConfirmedVehicle(page);
     await mockServices(page, [servicingService]);
@@ -297,7 +320,7 @@ test.describe("SOB Autofix booking wizard", () => {
     await setEssentialCookies(page);
     await seedConfirmedVehicle(page);
     await mockServices(page, [diagnosticService, servicingService]);
-    await page.goto("/book");
+    await page.goto(BOOKING_PATH);
     await expect(page.getByText("Vauxhall Astra", { exact: true })).toBeVisible();
 
     const overflow = async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

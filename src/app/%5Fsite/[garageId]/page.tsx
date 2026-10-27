@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 
+// No title here: the site layout's default ("Book online | <garage name>")
+// applies. A page's own title takes the root "| Autofix" template instead,
+// because a layout's title template only reaches child segments.
 export const metadata: Metadata = {
-  title: "Book online",
+  description: "Book a diagnostics, repair, service or inspection appointment online.",
 };
 
 // Placeholder while the 5-step booking flow (P2.8) is built against the native engine.

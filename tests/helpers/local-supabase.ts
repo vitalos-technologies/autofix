@@ -1,5 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type LocalSupabaseConfig = {
@@ -8,7 +10,7 @@ type LocalSupabaseConfig = {
   secretKey: string;
 };
 
-type LocalTestIdentity = {
+export type LocalTestIdentity = {
   id: string;
   email: string;
   accessToken: string;
@@ -44,11 +46,28 @@ export type LocalTestUsers = {
 };
 
 const runId = randomUUID().replaceAll("-", "").slice(0, 10);
+/** Random per test-file run; use it to keep fixture names unique. */
+export const localRunId = runId;
 export const localAdminEmail = `garage-a-owner-${runId}@example.test`;
 export const localSecondaryAdminEmail = `garage-a-second-owner-${runId}@example.test`;
 export const localOtherGarageAdminEmail = `garage-b-owner-${runId}@example.test`;
 export const localTestPassword = "Local-only-9f2e7c4a!";
-const localDatabaseContainer = "supabase_db_sobautofix-local-tests";
+
+/**
+ * The Supabase CLI project id: SUPABASE_PROJECT_ID, else `project_id` in
+ * supabase/config.toml (sobautofix-local-tests locally; autofix-ci-<N> on CI
+ * runners after scripts/ci/supabase-isolate.sh).
+ */
+export function localSupabaseProjectId() {
+  const fromEnvironment = process.env.SUPABASE_PROJECT_ID?.trim();
+  const projectId = fromEnvironment || /^project_id\s*=\s*"([^"]+)"/m.exec(readFileSync(resolve("supabase/config.toml"), "utf8"))?.[1];
+  if (!projectId || !/^[A-Za-z0-9_.-]+$/.test(projectId)) throw new Error("Could not read a valid Supabase project_id");
+  return projectId;
+}
+
+function localDatabaseContainer() {
+  return `supabase_db_${localSupabaseProjectId()}`;
+}
 
 export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   const url = firstEnvironmentValue("INTEGRATION_SUPABASE_URL", "API_URL", "SUPABASE_URL");
@@ -64,8 +83,10 @@ export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   );
 
   const parsed = new URL(url);
+  // The safety guard: a local stack only (loopback host, plain http). Any port,
+  // because CI runners on one machine each run their own stack on shifted ports.
   const isLoopback = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "::1" || parsed.hostname === "[::1]";
-  if (!isLoopback || parsed.protocol !== "http:" || parsed.port !== "54321") {
+  if (!isLoopback || parsed.protocol !== "http:") {
     throw new Error(`Refusing to run database integration tests against non-local Supabase URL: ${parsed.origin}`);
   }
 
@@ -148,7 +169,7 @@ export function executeLocalOwnerSql(sql: string, variables: Record<string, stri
         "-i",
         "--env",
         "PGPASSWORD=postgres",
-        localDatabaseContainer,
+        localDatabaseContainer(),
         "psql",
         "--host",
         "127.0.0.1",
@@ -196,7 +217,12 @@ export function invoiceDraftPayload(issueDate: string, suffix = randomUUID().sli
   };
 }
 
-async function createLocalGarage(service: SupabaseClient, label: "a" | "b"): Promise<LocalTestGarage> {
+/**
+ * Creates an active garage for this run. `label` is one or two lower-case
+ * letters (it becomes part of the slug and the booking prefix).
+ */
+export async function createLocalGarage(service: SupabaseClient, label: string): Promise<LocalTestGarage> {
+  if (!/^[a-z]{1,2}$/.test(label)) throw new Error(`Invalid local garage label: ${label}`);
   // Two to four upper-case letters, unique enough per run.
   const letters = runId.replace(/[^a-z]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
   const garage = {
@@ -205,8 +231,8 @@ async function createLocalGarage(service: SupabaseClient, label: "a" | "b"): Pro
     booking_prefix: `${letters}${label.toUpperCase()}`,
     legal_name: `Integration Garage ${label.toUpperCase()} Limited`,
     email: `garage-${label}-${runId}@example.test`,
-    phone: label === "a" ? "+441302000101" : "+441302000102",
-    address: { line1: `${label === "a" ? 1 : 2} Test Street`, town: "Doncaster", postcode: "DN1 1AA" },
+    phone: label.endsWith("a") ? "+441302000101" : "+441302000102",
+    address: { line1: `${label.endsWith("a") ? 1 : 2} Test Street`, town: "Doncaster", postcode: "DN1 1AA" },
     status: "active",
   };
   const { data, error } = await service.from("garages").insert(garage).select("id,slug,booking_prefix,name").single();
@@ -214,7 +240,8 @@ async function createLocalGarage(service: SupabaseClient, label: "a" | "b"): Pro
   return { id: data.id, slug: data.slug, bookingPrefix: data.booking_prefix, name: data.name };
 }
 
-async function createLocalIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
+/** A confirmed Auth user signed in with a password (AAL1). */
+export async function createLocalIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
   const { data: created, error: createError } = await service.auth.admin.createUser({
     email,
     password: localTestPassword,
@@ -229,7 +256,8 @@ async function createLocalIdentity(service: SupabaseClient, publishableKey: stri
   return { id: created.user.id, email, accessToken: signedIn.session.access_token };
 }
 
-async function createLocalMfaIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
+/** A confirmed Auth user with a verified TOTP factor, signed in at AAL2. */
+export async function createLocalMfaIdentity(service: SupabaseClient, publishableKey: string, email: string): Promise<LocalTestIdentity> {
   const identity = await createLocalIdentity(service, publishableKey, email);
 
   const authClient = createLocalClient(publishableKey);

@@ -14,7 +14,8 @@ import {
 // whose TOTP secret the spec knows, so the browser can sign in through the
 // real password + MFA screens.
 
-const appOrigin = "http://127.0.0.1:3100";
+// PLAYWRIGHT_INVOICE_PORT: per CI runner (scripts/ci/supabase-isolate.sh); 3100 locally.
+const appOrigin = `http://127.0.0.1:${process.env.PLAYWRIGHT_INVOICE_PORT || "3100"}`;
 const totpStepMs = 30_000;
 
 type MfaOwner = {

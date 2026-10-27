@@ -47,7 +47,9 @@ Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`,
 
 ## Migrations
 
-`supabase/migrations/20261026000000_baseline.sql` (SOB squash) then `20261026000100_tenancy.sql`, `…_scheduling.sql` (P2.1), `…_reminders.sql` (P3.6), and later ones. Never edit a migration after it has shipped to a shared database.
+`supabase/migrations/20261026000000_baseline.sql` (SOB squash) then `20261026000100_tenancy.sql`, `20261026000200_tenancy_test_support.sql` (service-role-only, read-only catalogue helpers `tenancy_tables()`, `tenancy_policies()`, `tenancy_function_grants()`, `tenancy_fingerprint()`, `tenancy_sample_row()`, `tenancy_storage_fingerprint()` for the tenancy suite), `…_scheduling.sql` (P2.1), `…_reminders.sql` (P3.6), and later ones. Never edit a migration after it has shipped to a shared database.
+
+**Every new table with `garage_id` needs an entry in `FIXTURES` in `tests/integration/tenancy.test.ts`** (how to create a row in a garage, and a harmless update probe); until it has one the Gate 1 suite fails with "no fixture for table <name>".
 
 ## Booking engine (Phase 2)
 
