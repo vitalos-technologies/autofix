@@ -5,7 +5,8 @@
 | Phase | Gate | Date | Last commit | Notes |
 | --- | --- | --- | --- | --- |
 | 1 | **passed** | 27 Oct 2026 | eb8dfd8 | All P1 tasks ticked; Gate 1 green in CI (run 40429708549: verify, database-tests incl. 1614 tenancy tests, browser-tests, lighthouse) on self-hosted runners `autofix-azure-*` |
-| 2 | in progress | 27 Oct 2026 | 48f7b8a | P2.1–P2.8 and P2.10 merged; P2.9 (manage page) and P2.11 (Gate 2) running in this session |
+| 2 | **passed** | 27 Oct 2026 | 7db956d | All P2 tasks ticked; Gate 2 green in CI run 40468968919 (verify, database-tests incl. 100-way concurrency, browser-tests incl. booking 27/27 + manage 5/5 + axe, lighthouse) |
+| 3 | in progress | 27 Oct 2026 | 7db956d | P3.5, P3.8 library and admin UI components done early; P3.6 (data), P3.1–P3.3 (ui) and P3.4 (ui) running here; P3.11 in a separate session |
 | 3/4 (spun off) | n/a | 27 Oct 2026 | 48f7b8a | Separate cloud sessions, each on its own branch, merged by the lead when done: P4.2 agent tool API → `claude/autofix-p4-2-agent-api` (migration `20261028000100`), P3.11 customers + CSV import → `claude/autofix-p3-11-customers-import` (`20261028000200`), P4.8/P4.9 launch checklist + legal copy → `claude/autofix-p4-8-p4-9-launch-legal` (`20261028000300`). Later migrations (P3.6 reminders) start at `20261028001000` |
 
 14 days, 4 phases, 5 agent lanes. A phase is done only when every task is ticked and its gate passes in CI (`pnpm verify` + the gate test). Run `/phase <n>` in Claude Code to execute a phase and `/gate <n>` to check it.
@@ -57,7 +58,7 @@ Gate 1: **cross-garage tests return zero rows** for every tenant table, for sele
 
 ## Phase 2 · Booking engine (days 4–7)
 
-Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (`tests/integration/booking-concurrency.test.ts`), and the 5-step flow passes Playwright on a 390px viewport with axe clean.
+Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (`tests/integration/booking-concurrency.test.ts`), and the 5-step flow passes Playwright on a 390px viewport with axe clean. **Passed 27 Oct 2026** in CI run 40468968919 (self-hosted `autofix-azure-*`): `booking-concurrency.test.ts` 5/5 (100 parallel `create_booking` calls on 3 bays, zero overlapping `during` per resource; proven to fail with `no_overlap` and the allocation lock removed), 5-step booking journey 27/27 on the real engine at desktop, Pixel 5 and 390×844 with axe clean on every step, manage journey 5/5, pgTAP 548/548, integration 1813/1813, `pnpm verify` and Lighthouse green.
 
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
@@ -82,14 +83,14 @@ Gate 3: **a reminder link produces a booking credited to that reminder end to en
 | P3.1 | ui | AdminShell (desktop sidebar + phone tab bar), garage switcher for multi-garage users | Matches `Admin-Dashboard.png` / `Admin-Today-Phone.png` — components ready `3dbf7ad` (`src/components/admin-ui`, gallery `/dev/admin-components`); wiring open: drop the root layout `<main>` (AdminShell has its own), delete SOB `src/components/admin/admin-shell.tsx`/`admin-navigation.tsx`, add `/app/more` and `/app/bookings/new` |
 | P3.2 | ui | Today: KPI cards, DiaryGrid by resource, Needs your OK (accept / offer another time / call back), Reminders this week | Live data from seed |
 | P3.3 | ui | Diary (week view, drag to move later), Bookings list + detail with status changes and booking_events timeline | Status changes write `booking_events` |
-| P3.4 | ui | Setup: Services & prices, Opening hours & closures, Resources (bays/vans), Branding (logo, accent with contrast check), MOT on/off | CRUD + validation |
+| [x] P3.4 | ui | Setup: Services & prices, Opening hours & closures, Resources (bays/vans), Branding (logo, accent with contrast check), MOT on/off | CRUD + validation — done `576a0fc` (`/app/settings/{services,hours,resources,branding}`, `pnpm test:e2e:settings`; nav links from P3.1: only Services & prices is in the drawn nav, the other three are reached through the Setup sub-nav and `/app/settings`) |
 | [x] P3.5 | integrations | `CompositeProvider`: DVLA VES + DVSA MOT History (OAuth client credentials) + VDG fallback; `vehicle_facts` 24 h cache; mock provider for dev | Provider tests with recorded fixtures — done `f93b5b5` (`vehicle_facts` table lands with P3.6) |
-| P3.6 | data | Migration `0003_reminders`: `reminder_rules` (seeded defaults on garage create), `reminder_sends`, `messages`, `calls`, `jobs` (+ `claim_jobs(kind, n)` using `for update skip locked`) | Migration |
+| [x] P3.6 | data | Migration `0003_reminders`: `reminder_rules` (seeded defaults on garage create), `reminder_sends`, `messages`, `calls`, `jobs` (+ `claim_jobs(kind, n)` using `for update skip locked`) | Migration — done `7fc6148` (`20261028001000_reminders.sql`: also `garage_phone_numbers`, `vehicle_facts`, `enqueue_job`/`finish_job`/`fail_job`, `schedule_reminders`, `claim_reminder_sends`, `reminder_won_back`, `apply_message_retention`, `create_booking` attribution, default rules in `seed_garage_defaults`; pgTAP 013–016, 241 checks incl. a two-session skip-locked test over dblink and both 2026 clock changes; tenancy suite 35 garage tables / 2127 tests; seed has rules, consent and reminders due in 30 days; A49–A58) |
 | P3.7 | api | Job runner: `/api/cron/[job]` (CRON_SECRET) enqueues; worker route drains with retries + backoff; jobs `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention` | Unit tests per job |
 | P3.8 | integrations | `MessageChannel` interface + Twilio SMS/WhatsApp adapters + status webhook + STOP handling; Resend email adapter; sandbox/mock mode by default | Signature verification tests — library layer done `693cfef` (channels, Twilio adapters, signatures, templates, quiet hours, STOP keywords); webhook routes open |
 | P3.9 | api | Reminder link tokens `/r/{token}` → prefilled booking; attribution on booking create | Covered by gate test |
 | P3.10 | ui | Reminders page: stats, automations with switches, due-in-30-days table, template editor with 160-char counter, message preview, "send me a test" | Matches `Admin-Reminders.png` |
-| P3.11 | api | Customers & cars: list, detail, CSV import with consent declaration, background DVSA enrichment | Import of 1,000 rows < 60 s locally |
+| [x] P3.11 | api | Customers & cars: list, detail, CSV import with consent declaration, background DVSA enrichment | Import of 1,000 rows < 60 s locally — done `b172e41` (1,000 rows in ~0.2 s locally; `tests/integration/customer-import.test.ts`); retention fix A81; pgTAP 019; DECISIONS A79–A84 |
 | P3.12 | qa | Gate 3 end-to-end test + admin Playwright journeys + axe | **Gate 3** green |
 
 ## Phase 4 · Front desk + launch (days 12–14)
@@ -99,14 +100,14 @@ Gate 4: **first garage live on its own domain**: `book.<garage>.co.uk` serves it
 | ID | Lane | Task | Done when |
 | --- | --- | --- | --- |
 | P4.1 | api | Missed calls: `/api/webhooks/twilio/voice` (garage by called number), TwiML message + voicemail, text-back within 60 s, `calls` row, Needs your OK card | Webhook tests |
-| P4.2 | api | Agent tool API `/api/agent/v1/*` (lookup_vehicle, list_services, available_slots, create_booking[requested], get_booking, garage_profile); `agent_tokens` hashed; per-call audit; OpenAPI file `docs/autofix/agent-api.yaml` for Workforce/Askbridge | Contract tests |
+| [x] P4.2 | api | Agent tool API `/api/agent/v1/*` (lookup_vehicle, list_services, available_slots, create_booking[requested], get_booking, garage_profile); `agent_tokens` hashed; per-call audit; OpenAPI file `docs/autofix/agent-api.yaml` for Workforce/Askbridge | Contract tests — done `e04965f` (`src/__tests__/agent-api-contract.test.ts` validates handler responses against the OpenAPI file; `tests/integration/agent-api.test.ts`; pgTAP 018; DECISIONS A74–A78) |
 | P4.3 | ui | Booking page & domain settings: free link, connect domain (DNS table, status steps), embed snippets, QR code | Matches `Admin-Domain.png`; drives P1.8 — components ready `3dbf7ad` (DnsRecordTable, DomainStatusSteps, EmbedSnippet); the embed needs `frame-ancestors` per garage instead of the global `X-Frame-Options: SAMEORIGIN` |
 | P4.4 | ui | Sign-up / onboarding: create garage (name, slug, phone, address), pull details from Google Places (SOB has `GOOGLE_PLACES_API_KEY`), seed services/hours/rules, invite staff, MFA enrolment | New garage live on its free link in < 15 min |
 | P4.5 | ui | Super admin `/admin`: garages list, plan, status, impersonate (logged), job queue health | Platform admins only |
 | P4.6 | integrations | Askbridge: embed widget on booking layout; knowledge sync webhook on profile/services/FAQ change | Widget loads without hurting Lighthouse |
 | P4.7 | qa | Lighthouse mobile on booking routes ≥ 90 perf / 100 a11y; full Playwright suite; load test slots endpoint (50 rps for 60 s, p95 < 300 ms) | Reports in `output/` |
-| P4.9 | api | Wire legal copy: privacy notice per garage (from `docs/autofix/legal/`), consent wording in Book 4, unsubscribe page, DPA acceptance at garage sign-up | Copy matches the reviewed drafts |
-| P4.8 | api | Launch checklist in `docs/autofix/LAUNCH.md`: env vars set in Vercel, domains attached, crons, Supabase backups, Sentry, DPA/privacy copy, first garage data import | Checklist ready for Temitope |
+| [x] P4.9 | api | Wire legal copy: privacy notice per garage (from `docs/autofix/legal/`), consent wording in Book 4, unsubscribe page, DPA acceptance at garage sign-up | Copy matches the reviewed drafts — done `5b0fd8b`. `/privacy`, `/unsubscribe`, `/unsubscribe/[token]` on garage hosts; `/app/settings/agreements`; migration `20261028000300_dpa_acceptance.sql` (`garage_agreements`, `opt_out_customer()`, `resume_customer_reminders()`); copy-equality tests, pgTAP 017, `tests/e2e/legal.spec.ts`. Drafts still await solicitor review (pages flag it); DECISIONS A69–A73 |
+| [x] P4.8 | api | Launch checklist in `docs/autofix/LAUNCH.md`: env vars set in Vercel, domains attached, crons, Supabase backups, Sentry, DPA/privacy copy, first garage data import | Checklist ready for Temitope — done `5b0fd8b`: [LAUNCH.md](LAUNCH.md) |
 
 ---
 

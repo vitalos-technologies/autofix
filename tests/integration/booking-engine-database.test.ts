@@ -78,10 +78,10 @@ beforeAll(async () => {
 });
 
 describe.sequential("booking engine RPCs (service role)", () => {
-  it("seed_garage_defaults adds hours, 3 bays + 1 van and 6 services once", async () => {
+  it("seed_garage_defaults adds hours, 3 bays + 1 van, 6 services and the reminder rules once", async () => {
     const again = await service.rpc("seed_garage_defaults", { p_garage_id: garage.id });
     expect(again.error).toBeNull();
-    expect(again.data).toEqual({ opening_hours: 0, resources: 0, services: 0 });
+    expect(again.data).toEqual({ opening_hours: 0, resources: 0, services: 0, reminder_rules: 0 });
     const resources = await service.from("resources").select("kind").eq("garage_id", garage.id);
     expect(resources.data?.map((row) => row.kind).sort()).toEqual(["bay", "bay", "bay", "mobile"]);
   });

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { garageSpecs } from "./tests/e2e/garage-specs";
 
 const port = process.env.PLAYWRIGHT_PORT || "3000";
 const host = process.env.PLAYWRIGHT_HOST || "127.0.0.1";
@@ -9,8 +10,8 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 export default defineConfig({
   testDir: "./tests/e2e",
   // Garage-host specs need local Supabase and the seed: playwright.garage.config.ts
-  // (`pnpm test:e2e:smoke`, `pnpm test:e2e:booking`, `pnpm test:e2e:manage`, `pnpm test:e2e:admin`).
-  testIgnore: ["smoke.spec.ts", "booking.spec.ts", "manage.spec.ts", "admin.spec.ts"],
+  // (`pnpm test:e2e:smoke`, `pnpm test:e2e:booking`).
+  testIgnore: garageSpecs,
   fullyParallel: true,
   workers: process.env.E2E_ADMIN_ENQUIRY_IDS ? 1 : 2,
   retries: process.env.CI ? 2 : 0,

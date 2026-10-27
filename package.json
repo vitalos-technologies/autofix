@@ -17,9 +17,11 @@
     "test:e2e": "playwright test",
     "test:e2e:local-invoicing": "playwright test --config playwright.local-invoicing.config.ts",
     "test:e2e:smoke": "playwright test --config playwright.garage.config.ts --project=smoke-chromium",
-    "test:e2e:booking": "playwright test --config playwright.garage.config.ts --project=booking-chromium --project=booking-mobile --project=booking-390",
+    "test:e2e:booking": "playwright test --config playwright.garage.config.ts --project=booking-chromium --project=booking-mobile --project=booking-390 --project=legal-mobile",
     "test:e2e:manage": "playwright test --config playwright.garage.config.ts --project=manage-mobile",
     "test:e2e:admin": "playwright test --config playwright.garage.config.ts --project=admin-chromium --project=admin-390",
+    "test:e2e:settings": "playwright test --config playwright.garage.config.ts --project=settings",
+    "test:e2e:legal": "playwright test --config playwright.garage.config.ts --project=legal-mobile",
     "test:lighthouse": "lhci autorun",
     "email:preview": "node scripts/render-email-previews.mjs",
     "deploy:email-worker": "wrangler deploy --config workers/enquiry-email/wrangler.jsonc",
@@ -56,6 +58,8 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "eslint": "^9.38.0",
     "eslint-config-next": "^16.0.0",
     "jiti": "2.7.0",
@@ -66,6 +70,7 @@
     "typescript": "^5.9.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4",
-    "wrangler": "4.122.0"
+    "wrangler": "4.122.0",
+    "yaml": "2.8.1"
   }
 }

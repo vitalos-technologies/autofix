@@ -21,6 +21,12 @@
  *   - Scheduling data (P2.1): 3 bays + 1 mobile van, opening hours
  *     (Mon-Fri 08:00-17:30, Sat 08:30-13:00), closures and six services per
  *     garage; the MOT service only at hartley-road (MOT on).
+ *   - Reminders (P3.6): the default reminder rules (seed_garage_defaults();
+ *     rules a garage already has are left as they are), reminder consent for
+ *     some customers (one at each garage has since opted out), MOT expiry
+ *     dates and last services relative to today, so hartley-road has MOT and
+ *     service reminders due in the next 30 days, then schedule_reminders()
+ *     for today. demo-b (MOT off) gets service reminders only.
  *
  * Environment
  *   Supabase URL and secret key, first match wins:
@@ -123,6 +129,48 @@ const CUSTOMERS = {
     ["Mia Hartnell", "+447700900207", "whatsapp", [["MT22 EVR", "Tesla", "Model 3", 2022, "White", "Electric"]]],
     ["Henry Oakes", "+447700900208", "phone", [["MW15 CXP", "Dacia", "Sandero", 2015, "Blue", "Petrol"]]],
   ],
+};
+
+// Reminders (P3.6). Consent per customer phone: "booking" or "import" (when
+// and how it was given), "opted_out" (gave consent, then replied STOP); any
+// other customer has no consent. Wording as the booking page shows it
+// (src/components/book/consent-checkbox.tsx).
+const CONSENT_WORDING = {
+  motOn: "Remind me when the MOT and service are due. You can stop these any time.",
+  motOff: "Remind me when the service is due. You can stop these any time.",
+};
+const REMINDER_CONSENT = {
+  a: {
+    "+447700900101": "booking",
+    "+447700900102": "booking",
+    "+447700900103": "import",
+    "+447700900104": "opted_out",
+    "+447700900105": "booking",
+    "+447700900108": "import",
+    "+447700900110": "booking",
+  },
+  b: {
+    "+447700900201": "booking",
+    "+447700900203": "import",
+    "+447700900205": "opted_out",
+  },
+};
+
+// MOT expiry in days from today, per registration. hartley-road: six due in
+// the next 30 days (one to a customer without consent, one opted out).
+const MOT_DUE_IN_DAYS = {
+  a: {
+    "YD19 KXT": 7, "YE68 PLM": 12, "YB21 HRT": 26, "YK17 WDF": 9, "YG70 MNA": 20, "YT16 RZV": 18,
+    "YC22 LBN": 140, "YJ69 FZK": 75, "YH15 OPA": 210, "YA20 DCE": 300, "YP14 ZZT": 45,
+  },
+  b: { "MA19 KVE": 15, "MD67 PWS": 60, "ML21 XGB": 120 },
+};
+
+// Last service in days before today, per registration (service reminder 335
+// days after it, so 320 days ago is a reminder in 15 days).
+const LAST_SERVICE_DAYS_AGO = {
+  a: { "YJ69 FZK": 320, "YA20 DCE": 330, "YC22 LBN": 120 },
+  b: { "ML21 XGB": 325, "MK70 OYR": 200 },
 };
 
 // [customer name, enquiry type, status, description, postcode, driveable]
@@ -267,6 +315,31 @@ function check(result, what) {
 /** customers.channel (how reminders reach them) from SOB's preferred contact. */
 const CHANNEL_FOR_CONTACT = { phone: "sms", whatsapp: "whatsapp", email: "email" };
 
+/** Today's date in Europe/London (YYYY-MM-DD), the demo garages' time zone. */
+function londonToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+/** A YYYY-MM-DD date moved by whole days. */
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Consent columns for a seeded customer (customers_consent_check: consent needs consent_at and consent_source). */
+function consentFields(garage, garageKey, phone) {
+  const state = REMINDER_CONSENT[garageKey]?.[phone];
+  if (!state) return { reminder_consent: false, consent_at: null, consent_source: null, consent_text: null, opted_out_at: null };
+  return {
+    reminder_consent: true,
+    consent_at: "2026-01-15T10:00:00.000Z",
+    consent_source: state === "import" ? "import" : "booking",
+    consent_text: garage.mot_enabled ? CONSENT_WORDING.motOn : CONSENT_WORDING.motOff,
+    opted_out_at: state === "opted_out" ? "2026-06-01T18:30:00.000Z" : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Steps
 // ---------------------------------------------------------------------------
@@ -355,7 +428,7 @@ async function seedMfaPolicy(supabase) {
   }
 }
 
-async function seedCustomersAndVehicles(supabase, garages) {
+async function seedCustomersAndVehicles(supabase, garages, today) {
   let customerCount = 0;
   let vehicleCount = 0;
   for (const [garageKey, customers] of Object.entries(CUSTOMERS)) {
@@ -374,8 +447,11 @@ async function seedCustomersAndVehicles(supabase, garages) {
         preferred_contact: preferredContact,
         channel: CHANNEL_FOR_CONTACT[preferredContact],
         anonymised_at: null,
+        ...consentFields(garage, garageKey, phone),
       });
       for (const [registration, make, model, year, colour, fuel] of vehicles) {
+        const motDueIn = MOT_DUE_IN_DAYS[garageKey]?.[registration];
+        const serviceDaysAgo = LAST_SERVICE_DAYS_AGO[garageKey]?.[registration];
         vehicleRows.push({
           id: seedUuid(`vehicle:${garage.slug}:${registration}`),
           garage_id: garage.id,
@@ -386,6 +462,8 @@ async function seedCustomersAndVehicles(supabase, garages) {
           year,
           colour,
           fuel,
+          mot_expiry: motDueIn === undefined ? null : addDays(today, motDueIn),
+          last_service_at: serviceDaysAgo === undefined ? null : `${addDays(today, -serviceDaysAgo)}T10:00:00.000Z`,
         });
       }
     }
@@ -499,6 +577,30 @@ async function seedServices(supabase, garages) {
   console.log(`  - services: ${rows.length} (MOT only at garages with MOT enabled)`);
 }
 
+// --- Reminders (P3.6): default rules, then today's reminder_sends.
+
+async function seedReminders(supabase, garages, today) {
+  let rulesAdded = 0;
+  const scheduled = [];
+  for (const garage of Object.values(garages)) {
+    const defaults = check(await supabase.rpc("seed_garage_defaults", { p_garage_id: garage.id }), `Seed defaults for ${garage.slug}`);
+    rulesAdded += Number(defaults?.reminder_rules ?? 0);
+    const result = check(
+      await supabase.rpc("schedule_reminders", { p_garage_id: garage.id, p_today: today }),
+      `Schedule reminders for ${garage.slug}`,
+    );
+    const { count, error } = await supabase
+      .from("reminder_sends")
+      .select("id", { count: "exact", head: true })
+      .eq("garage_id", garage.id)
+      .eq("status", "scheduled");
+    if (error) throw new Error(`Count reminder sends for ${garage.slug}: ${error.message}`);
+    scheduled.push(`${garage.slug} ${count ?? 0} scheduled (added mot ${result.mot}, service ${result.service}, review ${result.review})`);
+  }
+  console.log(`  - reminder_rules: ${rulesAdded} added (4 defaults per garage; existing rules kept)`);
+  console.log(`  - reminder_sends for ${today}: ${scheduled.join("; ")}`);
+}
+
 // ---------------------------------------------------------------------------
 
 function printSummary(garages, staff) {
@@ -521,17 +623,20 @@ async function main() {
   if (password.length < 8) throw new Error("SEED_STAFF_PASSWORD must be at least 8 characters.");
   const supabase = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
 
+  const today = londonToday();
   console.log(`Seeding local Supabase at ${url}`);
   const garages = await seedGarages(supabase);
   await seedSiteSettings(supabase, garages);
   const staff = await seedStaff(supabase, garages, password);
   await seedMfaPolicy(supabase);
-  await seedCustomersAndVehicles(supabase, garages);
+  await seedCustomersAndVehicles(supabase, garages, today);
   await seedEnquiries(supabase, garages);
   await seedResources(supabase, garages);
   await seedOpeningHours(supabase, garages);
   await seedClosures(supabase, garages);
   await seedServices(supabase, garages);
+  // After hours, resources and services exist, so seed_garage_defaults() only adds the reminder rules.
+  await seedReminders(supabase, garages, today);
   printSummary(garages, staff);
 }
 

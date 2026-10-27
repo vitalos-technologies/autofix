@@ -1,4 +1,4 @@
-# Consent and messaging wording (draft v0.1)
+# Consent and messaging wording (draft v0.2)
 
 Draft for solicitor review; not legal advice. Covers PECR (marketing texts and calls) and UK GDPR transparency.
 
@@ -8,11 +8,15 @@ Reminder checkbox, unticked by default:
 
 > Remind me when the MOT and service are due. You can stop these any time.
 
+When the garage does not offer MOTs (`garages.mot_enabled` off):
+
+> Remind me when the service is due. You can stop these any time.
+
 Under the confirm button:
 
 > Nothing to pay now. [How we use your details] (links to the privacy notice)
 
-Store: `reminder_consent = true`, `consent_at`, `consent_source = 'booking_form'`, the wording version.
+Store: `reminder_consent = true`, `consent_at`, `consent_source = 'booking'`, and the exact wording shown (`consent_text`, which also identifies the wording version).
 
 ## Existing customers (soft opt-in route)
 
@@ -44,9 +48,29 @@ Booking confirmation (service message):
 
 Rules enforced in code: STOP, UNSUBSCRIBE or END in a reply opts the number out from that garage immediately; reminders only 09:00–19:00 Monday to Saturday; the garage's name appears in every message; the editor blocks removing the opt-out line from reminder templates.
 
-## Unsubscribe page (`/r/{token}/stop`)
+## Unsubscribe page (`/unsubscribe/{token}`, and `/unsubscribe` without a link)
+
+Every reminder email, and every text sent from an alphanumeric sender (which cannot receive STOP), carries a signed link to this page. The link alone opts the customer out of reminders from that garage straight away.
+
+Link line in emails and alphanumeric texts:
+
+> Stop reminders: {unsubscribe_link}
+
+After following the link:
 
 > You won't get any more reminders from [Garage name]. You'll still get messages about bookings you make. Changed your mind? [Turn reminders back on]
+
+After "Turn reminders back on" (records consent with this wording):
+
+> Reminders are back on. [Garage name] will send you reminders again. You can stop them any time.
+
+Without a link, the page asks for the mobile number:
+
+> Enter the mobile number we text you on and we'll stop reminders from [Garage name].
+
+Response to the form (the same whether or not the number is on file):
+
+> If that number is on our list, you won't get any more reminders from [Garage name]. You'll still get messages about bookings you make. You can also reply STOP to any reminder text.
 
 ## Voicemail greeting (missed calls)
 

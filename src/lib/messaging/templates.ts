@@ -14,10 +14,11 @@
 // Twilio counts the same way: https://www.twilio.com/docs/messaging/api/message-resource
 // and https://www.twilio.com/en-us/guidelines/gb/sms (read 26 Oct 2026).
 
+import { UNSUBSCRIBE_LINK_LINE } from "@/lib/consent/copy";
 import type { ChannelKind } from "./channel";
 
 export const REMINDER_PLACEHOLDERS = ["first_name", "vehicle", "reg", "due_date", "link", "garage"] as const;
-export const BOOKING_PLACEHOLDERS = ["service", "date", "time", "reference", "manage_link"] as const;
+export const BOOKING_PLACEHOLDERS = ["service", "date", "time", "reference", "manage_link", "unsubscribe_link"] as const;
 export const TEMPLATE_PLACEHOLDERS = [...REMINDER_PLACEHOLDERS, ...BOOKING_PLACEHOLDERS] as const;
 
 export type TemplatePlaceholder = (typeof TEMPLATE_PLACEHOLDERS)[number];
@@ -34,6 +35,11 @@ export type RenderedTemplate = {
 export type RenderTemplateOptions = {
   /** When `sms` or `whatsapp`, the result always ends with the opt-out line (see withOptOut). */
   channel?: ChannelKind;
+  /**
+   * SMS from an alphanumeric sender, which cannot receive STOP (DECISIONS A13):
+   * the signed unsubscribe link replaces "Reply STOP to opt out." (see withOptOutLink).
+   */
+  optOutLink?: string;
 };
 
 export const OPT_OUT_LINE = "Reply STOP to opt out.";
@@ -71,7 +77,7 @@ export function renderTemplate(template: string, vars: TemplateVariables, option
   });
 
   return {
-    text: options.channel ? withOptOut(text, options.channel) : text,
+    text: options.optOutLink && options.channel === "sms" ? withOptOutLink(text, options.optOutLink) : options.channel ? withOptOut(text, options.channel) : text,
     unknownPlaceholders: unique(unknownPlaceholders),
     missingPlaceholders: unique(missingPlaceholders),
   };
@@ -96,6 +102,18 @@ export function withOptOut(body: string, channel: ChannelKind): string {
   if (!trimmed) return OPT_OUT_LINE;
   const separator = /[.!?]$/.test(trimmed) ? " " : "\n";
   return `${trimmed}${separator}${OPT_OUT_LINE}`;
+}
+
+/**
+ * Ends a text with "Stop reminders: <link>" (docs/autofix/legal/consent-and-messaging-wording.md),
+ * for SMS sent from an alphanumeric sender: a reply STOP cannot reach the
+ * garage, so any "Reply STOP" line is removed rather than promised.
+ */
+export function withOptOutLink(body: string, url: string): string {
+  const line = UNSUBSCRIBE_LINK_LINE.replace("{unsubscribe_link}", url.trim());
+  const trimmed = body.replace(/\s*\breply\s+stop\b[^\n]*$/i, "").trimEnd();
+  if (trimmed.includes(url.trim())) return trimmed;
+  return trimmed ? `${trimmed}\n${line}` : line;
 }
 
 // GSM 03.38 basic character set (127 printable entries; ESC excluded).

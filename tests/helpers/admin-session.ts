@@ -1,14 +1,78 @@
 /**
- * Signed-in garage staff for the admin browser tests (tests/e2e/admin.spec.ts). Each run makes its
- * own users (so it never depends on, or changes, the seeded staff's MFA factors): a password user,
- * its garage memberships and a verified TOTP factor whose secret the test knows. Local stack only.
+ * Garage staff for the browser tests: confirmed Auth users with a verified TOTP factor (mandatory
+ * MFA stays on, as shipped), garage memberships and a profile, so specs sign in through the real
+ * password + MFA screens (or reuse the AAL2 session cookies from enrolment). Each run makes its own
+ * users and never touches the seeded staff's factors. Local stack only.
+ *   - `createTotpMember` / `signInWithTotp`: one garage, one role (tests/e2e/settings.spec.ts).
+ *   - `createStaffUser` / `nextCode`: several memberships, cookies for a second browser
+ *     (tests/e2e/admin.spec.ts), plus today's bookings for the admin pages.
  */
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expect, type Page } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
-import { getLocalSupabaseConfig, localTestPassword } from "./local-supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createLocalClient, getLocalSupabaseConfig, localTestPassword } from "./local-supabase";
 import { randomRegistration, serviceClient, type SeededGarage } from "./booking-fixtures";
 
 const TOTP_STEP_MS = 30_000;
+
+export type TotpMember = {
+  id: string;
+  email: string;
+  secret: string;
+  /** TOTP window of the last code used, so no code is replayed. */
+  lastWindow: number;
+};
+
+export async function createTotpMember(
+  service: SupabaseClient,
+  garageId: string,
+  role: "owner" | "manager" | "technician",
+  label: string,
+): Promise<TotpMember> {
+  const email = `${label}-${randomUUID().slice(0, 8)}@example.test`;
+  const { data: created, error: createError } = await service.auth.admin.createUser({ email, password: localTestPassword, email_confirm: true });
+  if (createError || !created.user) throw new Error(`Could not create local ${role}: ${createError?.message}`);
+  const { error: membershipError } = await service.from("garage_members").insert({ garage_id: garageId, user_id: created.user.id, role });
+  if (membershipError) throw new Error(`Could not add local ${role}: ${membershipError.message}`);
+  await service.from("admin_profiles").upsert({ user_id: created.user.id, display_name: `Test ${role}` });
+
+  const auth = createLocalClient(getLocalSupabaseConfig().publishableKey);
+  const { error: signInError } = await auth.auth.signInWithPassword({ email, password: localTestPassword });
+  if (signInError) throw new Error(`Could not sign in local ${role}: ${signInError.message}`);
+  const { data: enrollment, error: enrollmentError } = await auth.auth.mfa.enroll({ factorType: "totp", friendlyName: `${label} e2e` });
+  if (enrollmentError || !enrollment || enrollment.type !== "totp") throw new Error(`Could not enrol TOTP for ${role}: ${enrollmentError?.message}`);
+  const window = currentWindow();
+  const { error: verifyError } = await auth.auth.mfa.challengeAndVerify({ factorId: enrollment.id, code: totp(enrollment.totp.secret, window) });
+  if (verifyError) throw new Error(`Could not verify TOTP for ${role}: ${verifyError.message}`);
+  return { id: created.user.id, email, secret: enrollment.totp.secret, lastWindow: window };
+}
+
+/** Signs in at `<adminOrigin>/app/login` with the password, then the TOTP code, and waits for the admin home. */
+export async function signInWithTotp(page: Page, adminOrigin: string, member: TotpMember) {
+  await page.goto(`${adminOrigin}/app/login`);
+  await page.getByLabel("Email").fill(member.email);
+  await page.getByLabel("Password").fill(localTestPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/app\/mfa(?:\?.*)?$/);
+  const window = await nextUnusedWindow(member);
+  await page.getByLabel("Verification code").fill(totp(member.secret, window));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page).toHaveURL(/\/app(?:\/)?(?:\?.*)?$/);
+}
+
+/** Waits (at most one step) for a TOTP window that has not been used, with time left for the round trip. */
+async function nextUnusedWindow(member: TotpMember) {
+  while (currentWindow() <= member.lastWindow) {
+    await new Promise((resolve) => setTimeout(resolve, (member.lastWindow + 1) * TOTP_STEP_MS - Date.now() + 250));
+  }
+  if (TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) < 3_000) {
+    await new Promise((resolve) => setTimeout(resolve, TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) + 250));
+  }
+  member.lastWindow = currentWindow();
+  return member.lastWindow;
+}
+
 
 export type StaffMembership = { garageId: string; role: "owner" | "manager" | "technician" };
 
@@ -71,12 +135,7 @@ export function totp(secret: string, window: number) {
 
 /** A fresh TOTP code (waits for the next window if this one was used or is about to end). */
 export async function nextCode(user: StaffUser) {
-  while (currentWindow() <= user.lastWindow) {
-    await new Promise((resolve) => setTimeout(resolve, (user.lastWindow + 1) * TOTP_STEP_MS - Date.now() + 250));
-  }
-  if (TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) < 3_000) await new Promise((resolve) => setTimeout(resolve, TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) + 250));
-  user.lastWindow = currentWindow();
-  return totp(user.secret, user.lastWindow);
+  return totp(user.secret, await nextUnusedWindow(user));
 }
 
 /** Creates a staff user with the given memberships and a verified TOTP factor. */

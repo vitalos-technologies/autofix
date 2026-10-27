@@ -216,7 +216,8 @@ async function expectAccessible(page: Page) {
 
 async function expectOneVisibleH1(page: Page, name: string | RegExp) {
   await expect(page.locator("h1:visible")).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+  // Exact: a substring match would let "Your booking" pass on "Find your booking" before the page changes.
+  await expect(page.getByRole("heading", { level: 1, name, exact: typeof name === "string" })).toBeVisible();
 }
 
 async function noHorizontalOverflow(page: Page) {
