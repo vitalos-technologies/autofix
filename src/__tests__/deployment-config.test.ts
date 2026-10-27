@@ -6,8 +6,10 @@ const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Arra
 const envExample = readFileSync(".env.example", "utf8");
 
 describe("production deployment configuration", () => {
-  it("uses only a daily retention cron on Vercel Hobby", () => {
-    expect(vercel.crons).toEqual([{ path: "/api/cron/retention", schedule: "15 3 * * *" }]);
+  it("uses one daily cron on Vercel Hobby, inside the reminders send window", () => {
+    // 11:00 UTC is 11:00 (GMT) or 12:00 (BST) in London: after the 10:00 reminder time, inside
+    // 09:00–19:00, and Hobby's within-the-hour start still lands before 13:00.
+    expect(vercel.crons).toEqual([{ path: "/api/cron/daily", schedule: "0 11 * * *" }]);
   });
 
   it("uses the Supabase secret-key contract without the legacy variable", () => {

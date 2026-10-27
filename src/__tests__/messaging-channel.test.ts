@@ -4,7 +4,7 @@ import { getChannel, type OutboundMessage } from "@/lib/messaging/channel";
 import { getMessagingMode, getMessagingReadiness } from "@/lib/messaging/config";
 import { createResendEmailChannel, resendIdempotencyKey } from "@/lib/messaging/email";
 import * as messaging from "@/lib/messaging";
-import { clearMockOutbox, getMockOutbox } from "@/lib/messaging/mock";
+import { clearMockOutbox, getMockOutbox, isMockProviderMessageId } from "@/lib/messaging/mock";
 
 const garageId = "11111111-1111-4111-8111-111111111111";
 const accountSid = `AC${"0123456789abcdef".repeat(2)}`;
@@ -77,9 +77,9 @@ describe("mock channels", () => {
     const whatsapp = await getChannel("whatsapp", {}).send(message({ to: "whatsapp:+447700900124" }));
     const email = await getChannel("email", {}).send(message({ to: "sam@example.com", subject: "Your MOT" }));
 
-    expect(sms).toEqual({ ok: true, providerMessageId: "SMmock00000001", status: "queued" });
-    expect(whatsapp).toMatchObject({ ok: true, providerMessageId: "SMmock00000002" });
-    expect(email).toEqual({ ok: true, providerMessageId: "mock_email_00000003", status: "sent" });
+    expect(sms).toEqual({ ok: true, providerMessageId: expect.stringMatching(/^SMmock00000001[0-9a-f]{16}$/), status: "queued" });
+    expect(whatsapp).toMatchObject({ ok: true, providerMessageId: expect.stringMatching(/^SMmock00000002[0-9a-f]{16}$/) });
+    expect(email).toEqual({ ok: true, providerMessageId: expect.stringMatching(/^mock_email_00000003[0-9a-f]{16}$/), status: "sent" });
 
     const outbox = getMockOutbox();
     expect(outbox.map((entry) => [entry.kind, entry.to])).toEqual([
@@ -99,6 +99,17 @@ describe("mock channels", () => {
     expect(getMockOutbox()).toHaveLength(1);
     clearMockOutbox();
     expect(getMockOutbox()).toEqual([]);
+  });
+
+  it("gives provider ids a random part, so a restarted sequence never repeats an id (A56)", async () => {
+    const first = await getChannel("sms", {}).send(message({ idempotencyKey: "restart-1" }));
+    clearMockOutbox();
+    const second = await getChannel("sms", {}).send(message({ idempotencyKey: "restart-2" }));
+    if (!first.ok || !second.ok) throw new Error("mock sends succeed");
+    expect(first.providerMessageId.slice(0, 14)).toBe(second.providerMessageId.slice(0, 14));
+    expect(second.providerMessageId).not.toBe(first.providerMessageId);
+    expect(isMockProviderMessageId(first.providerMessageId)).toBe(true);
+    expect(first.providerMessageId.length).toBeLessThanOrEqual(64);
   });
 
   it("shares one outbox across channel instances and records an idempotency key once", async () => {

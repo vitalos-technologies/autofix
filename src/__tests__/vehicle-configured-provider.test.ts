@@ -3,11 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: vi.fn(() => null) }));
 
 import {
+  getConfiguredMotHistoryLookup,
   getConfiguredVehicleProvider,
   getVehicleLookupReadiness,
+  mockMotHistoryLookup,
   resetConfiguredVehicleProviderForTests,
   resolveVehicleLookupMode,
 } from "@/lib/vehicle/configured-provider";
+import { DvsaMotHistoryClient } from "@/lib/vehicle/dvsa";
 import { mockVehicleProvider } from "@/lib/vehicle/mock";
 
 const secrets = {
@@ -130,5 +133,24 @@ describe("getConfiguredVehicleProvider", () => {
   it("builds single-source providers for the kept SOB modes", () => {
     expect(getConfiguredVehicleProvider({ VEHICLE_LOOKUP_PROVIDER: "dvla", DVLA_VES_API_KEY: "x" })).not.toBeNull();
     expect(getConfiguredVehicleProvider({ VEHICLE_LOOKUP_PROVIDER: "vehicle-data-global", ...secrets })).not.toBeNull();
+  });
+});
+
+describe("MOT history for the nightly refresh (mot.refresh)", () => {
+  beforeEach(() => resetConfiguredVehicleProviderForTests());
+
+  it("uses DVSA when its credentials are set, reusing one client", () => {
+    const env = { VEHICLE_LOOKUP_PROVIDER: "composite", DVSA_MOT_CLIENT_ID: secrets.DVSA_MOT_CLIENT_ID, DVSA_MOT_CLIENT_SECRET: secrets.DVSA_MOT_CLIENT_SECRET, DVSA_MOT_API_KEY: secrets.DVSA_MOT_API_KEY, DVSA_MOT_TOKEN_URL: secrets.DVSA_MOT_TOKEN_URL };
+    const lookup = getConfiguredMotHistoryLookup(env);
+    expect(lookup).toBeInstanceOf(DvsaMotHistoryClient);
+    expect(getConfiguredMotHistoryLookup(env)).toBe(lookup);
+  });
+
+  it("uses the mock (which changes no dates) outside production, and nothing in production without DVSA", async () => {
+    expect(getConfiguredMotHistoryLookup({})).toBe(mockMotHistoryLookup);
+    await expect(mockMotHistoryLookup.getMotHistory("AB12CDE")).rejects.toMatchObject({ code: "not_found" });
+    expect(getConfiguredMotHistoryLookup({ VERCEL_ENV: "production" })).toBeNull();
+    expect(getConfiguredMotHistoryLookup({ VERCEL_ENV: "production", VEHICLE_LOOKUP_PROVIDER: "mock" })).toBeNull();
+    expect(getConfiguredMotHistoryLookup({ VEHICLE_LOOKUP_PROVIDER: "vehicle-data-global" })).toBeNull();
   });
 });
