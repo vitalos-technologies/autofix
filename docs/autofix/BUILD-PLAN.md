@@ -69,7 +69,7 @@ Gate 2: **100 parallel bookings for the same slot pool produce zero overlaps** (
 | P2.8 | ui | Booking flow pages `/`, `/service`, `/time`, `/details`, `/confirmed/[reference]` on the garage host; state in a signed httpOnly cookie; no registration in URLs | Matches the 5 booking screenshots at 390px |
 | P2.9 | ui | Manage booking page (reference + reg, or signed link) restyled to the new language | Playwright journey |
 | P2.10 | api | Notifications on booking events: customer email (+ `.ics`) via existing Resend templates, re-branded per garage; staff alert email; SMS hook stubbed until Twilio (P3) | Email preview script shows garage branding |
-| P2.11 | qa | Concurrency test (100 parallel `create_booking` calls on 3 bays) and Playwright booking journey + axe at 390px | **Gate 2** green |
+| P2.11 | qa | Concurrency test (100 parallel `create_booking` calls on 3 bays) and Playwright booking journey + axe at 390px | **Gate 2** green — must also remove the three `test.fixme` SOB-wizard journeys and the `test.fail` mobile-h1 case in `tests/e2e/booking.spec.ts` (marked in P1.11 because P2.8 replaces that wizard); Gate 2 can't pass while they are skipped |
 
 ## Phase 3 · Admin + reminders (days 8–11)
 
