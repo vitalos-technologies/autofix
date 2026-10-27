@@ -58,7 +58,7 @@ export function DataTable<Row>({
       aria-label={caption}
       tabIndex={0}
       style={maxHeight ? { maxHeight } : undefined}
-      className={cn("overflow-auto font-sans leading-[normal]", tinted && "rounded-input bg-[#f7f9fb]", focusRing, className)}
+      className={cn("relative overflow-auto font-sans leading-[normal]", tinted && "rounded-input bg-[#f7f9fb]", focusRing, className)}
     >
       <table className="w-full border-collapse text-[14px]" style={{ minWidth }}>
         <caption className={cn(showCaption ? "pb-2 text-left text-[14px] font-semibold text-navy-950" : "sr-only")}>{caption}</caption>

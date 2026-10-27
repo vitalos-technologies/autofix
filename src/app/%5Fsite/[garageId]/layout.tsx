@@ -20,7 +20,9 @@ export default async function SiteLayout({ children, params }: SiteLayoutProps) 
   const garage = await requireSiteGarage((await params).garageId);
   return (
     <div data-garage={garage.slug} style={garageAccentStyle(garage.accent)} className="min-h-dvh bg-grey-50">
-      <GarageProvider garage={publicGarage(garage)}>{children}</GarageProvider>
+      <GarageProvider garage={publicGarage(garage)}>
+        <main>{children}</main>
+      </GarageProvider>
     </div>
   );
 }

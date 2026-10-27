@@ -17,10 +17,14 @@ describe("admin notifications", () => {
   });
 
   it("polls the authenticated count endpoint and sends the live count to both badges", () => {
-    const source = readFileSync(join(process.cwd(), "src/components/admin/admin-shell.tsx"), "utf8");
-    expect(source).toContain('fetch("/api/admin/notifications/count"');
+    const source = readFileSync(join(process.cwd(), "src/components/admin-ui/notification-refresher.tsx"), "utf8");
+    const layout = readFileSync(join(process.cwd(), "src/app/app/(protected)/layout.tsx"), "utf8");
+    expect(source).toContain('endpoint = "/api/admin/notifications/count"');
     expect(source).toContain("window.setInterval");
-    expect(source).toContain("notificationCount={liveNotificationCount}");
+    expect(source).toContain("router.refresh()");
+    // The bell and the Bookings badge are server-rendered; a changed count refreshes them both.
+    expect(layout).toContain("unreadCount={notifications.count}");
+    expect(layout).toContain("<NotificationRefresher count={notifications.count} />");
   });
 
   it("shows booking alerts in the notification centre and acknowledges them on open", () => {

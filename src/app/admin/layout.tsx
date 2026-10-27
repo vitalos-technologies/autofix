@@ -23,7 +23,10 @@ export default async function PlatformLayout({ children }: { children: React.Rea
     <div style={garageAccentStyle(null)} className="min-h-screen bg-grey-50 font-sans text-grey-800">
       {impersonation ? <ImpersonationBanner impersonation={impersonation} surface="platform" /> : null}
       <PlatformHeader email={admin.user.email ?? "Platform admin"} showNav={admin.access === "allowed"} />
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 lg:px-8 lg:py-8">{children}</div>
+      {/* The root layout has no <main> (A85): each area renders its own. */}
+      <main id="main" className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 lg:px-8 lg:py-8">
+        {children}
+      </main>
     </div>
   );
 }

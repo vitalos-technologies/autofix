@@ -74,7 +74,7 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
       <header className="rounded-2xl border border-[#E4EAF0] bg-white p-5 shadow-sm sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">{formatType(enquiry.type)} enquiry</p>
+            <p className="text-xs font-extrabold tracking-widest text-accent uppercase">{formatType(enquiry.type)} enquiry</p>
             <h1 className="mt-2 text-3xl font-extrabold text-[#071127]">{customer?.name || "Customer enquiry"}</h1>
             {vehicleSummary && <p className="mt-3 font-bold text-[#071127]">{vehicleSummary}</p>}
             {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#586575] uppercase">{enquiry.vehicles.registration}</p>}
@@ -105,18 +105,18 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
       <section aria-labelledby="thread-heading" className="mt-4 rounded-2xl border border-[#D6E3F0] bg-[#EAF2FA] p-3 sm:p-4">
         <div className="flex items-center justify-between gap-4">
           <h2 id="thread-heading" className="text-xl font-extrabold text-[#071127]">Conversation</h2>
-          <span className="text-sm text-[#667586]">{messages.length} {messages.length === 1 ? "message" : "messages"}</span>
+          <span className="text-sm text-grey-600">{messages.length} {messages.length === 1 ? "message" : "messages"}</span>
         </div>
         <div className="mt-2.5 grid gap-2">
           {messages.map((message) => <ThreadMessage key={message.id} message={message} garageName={garageName} />)}
-          {!messages.length && <p className="rounded-2xl border border-[#E4EAF0] bg-white p-8 text-center text-[#667586]">No conversation messages are available.</p>}
+          {!messages.length && <p className="rounded-2xl border border-[#E4EAF0] bg-white p-8 text-center text-grey-600">No conversation messages are available.</p>}
         </div>
         {enquiry.enquiry_attachments.length > 0 && (
           <div className="mt-3 rounded-xl border border-[#E4EAF0] bg-white p-3">
-            <p className="text-xs font-extrabold tracking-widest text-[#667586] uppercase">Original private attachments · links expire in 5 minutes</p>
+            <p className="text-xs font-extrabold tracking-widest text-grey-600 uppercase">Original private attachments · links expire in 5 minutes</p>
             <div className="mt-3 flex flex-wrap gap-2">{enquiry.enquiry_attachments.map((attachment) => {
               const url = signedByPath.get(attachment.object_path);
-              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EAF3FF] px-3 py-2 text-sm font-bold text-[#1974E2]">{attachment.file_name}</a> : null;
+              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EAF3FF] px-3 py-2 text-sm font-bold text-accent">{attachment.file_name}</a> : null;
             })}</div>
           </div>
         )}
@@ -143,8 +143,8 @@ function ThreadMessage({ message, garageName }: { message: MessageRow; garageNam
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div><h3 className={`text-sm leading-5 font-extrabold ${internal ? "text-amber-950" : outbound ? "text-[#1446A5]" : "text-emerald-900"}`}>{heading}</h3>{outbound && message.sender_name && <p className="text-[0.7rem] leading-4 text-[#667586]">Sent by {message.sender_name}</p>}</div>
-            <time className="text-[0.7rem] leading-4 text-[#667586]" dateTime={message.created_at}>{formatDate(message.created_at)}</time>
+            <div><h3 className={`text-sm leading-5 font-extrabold ${internal ? "text-amber-950" : outbound ? "text-[#1446A5]" : "text-emerald-900"}`}>{heading}</h3>{outbound && message.sender_name && <p className="text-[0.7rem] leading-4 text-grey-600">Sent by {message.sender_name}</p>}</div>
+            <time className="text-[0.7rem] leading-4 text-grey-600" dateTime={message.created_at}>{formatDate(message.created_at)}</time>
           </div>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-5 text-[#263446]">{message.text_body}</p>
           {(outbound || message.delivery_status === "failed") && <p className={`mt-1.5 text-[0.65rem] font-bold uppercase tracking-wide ${message.delivery_status === "failed" || message.delivery_status === "bounced" ? "text-red-700" : "text-[#586575]"}`}>{deliveryLabel(message.delivery_status)}</p>}

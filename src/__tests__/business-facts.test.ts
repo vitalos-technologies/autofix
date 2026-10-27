@@ -46,7 +46,7 @@ describe("garage facts instead of single-business config", () => {
   });
 
   it("keeps the admin Autofix-branded", () => {
-    const shell = readFileSync(join(root, "src/components/admin/admin-shell.tsx"), "utf8");
+    const shell = readFileSync(join(root, "src/components/admin-ui/admin-shell.tsx"), "utf8");
     const logo = readFileSync(join(root, "src/components/layout/logo.tsx"), "utf8");
     expect(shell).toContain(">Autofix<");
     expect(logo).toContain("Autofix");

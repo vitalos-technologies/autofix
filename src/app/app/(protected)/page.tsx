@@ -1,484 +1,407 @@
-import type { LucideIcon } from "lucide-react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  BadgePoundSterling,
-  CalendarClock,
-  CheckCircle2,
-  CircleAlert,
-  Inbox,
-  Plus,
-  Radio,
-  ReceiptText,
-  Wrench,
-} from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import { BellRing, CalendarPlus, PhoneMissed, Plus, Warehouse } from "lucide-react";
 import {
-  auditActionLabel,
-  auditEntityLabel,
-  createSystemHealthChecks,
-  formatRelativeTime,
-  type HealthState,
-} from "@/lib/admin/dashboard";
-import type { BookingStatus } from "@/lib/booking-engine/types";
-import { emptyInvoiceDashboard, loadInvoiceDashboard, normalizeInvoiceDashboardFilters } from "@/lib/invoices/dashboard";
-import { formatPence } from "@/lib/invoices/money";
+  ApprovalCard,
+  buttonClass,
+  CopyButton,
+  DiaryGrid,
+  EmptyState,
+  JobCard,
+  KpiCard,
+  KpiGrid,
+  PageHeader,
+  Panel,
+  SummaryChips,
+  textLinkClass,
+  type ApprovalSecondary,
+  type JobCardAction,
+} from "@/components/admin-ui";
+import { IN_WORKSHOP, quickActionLabel, quickStatusActions } from "@/lib/admin/booking-status";
+import { auditActionLabel, auditEntityLabel, formatRelativeTime } from "@/lib/admin/dashboard";
+import { bookingDetail, bookingHref, formatUkPhone, telLink, vehicleName, type AdminBooking } from "@/lib/admin/bookings";
+import {
+  AdminDataError,
+  loadBookingsStarting,
+  loadRecentActivity,
+  loadMissedCalls,
+  loadOpeningHours,
+  loadOpenRequests,
+  loadReminderWeek,
+  loadResources,
+  loadWonBack,
+  type ActivityEntry,
+} from "@/lib/admin/data";
+import { formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayRange, localWeekRange, monthStart } from "@/lib/admin/dates";
+import { formatWholePounds, shapeToday, todayChips, type MissedCall, type ReminderWeek } from "@/lib/admin/today";
 import { getAdminContext } from "@/lib/tenancy/admin";
+import { garageBaseUrl } from "@/lib/tenancy/urls";
 import { cn } from "@/lib/utils";
+import { acceptBookingAction, quickStatusAction } from "./bookings/status-actions";
 
-type RecentEnquiry = {
-  id: string;
-  type: string;
-  service_slug: string | null;
-  status: "new" | "contacted" | "booked" | "closed";
-  created_at: string;
-  customers: { name: string } | null;
-  vehicles: { registration: string | null; make: string | null; model: string | null } | null;
-};
+export const metadata: Metadata = { title: "Today" };
 
-type AuditEntry = {
-  id: number;
-  actor_id: string | null;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  detail: unknown;
-  created_at: string;
-};
+const twoColumns = "flex flex-wrap items-start gap-[18px]";
+const sideColumn = "flex min-w-0 flex-[1_1_300px] flex-col gap-[18px]";
 
-type BookingSummary = {
-  id: string;
-  status: BookingStatus;
-  starts_at: string;
-};
+function firstName(name: string) {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return first.includes("@") ? "" : first;
+}
 
-/** Bookings that still hold their slot and are not finished. */
-const openStatuses = new Set<BookingStatus>(["requested", "confirmed", "arrived", "in_progress", "waiting_parts", "ready"]);
+function secondaryFor(booking: AdminBooking, tone: "light" | "navy"): ApprovalSecondary {
+  const tel = telLink(booking.customerPhone);
+  if (booking.source === "missed_call" && tel) return { href: tel, label: "Call back" };
+  return { href: `${bookingHref(booking.id)}#move`, label: tone === "navy" ? "Other time" : "Offer another time" };
+}
 
-const emptyResult = { data: [], count: 0, error: null };
+function jobActions(booking: AdminBooking): JobCardAction[] {
+  return quickStatusActions(booking.status).map((to) => ({
+    label: quickActionLabel(to, booking.status),
+    action: quickStatusAction,
+    fields: { status: to },
+    variant: to === "ready" ? "success" : "secondary",
+  }));
+}
 
-export default async function DashboardPage() {
-  // Every read goes through the RLS client for the selected garage.
+/**
+ * Today (design/screens/Admin-Dashboard.dc.html from 1024px, Admin-Today-Phone.dc.html below):
+ * the day's diary by bay, what needs the garage's OK and the reminders week. Every read goes
+ * through the selected garage's RLS client.
+ */
+export default async function TodayPage() {
   const admin = await getAdminContext({ allowTrustedDevice: true });
-  const client = admin?.client ?? null;
+  if (!admin) redirect("/app/login");
+  const timeZone = admin.garage.timezone || "Europe/London";
   const now = new Date();
+  const dateKey = localDateKey(now, timeZone);
+  const day = localDayRange(dateKey, timeZone);
+  const week = localWeekRange(dateKey, timeZone);
+  const bookingLink = garageBaseUrl(admin.garage);
 
-  const [newEnquiriesResult, recentEnquiriesResult, failedEmailsResult, activityResult, bookingsResult, bookingServicesResult, invoicesResult] = client
-    ? await Promise.all([
-        client.from("enquiries").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "new"),
-        client.from("enquiries").select("id,type,service_slug,status,created_at,customers(name),vehicles(registration,make,model)").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
-        client.from("enquiries").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("notification_status", "failed"),
-        client.from("admin_audit_log").select("id,actor_id,action,entity_type,entity_id,detail,created_at").order("created_at", { ascending: false }).limit(6),
-        client.from("bookings").select("id,status,starts_at").is("deleted_at", null).gte("starts_at", new Date(now.getTime() - 86_400_000).toISOString()).order("starts_at", { ascending: true }).limit(500),
-        client.from("services").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("online_enabled", true),
-        admin
-          ? loadInvoiceDashboard(admin.client, normalizeInvoiceDashboardFilters({}))
-          : { ...emptyInvoiceDashboard, error: new Error("Admin session is unavailable") },
-      ])
-    : [emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyResult, emptyInvoiceDashboard];
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      loadResources(admin.client),
+      loadBookingsStarting(admin.client, day.from, day.to),
+      loadOpenRequests(admin.client, now),
+      loadOpeningHours(admin.client),
+      loadWonBack(admin.client, monthStart(dateKey), timeZone),
+      loadReminderWeek(admin.client, week.from, week.to),
+      loadMissedCalls(admin.client),
+      loadRecentActivity(admin.client),
+    ]);
+  } catch (error) {
+    if (!(error instanceof AdminDataError)) throw error;
+    loaded = null;
+  }
 
-  const recentEnquiries = (recentEnquiriesResult.data || []) as unknown as RecentEnquiry[];
-  const activity = (activityResult.data || []) as unknown as AuditEntry[];
-  const bookingRows = (bookingsResult.data || []) as BookingSummary[];
-  const databaseReady = Boolean(client) && ![
-    newEnquiriesResult,
-    recentEnquiriesResult,
-    failedEmailsResult,
-    activityResult,
-    bookingsResult,
-    bookingServicesResult,
-    invoicesResult,
-  ].some((result) => result.error);
-
-  const todayKey = londonDateKey(now);
-  const todayAppointments = bookingRows.filter((booking) => londonDateKey(new Date(booking.starts_at)) === todayKey && openStatuses.has(booking.status)).length;
-  const upcomingBookings = bookingRows.filter((booking) => new Date(booking.starts_at) > now && openStatuses.has(booking.status)).length;
-  // Online requests waiting for the garage's OK.
-  const bookingAttention = bookingRows.filter((booking) => booking.status === "requested").length;
-  const bookingConfigured = Boolean(process.env.BOOKING_MANAGEMENT_SECRET && (bookingServicesResult.count || 0) > 0);
-
-  const systemHealth = createSystemHealthChecks({
-    websiteReady: isWebsiteReady(),
-    databaseReady,
-    emailReady: ["RESEND_API_KEY", "RESEND_FROM_EMAIL"].every((key) => Boolean(process.env[key])) && Boolean(admin?.garage.email),
-    bookingReady: bookingConfigured,
-    vehicleLookupReady: (process.env.VEHICLE_LOOKUP_PROVIDER === "vehicle-data-global"
-      && ["VEHICLE_DATA_GLOBAL_API_KEY", "VEHICLE_DATA_GLOBAL_BASE_URL", "VEHICLE_DATA_GLOBAL_PACKAGE"].every((key) => Boolean(process.env[key])))
-      || Boolean(process.env.DVLA_API_KEY)
-      || (process.env.PLAYWRIGHT_TEST === "true" && process.env.VEHICLE_LOOKUP_PROVIDER === "mock"),
-  });
-
-  const failedEmails = failedEmailsResult.count ?? 0;
-  const setupIssues = systemHealth.filter((check) => check.state !== "healthy").length;
-  const attentionRequired = failedEmails + bookingAttention + setupIssues;
-  const displayName = admin?.profile.display_name || "Administrator";
-  const greeting = greetingForDate(now);
-
-  return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <p className="text-xs font-extrabold tracking-[0.16em] text-[#1974E2] uppercase">Operations overview</p>
-          <h1 className="mt-2 text-4xl font-extrabold text-[#071127] sm:text-5xl">{greeting}, {firstName(displayName)}.</h1>
-          <p className="mt-2 text-sm font-semibold text-[#7A8796]">{formatDashboardDate(now)}</p>
+  const header = (title: string, phoneChips?: ReactNode) => (
+    <PageHeader
+      eyebrow={formatLongDate(dateKey)}
+      phoneEyebrow={formatShortDateKey(dateKey)}
+      title={title}
+      phoneTitle="Today"
+      actions={
+        <div className="hidden gap-2.5 lg:flex">
+          <CopyButton value={bookingLink} label="Copy booking link" />
+          <Link href="/app/bookings/new" className={buttonClass("primary", "md", "px-[18px]")}>
+            <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
+            New booking
+          </Link>
         </div>
-        <div className="hidden flex-wrap gap-2 md:flex" aria-label="Quick actions">
-          <QuickAction href="/app/enquiries" label="View enquiries" icon={Inbox} variant="secondary" />
-          <QuickAction href="/app/bookings" label="View bookings" icon={CalendarClock} variant="secondary" />
-          <QuickAction href="/app/invoices/new" label="Add invoice" icon={Plus} />
-        </div>
-      </div>
-
-      {!databaseReady && (
-        <div role="alert" className="mt-7 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <AlertTriangle className="mt-0.5 shrink-0" size={19} aria-hidden="true" />
-          Some dashboard data could not be loaded. Review System Health and refresh after the connection is restored.
-        </div>
-      )}
-
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key performance indicators">
-        <KpiCard
-          label="Outstanding invoices"
-          value={invoicesResult.outstandingCount}
-          support={`${formatPence(invoicesResult.outstandingTotalPence)} unpaid`}
-          href="/app/invoices?status=issued"
-          icon={ReceiptText}
-          tone={invoicesResult.outstandingCount !== "0" ? "warning" : "default"}
-        />
-        <KpiCard
-          label="Paid this week"
-          value={formatPence(invoicesResult.currentWeekPaidTotalPence)}
-          support="Settled since Monday"
-          href="/app/invoices?status=paid"
-          icon={BadgePoundSterling}
-        />
-        <KpiCard
-          label="New enquiries"
-          value={newEnquiriesResult.count ?? 0}
-          support="Awaiting first review"
-          href="/app/enquiries"
-          icon={Inbox}
-        />
-        <KpiCard
-          label="Attention required"
-          value={attentionRequired}
-          support={`${failedEmails} email ${failedEmails === 1 ? "failure" : "failures"} · ${setupIssues} setup ${setupIssues === 1 ? "item" : "items"}`}
-          href="#system-health"
-          icon={CircleAlert}
-          tone={attentionRequired > 0 ? "warning" : "default"}
-        />
-      </section>
-
-      <div className="mt-8 grid min-w-0 gap-6 xl:grid-cols-12">
-        <RecentEnquiriesPanel enquiries={recentEnquiries} now={now} />
-
-        <div className="grid content-start gap-6 xl:col-span-4">
-          <BookingPanel configured={bookingConfigured} today={todayAppointments} upcoming={upcomingBookings} attention={bookingAttention} />
-          <SystemHealthPanel checks={systemHealth} />
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <ActivityPanel entries={activity} displayName={displayName} now={now} />
-      </div>
-    </>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  support,
-  href,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: number | string;
-  support: string;
-  href: string;
-  icon: LucideIcon;
-  tone?: "default" | "warning";
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "group rounded-xl border bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#1974E2]/45 hover:shadow-[0_10px_24px_rgba(7,17,39,0.08)]",
-        tone === "warning" ? "border-amber-200" : "border-[#E4EAF0]",
-      )}
+      }
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className={cn("grid size-8 place-items-center rounded-lg", tone === "warning" ? "bg-amber-50 text-amber-700" : "bg-[#EAF3FF] text-[#1974E2]") }>
-          <Icon size={17} aria-hidden="true" />
-        </span>
-        <ArrowRight size={17} className="text-[#A4AFBB] transition group-hover:translate-x-1 group-hover:text-[#1974E2]" aria-hidden="true" />
+      {phoneChips}
+    </PageHeader>
+  );
+
+  if (!loaded) {
+    return (
+      <div className="flex flex-col gap-[22px]">
+        {header("Today")}
+        <div role="alert" className="rounded-card border border-[#f3c4c4] bg-[#fdecec] px-4 py-3.5 text-[14px] font-semibold text-[#991b1b]">
+          Today&apos;s bookings could not be loaded. Refresh the page to try again.
+        </div>
       </div>
-      <strong className="mt-3 block text-3xl leading-none text-[#071127]">{value}</strong>
-      <h2 className="mt-1.5 text-sm font-bold text-[#071127]">{label}</h2>
-      <p className="mt-0.5 text-[0.7rem] leading-4 text-[#667586]">{support}</p>
-    </Link>
+    );
+  }
+
+  const [resources, today, requests, opening, wonBack, reminders, missedCalls, activity] = loaded;
+  const view = shapeToday({
+    today,
+    requests: requests.rows,
+    requestCount: requests.count,
+    opening: opening.get(isoWeekday(dateKey)) ?? [],
+    now,
+    timeZone,
+    firstName: firstName(admin.profile.display_name),
+  });
+  const { figures } = view;
+  const chips = todayChips(figures);
+  const calls = missedCalls ?? [];
+  const waiting = view.approvals.length + calls.length;
+
+  return (
+    <div className="flex flex-col gap-3.5 lg:gap-[22px]">
+      {header(
+        view.headline,
+        <div className="lg:hidden">
+          <SummaryChips label="Today at a glance" chips={chips} />
+        </div>,
+      )}
+
+      {/* Phone (Admin-Today-Phone) */}
+      <div className="flex flex-col gap-2.5 lg:hidden">
+        {waiting > 0 ? (
+          <section id="needs-ok-phone" aria-labelledby="needs-ok-phone-title" className="flex scroll-mt-4 flex-col gap-2.5">
+            <h2 id="needs-ok-phone-title" className="sr-only">
+              Needs your OK
+            </h2>
+            {view.approvals.map((booking) => (
+              <ApprovalCard
+                key={booking.id}
+                tone="navy"
+                bookingId={booking.id}
+                registration={booking.registration}
+                source={booking.source}
+                receivedAt={booking.createdAt}
+                now={now}
+                customerName={booking.customerName}
+                vehicle={vehicleName(booking) ?? undefined}
+                service={booking.serviceName}
+                detail={bookingDetail(booking)}
+                startsAt={booking.startsAt}
+                timeZone={timeZone}
+                acceptAction={acceptBookingAction}
+                secondary={secondaryFor(booking, "navy")}
+              />
+            ))}
+            {calls.map((call) => (
+              <MissedCallCard key={call.id} call={call} timeZone={timeZone} tone="navy" />
+            ))}
+            {requests.count > view.approvals.length ? (
+              <Link href="/app/bookings?status=requested" className={cn(textLinkClass, "self-start text-[14px]")}>
+                See all {requests.count} waiting for your OK
+              </Link>
+            ) : null}
+          </section>
+        ) : null}
+
+        <h2 className="sr-only">Cars today</h2>
+        {view.jobs.length > 0 ? (
+          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            {view.jobs.map((booking) => (
+              <li key={booking.id}>
+                <JobCard
+                  bookingId={booking.id}
+                  startsAt={booking.startsAt}
+                  timeZone={timeZone}
+                  resourceName={booking.resourceName ?? (booking.locationMode === "mobile" ? "Mobile" : null)}
+                  registration={booking.registration}
+                  vehicle={booking.model ?? booking.make}
+                  service={booking.serviceName}
+                  detail={booking.status === "waiting_parts" ? "waiting on parts" : bookingDetail(booking)}
+                  status={booking.status}
+                  href={bookingHref(booking.id)}
+                  active={IN_WORKSHOP.includes(booking.status)}
+                  actions={jobActions(booking)}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            tone="card"
+            icon={CalendarPlus}
+            title="No cars booked in today"
+            description="Online, phone and walk-in bookings for today show up here."
+            action={
+              <Link href="/app/bookings/new" className={buttonClass("primary")}>
+                New booking
+              </Link>
+            }
+          />
+        )}
+        <RecentActivityPanel id="activity-phone" entries={activity} userId={admin.user.id} now={now} className="mt-1.5" />
+      </div>
+
+      {/* Desktop (Admin-Dashboard) */}
+      <div className="hidden flex-col gap-[22px] lg:flex">
+        <KpiGrid label="Today at a glance">
+          <KpiCard label="Booked in today" value={String(figures.carsToday)} context={`${figures.stillToArrive} still to arrive`} />
+          <KpiCard
+            label="In the workshop"
+            value={String(figures.inWorkshop)}
+            context={figures.waitingParts > 0 ? `${figures.waitingParts} waiting for parts` : "None waiting for parts"}
+          />
+          <KpiCard
+            label="Won back by reminders"
+            value={formatWholePounds(wonBack.pence)}
+            tone="navy"
+            trend={
+              wonBack.bookings > 0
+                ? { label: `${wonBack.bookings} ${wonBack.bookings === 1 ? "booking" : "bookings"} this month` }
+                : { label: "No reminder bookings this month yet", tone: "neutral" }
+            }
+          />
+          <KpiCard label="Ready to collect" value={String(figures.ready)} context={`${figures.collected} collected today`} />
+        </KpiGrid>
+
+        <div className={twoColumns}>
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-[18px]">
+            <DiaryGrid
+              className="min-w-0"
+              resources={resources}
+              bookings={view.diary}
+              date={dateKey}
+              timeZone={timeZone}
+              now={now}
+              startHour={view.hours.startHour}
+              endHour={view.hours.endHour}
+              emptyResources={
+                <EmptyState
+                  icon={Warehouse}
+                  title="No bays or vans set up yet"
+                  description="Add the bays and vans you book work into, and today's bookings line up here."
+                  action={
+                    <Link href="/app/settings/resources" className={buttonClass("secondary")}>
+                      Set up bays and vans
+                    </Link>
+                  }
+                />
+              }
+            />
+            <RecentActivityPanel id="activity" entries={activity} userId={admin.user.id} now={now} />
+          </div>
+          <div className={sideColumn}>
+            <Panel id="needs-ok" title="Needs your OK" count={requests.count + calls.length} countLabel={`${requests.count + calls.length} waiting`}>
+              {waiting > 0 ? (
+                <ul className="m-0 flex list-none flex-col p-0">
+                  {view.approvals.map((booking) => (
+                    <li key={booking.id} className="border-b border-[#eef2f6] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
+                      <ApprovalCard
+                        bookingId={booking.id}
+                        registration={booking.registration}
+                        source={booking.source}
+                        receivedAt={booking.createdAt}
+                        now={now}
+                        customerName={booking.customerName}
+                        service={booking.serviceName}
+                        detail={bookingDetail(booking)}
+                        startsAt={booking.startsAt}
+                        timeZone={timeZone}
+                        acceptAction={acceptBookingAction}
+                        secondary={secondaryFor(booking, "light")}
+                      />
+                    </li>
+                  ))}
+                  {calls.map((call) => (
+                    <li key={call.id} className="border-b border-[#eef2f6] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
+                      <MissedCallCard call={call} timeZone={timeZone} tone="light" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="m-0 text-[14px] text-grey-600">Nothing waiting for your OK.</p>
+              )}
+              {requests.count > view.approvals.length ? (
+                <Link href="/app/bookings?status=requested" className={cn(textLinkClass, "self-start text-[14px]")}>
+                  See all {requests.count}
+                </Link>
+              ) : null}
+            </Panel>
+            <RemindersPanel reminders={reminders} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function RecentEnquiriesPanel({ enquiries, now }: { enquiries: RecentEnquiry[]; now: Date }) {
+function MissedCallCard({ call, timeZone, tone }: { call: MissedCall; timeZone: string; tone: "light" | "navy" }) {
+  const navy = tone === "navy";
+  const tel = telLink(call.fromNumber);
+  const time = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(call.at));
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-[#E4EAF0] bg-white xl:col-span-8" aria-labelledby="recent-enquiries-heading">
-      <PanelHeader
-        id="recent-enquiries-heading"
-        title="Recent enquiries"
-        description="The latest customer requests received from the website."
-        href="/app/enquiries"
-        action="View all"
-      />
-      {enquiries.length > 0 ? (
-        <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-y border-[#E4EAF0] bg-[#F8FAFC] text-[0.68rem] tracking-wide text-[#667586] uppercase">
-                <tr>
-                  <th className="px-5 py-3 font-extrabold">Customer</th>
-                  <th className="px-4 py-3 font-extrabold">Vehicle</th>
-                  <th className="px-4 py-3 font-extrabold">Request</th>
-                  <th className="px-4 py-3 font-extrabold">Status</th>
-                  <th className="px-4 py-3 font-extrabold">Received</th>
-                  <th className="px-5 py-3 text-right font-extrabold"><span className="sr-only">Action</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E4EAF0]">
-                {enquiries.map((enquiry) => (
-                  <tr key={enquiry.id} className="hover:bg-[#F8FAFC]">
-                    <td className="px-5 py-4 font-bold text-[#071127]">{enquiry.customers?.name || "Customer"}</td>
-                    <td className="px-4 py-4 text-[#586575]">{vehicleLabel(enquiry.vehicles)}</td>
-                    <td className="px-4 py-4 text-[#586575]">{requestLabel(enquiry)}</td>
-                    <td className="px-4 py-4"><EnquiryStatus status={enquiry.status} /></td>
-                    <td className="whitespace-nowrap px-4 py-4 text-[#667586]">{formatRelativeTime(enquiry.created_at, now)}</td>
-                    <td className="px-5 py-4 text-right">
-                      <Link className="font-bold text-[#1974E2] hover:text-[#1446A5]" href={`/app/enquiries/${enquiry.id}`}>Open</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="divide-y divide-[#E4EAF0] md:hidden">
-            {enquiries.map((enquiry) => (
-              <article key={enquiry.id} className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-[#071127]">{enquiry.customers?.name || "Customer"}</h3>
-                    <p className="mt-1 text-sm text-[#586575]">{vehicleLabel(enquiry.vehicles)}</p>
-                  </div>
-                  <EnquiryStatus status={enquiry.status} />
-                </div>
-                <p className="mt-3 text-sm font-semibold text-[#071127]">{requestLabel(enquiry)}</p>
-                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[#667586]">
-                  <span>{formatRelativeTime(enquiry.created_at, now)}</span>
-                  <Link className="font-bold text-[#1974E2]" href={`/app/enquiries/${enquiry.id}`}>Open enquiry</Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </>
+    <article className={cn("flex flex-col gap-2.5 font-sans leading-[normal]", navy ? "rounded-card bg-navy-950 p-3.5 text-white" : "text-grey-800")}>
+      <p className="m-0 flex items-center gap-2">
+        <PhoneMissed size={18} strokeWidth={2} aria-hidden="true" className={navy ? "text-[#f6d55c]" : "text-grey-700"} />
+        <span className={cn("text-[12px] font-bold tracking-[0.06em] uppercase", navy ? "text-[#f6d55c]" : "text-grey-700")}>Missed call</span>
+        <span className={cn("text-[12px]", navy ? "text-[#b8c4d4]" : "text-grey-600")}>· {time}</span>
+      </p>
+      <p className="m-0 text-[14px]">
+        <strong>{formatUkPhone(call.fromNumber)}</strong>
+      </p>
+      <div className="flex gap-2">
+        {tel ? (
+          <a href={tel} className={buttonClass(navy ? "onDarkPrimary" : "primary", "sm", "flex-1 rounded-[11px] text-[14px]")}>
+            Call back
+          </a>
+        ) : null}
+        <Link href="/app/bookings/new" className={buttonClass(navy ? "onDark" : "secondary", "sm", "flex-1 rounded-[11px] text-[14px]")}>
+          Book them in
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function RemindersPanel({ reminders }: { reminders: ReminderWeek | null }) {
+  return (
+    <Panel id="reminders-week" title="Reminders this week" className="gap-3">
+      {reminders ? (
+        <dl className="m-0 grid grid-cols-3 gap-2 text-center">
+          {[
+            { label: "Due", value: reminders.due, success: false },
+            { label: "Sent", value: reminders.sent, success: false },
+            { label: "Booked", value: reminders.booked, success: true },
+          ].map((item) => (
+            <div key={item.label} className={cn("flex flex-col-reverse gap-0.5 rounded-input px-1 py-2.5", item.success ? "bg-success-bg" : "bg-grey-50")}>
+              <dt className={cn("text-[12px]", item.success ? "text-success-ink" : "text-grey-600")}>{item.label}</dt>
+              <dd className={cn("m-0 font-display text-[26px] font-bold", item.success ? "text-success-ink" : "text-navy-950")}>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : (
         <EmptyState
-          icon={Inbox}
-          title="No enquiries yet"
-          body="New website enquiries will appear here automatically."
-          href="/app/enquiries"
-          action="Open enquiries"
+          className="py-4"
+          icon={BellRing}
+          title="Reminders are on their way"
+          description="MOT and service reminders that bring customers back will show here: how many are due, sent and booked this week."
         />
       )}
-    </section>
-  );
-}
-
-function BookingPanel({ configured, today, upcoming, attention }: { configured: boolean; today: number; upcoming: number; attention: number }) {
-  return (
-    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5" aria-labelledby="appointments-heading">
-      <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-[#1974E2]">
-          <CalendarClock size={20} aria-hidden="true" />
-        </span>
-        <div>
-          <h2 id="appointments-heading" className="text-lg font-bold text-[#071127]">Upcoming appointments</h2>
-          <p className="mt-1 text-sm leading-6 text-[#667586]">Bookings made online, by phone and from reminders, straight from your diary.</p>
-        </div>
-      </div>
-      <div className={cn("mt-5 rounded-xl border p-4 text-sm", configured ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900")}>
-        <strong className="block">{configured ? "Online booking is configured" : "Online booking needs configuration"}</strong>
-        <span className="mt-1 block text-xs leading-5">{configured ? "Online services and booking management security are in place." : "Switch on at least one online service and set the booking management secret."}</span>
-      </div>
-      <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <MiniMetric label="Today" value={today} />
-        <MiniMetric label="Upcoming" value={upcoming} />
-        <MiniMetric label="Needs your OK" value={attention} />
-      </dl>
-      <Link href="/app/bookings" className="mt-4 inline-flex min-h-10 items-center gap-2 font-bold text-[#1974E2] hover:text-[#1446A5]">
-        Manage bookings <ArrowRight size={15} aria-hidden="true" />
+      <Link href="/app/reminders" className={cn(textLinkClass, "self-start text-[14px]")}>
+        Open reminders →
       </Link>
-    </section>
+    </Panel>
   );
 }
 
-function SystemHealthPanel({ checks }: { checks: ReturnType<typeof createSystemHealthChecks> }) {
+/** SOB's Recent activity (the garage's audit log), kept for P4.9's opt-out and agreement records. */
+function RecentActivityPanel({ id, entries, userId, now, className }: { id: string; entries: ActivityEntry[] | null; userId: string; now: Date; className?: string }) {
   return (
-    <section id="system-health" className="scroll-mt-24 rounded-2xl border border-[#E4EAF0] bg-white p-5" aria-labelledby="system-health-heading">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[0.68rem] font-extrabold tracking-[0.14em] text-[#1974E2] uppercase">Configuration</p>
-          <h2 id="system-health-heading" className="mt-1 text-lg font-bold text-[#071127]">System health</h2>
-        </div>
-        <Radio size={20} className="text-[#1974E2]" aria-hidden="true" />
-      </div>
-      <div className="mt-4 divide-y divide-[#E4EAF0]">
-        {checks.map((check) => (
-          <div key={check.label} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-[#071127]">{check.label}</p>
-              <p className="truncate text-xs text-[#667586]">{check.detail}</p>
-            </div>
-            <HealthBadge state={check.state} label={check.status} />
-          </div>
-        ))}
-      </div>
-      <Link href="/app/settings" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#1974E2] hover:text-[#1446A5]">
-        Review settings <ArrowRight size={15} aria-hidden="true" />
-      </Link>
-    </section>
-  );
-}
-
-function ActivityPanel({ entries, displayName, now }: { entries: AuditEntry[]; displayName: string; now: Date }) {
-  return (
-    <section className="rounded-2xl border border-[#E4EAF0] bg-white p-5" aria-labelledby="activity-heading">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[0.68rem] font-extrabold tracking-[0.14em] text-[#1974E2] uppercase">Audit log</p>
-          <h2 id="activity-heading" className="mt-1 text-xl font-bold text-[#071127]">Recent activity</h2>
-        </div>
-        <Wrench className="text-[#1974E2]" size={22} aria-hidden="true" />
-      </div>
-      {entries.length > 0 ? (
-        <ol className="mt-4 divide-y divide-[#E4EAF0]">
+    <Panel id={id} title="Recent activity" className={className}>
+      {entries === null ? (
+        <p className="m-0 text-[14px] text-grey-600">Recent activity could not be loaded.</p>
+      ) : entries.length === 0 ? (
+        <p className="m-0 text-[14px] text-grey-600">Changes to bookings, invoices, settings and customers&apos; reminder choices show up here.</p>
+      ) : (
+        <ol className="m-0 flex list-none flex-col p-0">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
-              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#1974E2]" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-sm text-[#071127]"><strong className="capitalize">{auditActionLabel(entry.action, entry.entity_type)}</strong> <span className="capitalize text-[#586575]">{auditEntityLabel(entry.entity_type, entry.detail)}</span></p>
-                <p className="mt-1 text-xs text-[#7A8796]">{entry.actor_id ? displayName : "System"} · {formatRelativeTime(entry.created_at, now)}</p>
-              </div>
+            <li key={entry.id} className="flex flex-col gap-0.5 border-t border-[#eef2f6] py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+              <p className="m-0 text-[14px] text-grey-800">
+                <strong className="font-semibold text-navy-950">{auditActionLabel(entry.action, entry.entityType)}</strong> {auditEntityLabel(entry.entityType, entry.detail)}
+              </p>
+              <p className="m-0 text-[12.5px] text-grey-600">
+                {entry.actorId ? (entry.actorId === userId ? "You" : "Staff") : "System"} · <time dateTime={entry.at}>{formatRelativeTime(entry.at, now)}</time>
+              </p>
             </li>
           ))}
         </ol>
-      ) : (
-        <div className="mt-5 rounded-xl bg-[#F8FAFC] p-5 text-center">
-          <CheckCircle2 className="mx-auto text-[#1974E2]" size={24} aria-hidden="true" />
-          <p className="mt-3 font-bold text-[#071127]">No activity recorded yet</p>
-          <p className="mt-1 text-sm text-[#667586]">Operational changes will appear here.</p>
-        </div>
       )}
-    </section>
+    </Panel>
   );
-}
-
-function PanelHeader({ id, title, description, href, action }: { id: string; title: string; description: string; href: string; action: string }) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-4 p-5">
-      <div>
-        <h2 id={id} className="text-xl font-bold text-[#071127]">{title}</h2>
-        <p className="mt-1 text-sm text-[#667586]">{description}</p>
-      </div>
-      <Link href={href} className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#1974E2] hover:text-[#1446A5]">
-        {action} <ArrowRight size={15} aria-hidden="true" />
-      </Link>
-    </div>
-  );
-}
-
-function EmptyState({ icon: Icon, title, body, href, action }: { icon: LucideIcon; title: string; body: string; href: string; action: string }) {
-  return (
-    <div className="border-t border-[#E4EAF0] px-5 py-12 text-center">
-      <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#EAF3FF] text-[#1974E2]">
-        <Icon size={23} aria-hidden="true" />
-      </span>
-      <h3 className="mt-4 text-lg font-bold text-[#071127]">{title}</h3>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#667586]">{body}</p>
-      <Link href={href} className="mt-4 inline-flex min-h-10 items-center gap-2 font-bold text-[#1974E2]">
-        {action} <ArrowRight size={15} aria-hidden="true" />
-      </Link>
-    </div>
-  );
-}
-
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return <div className="px-2"><strong className="block text-2xl text-[#071127]">{value}</strong><span className="mt-1 block text-[0.68rem] font-bold text-[#667586]">{label}</span></div>;
-}
-
-function EnquiryStatus({ status }: { status: RecentEnquiry["status"] }) {
-  const styles = {
-    new: "bg-[#EAF3FF] text-[#1446A5]",
-    contacted: "bg-amber-100 text-amber-900",
-    booked: "bg-green-100 text-green-800",
-    closed: "bg-[#E4EAF0] text-[#586575]",
-  };
-  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[0.68rem] font-extrabold capitalize", styles[status])}>{status}</span>;
-}
-
-function HealthBadge({ state, label }: { state: HealthState; label: string }) {
-  const styles = state === "healthy" ? "bg-green-100 text-green-800" : state === "degraded" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900";
-  return <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[0.65rem] font-extrabold", styles)}>{label}</span>;
-}
-
-function QuickAction({ href, label, icon: Icon, variant = "primary" }: { href: string; label: string; icon: LucideIcon; variant?: "primary" | "secondary" }) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition",
-        variant === "primary" ? "bg-[#1974E2] text-white hover:bg-[#168BFF]" : "border border-[#D7E0E9] bg-white text-[#071127] hover:border-[#1974E2] hover:text-[#1974E2]",
-      )}
-    >
-      <Icon size={17} aria-hidden="true" /> {label}
-    </Link>
-  );
-}
-
-function requestLabel(enquiry: RecentEnquiry) {
-  return (enquiry.service_slug || enquiry.type).replaceAll("_", " ").replaceAll("-", " ");
-}
-
-function vehicleLabel(vehicle: RecentEnquiry["vehicles"]) {
-  if (!vehicle) return "Not supplied";
-  return [vehicle.make, vehicle.model, vehicle.registration].filter(Boolean).join(" · ") || "Not supplied";
-}
-
-function greetingForDate(date: Date) {
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Europe/London" }).format(date));
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function formatDashboardDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" }).format(date);
-}
-
-function firstName(displayName: string) {
-  return displayName.trim().split(/\s+/)[0] || "Administrator";
-}
-
-function londonDateKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/London" }).format(date);
-}
-
-function isWebsiteReady() {
-  const value = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  try {
-    const url = new URL(value);
-    if (process.env.NODE_ENV !== "production") return true;
-    return url.protocol === "https:" && !["localhost", "127.0.0.1"].includes(url.hostname);
-  } catch {
-    return false;
-  }
 }

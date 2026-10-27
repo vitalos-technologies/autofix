@@ -181,7 +181,8 @@ describe("getAdminContext", () => {
       membership(garageA, "manager", "2026-10-03T09:00:00Z"),
     ];
     const context = await getAdminContext();
-    expect(context?.memberships).toEqual([{ garageId: garageA.id, name: garageA.name, role: "manager" }]);
+    // accent and plan feed the switcher tiles (the fixture garages have none).
+    expect(context?.memberships).toEqual([{ garageId: garageA.id, name: garageA.name, role: "manager", accent: null, plan: null }]);
     expect(context?.garage.id).toBe(garageA.id);
   });
 

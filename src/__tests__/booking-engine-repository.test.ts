@@ -269,6 +269,16 @@ describe("createBooking", () => {
     expect(untickedCustomer).toMatchObject({ reminder_consent: false, consent_source: null, consent_text: null });
   });
 
+  it("records consent taken by staff on a phone or walk-in booking as staff consent", async () => {
+    for (const source of ["phone", "walk_in"] as const) {
+      const { engine, fake } = engineFor(world());
+      await engine.createBooking(GARAGE, input({ source, customer: { ...input().customer, reminderConsent: true, consentText: "Agreed on the phone." } }));
+      const payload = fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { source: string; customer: Record<string, unknown> };
+      expect(payload.source).toBe(source);
+      expect(payload.customer).toMatchObject({ reminder_consent: true, consent_source: "staff", consent_text: "Agreed on the phone." });
+    }
+  });
+
   it("rejects numbers that are not UK mobiles without touching the database", async () => {
     const { engine, fake } = engineFor(world());
     for (const phone of ["01302 000101", "+1 202 555 0100", "12345"]) {

@@ -1,309 +1,319 @@
-import {
-  AlertTriangle,
-  CalendarCheck2,
-  CalendarClock,
-  CheckCircle2,
-  ChevronRight,
-  CircleX,
-  Settings2,
-} from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { AdminBookingListFrame } from "@/components/admin/admin-booking-list-frame";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { CalendarSearch, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { AdminBulkActions, AdminItemCheckbox } from "@/components/admin/admin-bulk-actions";
-import { AdminLoadingLink } from "@/components/admin/admin-loading-link";
-import { AdminListFilters, AdminPagination } from "@/components/admin/admin-list-controls";
-import { ADMIN_LIST_PAGE_SIZE, positiveAdminPage } from "@/lib/admin/pagination";
-import { bookingStatuses, type BookingStatus } from "@/lib/booking-engine/types";
-import { getAdminReadClient } from "@/lib/tenancy/admin";
+import {
+  ADMIN_SEARCH_FIELD,
+  buttonClass,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Panel,
+  StatusPill,
+  SubmitButton,
+  textLinkClass,
+  type DataTableColumn,
+} from "@/components/admin-ui";
+import { PlateChip } from "@/components/book/plate-chip";
+import { formatSlotLabel } from "@/components/book/format";
+import { bookingHref, vehicleName, type AdminBooking } from "@/lib/admin/bookings";
+import { AdminDataError, BOOKING_LIST_PAGE_SIZE, cleanSearch, countBookingsByStatus, listBookings } from "@/lib/admin/data";
+import { formatShortDateKey } from "@/lib/admin/dates";
+import { ADMIN_SEARCH_COOKIE, bookingListHref, parseBookingListParams, type BookingListParams } from "@/lib/admin/search";
+import { searchAdmin } from "@/lib/admin/search-actions";
+import type { BookingStatus } from "@/lib/booking-engine/types";
+import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
-import { formatRegistration } from "@/lib/vehicle/registration-format";
 import { manageTrashAction } from "../trash/actions";
-import { bookingStatusLabel, bookingStatusTone } from "./status";
 
-// Kept simple until the bookings list is rebuilt (P3.3).
+export const metadata: Metadata = { title: "Bookings" };
 
-type Related<T> = T | T[] | null;
+/** Status filter chips, in workshop order. */
+const STATUS_FILTERS: Array<{ status: BookingStatus | null; label: string }> = [
+  { status: null, label: "All" },
+  { status: "requested", label: "Needs your OK" },
+  { status: "confirmed", label: "Booked" },
+  { status: "arrived", label: "Arrived" },
+  { status: "in_progress", label: "In bay" },
+  { status: "waiting_parts", label: "Waiting parts" },
+  { status: "ready", label: "Ready" },
+  { status: "collected", label: "Collected" },
+  { status: "cancelled", label: "Cancelled" },
+  { status: "no_show", label: "No-show" },
+];
 
-type AdminBookingListRow = {
-  id: string;
-  reference: string;
-  status: BookingStatus;
-  created_at: string;
-  starts_at: string;
-  location_mode: "workshop" | "mobile" | null;
-  services: Related<{ name: string }>;
-  customers: Related<{ name: string; email: string | null }>;
-  vehicles: Related<{ registration: string | null; make: string | null; model: string | null }>;
-};
+const COUNTED: BookingStatus[] = ["requested"];
 
-/** Booked and still to happen. */
-const activeStatuses: BookingStatus[] = ["requested", "confirmed"];
-/** Released statuses do not count towards today's diary. */
-const releasedStatuses: BookingStatus[] = ["cancelled", "no_show"];
-const bookingViews = ["today", "upcoming", "attention", "completed", "cancelled"] as const;
-type BookingView = typeof bookingViews[number];
-const pageSize = ADMIN_LIST_PAGE_SIZE;
+const fieldClass =
+  "h-11 w-full min-w-0 rounded-input border border-grey-300 bg-white px-3 font-sans text-[15px] text-navy-950 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent";
 
-export default async function AdminBookingsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; view?: string; page?: string }> }) {
-  const params = await searchParams;
-  const query = (params.q || "").trim();
-  const status = bookingStatuses.includes(params.status as BookingStatus) ? params.status as BookingStatus : "";
-  const view = bookingViews.includes(params.view as BookingView) ? params.view as BookingView : "";
-  const requestedPage = positiveAdminPage(params.page);
-  const client = await getAdminReadClient();
-  const now = new Date();
-  const today = dateKeyInLondon(now);
-  const tomorrow = addUtcDays(today, 1);
-  const todayStart = londonMidnight(today);
-  const tomorrowStart = londonMidnight(tomorrow);
+function when(booking: AdminBooking, timeZone: string) {
+  return formatSlotLabel(booking.startsAt, timeZone);
+}
 
-  const results = client ? await Promise.all([
-    client
-      .from("bookings")
-      .select("id,reference,status,starts_at,created_at,location_mode,services(name),customers(name,email),vehicles(registration,make,model)")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(250),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("starts_at", todayStart).lt("starts_at", tomorrowStart).not("status", "in", `(${releasedStatuses.join(",")})`),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("starts_at", now.toISOString()).in("status", activeStatuses),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "requested"),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "collected"),
-    client.from("bookings").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "cancelled"),
-  ]) : null;
+function columns(timeZone: string): DataTableColumn<AdminBooking>[] {
+  return [
+    {
+      key: "select",
+      header: <span className="sr-only">Select</span>,
+      className: "w-11",
+      cell: (booking) => <AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} />,
+    },
+    {
+      key: "reference",
+      header: "Booking",
+      rowHeader: true,
+      cell: (booking) => (
+        <Link href={bookingHref(booking.id)} className={cn(textLinkClass, "min-h-0 font-mono text-[13.5px] font-medium whitespace-nowrap")}>
+          {booking.reference}
+        </Link>
+      ),
+    },
+    { key: "when", header: "When", cell: (booking) => <span className="whitespace-nowrap">{when(booking, timeZone)}</span> },
+    { key: "customer", header: "Customer", cell: (booking) => <span className="font-semibold text-navy-950">{booking.customerName}</span> },
+    {
+      key: "car",
+      header: "Car",
+      cell: (booking) => (
+        <span className="flex items-center gap-2 whitespace-nowrap">
+          {booking.registration ? <PlateChip registration={booking.registration} className="text-[13px]" /> : null}
+          <span className="text-grey-600">{vehicleName(booking, false) ?? ""}</span>
+        </span>
+      ),
+    },
+    { key: "service", header: "Service", cell: (booking) => booking.serviceName },
+    { key: "status", header: "Status", cell: (booking) => <StatusPill status={booking.status} size="sm" /> },
+    {
+      key: "booked",
+      header: "Date booked",
+      cell: (booking) => <span className="whitespace-nowrap text-grey-600">{formatSlotLabel(booking.createdAt, timeZone)}</span>,
+    },
+  ];
+}
 
-  const allBookings = (results?.[0].data || []) as unknown as AdminBookingListRow[];
-  const filteredBookings = allBookings.filter((booking) => {
-    const customer = relation(booking.customers);
-    const vehicle = relation(booking.vehicles);
-    const searchable = [booking.reference, relation(booking.services)?.name, customer?.name, customer?.email, vehicle?.registration, vehicle?.make, vehicle?.model].filter(Boolean).join(" ").toLowerCase();
-    return (!query || searchable.includes(query.toLowerCase()))
-      && (!status || booking.status === status)
-      && matchesBookingView(booking, view, now, todayStart, tomorrowStart);
-  });
-  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
-  const page = Math.min(requestedPage, totalPages);
-  const bookings = filteredBookings.slice((page - 1) * pageSize, page * pageSize);
+/**
+ * Bookings: every booking, newest booked first, filtered by status and appointment dates (query
+ * string) and searched by reference, name, mobile or registration (posted; the term stays out of
+ * the URL). Reads through the garage's RLS client.
+ */
+export default async function BookingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const admin = await getAdminContext({ allowTrustedDevice: true });
+  if (!admin) redirect("/app/login");
+  const timeZone = admin.garage.timezone || "Europe/London";
+  const params = parseBookingListParams(await searchParams);
+  const search = params.searched ? cleanSearch((await cookies()).get(ADMIN_SEARCH_COOKIE)?.value) : "";
+  const searching = params.searched && search.length > 0;
 
-  const metrics = [
-    { label: "Today", value: results?.[1].count || 0, icon: CalendarCheck2, tone: "blue", view: "today" },
-    { label: "Upcoming", value: results?.[2].count || 0, icon: CalendarClock, tone: "navy", view: "upcoming" },
-    { label: "Needs your OK", value: results?.[3].count || 0, icon: AlertTriangle, tone: "amber", view: "attention" },
-    { label: "Collected", value: results?.[4].count || 0, icon: CheckCircle2, tone: "green", view: "completed" },
-    { label: "Cancelled", value: results?.[5].count || 0, icon: CircleX, tone: "red", view: "cancelled" },
-  ] as const;
+  let result: Awaited<ReturnType<typeof listBookings>> | null = null;
+  let counts: Partial<Record<BookingStatus, number>> = {};
+  try {
+    [result, counts] = await Promise.all([
+      listBookings(admin.client, { status: params.status, from: params.from, to: params.to, search: searching ? search : null, page: params.page, timeZone }),
+      countBookingsByStatus(admin.client, COUNTED),
+    ]);
+  } catch (error) {
+    if (!(error instanceof AdminDataError)) throw error;
+  }
+
+  const pages = result ? Math.max(1, Math.ceil(result.total / (result.pageSize || BOOKING_LIST_PAGE_SIZE))) : 1;
+  const filtered = Boolean(params.status || params.from || params.to || searching);
+  const keep: Partial<BookingListParams> = { status: params.status, from: params.from, to: params.to, searched: searching };
 
   return (
-    <>
-      <div className="flex flex-wrap items-start justify-between gap-5">
-        <div className="flex items-start gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3FF] text-[#1974E2]">
-            <CalendarClock size={23} aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-xs font-extrabold tracking-widest text-[#1974E2] uppercase">Garage appointments</p>
-            <h1 className="mt-1 text-4xl font-extrabold text-[#071127]">Bookings</h1>
-            <p className="mt-2 max-w-2xl text-[#667586]">Review appointment details and the bookings that need your OK.</p>
-          </div>
-        </div>
-        <Link href="/app/service-catalogue" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C9D5E2] bg-white px-4 text-sm font-extrabold text-[#1446A5] transition hover:border-[#1974E2] hover:bg-[#F1F7FF]">
-          <Settings2 size={17} aria-hidden="true" /> Services
-        </Link>
-      </div>
+    <div className="flex flex-col gap-[18px]">
+      <PageHeader
+        title="Bookings"
+        description="Every booking, newest first. Open one to change its status, move it or add a note."
+        actions={
+          <Link href="/app/bookings/new" className={buttonClass("primary", "md", "px-[18px]")}>
+            <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
+            New booking
+          </Link>
+        }
+      />
 
-      <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Booking summary">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <Link key={metric.label} href={view === metric.view ? "/app/bookings" : `/app/bookings?view=${metric.view}`} aria-current={view === metric.view ? "page" : undefined} className={cn("rounded-2xl border bg-white p-4 transition hover:border-[#1974E2] hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1974E2]/20 sm:p-5", view === metric.view ? "border-[#1974E2] ring-2 ring-[#1974E2]/15" : "border-[#E4EAF0]")}>
-              <span className={cn(
-                "grid size-9 place-items-center rounded-xl",
-                metric.tone === "blue" && "bg-[#EAF3FF] text-[#1974E2]",
-                metric.tone === "navy" && "bg-[#EEF1F7] text-[#1446A5]",
-                metric.tone === "amber" && "bg-amber-100 text-amber-800",
-                metric.tone === "green" && "bg-green-100 text-green-800",
-                metric.tone === "red" && "bg-red-100 text-red-800",
-              )}><Icon size={18} aria-hidden="true" /></span>
-              <p className="mt-4 text-3xl font-extrabold text-[#071127]">{metric.value}</p>
-              <p className="mt-1 text-xs font-bold text-[#667586] sm:text-sm">{metric.label}</p>
+      <Panel title="Find bookings" headingLevel={2} className="gap-3">
+        <form action={searchAdmin} role="search" className="flex flex-wrap items-end gap-2.5">
+          <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1.5">
+            <label htmlFor="bookings-search" className="text-[14px] font-semibold text-grey-800">
+              Reference, name, mobile or registration
+            </label>
+            <input
+              id="bookings-search"
+              name={ADMIN_SEARCH_FIELD}
+              type="search"
+              defaultValue={searching ? search : ""}
+              autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="search"
+              className={fieldClass}
+            />
+          </div>
+          {params.status ? <input type="hidden" name="status" value={params.status} /> : null}
+          {params.from ? <input type="hidden" name="from" value={params.from} /> : null}
+          {params.to ? <input type="hidden" name="to" value={params.to} /> : null}
+          <SubmitButton className={buttonClass("secondary")}>Search</SubmitButton>
+        </form>
+
+        <form method="get" action="/app/bookings" className="flex flex-wrap items-end gap-2.5">
+          {params.status ? <input type="hidden" name="status" value={params.status} /> : null}
+          {searching ? <input type="hidden" name="search" value="1" /> : null}
+          <div className="flex min-w-0 flex-[1_1_150px] flex-col gap-1.5">
+            <label htmlFor="bookings-from" className="text-[14px] font-semibold text-grey-800">
+              From
+            </label>
+            <input id="bookings-from" name="from" type="date" defaultValue={params.from ?? ""} className={fieldClass} />
+          </div>
+          <div className="flex min-w-0 flex-[1_1_150px] flex-col gap-1.5">
+            <label htmlFor="bookings-to" className="text-[14px] font-semibold text-grey-800">
+              To
+            </label>
+            <input id="bookings-to" name="to" type="date" defaultValue={params.to ?? ""} className={fieldClass} />
+          </div>
+          <button type="submit" className={buttonClass("secondary")}>
+            Show dates
+          </button>
+        </form>
+
+        <nav aria-label="Filter by status" className="-mx-[18px] overflow-x-auto px-[18px]">
+          <ul className="m-0 flex w-max list-none gap-2 p-0 py-1">
+            {STATUS_FILTERS.map((filter) => {
+              const active = params.status === filter.status;
+              const count = filter.status ? counts[filter.status] : undefined;
+              return (
+                <li key={filter.label}>
+                  <Link
+                    href={bookingListHref({ ...keep, status: filter.status, page: 1 })}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13.5px] whitespace-nowrap no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                      active ? "bg-navy-950 font-bold text-white" : "border border-grey-300 bg-white font-semibold text-navy-950 hover:border-grey-600",
+                    )}
+                  >
+                    {filter.label}
+                    {count ? <span className={cn("rounded-full px-1.5 text-[12px] font-bold", active ? "bg-white text-navy-950" : "bg-accent text-accent-ink")}>{count}</span> : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {filtered ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-grey-700">
+            <p className="m-0" role="status">
+              {result ? `${result.total} ${result.total === 1 ? "booking" : "bookings"}` : "Bookings"}
+              {searching ? <> matching <strong className="text-navy-950">&ldquo;{search}&rdquo;</strong></> : null}
+              {params.from && params.to
+                ? `, ${formatShortDateKey(params.from)} to ${formatShortDateKey(params.to)}`
+                : params.from
+                  ? `, from ${formatShortDateKey(params.from)}`
+                  : params.to
+                    ? `, up to ${formatShortDateKey(params.to)}`
+                    : null}
+            </p>
+            {searching ? (
+              <form action={searchAdmin}>
+                <input type="hidden" name={ADMIN_SEARCH_FIELD} value="" />
+                {params.status ? <input type="hidden" name="status" value={params.status} /> : null}
+                {params.from ? <input type="hidden" name="from" value={params.from} /> : null}
+                {params.to ? <input type="hidden" name="to" value={params.to} /> : null}
+                <SubmitButton className={cn(textLinkClass, "gap-1 border-0 bg-transparent p-0 text-[14px]")}>
+                  <X size={16} strokeWidth={2} aria-hidden="true" />
+                  Clear search
+                </SubmitButton>
+              </form>
+            ) : null}
+            <Link href="/app/bookings" className={cn(textLinkClass, "text-[14px]")}>
+              Clear all filters
             </Link>
-          );
-        })}
-      </section>
-
-      <AdminListFilters action="/app/bookings" query={query} status={status} additionalParams={{ view }} placeholder="Reference, customer, vehicle or service…" statusOptions={bookingStatuses.map((value) => ({ value, label: bookingStatusLabel(value) }))} />
-
-      <AdminBulkActions entity="bookings" action={manageTrashAction}>
-      <section className="mt-8" aria-labelledby="booking-list-heading">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 id="booking-list-heading" className="text-2xl font-extrabold text-[#071127]">Appointment list</h2>
-            <p className="mt-1 text-sm text-[#667586]">Bookings are ordered by date booked, newest to oldest.</p>
           </div>
-          <p className="text-sm font-bold text-[#667586]">{filteredBookings.length} matching</p>
-        </div>
+        ) : null}
+      </Panel>
 
-        <AdminBookingListFrame
-          key={`${page}:${query}:${status}:${view}`}
-          pagination={<AdminPagination path="/app/bookings" page={page} pageSize={pageSize} totalItems={filteredBookings.length} query={query} status={status} additionalParams={{ view }} />}
-        >
-        <div className="mt-5 hidden max-h-[60vh] overflow-auto rounded-2xl border border-[#E4EAF0] bg-white xl:block">
-          <table className="w-full min-w-[1120px] table-fixed text-left">
-            <thead className="sticky top-0 z-10 bg-[#F4F7FA] text-xs font-extrabold tracking-wide text-[#586575] uppercase shadow-[0_1px_0_#E4EAF0]">
-              <tr>
-                <th className="w-[4%] py-4 pl-3"><span className="sr-only">Select</span></th>
-                <th className="w-[11%] py-4 pl-2 pr-2">Booking ref</th>
-                <th className="w-[19%] py-4 pl-2 pr-4">Customer</th>
-                <th className="w-[17%] px-4 py-4">Vehicle</th>
-                <th className="w-[16%] px-4 py-4">Service</th>
-                <th className="w-[12%] px-4 py-4">Status</th>
-                <th className="w-[15%] px-4 py-4">Date booked</th>
-                <th className="w-[10%] px-4 py-4"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((booking) => {
-                const customer = relation(booking.customers);
-                const vehicle = relation(booking.vehicles);
-                const bookedAt = formatBookedAt(booking.created_at);
-                return (
-                  <tr key={booking.id} className={cn("border-t border-[#E4EAF0] align-top transition hover:bg-[#F8FAFC]", booking.status === "requested" && "bg-amber-50/60")}>
-                    <td className="py-2 pl-2"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} /></td>
-                    <td className="py-4 pl-2 pr-2 font-mono text-sm font-black text-[#1974E2]">{booking.reference}</td>
-                    <td className="py-4 pl-2 pr-4"><p className="truncate text-sm font-extrabold text-[#071127]">{customer?.name || "Customer"}</p><p className="mt-1 truncate text-xs text-[#667586]">{customer?.email || "No email"}</p></td>
-                    <td className="px-4 py-4 text-sm text-[#586575]">{vehicleLabel(vehicle)}</td>
-                    <td className="px-4 py-4 text-sm font-semibold text-[#071127]">{relation(booking.services)?.name || "Booking"}</td>
-                    <td className="px-4 py-4"><BookingStatusBadge status={booking.status} /></td>
-                    <td className="px-4 py-4">
-                      <time dateTime={booking.created_at} className="text-sm font-bold text-[#071127]">
-                        <span className="block">{bookedAt.date}</span>
-                        <span className="mt-1 block text-xs font-semibold text-[#667586]">{bookedAt.time}</span>
-                      </time>
-                    </td>
-                    <td className="px-4 py-4">
-                      <BookingOpenLink href={`/app/bookings/${booking.id}`} className="inline-flex min-h-10 items-center rounded-lg border border-[#BCD6F6] px-3 text-xs font-extrabold text-[#1446A5] hover:bg-[#F1F7FF]">View</BookingOpenLink>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {!result ? (
+        <div role="alert" className="rounded-card border border-[#f3c4c4] bg-[#fdecec] px-4 py-3.5 text-[14px] font-semibold text-[#991b1b]">
+          Bookings could not be loaded. Refresh the page to try again.
         </div>
+      ) : result.rows.length === 0 ? (
+        <EmptyState
+          tone="card"
+          icon={CalendarSearch}
+          title={filtered ? "No bookings match" : "No bookings yet"}
+          description={filtered ? "Try another search, status or dates." : "Online, phone and walk-in bookings appear here as they come in."}
+          action={
+            filtered ? (
+              <Link href="/app/bookings" className={buttonClass("secondary")}>
+                Show all bookings
+              </Link>
+            ) : (
+              <Link href="/app/bookings/new" className={buttonClass("primary")}>
+                New booking
+              </Link>
+            )
+          }
+        />
+      ) : (
+        <AdminBulkActions entity="bookings" action={manageTrashAction}>
+          <section aria-labelledby="booking-list-heading" className="mt-3.5 flex flex-col gap-3">
+            <h2 id="booking-list-heading" className="sr-only">
+              Booking list
+            </h2>
+            <p className="m-0 text-[13px] text-grey-600">Only finished bookings (collected, cancelled or no-show) can go in the trash.</p>
 
-        <div className="mt-5 grid max-h-[65vh] gap-4 overflow-y-auto pr-1 xl:hidden">
-          {bookings.map((booking) => {
-            const customer = relation(booking.customers);
-            const vehicle = relation(booking.vehicles);
-            const bookedAt = formatBookedAt(booking.created_at);
-            return (
-              <article key={booking.id} className={cn("relative rounded-2xl border bg-white p-5 pl-14", booking.status === "requested" ? "border-amber-300" : "border-[#E4EAF0]")}>
-                <div className="absolute left-2 top-3"><AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} /></div>
-                <BookingOpenLink href={`/app/bookings/${booking.id}`} className="block rounded-lg outline-none focus-visible:ring-4 focus-visible:ring-[#1974E2]/20">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm font-black tracking-wide text-[#1974E2]">{booking.reference}</p>
-                      <h3 className="mt-2 truncate text-xl font-extrabold text-[#071127]">{customer?.name || "Customer"}</h3>
-                      <time dateTime={booking.created_at} className="mt-1 block text-sm font-semibold text-[#586575]">
-                        <span className="block">Booked {bookedAt.date}</span>
-                        <span className="mt-0.5 block text-xs">{bookedAt.time}</span>
-                      </time>
-                    </div>
-                    <ChevronRight className="mt-1 shrink-0 text-[#1974E2]" size={21} aria-hidden="true" />
-                  </div>
-                  <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-5 text-sm">
-                    <ListDetail label="Vehicle" value={vehicleLabel(vehicle)} />
-                    <ListDetail label="Service" value={relation(booking.services)?.name || "Booking"} />
-                    <div><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">Status</dt><dd className="mt-2"><BookingStatusBadge status={booking.status} /></dd></div>
-                  </dl>
-                  <span className="sr-only">Open booking {booking.reference}</span>
-                </BookingOpenLink>
-              </article>
-            );
-          })}
-        </div>
+            {/* Phone and tablet: cards. */}
+            <ul className="m-0 flex list-none flex-col gap-2.5 p-0 lg:hidden">
+              {result.rows.map((booking) => (
+                <li key={booking.id} className="flex items-start gap-1 rounded-card border border-grey-200 bg-white py-2.5 pr-3.5 pl-1">
+                  <AdminItemCheckbox id={booking.id} label={`Select booking ${booking.reference}`} />
+                  <Link href={bookingHref(booking.id)} className="flex min-w-0 grow flex-col gap-1 rounded-[12px] py-1 text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                    <span className="flex flex-wrap items-center gap-2">
+                      {booking.registration ? <PlateChip registration={booking.registration} /> : null}
+                      <span className="text-[12.5px] text-grey-600">{vehicleName(booking, false) ?? ""}</span>
+                      <StatusPill status={booking.status} size="sm" className="ml-auto" />
+                    </span>
+                    <span className="text-[14px] font-semibold text-grey-800">
+                      {booking.customerName} · {booking.serviceName}
+                    </span>
+                    <span className="text-[13px] text-grey-600">
+                      {when(booking, timeZone)} · <span className="font-mono">{booking.reference}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-        {!bookings.length && (
-          <div className="mt-5 rounded-2xl border border-[#E4EAF0] bg-white p-10 text-center">
-            <CalendarClock className="mx-auto text-[#1974E2]" aria-hidden="true" />
-            <h2 className="mt-4 text-xl font-bold text-[#071127]">No booking records yet</h2>
-            <p className="mt-2 text-sm text-[#667586]">Appointments will appear here after a customer completes your online booking flow.</p>
-          </div>
-        )}
-        </AdminBookingListFrame>
-      </section>
-      </AdminBulkActions>
-    </>
+            {/* Desktop: table, scrolling inside its own box when narrow. */}
+            <div className="hidden rounded-card border border-grey-200 bg-white px-[18px] py-2 lg:block">
+              <DataTable caption="Bookings" columns={columns(timeZone)} rows={result.rows} getRowKey={(booking) => booking.id} minWidth={900} />
+            </div>
+
+            {pages > 1 ? (
+              <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3">
+                <p className="m-0 text-[14px] text-grey-600">
+                  Page {result.page} of {pages}
+                </p>
+                <div className="flex gap-2.5">
+                  {result.page > 1 ? (
+                    <Link href={bookingListHref({ ...keep, page: result.page - 1 })} className={buttonClass("secondary")}>
+                      <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />
+                      Newer
+                    </Link>
+                  ) : null}
+                  {result.page < pages ? (
+                    <Link href={bookingListHref({ ...keep, page: result.page + 1 })} className={buttonClass("secondary")}>
+                      Older
+                      <ChevronRight size={18} strokeWidth={2} aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                </div>
+              </nav>
+            ) : null}
+          </section>
+        </AdminBulkActions>
+      )}
+    </div>
   );
-}
-
-function matchesBookingView(booking: AdminBookingListRow, view: BookingView | "", now: Date, todayStart: string, tomorrowStart: string) {
-  if (!view) return true;
-  const appointmentTime = new Date(booking.starts_at).getTime();
-  if (view === "today") return appointmentTime >= new Date(todayStart).getTime() && appointmentTime < new Date(tomorrowStart).getTime() && !releasedStatuses.includes(booking.status);
-  if (view === "upcoming") return appointmentTime >= now.getTime() && activeStatuses.includes(booking.status);
-  if (view === "attention") return booking.status === "requested";
-  if (view === "completed") return booking.status === "collected";
-  return booking.status === view;
-}
-
-function ListDetail({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><dt className="text-xs font-extrabold tracking-wide text-[#667586] uppercase">{label}</dt><dd className="mt-1 line-clamp-2 font-bold text-[#071127]">{value}</dd></div>;
-}
-
-function BookingOpenLink({ href, className, children }: { href: string; className: string; children: React.ReactNode }) {
-  return <AdminLoadingLink href={href} className={className} loadingTitle="Opening booking" loadingDescription="Please wait while the booking details open.">{children}</AdminLoadingLink>;
-}
-
-function BookingStatusBadge({ status }: { status: BookingStatus }) {
-  return <span className={cn("inline-flex rounded-full px-3 py-1.5 text-xs font-extrabold", bookingStatusTone(status))}>{bookingStatusLabel(status)}</span>;
-}
-
-function relation<T>(value: Related<T>): T | null {
-  return Array.isArray(value) ? value[0] || null : value;
-}
-
-function vehicleLabel(vehicle: { registration: string | null; make: string | null; model: string | null } | null) {
-  return [vehicle?.make, vehicle?.model, vehicle?.registration ? formatRegistration(vehicle.registration) : null].filter(Boolean).join(" · ") || "Vehicle not recorded";
-}
-
-function formatBookedAt(value: string) {
-  const date = new Date(value);
-  return {
-    date: new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(date),
-    time: new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(date),
-  };
-}
-
-function dateKeyInLondon(value: Date) {
-  const parts = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/London" }).formatToParts(value);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function londonMidnight(dateKey: string) {
-  const [year = 0, month = 0, day = 0] = dateKey.split("-").map(Number);
-  const target = Date.UTC(year, month - 1, day);
-  let guess = target;
-  for (let index = 0; index < 3; index += 1) {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-      timeZone: "Europe/London",
-    }).formatToParts(new Date(guess));
-    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value || 0);
-    const represented = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour") % 24, part("minute"), part("second"));
-    guess += target - represented;
-  }
-  return new Date(guess).toISOString();
-}
-
-function addUtcDays(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
 }

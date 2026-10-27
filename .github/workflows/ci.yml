@@ -172,6 +172,10 @@ jobs:
         run: pnpm test:e2e:manage
       - name: Setup pages for a TOTP owner on its own garage, checked on its booking site (axe at 390 and 1440)
         run: pnpm test:e2e:settings
+      - name: Garage admin on the admin host (TOTP sign-in, Today, bookings, diary, garage switch; 1440 and 390px)
+        run: pnpm test:e2e:admin
+      - name: Super admin for a TOTP platform admin (404s, plan/status, read-only impersonation, job retry; axe at 390 and 1440)
+        run: pnpm test:e2e:super-admin
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports

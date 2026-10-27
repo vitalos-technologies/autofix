@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 export default function DevComponentsPage() {
   if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEV_COMPONENTS !== "true") notFound();
   return (
-    <div className={`${fontVariables} font-sans`}>
+    <main className={`${fontVariables} font-sans`}>
       <ComponentGallery />
-    </div>
+    </main>
   );
 }

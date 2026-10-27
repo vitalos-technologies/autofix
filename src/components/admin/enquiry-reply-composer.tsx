@@ -29,7 +29,7 @@ export function EnquiryReplyComposer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="composer-heading" className="text-xl font-extrabold text-[#071127]">Write a message</h2>
         <div className="inline-flex rounded-xl bg-[#F1F5F9] p-1" aria-label="Message type">
-          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-[#1974E2] shadow-sm" : "text-[#586575]"}`}>Reply to customer</button>
+          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-accent shadow-sm" : "text-[#586575]"}`}>Reply to customer</button>
           <button type="button" onClick={() => setMode("note")} aria-pressed={mode === "note"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "note" ? "bg-amber-100 text-amber-950 shadow-sm" : "text-[#586575]"}`}>Internal note</button>
         </div>
       </div>

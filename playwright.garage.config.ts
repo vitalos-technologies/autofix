@@ -10,6 +10,8 @@ import { getLocalSupabaseConfig } from "./tests/helpers/local-supabase";
 //   pnpm test:e2e:booking  booking.spec.ts  the 5-step booking flow on http://hartley-road.localhost:<port>/
 //                          on the real engine (create_booking() in local Supabase), desktop, Pixel 5 and 390x844
 //   pnpm test:e2e:manage   manage.spec.ts   manage booking (/manage): lookup, signed link, move, cancel, at 390px
+//   pnpm test:e2e:admin    admin.spec.ts    garage admin on the admin host (P3.1-P3.3): sign-in with TOTP, Today,
+//                          accept, status + notes, search, staff booking, diary, garage switch; 1440 and 390x844
 //   pnpm test:e2e:settings settings.spec.ts setup pages (/app/settings/*) for an owner signed in with password +
 //                          TOTP, checked on its own garage's booking site (<slug>.localhost), axe at 390 and 1440
 // Both run on the database engine (available_slots(), create_booking()): booking.spec.ts reads the rows it
@@ -82,6 +84,17 @@ export default defineConfig({
       name: "manage-mobile",
       testMatch: "manage.spec.ts",
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: bookingOrigin },
+    },
+    // The admin at desktop width (sidebar) and on a phone (tab bar), on the admin host.
+    {
+      name: "admin-chromium",
+      testMatch: "admin.spec.ts",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, baseURL: adminOrigin },
+    },
+    {
+      name: "admin-390",
+      testMatch: "admin.spec.ts",
+      use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 }, baseURL: adminOrigin },
     },
     // Setup pages: its own garage and signed-in owner; the spec checks 390 and 1440 itself.
     { name: "settings", testMatch: "settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },

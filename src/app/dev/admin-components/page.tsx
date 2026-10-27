@@ -73,8 +73,6 @@ export default async function DevAdminComponentsPage({ searchParams }: { searchP
         signOutAction={galleryNoopAction}
         accountLinks={[{ label: "Team and security", href: viewHref("states") }]}
         tabs={galleryTabs()}
-        // The root layout already wraps every page in <main>.
-        contentElement="div"
       >
         {view === "today" ? <TodayView /> : null}
         {view === "reminders" ? <RemindersView /> : null}
