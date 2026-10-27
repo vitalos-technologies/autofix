@@ -1,24 +1,27 @@
-# Self-hosted GitHub Actions runners (AWS build VM)
+# Self-hosted GitHub Actions runners (Azure primary, AWS fallback)
 
 **Why:** GitHub-hosted runners for `vitalos-technologies` are blocked by org billing: every hosted job failed in about two
 seconds with "The job was not started because recent account payments have failed or your spending limit needs to be
-increased". Autofix CI runs on the Vitalos build VM instead, next to workforce's runners. Self-hosted minutes are free.
-Billing itself is handled separately; switching back is one repository variable (below).
+increased". Autofix CI runs on self-hosted runners instead. Self-hosted minutes are free. Billing itself is handled
+separately; switching back is one repository variable (below).
 
-## What runs where
+## What runs where (27 Oct 2026)
 
 | What | Where |
 | --- | --- |
-| Machine | EC2 `vitalos-workforce-build` (`i-0acc8453065a3eb23`), eu-west-2, `t3a.xlarge` (4 vCPU, 16 GiB), Ubuntu 24.04, reached by SSM only |
-| Running hours | 06:00–23:59 Europe/London. Jobs queued overnight wait for the morning start; a job still running at 23:59 is killed by the stop |
-| Runners | `autofix-build-vm-1`, `autofix-build-vm-2`: repo-level on `vitalos-technologies/autofix`, labels `self-hosted, linux, x64, autofix`, `actions/runner` v2.338.0 (SHA-256 checked) in `/home/ghrunner-autofix/actions-runner-N` |
-| User | `ghrunner-autofix`: non-root, no sudo, not in the `docker` group, home `0750`, cannot read `/srv/workforce/secrets`. Separate from workforce's `ghrunner`, which these scripts refuse to touch |
-| Services | systemd `actions.runner.vitalos-technologies-autofix.autofix-build-vm-N.service`, enabled at boot, with a drop-in (`rootless-docker.conf`) that sets `DOCKER_HOST`/`XDG_RUNTIME_DIR` and orders it after the user's systemd instance |
-| Docker | rootless: the user's own daemon (`~/.config/systemd/user/docker.service`), started from boot by systemd linger. Socket `/run/user/<uid>/docker.sock`. Used by `supabase start` in `database-tests` |
-| Browsers | Chromium's system libraries installed once as root (`playwright install-deps chromium`); jobs run `playwright install chromium` without `--with-deps` into `~/.cache/ms-playwright`. Lighthouse uses that Chromium through `CHROME_PATH` |
-| Workflows | every job: `runs-on: ${{ fromJSON(vars.RUNS_ON \|\| '["self-hosted","autofix"]') }}`, workflow `concurrency` per ref with cancel-in-progress |
+| **Primary** | Azure VM `autofix-ci` (ukwest, `F8as_v6`, 8 vCPU, 31 GiB, Ubuntu, runs 24/7), set up and run by Temitope until the Azure credit ends (about 5 Nov 2026). Runners `autofix-azure-1` … `-4`, labels `self-hosted, linux, x64, autofix, azure` |
+| **Fallback** | AWS EC2 `vitalos-workforce-build` (`i-0acc8453065a3eb23`, eu-west-2, shared with workforce's runners and agents, runs 06:00–23:59 London). Runner `autofix-build-vm-1` is stopped and its service disabled; `autofix-build-vm-2` was removed. Re-enable with `provision-vm.sh` (below) when Azure goes away |
+| Runner software | `actions/runner` v2.338.0 (SHA-256 checked), repo-level on `vitalos-technologies/autofix`, in `/home/ghrunner-autofix/actions-runner-N` |
+| User | `ghrunner-autofix` on each machine: non-root, no sudo, not in the `docker` group, home `0750`. On AWS it cannot read `/srv/workforce/secrets` and is separate from workforce's `ghrunner`, which these scripts refuse to touch |
+| Services | systemd `actions.runner.vitalos-technologies-autofix.<runner>.service`, enabled at boot, with a drop-in (`rootless-docker.conf`) that sets `DOCKER_HOST`/`XDG_RUNTIME_DIR` and orders it after the user's systemd instance |
+| Docker | rootless: the user's own daemon (`~/.config/systemd/user/docker.service`), started from boot by systemd linger. Socket `/run/user/<uid>/docker.sock`. Supabase images are cached in it |
+| Browsers | Chromium's system libraries installed once as root (`playwright install-deps chromium`, Playwright 1.62.1); jobs run `playwright install chromium` without `--with-deps` into `~/.cache/ms-playwright`. Lighthouse uses that Chromium through `CHROME_PATH` |
+| Workflows | every job: `runs-on: ${{ fromJSON(vars.RUNS_ON \|\| '["self-hosted","autofix"]') }}` (matches both pools), workflow `concurrency` per ref with cancel-in-progress, pnpm installed per job into `runner.temp` (all runners on a machine share one `$HOME`) |
 
-Workforce's five runners (`workforce-build-vm`, `-2` … `-5`, user `ghrunner`) share the machine and are managed from the
+The Azure VM's setup follows the same scripts as AWS (`setup-rootless-docker.sh`, `setup-runner.sh` with
+`RUNNER_NAME_PREFIX=autofix-azure`); `provision-vm.sh` itself only drives the AWS VM over SSM.
+
+On AWS, workforce's five runners (`workforce-build-vm`, `-2` … `-5`, user `ghrunner`) share the machine and are managed from the
 workforce repo (`infrastructure/RUNNER.md` there).
 
 ## Sharing one machine
@@ -96,5 +99,12 @@ limit above $0. Delete the variable to return to the VM.
 
 ## Capacity
 
-Measured on first rollout: see the build log in `docs/autofix/BUILD-PLAN.md` (memory before, peak during a
-`database-tests` run, and the runner count chosen).
+Measured by the `database-tests` job's own memory sampler (`MemAvailable` every 5 s):
+
+| Run | Machine | Total | Available at start | Lowest during the job | Used by the job (peak) |
+| --- | --- | --- | --- | --- | --- |
+| 27 Oct 2026, run 40425245004 | Azure `autofix-ci` (`autofix-azure-4`) | 31 GiB | 29.8 GiB | 25.3 GiB | about 4.5 GiB (Supabase stack + Playwright PDF test) |
+
+Four runners each running a database-sized job would need about 18 GiB, which fits in 31 GiB. On the shared 16 GiB AWS VM,
+keep one autofix runner (the agents and workforce's runners need the rest; cut further if available memory drops under
+about 3 GB).
