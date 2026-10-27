@@ -168,6 +168,8 @@ jobs:
       # Gate 2. playwright.garage.config.ts pins BOOKING_ENGINE=supabase (create_booking() in this job's Supabase).
       - name: 5-step booking flow on the real engine (desktop, Pixel 5, 390x844; axe on every step)
         run: pnpm test:e2e:booking
+      - name: Manage booking on the seeded garage host (390px)
+        run: pnpm test:e2e:manage
       - name: Admin-host browser tests
         run: pnpm test:e2e --project=chromium
       - name: Keep Playwright reports

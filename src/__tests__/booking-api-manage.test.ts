@@ -37,6 +37,9 @@ const TOKEN = "Zm9vYmFyYmF6cXV4cXV1eGNvcmdlZ3JhdWx0Z2FycGx";
 const booking: ManagedBooking = {
   id: BOOKING,
   garageId: garage.id,
+  customerName: "Sam Patel",
+  customerPhone: "+447700900412",
+  postcode: null,
   reference: "HRM-4821",
   status: "confirmed",
   startsAt: "2026-11-20T10:00:00.000Z",
@@ -82,6 +85,9 @@ describe("GET /api/bookings/manage", () => {
     const json = await response.json();
     expect(json.booking).toMatchObject({ reference: "HRM-4821", canChange: true });
     expect(JSON.stringify(json)).not.toContain(BOOKING);
+    // The phone number and surname stay on the server.
+    expect(JSON.stringify(json)).not.toContain("+447700900412");
+    expect(JSON.stringify(json)).not.toContain("Patel");
     const cookie = sessionCookie(response);
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/Max-Age=1800/i);

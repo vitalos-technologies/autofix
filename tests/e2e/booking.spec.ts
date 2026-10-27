@@ -5,15 +5,16 @@
  * hartley-road with MOT on and 3 bays, demo-b with MOT off) and the mock vehicle provider, on desktop, Pixel 5 and
  * an explicit 390×844 phone.
  *
- * Every test fails if any request or navigation URL in any of its browser contexts carries a registration, and axe
- * must report no violations on each of the 5 steps and on the "slot taken" state. Bookings are read back through the
- * service role to prove they are real rows. The spec uses its own customer numbers (07700 9004xx), works with
- * whatever the diary already holds (it always takes the first free time) and deletes the bookings it made, so
- * repeated runs do not depend on each other.
+ * Every test fails if any request or navigation URL in any of its browser contexts carries a registration, or if a
+ * document loses its <title>. On each of the 5 steps and on the "slot taken" state, the server-rendered HTML must
+ * have a non-empty <title> in <head> and axe must report no violations. Bookings are read back through the service
+ * role to prove they are real rows. The spec uses its own customer numbers (07700 900461/462), works with whatever
+ * the diary already holds (it always takes the first free time) and deletes the bookings it made, so repeated runs
+ * do not depend on each other.
  */
-import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test as base, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { fillSlot, seededGarage } from "../helpers/booking-fixtures";
 import { createLocalClient, getLocalSupabaseConfig } from "../helpers/local-supabase";
 
 const port = Number(process.env.PLAYWRIGHT_PORT || "3430");
@@ -25,9 +26,7 @@ const REGISTRATIONS = [REGISTRATION, RIVAL_REGISTRATION, MANUAL_REGISTRATION];
 /** Ofcom drama-range mobiles used only by this spec (the seed uses 9001xx and 9002xx). */
 const CUSTOMER_PHONE = "07700 900461";
 const RIVAL_PHONE = "07700 900462";
-const SPEC_PHONES = ["+447700900461", "+447700900462", "+447700900463"];
-/** Cars of the phone bookings that fill bays in the "slot taken" test. */
-const FILL_REGISTRATION_PREFIX = "PW46F";
+const SPEC_PHONES = ["+447700900461", "+447700900462"];
 
 const db = createLocalClient(getLocalSupabaseConfig().secretKey);
 
@@ -115,17 +114,19 @@ let diagnosticsId: string;
 const createdReferences = new Set<string>();
 const createdBookingIds = new Set<string>();
 
-/** Bookings this spec made: the ones it noted, and leftovers of an interrupted run (its phones and cars only). */
+/**
+ * Bookings this spec made: the ones it noted (including the bays `fillSlot()` took), and leftovers of an
+ * interrupted run (its own phones and cars only, so other specs' bookings are never touched).
+ */
 async function deleteSpecBookings() {
-  const [customers, cars, filledCars] = await Promise.all([
+  const [customers, cars] = await Promise.all([
     db.from("customers").select("id").eq("garage_id", garage.id).in("phone", SPEC_PHONES),
     db.from("vehicles").select("id").eq("garage_id", garage.id).in("registration", [REGISTRATION, RIVAL_REGISTRATION]),
-    db.from("vehicles").select("id").eq("garage_id", garage.id).like("registration", `${FILL_REGISTRATION_PREFIX}%`),
   ]);
-  const lookupError = customers.error ?? cars.error ?? filledCars.error;
+  const lookupError = customers.error ?? cars.error;
   if (lookupError) throw new Error(`Could not read this spec's customers and cars: ${lookupError.message}`);
   const customerIds = (customers.data ?? []).map((row) => row.id as string);
-  const vehicleIds = [...(cars.data ?? []), ...(filledCars.data ?? [])].map((row) => row.id as string);
+  const vehicleIds = (cars.data ?? []).map((row) => row.id as string);
   if (customerIds.length && vehicleIds.length) {
     const { error } = await db.from("bookings").delete().eq("garage_id", garage.id).in("customer_id", customerIds).in("vehicle_id", vehicleIds);
     if (error) throw new Error(`Could not delete this spec's bookings: ${error.message}`);
@@ -168,24 +169,6 @@ async function freeCountAt(startsAt: string) {
   return (data as { starts_at: string; free_count: number }[]).find((slot) => Date.parse(slot.starts_at) === Date.parse(startsAt))?.free_count ?? 0;
 }
 
-/** A phone booking straight through `create_booking()`, as another customer would make. */
-async function bookDirectly(startsAt: string, number: number) {
-  const { data, error } = await db.rpc("create_booking", {
-    p_garage_id: garage.id,
-    p_booking: {
-      service_id: diagnosticsId,
-      starts_at: startsAt,
-      location_mode: "workshop",
-      source: "phone",
-      idempotency_key: randomUUID(),
-      customer: { name: `Phone Customer ${number}`, phone: "+447700900463", channel: "sms", reminder_consent: false },
-      vehicle: { registration: `${FILL_REGISTRATION_PREFIX}${number}`, make: "Ford", model: "Focus" },
-    },
-  });
-  if (error) throw new Error(`create_booking failed: ${error.message}`);
-  createdBookingIds.add((data as { booking_id: string }).booking_id);
-}
-
 /** The booking behind a confirmation page, with its customer and vehicle. */
 async function storedBooking(reference: string) {
   const booking = await db
@@ -206,7 +189,25 @@ async function storedBooking(reference: string) {
 // Page helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * The step as the server renders it (same cookies as the page) has a non-empty <title> in <head>: blocking
+ * metadata (next.config.ts htmlLimitedBots), not a title streamed into <body> after the first paint.
+ */
+async function expectServerRenderedTitle(page: Page) {
+  const path = new URL(page.url()).pathname;
+  // Fetched by the page itself: garage hosts (*.localhost) resolve only inside the browser, and it sends the cookies.
+  const { status, html } = await page.evaluate(async () => {
+    const response = await fetch(location.href, { cache: "no-store" });
+    return { status: response.status, html: await response.text() };
+  });
+  expect(status, `GET ${path}`).toBe(200);
+  expect(html.slice(0, html.indexOf("</head>")), `<title> in the server-rendered <head> of ${path}`).toMatch(/<title>[^<]*\S[^<]*<\/title>/);
+}
+
 async function expectAccessible(page: Page) {
+  await expectServerRenderedTitle(page);
+  // Belt and braces: the title is in the first HTML (above) and PageGuard fails the test if it ever goes missing.
+  await expect(page).toHaveTitle(/\S/);
   // Let colour transitions on just-pressed buttons finish so axe measures the final colours.
   await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const results = await new AxeBuilder({ page }).analyze();
@@ -282,9 +283,6 @@ test.describe("5-step booking flow", () => {
   test("opens on the vehicle step with one visible h1, a title and no iframe", async ({ page }) => {
     const response = await page.goto("/");
     expect(response?.status()).toBe(200);
-    // The title is in the <head> of the first HTML, not streamed into <body> later (next.config.ts htmlLimitedBots).
-    const html = await response!.text();
-    expect(html.slice(0, html.indexOf("</head>"))).toMatch(/<title>[^<]+<\/title>/);
     await expectOneVisibleH1(page, "What are we booking in?");
     await expect(page.getByText("Step 1 of 5")).toBeVisible();
     await expect(page.getByLabel("Registration")).toHaveAttribute("autocomplete", "off");
@@ -342,7 +340,7 @@ test.describe("5-step booking flow", () => {
     await expect(page.getByText(when, { exact: true })).toBeVisible();
     await expect(page.getByText("Vauxhall Astra · AB12 CDE")).toBeVisible();
     await expect(page.getByText(/We'll send your confirmation on WhatsApp to 07••• •••461/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage-booking");
+    await expect(page.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage");
     await expectAccessible(page);
     expect((await context.cookies()).find((cookie) => cookie.name === "af_booking")).toBeUndefined();
 
@@ -421,13 +419,8 @@ test.describe("5-step booking flow", () => {
     const { label: when, startsAt } = await pickTime(page, 3);
     await fillDetails(page);
 
-    // While this customer types, the garage takes phone bookings for every bay at that time but one ...
-    const free = await freeCountAt(startsAt);
-    expect(free, `free bays at ${when}`).toBeGreaterThan(0);
-    for (let number = 1; number < free; number += 1) await bookDirectly(startsAt, number);
-    expect(await freeCountAt(startsAt)).toBe(1);
-
-    // ... and a rival customer books the last one through the booking pages.
+    // While this customer types, a rival books the same time through the booking pages ...
+    expect(await freeCountAt(startsAt), `free bays at ${when}`).toBeGreaterThan(0);
     const rival = await newPhonePage(browser, guard);
     await findCar(rival, "ef56 ghj");
     await chooseService(rival);
@@ -436,6 +429,8 @@ test.describe("5-step booking flow", () => {
     await rival.getByRole("button", { name: "Confirm booking" }).click();
     await confirmed(rival);
     await rival.context().close();
+    // ... and the garage takes phone bookings for every bay still free then (hartley-road has three).
+    for (const id of await fillSlot(await seededGarage(), startsAt)) createdBookingIds.add(id);
     expect(await freeCountAt(startsAt)).toBe(0);
 
     await page.getByRole("button", { name: "Confirm booking" }).click();

@@ -45,6 +45,8 @@ Env: `NEXT_PUBLIC_ADMIN_HOST` (`autofix.vitalos.co.uk`), `NEXT_PUBLIC_TENANT_ROO
 
 Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`, `/confirmed/[reference]`, `/manage`, `/r/[token]`, `/privacy`, `/unsubscribe`.
 
+Manage booking (P2.9): `/manage` shows the reference + registration form (server action, POST only) or, with an `af_manage` session, the booking; `/manage?token=…` (the email link) hands the token to the `/manage/link` route handler, which opens the session and answers 303 to `/manage`, so the token never stays in the address; `/manage/reschedule` (`?date=` only) and `/manage/cancel` change the session's booking through `rescheduleBooking()`/`cancelBooking()`; SOB's `/manage-booking` is a 308 to `/manage`. The only other query strings are `?link=invalid|limited|unavailable` and `?done=moved|cancelled`. Server code: `src/lib/booking-flow/manage-actions.ts` (server actions), `manage-server.ts` (session read/write, customer view, reschedule slots), `manage-view.ts` (client-safe states and wording). These pages always read the database (`BOOKING_ENGINE=fake` does not apply to them).
+
 ## Migrations
 
 `supabase/migrations/20261026000000_baseline.sql` (SOB squash) then `20261026000100_tenancy.sql`, `20261026000200_tenancy_test_support.sql` (service-role-only, read-only catalogue helpers `tenancy_tables()`, `tenancy_policies()`, `tenancy_function_grants()`, `tenancy_fingerprint()`, `tenancy_sample_row()`, `tenancy_storage_fingerprint()` for the tenancy suite), `…_scheduling.sql` (P2.1), `…_reminders.sql` (P3.6), and later ones. Never edit a migration after it has shipped to a shared database.
