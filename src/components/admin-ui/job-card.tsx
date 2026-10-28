@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CarFront } from "lucide-react";
 import type { ReactNode } from "react";
 import { PlateChip } from "@/components/book/plate-chip";
 import { formatRegistrationDisplay } from "@/components/book/plate-format";
@@ -42,6 +43,8 @@ export type JobCardProps = {
   actions?: JobCardAction[];
   /** Replaces `actions` with your own buttons. */
   renderActions?: () => ReactNode;
+  /** P5.8: a courtesy car is reserved or out with this booking (small chip after the plate). */
+  courtesyCar?: boolean;
   className?: string;
 };
 
@@ -60,6 +63,7 @@ export function JobCard({
   active = false,
   actions = [],
   renderActions,
+  courtesyCar = false,
   className,
 }: JobCardProps) {
   const summary = (
@@ -72,6 +76,12 @@ export function JobCard({
         <span className="flex min-w-0 items-center gap-2">
           <PlateChip registration={registration} />
           {vehicle ? <span className="truncate text-[12.5px] text-grey-600">{vehicle}</span> : null}
+          {courtesyCar ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#e8f0fb] px-1.5 py-0.5 text-[11px] font-bold text-[#0f3f80]">
+              <CarFront size={12} strokeWidth={2.4} aria-hidden="true" />
+              Courtesy car
+            </span>
+          ) : null}
         </span>
         <span className="truncate text-[13.5px] font-semibold text-grey-800">{detail ? `${service} · ${detail}` : service}</span>
       </span>

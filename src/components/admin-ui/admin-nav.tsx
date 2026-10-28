@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   ChartColumn,
+  CarFront,
   Clock,
   FileText,
   Globe,
@@ -53,6 +54,7 @@ export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; ico
   { feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone },
   { feature: "health_checks", label: "Health checks", href: "/app/health-checks", icon: ClipboardCheck },
   { feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn },
+  { feature: "courtesy_cars", label: "Courtesy cars", href: "/app/courtesy-cars", icon: CarFront },
 ];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */

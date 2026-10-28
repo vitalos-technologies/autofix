@@ -31,6 +31,7 @@
     "test:e2e:p5-campaigns": "playwright test --config playwright.garage.config.ts --project=p5-campaigns",
     "test:e2e:p5-health-checks": "playwright test --config playwright.garage.config.ts --project=p5-health-checks",
     "test:e2e:p5-reports": "playwright test --config playwright.garage.config.ts --project=p5-reports",
+    "test:e2e:p5-courtesy-cars": "playwright test --config playwright.garage.config.ts --project=p5-courtesy-cars",
     "test:lighthouse": "lhci autorun",
     "test:lighthouse:askbridge": "node scripts/lighthouse-askbridge.mjs",
     "test:load": "node scripts/load/slots-load.mjs",

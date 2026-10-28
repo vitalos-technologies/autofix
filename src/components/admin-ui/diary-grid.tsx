@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CarFront } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatRegistrationDisplay } from "@/components/book/plate-format";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,8 @@ export type DiaryBooking = {
   detail?: string;
   /** Booking detail page. */
   href: string;
+  /** P5.8: a courtesy car is reserved or out with this booking (small car icon on the block). */
+  courtesyCar?: boolean;
 };
 
 export type DiaryGridProps = {
@@ -149,6 +152,7 @@ export function diaryBookingLabel(booking: DiaryBooking, resourceName: string, t
     formatTimeRange(booking.startsAt, booking.endsAt, timeZone),
     resourceName,
     booking.customerName,
+    booking.courtesyCar ? "courtesy car" : null,
     statusLabel(booking.status),
   ]
     .filter(Boolean)
@@ -311,6 +315,7 @@ export function DiaryGrid({
                               )}
                             >
                               <span className={cn("truncate text-[12.5px] font-bold", colours.title)}>
+                                {booking.courtesyCar ? <CarFront size={12} strokeWidth={2.4} aria-hidden="true" className="mr-1 inline-block align-[-1px]" /> : null}
                                 {booking.detail ? `${booking.service} · ${booking.detail}` : booking.service}
                               </span>
                               <span className={cn("truncate text-[11.5px]", colours.sub)}>{sub}</span>

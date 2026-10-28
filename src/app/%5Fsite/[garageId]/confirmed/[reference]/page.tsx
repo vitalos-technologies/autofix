@@ -106,6 +106,15 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
             calendarHref={requested ? null : bookingCalendarPath(garage, booked.reference)}
             manageHref="/manage"
           />
+          {booked.extras?.length ? (
+            <ul aria-label="Extras" className="m-0 flex w-full list-none flex-col gap-2 p-0 text-left">
+              {booked.extras.map((line) => (
+                <li key={line} className="rounded-[12px] bg-white/10 px-4 py-3 text-[14px] leading-normal text-white">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="mt-auto flex flex-col items-center gap-3.5 px-6 pt-10 pb-7">
           {whatsapp ? (

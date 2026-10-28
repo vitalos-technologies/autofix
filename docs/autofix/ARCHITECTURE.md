@@ -693,3 +693,66 @@ All `security definer`, `search_path = ''`. Report dates are garage-local and in
 | `/app/bookings/[id]` "Technician" panel | owners/managers on Pro: a select of the team + Save (`assignTechnicianAction` in `bookings/technician-actions.ts`, `requireStaffWriter`, `featureProblem`); others / Essentials: the assigned name read-only, if any | |
 
 No jobs, no customer-facing pages, no messages.
+
+## Courtesy cars and collection/delivery (Phase 5, P5.8; DECISIONS A350–A357)
+
+### Schema (`supabase/migrations/20261029000800_courtesy_cars.sql`; pgTAP `034_courtesy_cars`)
+
+| Table / column | Columns (all tenant tables: `garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS on, anon has no grants) |
+| --- | --- |
+| `courtesy_cars` | `name` (1-60), `registration` (normalised by the `normalise_vehicle_registration` trigger, unique per garage; shown only as a plate chip), `active`, `notes` (≤ 500), `mileage`, `fuel_eighths` (0-8, last reading), `sort`. Members read; owners/managers insert/update/delete through RLS **with `garage_has_feature(garage_id,'courtesy_cars')`**. A car with loans can't be deleted (FK, 23503): switch it off |
+| `courtesy_car_loans` | `car_id`, `booking_id` (composite FK, cascade), `customer_id`, `during tstzrange` (`[)`, finite, ≤ 31 days), `status` (`reserved`/`out`/`returned`/`cancelled`), `notes`, `mileage_out`/`fuel_out`/`checked_out_at`/`checked_out_by`, `mileage_in` (≥ out)/`fuel_in`/`returned_at`/`returned_by`, `damage_notes` (≤ 1000), `cancelled_at`/`cancelled_by`/`cancellation_reason`, `created_by`. **`courtesy_car_loans_no_overlap exclude using gist (car_id with =, during with &&) where (status <> 'cancelled')`**. Members read; no staff write grants (functions only) |
+| `courtesy_car_requests` | `booking_id`, `customer_id`, `status` (`open`/`confirmed`/`declined`/`withdrawn`), `free_at_request`, `loan_id`, `reason`, `handled_by`/`handled_at`. One live (open/confirmed) per booking. Members read; functions write |
+| `collection_delivery_legs` | `booking_id`, `leg` (`collection`/`delivery`), `resource_id` (a `mobile` resource, null when unassigned), `during`, `postcode` (normalised), `address` (≤ 300), `status` (`held`/`unassigned`/`cancelled`), `source` (`customer`/`staff`/`system`), `created_by`, `cancelled_at`. **`collection_delivery_legs_no_overlap exclude using gist (resource_id with =, during with &&) where (status = 'held')`**; one live leg of each kind per booking. Members read; functions write |
+| `services` (+) | `collection_delivery boolean default false`. Trigger `services_collection_delivery_guard`: a signed-in member switching it on needs Pro (`PLAN_REQUIRED`); switching off never does; server code/seeds (no `auth.uid()`) are not checked |
+| trigger `bookings_courtesy_follow` (after update of `status`, `during` on `bookings`) | Cancelled / no-show: reserved loans → cancelled, live legs → cancelled, open requests → withdrawn. Moved: a reserved loan shifts by the same amount when the car is free then (else it stays and a system note says "choose another car"); live legs are held again for the new times (if that fails the legs are cancelled and noted). Never blocks the booking change |
+
+Van windows (`collection_delivery_windows`): collection `[lower(during) − 2 × mobile_travel_min, lower(during))`, delivery `[upper(during), upper(during) + 2 × mobile_travel_min)` (out and back each way).
+
+Default loan window (`courtesy_car_default_window`): from the booking's `starts_at` to the latest `opening_hours.closes` of that local day, built as `(local date + closes) at time zone garages.timezone` (right on clock-change days), or to `ends_at` if later.
+
+### SQL functions
+
+| Function | Who | What |
+| --- | --- | --- |
+| `courtesy_car_options(booking, starts?, ends?) → table(car_id, name, registration, free, window_starts, window_ends)` | any member of the selected garage (`garage_actor_allowed()`), Pro | Every active car and whether it is free for the window (default: the booking's day) |
+| `reserve_courtesy_car(booking, car, starts?, ends?, notes?) → courtesy_car_loans` | any member, Pro | Per-car advisory lock, then insert; an exclusion violation becomes `COURTESY_CAR_UNAVAILABLE` (P0001). Confirms an open request; booking note; audited `courtesy_car.reserved`. Errors `BOOKING_NOT_FOUND`, `BOOKING_NOT_LIVE`, `COURTESY_CAR_NOT_FOUND`, `INVALID_LOAN: …` |
+| `release_courtesy_car(loan, reason?)` | any member, Pro | reserved → cancelled (`LOAN_STATE` otherwise); a confirmed request goes back to open |
+| `check_out_courtesy_car(loan, mileage, fuel_eighths, notes?)` | any member, Pro | reserved → out; `COURTESY_CAR_STILL_OUT` while the same car is out on another loan; car mileage/fuel updated |
+| `check_in_courtesy_car(loan, mileage, fuel_eighths, damage_notes?)` | any member, Pro | out → returned; mileage can't go down; an early return shortens `during` so the car is free again |
+| `decline_courtesy_car_request(request, reason?)` | any member, Pro | open → declined |
+| `hold_collection_delivery(booking, postcode, address?) → jsonb` / `release_collection_delivery(booking) → int` | any member, Pro | (Re)hold the van for both legs / cancel them |
+| `courtesy_car_free_count(garage, starts, ends) → int` | service role | Free cars for a would-be booking (default window); 0 for Essentials, so the option never appears |
+| `request_courtesy_car(garage, booking) → jsonb` | service role, Pro | After `create_booking()`: open request, idempotent per booking, `free_at_request` recorded, booking note |
+| `request_collection_delivery(garage, booking, postcode, address) → jsonb` | service role, Pro | After `create_booking()`: idempotent; `{status: held|partial|unassigned, legs, replayed}` |
+| internals (no API role): `courtesy_actor_garage`, `courtesy_car_default_window`, `courtesy_cars_free_in`, `courtesy_booking_note`, `courtesy_postcode`, `collection_delivery_windows`, `collection_delivery_hold`, `courtesy_follow_booking`, `guard_service_collection_delivery` | | `collection_delivery_hold` takes the same per-garage advisory lock as `create_booking()` (`public.create_booking:<garage>`), checks `workshop` mode + `services.collection_delivery` (`COLLECTION_NOT_OFFERED`) + `garages.service_area` (`OUTSIDE_SERVICE_AREA`), then picks the first active mobile resource with no live booking and no held leg overlapping each window |
+
+Nothing redefines `create_booking*`, `available_slots*` or `staff_available_slots*`.
+
+**Failure handling for collection/delivery.** The booking is always created first by `create_booking()` and always stands. Legs are held straight after by `request_collection_delivery()` (customer) or `hold_collection_delivery()` (staff). A leg with no free van (or lost to a concurrent hold: the exclusion violation is caught) is stored `unassigned`, the booking gets a system note ("no van free … call the customer"), the garage gets a staff email (`courtesy-extras:<booking>` idempotency key, garage address only, no registration), the leg shows under "Needs your OK" on `/app/courtesy-cars` with "Try the van again" on the booking, and the customer's confirmation says the garage will call. If the attach call itself fails the same staff email and customer wording apply.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/courtesy/view.ts` (client-safe, pure) | types `CourtesyCar`, `CourtesyLoan`, `CollectionLeg`, `CourtesyRequest`; `parseCarForm`, `parseLoanReading`, `parseLoanWindow(formData, tz)` (datetime-local in garage time via `zonedInstant`), `parseCollectionForm`, `normaliseCollectionPostcode`, `courtesyErrorCode`/`courtesyErrorMessage`, `courtesyFlash`, `COURTESY_DONE_MESSAGES`, `shapeFleetWeek(cars, loans, monday, tz, now)`, `bookingsWithCourtesyCar`, `parseRange` (PostgREST tstzrange), `localInputValue`, `safeCourtesyReturn`, `withFlash`, `FUEL_OPTIONS`, `fuelLabel`, `formatMiles` |
+| `src/lib/courtesy/server.ts` (RLS client) | `loadFleet`, `loadLoansBetween`, `loadLiveLoans`, `loadOpenRequests`, `loadUpcomingLegs`, `loadBookingCourtesy`, `loadCarOptions`, `courtesyBookingIds` (never throws; Today/Diary badge), `CourtesyDataError` |
+| `src/lib/courtesy/booking-site.ts` (service role) | `getBookingExtrasOptions(garage, {serviceId, startsAt, durationMin, locationMode})` (never throws), `readBookingExtras(formData, offered, serviceArea, proEnabled)`, `attachBookingExtras(garage, booking, choice)` (never throws; staff email), `extrasSummary` |
+| `src/app/app/(protected)/courtesy-cars/actions.ts` | `addCarAction`, `updateCarAction`, `setCarActiveAction`, `deleteCarAction` (owners/managers), `reserveCarAction`, `releaseLoanAction`, `checkOutAction`, `checkInAction`, `declineRequestAction`, `holdCollectionAction`, `releaseCollectionAction` (any member), `setServiceCollectionAction`. All `requireStaffWriter` (MFA), selected garage only, `garageHasFeature` → `?courtesyError=PLAN_REQUIRED`; redirects carry only a flash key (`?courtesy=` / `?courtesyError=`, `#courtesy` on bookings) |
+| `src/components/courtesy/courtesy-ui.tsx` | `CourtesyNotice`, `CourtesyCarChip`, `LoanItem`, `LoanReadingForm`, `CarFields`, `LOAN_TONES` |
+| `src/components/courtesy/collection-setting.tsx` | `CollectionDeliverySetting` (the switch on Setup · Services · Edit; Pro badge text for Essentials) |
+| `src/app/app/(protected)/bookings/[id]/courtesy-panel.tsx` | `CourtesyBookingPanel` (request banner, free cars for the booking's day + "Different times", check out/in, release, collection form/legs/cancel/try again; read-only on Essentials when data exists) |
+| `src/app/%5Fsite/[garageId]/_components/booking-extras.tsx` | `BookingExtrasFields` (details step "Extras": courtesy request, collect and deliver + address/postcode; defaults follow state so React's post-action form reset keeps them) |
+
+Additive edits to shared files: `GROW_NAV_ITEMS` (one line, `CarFront`), `JobCard`/`DiaryBooking` optional `courtesyCar` (chip / car icon + accessible label), Today and Diary pages (badge ids), booking page (panel + two flash params), service edit page (setting panel), `DetailsFormState.fieldErrors` (+ `collectionPostcode`, `collectionAddress`), `JustBooked.extras?` (sealed cookie, ≤ 4 lines), `confirmBookingAction` (extras read before, attached after `createBooking()`), details and confirmed pages, `admin-shell.test.tsx` (expects `GROW_NAV_ITEMS` hrefs instead of a fixed list).
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/courtesy-cars?week=YYYY-MM-DD` | Fleet: one card per car (state, mileage, fuel, Mon-Sun strip, the week's loans with check out / release / check in), "Needs your OK" (open requests, unassigned van legs), "Collections and deliveries" (from today), "Add a courtesy car" (owners/managers), Edit / on-off / delete per car. Essentials: `ProLockedPage` (+ read-only car list when there are cars) |
+| `/app/bookings/[id]#courtesy` | Courtesy car and collection panel |
+| `/app/settings/services/[id]#collection-delivery` | "Offer collection and delivery" switch (`?collection=on|off|plan|…`) |
+| garage host `/details` | Extras fieldset (Pro and something offered only); `/confirmed/[ref]` lists what happened |
+
+No new jobs, no customer messages (the only new message is a staff email to the garage's own address). No token links, so no `next.config.ts` header rule was needed.
