@@ -305,8 +305,13 @@ $$;
 -- 3. Queueing (triggers, "Sync now", "Retry")
 -- ---------------------------------------------------------------------------
 
--- One accounting.sync job per garage per UTC minute (the job works through
--- every due item of the garage). Internal.
+-- Queues accounting.sync for a garage unless one is already queued to run
+-- by then (the job works through every due item of the garage). Not a
+-- dedupe key: a key is unique for ever, so an item queued in the same minute
+-- after a run finished would wait for the daily cron. A job that is already
+-- running may have read its items, so a new one is queued behind it. Two
+-- racing callers can queue two jobs; items are idempotent, so that only
+-- costs a run. Internal.
 create function public.enqueue_accounting_sync(p_garage_id uuid, p_run_at timestamptz default null)
 returns void
 language plpgsql
@@ -315,20 +320,20 @@ security definer
 set search_path = ''
 as $$
 declare
-  run_at timestamptz := greatest(coalesce(p_run_at, now()), now());
+  due timestamptz := greatest(coalesce(p_run_at, now()), now());
 begin
-  perform public.enqueue_job(
-    'accounting.sync',
-    jsonb_build_object('garageId', p_garage_id),
-    run_at,
-    'accounting.sync:' || p_garage_id::text || ':' || to_char(date_trunc('minute', run_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI'),
-    p_garage_id
-  );
+  if exists (
+    select 1 from public.jobs job
+    where job.kind = 'accounting.sync' and job.garage_id = p_garage_id and job.status = 'queued' and job.run_at <= due
+  ) then
+    return;
+  end if;
+  perform public.enqueue_job('accounting.sync', jsonb_build_object('garageId', p_garage_id), due, null, p_garage_id);
 end
 $$;
 
 comment on function public.enqueue_accounting_sync(uuid, timestamptz) is
-  'P5.10: queue accounting.sync for a garage (one job per garage per UTC minute). Service role and triggers only.';
+  'P5.10: queue accounting.sync for a garage unless one is already queued by then. Service role and triggers only.';
 
 -- Queues one entity for the garage's active connection, when the garage has
 -- the feature. Returns whether an item is now pending. Internal.

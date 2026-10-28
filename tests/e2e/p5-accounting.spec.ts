@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { createTotpMember, signInWithTotp, type TotpMember } from "../helpers/admin-session";
+import { PLAYWRIGHT_CRON_SECRET } from "../helpers/jobs";
 import { createLocalClient, createLocalGarage, executeLocalOwnerSql, getLocalSupabaseConfig, type LocalTestGarage } from "../helpers/local-supabase";
 
 const port = process.env.PLAYWRIGHT_PORT || "3430";
@@ -130,15 +131,19 @@ test("a callback with a forged state is refused", async () => {
 
 test("issued invoices and payments sync; a failed one is retried", async () => {
   const good = issueInvoice("Jo Bloggs", { pay: 5000 });
-  const failing = issueInvoice("Fail Once Motors");
-  expect((await items()).filter((item) => item.status === "pending").map((item) => item.entity).sort()).toEqual(["invoice", "invoice", "payment"]);
+  expect((await items()).filter((item) => item.status === "pending").map((item) => item.entity).sort()).toEqual(["invoice", "payment"]);
 
   await page.goto(`${adminOrigin}${PATH}`);
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Syncing now." })).toBeVisible();
-  await expect.poll(async () => (await items()).find((item) => item.local_id === good)?.status, { timeout: 60_000 }).toBe("synced");
+  await expect.poll(async () => (await items()).find((item) => item.entity === "invoice" && item.local_id === good)?.status, { timeout: 60_000 }).toBe("synced");
   await expect.poll(async () => (await items()).find((item) => item.entity === "payment")?.status, { timeout: 60_000 }).toBe("synced");
-  await expect.poll(async () => (await items()).find((item) => item.local_id === failing)?.status, { timeout: 60_000 }).toBe("failed");
+
+  // The fake refuses the first invoice for "Fail Once" customers (VALIDATION): drained by the runner like the cron does.
+  const failing = issueInvoice("Fail Once Motors");
+  const drained = await page.request.post(`${adminOrigin}/api/jobs/drain`, { headers: { authorization: `Bearer ${PLAYWRIGHT_CRON_SECRET}` }, data: { kinds: ["accounting.sync"] } });
+  expect(drained.status()).toBe(200);
+  await expect.poll(async () => (await items()).find((item) => item.entity === "invoice" && item.local_id === failing)?.status, { timeout: 60_000 }).toBe("failed");
 
   await page.reload();
   const attention = page.locator("#failed");
@@ -147,7 +152,7 @@ test("issued invoices and payments sync; a failed one is retried", async () => {
   await expectAccessibleAt(page, "status");
   await attention.getByRole("button", { name: /^Retry Invoice/ }).click();
   await expect(page.getByRole("status").filter({ hasText: "Trying that one again now." })).toBeVisible();
-  await expect.poll(async () => (await items()).find((item) => item.local_id === failing)?.status, { timeout: 60_000 }).toBe("synced");
+  await expect.poll(async () => (await items()).find((item) => item.entity === "invoice" && item.local_id === failing)?.status, { timeout: 60_000 }).toBe("synced");
   await page.reload();
   await expect(page.locator("#failed").getByText("Nothing has failed.")).toBeVisible();
 });

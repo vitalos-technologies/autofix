@@ -132,7 +132,7 @@ reset role;
 select is((select count(*)::integer from public.accounting_sync_items item join public.invoice_payments payment on payment.id = item.local_id
            where item.entity = 'payment' and payment.invoice_id = '21360000-0000-4000-8000-000000000001'), 1, 'recording a payment queues it');
 select is((select count(*)::integer from public.jobs where kind = 'accounting.sync' and garage_id = pg_temp.p()), 1,
-          'one job per garage per minute');
+          'one queued job per garage at a time');
 
 select pg_temp.as_member('13600000-0000-4000-8000-0000000000e1', pg_temp.e());
 set local role authenticated;

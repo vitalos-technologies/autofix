@@ -125,8 +125,8 @@ export async function loadAccountingOverview(client: SupabaseClient, garageId: s
   if (connection) {
     const select = "id,entity,local_id,status,attempts,last_error_code,synced_at,updated_at";
     const [pendingCount, syncedCount, failedRows, recentRows] = await Promise.all([
-      client.from("accounting_sync_items").select("id", { count: "exact", head: true }).eq("garage_id", garageId).eq("connection_id", connection.id).eq("status", "pending"),
-      client.from("accounting_sync_items").select("id", { count: "exact", head: true }).eq("garage_id", garageId).eq("connection_id", connection.id).eq("status", "synced"),
+      client.from("accounting_sync_items").select("id", { count: "exact", head: true }).eq("garage_id", garageId).eq("connection_id", connection.id).eq("status", "pending").neq("entity", "contact"),
+      client.from("accounting_sync_items").select("id", { count: "exact", head: true }).eq("garage_id", garageId).eq("connection_id", connection.id).eq("status", "synced").neq("entity", "contact"),
       client.from("accounting_sync_items").select(select).eq("garage_id", garageId).eq("connection_id", connection.id).eq("status", "failed").order("updated_at", { ascending: false }).limit(50),
       client.from("accounting_sync_items").select(select).eq("garage_id", garageId).eq("connection_id", connection.id).neq("status", "failed").neq("entity", "contact").order("updated_at", { ascending: false }).limit(10),
     ]);

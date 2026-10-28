@@ -103,7 +103,7 @@ export type SyncDeps = {
   repo: AccountingSyncRepo;
   provider: (id: AccountingProviderId) => AccountingProvider;
   now: () => Date;
-  /** Queue the next accounting.sync run for this garage (dedupe per minute in SQL). */
+  /** Queue the next accounting.sync run for this garage (skipped in SQL when one is already queued by then). */
   enqueue: (garageId: string, runAt: Date) => Promise<void>;
   /** Stop starting new provider calls after this (epoch ms on `clock`). */
   deadline?: number;
