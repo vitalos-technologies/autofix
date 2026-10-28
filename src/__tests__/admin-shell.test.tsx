@@ -100,6 +100,7 @@ describe("shell navigation", () => {
       "/app/settings/branding",
       "/app/settings/booking-page",
       "/app/settings/team",
+      "/app/settings/ai-front-desk",
       "/app/settings/plan",
       "/app/settings/agreements",
       "/app/settings",

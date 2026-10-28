@@ -94,6 +94,10 @@ User-Agent: Autofix-Askbridge-Sync/1
 - `408`, `425`, `429`, `5xx` or no answer within 10 s → Autofix retries with backoff. Any other `4xx` → no retry (the job fails and shows in job queue health).
 - Redirects are not followed.
 
+## Plans (P5.12, D17)
+
+The Askbridge chat is part of **Essentials**: nothing above checks the plan. Askbridge does not call the agent tool API today (the widget links to the booking flow and its knowledge is pushed by the sync above). If it ever does, it gets an agent token with audience `askbridge`, which works on every plan but only for `list_services`, `available_slots` and `garage_profile` (the database refuses other scopes). Tokens with audience `workforce` (the AI front desk on calls and WhatsApp) need Pro and get 403 `PLAN_REQUIRED` otherwise. See [phase-5/P5.12-ai-front-desk.md](phase-5/P5.12-ai-front-desk.md).
+
 ## Open questions for Askbridge (Waiting on Temitope)
 
 - Confirm or change: widget script URL and `data-*` attributes, sync endpoint, header names, signature scheme, payload (`autofix.askbridge.knowledge.v1`).

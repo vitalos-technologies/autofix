@@ -88,14 +88,27 @@ describe.skipIf(!configured).sequential("agent tool API against local Supabase",
       create_booking: (await import("../../src/app/api/agent/v1/create_booking/route")).POST,
       get_booking: (await import("../../src/app/api/agent/v1/get_booking/route")).POST,
       garage_profile: (await import("../../src/app/api/agent/v1/garage_profile/route")).POST,
+      report_usage: (await import("../../src/app/api/agent/v1/report_usage/route")).POST,
     };
   });
 
   it("stores only an HMAC of each token", async () => {
-    const { data } = await service.from("agent_tokens").select("token_hash,scopes").eq("id", tokenAId).single();
+    const { data } = await service.from("agent_tokens").select("token_hash,scopes,audience").eq("id", tokenAId).single();
     expect(data?.token_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(data?.token_hash).not.toContain(tokenA.slice(5, 15));
-    expect(data?.scopes).toHaveLength(6);
+    // P5.12: every tool, report_usage included, for a workforce token.
+    expect(data?.scopes).toHaveLength(7);
+    expect(data?.audience).toBe("workforce");
+  });
+
+  it("P5.12: report_usage records AI minutes once per conversation in usage_events", async () => {
+    const conversationId = `CA${randomUUID().replaceAll("-", "")}`;
+    const body = { conversationId, channel: "call", minutes: 2.25, endedAt: new Date(Date.now() - 60_000).toISOString() };
+    expect(await call("report_usage", body)).toMatchObject({ status: 201, body: { usage: { conversationId, minutes: 2.25, replayed: false } } });
+    expect(await call("report_usage", { ...body, minutes: 7 })).toMatchObject({ status: 200, body: { usage: { minutes: 2.25, replayed: true } } });
+    const { data } = await service.from("usage_events").select("metric,quantity").eq("garage_id", users.garageA.id).eq("source_key", `ai:${conversationId}`);
+    expect(data).toEqual([{ metric: "ai_minutes", quantity: 2.25 }]);
+    expect(await call("report_usage", body, narrowTokenA)).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
   });
 
   it("lists the token's garage services and free slots", async () => {
@@ -162,6 +175,23 @@ describe.skipIf(!configured).sequential("agent tool API against local Supabase",
     expect(listed.error).toBeNull();
     expect((listed.data as Array<Record<string, unknown>>).every((entry) => !("token_hash" in entry))).toBe(true);
     expect((listed.data as Array<{ name: string }>).map((entry) => entry.name).sort()).toEqual(["Askbridge", "Workforce voice"]);
-    expect((await users.otherGarageAdmin.rpc("list_agent_tokens")).data).toEqual([expect.objectContaining({ name: "Workforce B" })]);
+    expect((await users.otherGarageAdmin.rpc("list_agent_tokens")).data).toEqual([expect.objectContaining({ name: "Workforce B", audience: "workforce" })]);
+  });
+
+  it("P5.12: on Essentials a workforce token gets PLAN_REQUIRED (audited) and an askbridge token keeps reading", async () => {
+    const { issueAgentToken } = await import("../../src/lib/agent-api/store");
+    const { PlanRequiredError } = await import("../../src/lib/plans/entitlements");
+    const askbridgeB = await issueAgentToken({ garageId: users.garageB.id, name: "Askbridge B", audience: "askbridge" }, service);
+    expect(askbridgeB.scopes.sort()).toEqual(["available_slots", "garage_profile", "list_services"]);
+    const { error } = await service.from("garages").update({ plan: "essentials", plan_chosen: "essentials", trial_ends_at: null }).eq("id", users.garageB.id);
+    expect(error).toBeNull();
+
+    expect(await call("list_services", {}, tokenB)).toMatchObject({ status: 403, body: { code: "PLAN_REQUIRED", feature: "ai_front_desk", plan: "pro" } });
+    const { data: log } = await service.from("agent_call_log").select("outcome,http_status").eq("garage_id", users.garageB.id).eq("outcome", "PLAN_REQUIRED");
+    expect(log).toEqual([{ outcome: "PLAN_REQUIRED", http_status: 403 }]);
+
+    expect((await call("list_services", {}, askbridgeB.token)).status).toBe(200);
+    expect(await call("create_booking", {}, askbridgeB.token)).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
+    await expect(issueAgentToken({ garageId: users.garageB.id, name: "Workforce again" }, service)).rejects.toBeInstanceOf(PlanRequiredError);
   });
 });

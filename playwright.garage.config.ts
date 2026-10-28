@@ -77,6 +77,8 @@ export default defineConfig({
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
       // tests/helpers/booking-fixtures.ts and tests/e2e/legal.spec.ts derive link tokens with the same value.
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
+      // P5.12: agent tokens are hashed with this pepper (production refuses to issue without one). Local only, not a secret.
+      AGENT_TOKEN_PEPPER: process.env.AGENT_TOKEN_PEPPER || "playwright-local-agent-token-pepper-not-a-secret",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
       // Mock channels only (no real texts or emails), whatever the shell exports.
@@ -121,6 +123,7 @@ export default defineConfig({
     { name: "super-admin", testMatch: "super-admin.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Booking page & domain settings (P4.3/P4.6): its own garage, owner and manager; axe at 390 and 1440.
     { name: "booking-page-settings", testMatch: "booking-page-settings.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-ai-front-desk", testMatch: "p5-ai-front-desk.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Sign-up and onboarding (admin host, its own garage and users); the spec checks 390 and 1440 itself.
     { name: "signup", testMatch: "signup.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.

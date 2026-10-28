@@ -389,6 +389,7 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { outcome: "TAMPERED" },
   },
   agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
+  ai_front_desk_settings: { create: (rows) => rows.insert("ai_front_desk_settings", { enabled: false }), patch: { enabled: true } },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },

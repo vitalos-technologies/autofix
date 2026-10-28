@@ -130,7 +130,7 @@ Gate 5: the full Playwright suite plus a journey per new feature, axe on every n
 | [ ] P5.9 | api, ui | Multi-site: one login across garages, group overview and reports, add a site, extra-site charge through billing; tenancy unchanged | tenancy, Playwright journey |
 | [ ] P5.10 | integrations | Accounting sync: provider interface (Xero first, then QuickBooks, Sage), invoices and payments, OAuth connect/disconnect in Settings; fake provider + contract tests until sandbox apps exist | contract tests, Playwright journey |
 | [ ] P5.11 | data, api, ui | Customer service plans: garage-defined plans, sign-up on the garage host, Direct Debit (Stripe BACS test mode behind an interface), benefits at booking and invoicing | pgTAP, tenancy, Playwright journey |
-| [ ] P5.12 | api | AI front desk on Pro: gate the Workforce/agent hand-off and the agent tool API, minutes metering, allowance on the Plan page; Essentials keeps missed-call text-back | contract tests, unit |
+| [x] P5.12 | api | AI front desk on Pro: gate the Workforce/agent hand-off and the agent tool API, minutes metering, allowance on the Plan page; Essentials keeps missed-call text-back | contract tests, unit — done `c1f5b8b`…`302c3dc`: token audience (Askbridge read-only stays Essentials), 403 `PLAN_REQUIRED` for Workforce tokens on Essentials, `report_usage` tool, voice hand-off hook (SIP, `WORKFORCE_VOICE_SIP_URI`), `/app/settings/ai-front-desk`; pgTAP 038 36/36, contract 43, e2e `p5-ai-front-desk` 2/2. WhatsApp hand-off waits on Workforce's contract |
 | [ ] P5.13 | qa | Gate 5 | **Gate 5** green |
 
 ---
