@@ -14,12 +14,16 @@ import { formatUkPhone, telLink, vehicleName } from "@/lib/admin/bookings";
 import { AdminDataError, loadBookingDetail, loadOpeningHours } from "@/lib/admin/data";
 import { addDays, isoWeekday, localDateKey } from "@/lib/admin/dates";
 import { timelineEntry, type TimelineKind } from "@/lib/admin/timeline";
+import { garageHasFeature } from "@/lib/plans/server";
+import { loadBookingAssignment, loadTeamOptions } from "@/lib/reports/assignments";
+import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
 import { RescheduleControls } from "./booking-controls";
 import { NoteForm } from "./note-form";
 import { StatusControls } from "./status-controls";
+import { TechnicianForm } from "./technician-form";
 
 export const metadata: Metadata = { title: "Booking" };
 
@@ -88,6 +92,13 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   const closedDays = opening.size > 0 ? moveDays.filter((day) => !(opening.get(isoWeekday(day)) ?? []).length) : [];
   const movable = booking.status === "requested" || booking.status === "confirmed";
   const timeline = booking.events.map((event) => timelineEntry(event, { currentUserId: admin.user.id, timeZone }));
+  // P5.6: who did the job (Pro, set by owners/managers; kept readable after a downgrade).
+  const reportsOn = garageHasFeature(admin.garage, "advanced_reports");
+  const canAssign = reportsOn && canManageSetup(admin.role);
+  const [assignment, team] = await Promise.all([
+    loadBookingAssignment(admin.client, booking.id),
+    canAssign ? loadTeamOptions(admin.client) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -164,6 +175,16 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <p className="m-0 text-[15px] leading-normal whitespace-pre-wrap text-grey-800">{booking.notes ?? "No note."}</p>
             </div>
           </Panel>
+
+          {canAssign ? (
+            <Panel id="technician" title="Technician">
+              <TechnicianForm bookingId={booking.id} current={assignment} team={team} />
+            </Panel>
+          ) : assignment ? (
+            <Panel id="technician" title="Technician">
+              <p className="m-0 text-[15px] text-grey-800">{assignment.technicianName} did this job.</p>
+            </Panel>
+          ) : null}
 
           <Panel id="move" title="Move this booking">
             {movable ? (

@@ -1,6 +1,7 @@
 import {
   Bell,
   CalendarDays,
+  ChartColumn,
   Clock,
   FileText,
   Globe,
@@ -45,7 +46,9 @@ export type AdminNavOptions = {
  * label, route, icon). A Pro feature adds its line here when its route exists, so the shell never links
  * to a page that isn't built (tests/e2e/admin-pages.spec.ts visits every link).
  */
-export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
+  { feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn },
+];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
 export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
