@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
       // Links that carry a token in their URL. Their route handlers set a stricter Referrer-Policy, but a
       // header from this file replaces the handler's own, so the rule above would win; the last matching rule
       // wins here, so these restate it (DECISIONS A188, checked through the server by tests/e2e/smoke.spec.ts).
-      ...["/r/:token", "/manage/link", "/manage-booking", "/signup/invite/:token"].map((source) => ({
+      ...["/r/:token", "/hc/:token", "/manage/link", "/manage-booking", "/signup/invite/:token"].map((source) => ({
         source,
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       })),

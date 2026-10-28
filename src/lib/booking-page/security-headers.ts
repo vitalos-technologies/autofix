@@ -38,7 +38,9 @@ export function bookingSiteCsp({ embedOrigins = [], widgetOrigin = null, dev = f
     `script-src ${sources(["'self'", "'unsafe-inline'"], dev ? ["'unsafe-eval'"] : [], [TURNSTILE_ORIGIN], widget)}`,
     "style-src 'self' 'unsafe-inline'",
     // Garage logos live in Supabase Storage; the widget may show its own images.
-    "img-src 'self' data: blob: https:",
+    `img-src ${sources(["'self'", "data:", "blob:", "https:"], dev ? ["http:"] : [])}`,
+    // Health check videos (P5.3) play from short-lived signed Supabase Storage URLs (local Supabase is http in dev).
+    `media-src ${sources(["'self'", "blob:", "https:"], dev ? ["http:"] : [])}`,
     "font-src 'self' data:",
     `connect-src ${sources(["'self'", TURNSTILE_ORIGIN], widget, dev ? ["ws:", "wss:"] : [])}`,
     `frame-src ${sources(["'self'", TURNSTILE_ORIGIN], widget)}`,

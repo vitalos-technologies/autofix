@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarClock, Check, History, Mail, MessageSquare, Phone, StickyNote, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Check, ClipboardCheck, History, Mail, MessageSquare, Phone, StickyNote, X } from "lucide-react";
 import { z } from "zod";
 import { BookingEmailThreadButton } from "@/components/admin/booking-email-thread-button";
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
-import { PageHeader, Panel, SOURCE_LABELS, StatusPill, textLinkClass } from "@/components/admin-ui";
+import { PageHeader, Panel, SOURCE_LABELS, StatusPill, buttonClass, textLinkClass } from "@/components/admin-ui";
 import { formatServicePrice, formatSlotLabel, formatTime } from "@/components/book/format";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CHANGE_MESSAGES } from "@/lib/admin/booking-changes";
@@ -14,9 +14,14 @@ import { formatUkPhone, telLink, vehicleName } from "@/lib/admin/bookings";
 import { AdminDataError, loadBookingDetail, loadOpeningHours } from "@/lib/admin/data";
 import { addDays, isoWeekday, localDateKey } from "@/lib/admin/dates";
 import { timelineEntry, type TimelineKind } from "@/lib/admin/timeline";
+import { formatPounds } from "@/lib/health-checks/checklist";
+import { loadBookingHealthCheck, type BookingHealthCheck } from "@/lib/health-checks/server";
+import { healthCheckStatusLine } from "@/lib/health-checks/view";
+import { garageHasFeature } from "@/lib/plans/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
+import { startHealthCheckAction } from "../../health-checks/actions";
 import { RescheduleControls } from "./booking-controls";
 import { NoteForm } from "./note-form";
 import { StatusControls } from "./status-controls";
@@ -37,6 +42,34 @@ const KIND_ICONS: Record<TimelineKind, typeof History> = {
   message: MessageSquare,
   other: History,
 };
+
+/** P5.3: the booking's digital health check (Pro): start it, open it, or what the customer approved. */
+function HealthCheckPanel({ bookingId, check, canStart }: { bookingId: string; check: BookingHealthCheck | null; canStart: boolean }) {
+  if (!check && !canStart) return null;
+  return (
+    <Panel id="health-check" title="Health check">
+      {check ? (
+        <>
+          <p className={cn("m-0 text-[15px] font-semibold", check.status === "responded" && check.approvedTotalPence > 0 ? "text-success-ink" : "text-grey-800")} data-testid="booking-health-check">
+            {healthCheckStatusLine(check, formatPounds)}
+          </p>
+          <Link href={`/app/health-checks/${check.id}`} className={buttonClass("secondary", "md", "w-full sm:w-fit")}>
+            <ClipboardCheck size={18} strokeWidth={2} aria-hidden="true" />
+            Open health check
+          </Link>
+        </>
+      ) : (
+        <form action={startHealthCheckAction}>
+          <input type="hidden" name="bookingId" value={bookingId} />
+          <button type="submit" className={buttonClass("primary", "md", "w-full sm:w-fit")}>
+            <ClipboardCheck size={18} strokeWidth={2} aria-hidden="true" />
+            Start health check
+          </button>
+        </form>
+      )}
+    </Panel>
+  );
+}
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -88,6 +121,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   const closedDays = opening.size > 0 ? moveDays.filter((day) => !(opening.get(isoWeekday(day)) ?? []).length) : [];
   const movable = booking.status === "requested" || booking.status === "confirmed";
   const timeline = booking.events.map((event) => timelineEntry(event, { currentUserId: admin.user.id, timeZone }));
+  const healthCheck = await loadBookingHealthCheck(admin.client, booking.id);
+  const canStartHealthCheck = garageHasFeature(admin.garage, "health_checks") && booking.status !== "cancelled" && booking.status !== "no_show";
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -199,6 +234,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <span className="text-[15px] text-grey-700">{car ?? "Car details not recorded"}</span>
             </div>
           </Panel>
+
+          <HealthCheckPanel bookingId={booking.id} check={healthCheck} canStart={canStartHealthCheck} />
 
           <Panel id="history" title="History">
             <NoteForm bookingId={booking.id} />
