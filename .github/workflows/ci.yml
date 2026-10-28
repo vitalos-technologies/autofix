@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Branches with a PR are checked by the pull_request run; a push run on the same commit only doubled the queue
+  # on the self-hosted runners. Pushes to main still run.
   push:
+    branches: [main]
   pull_request:
 
 # Pushes to the same branch replace each other's runs instead of queueing on the VM.
