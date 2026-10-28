@@ -116,7 +116,12 @@ test("a new garage is live on its free link in under 15 minutes", async ({ page,
   await expectAccessible(page);
   await page.getByRole("button", { name: "Continue to your booking link" }).click();
   await expect(page.getByText("Enter your garage's name.")).toBeVisible();
-  await page.getByLabel("Garage name and town").fill("Kingsway Doncaster");
+  // The wizard focuses the first invalid field on the next frame. Wait for it: on a busy CI runner that
+  // frame can land mid-fill and the search text ends up in "Garage name" (CI trace, 28 Oct 2026).
+  await expect(page.getByLabel("Garage name", { exact: true })).toBeFocused();
+  const placesQuery = page.getByLabel("Garage name and town");
+  await placesQuery.fill("Kingsway Doncaster");
+  await expect(placesQuery).toHaveValue("Kingsway Doncaster");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("button", { name: /Kingsway Autocare/ }).click();
   await expect(page.getByText("Details filled in from Google. Check them below.")).toBeVisible();

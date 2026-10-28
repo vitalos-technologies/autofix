@@ -44,7 +44,7 @@ export function ConnectDomainForm({ canEdit }: { canEdit: boolean }) {
           onChange={(event) => setHostname(event.target.value)}
           disabled={!canEdit}
           error={state.fieldErrors?.hostname}
-          className="min-w-0 flex-[1_1_300px]"
+          fieldClassName="min-w-0 flex-[1_1_300px]"
         />
         <SubmitButton disabled={!canEdit} className={buttonClass("primary", "md", "w-full sm:w-auto")}>
           Connect
