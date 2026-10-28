@@ -431,6 +431,39 @@ const FIXTURES: Record<string, Fixture> = {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
     patch: { reason: "Tampered" },
   },
+  // P5.8: van legs, loans and requests are written only by their functions (no staff write grants).
+  collection_delivery_legs: {
+    create: async (rows) => rows.insert("collection_delivery_legs", {
+      booking_id: await rows.booking(),
+      leg: "collection",
+      status: "unassigned",
+      during: "[2096-04-02T08:00:00.000Z,2096-04-02T09:00:00.000Z)",
+      postcode: "DN4 5AA",
+      address: `Tenancy probe ${rows.key}`,
+    }),
+    patch: { address: "Tampered" },
+  },
+  courtesy_cars: {
+    create: (rows) => rows.insert("courtesy_cars", { name: `Tenancy car ${rows.key}`, registration: `CC${rows.key}${localRunId.slice(0, 4)}`.toUpperCase() }),
+    patch: { name: "Tampered" },
+  },
+  courtesy_car_loans: {
+    create: async (rows) => {
+      const car = await rows.insert("courtesy_cars", { name: `Tenancy loan car ${rows.key}`, registration: `CL${rows.key}${localRunId.slice(0, 4)}`.toUpperCase() }, "id");
+      return rows.insert("courtesy_car_loans", {
+        car_id: car.id,
+        booking_id: await rows.booking(),
+        customer_id: await rows.customer(),
+        during: "[2096-04-02T09:00:00.000Z,2096-04-02T17:30:00.000Z)",
+        notes: `Tenancy probe ${rows.key}`,
+      });
+    },
+    patch: { notes: "Tampered" },
+  },
+  courtesy_car_requests: {
+    create: async (rows) => rows.insert("courtesy_car_requests", { booking_id: await rows.booking(), customer_id: await rows.customer() }),
+    patch: { reason: "Tampered" },
+  },
   // Written only by the import RPCs; staff have no update grant, so the probe is refused.
   customer_imports: { create: (rows) => rows.customerImport(), patch: { file_name: "tampered.csv" } },
   customers: { create: (rows) => rows.customer(), patch: { name: "Tampered" } },
