@@ -110,11 +110,12 @@ test("the overview lists both sites with totals, and the switcher links to it", 
   await expect(page.getByText("2 sites under one login.", { exact: false })).toBeVisible();
   const sites = page.getByRole("list", { name: "Sites in your group" });
   await expect(sites.getByRole("listitem")).toHaveCount(2);
-  await expect(sites.getByText(siteName)).toBeVisible();
+  await expect(sites.getByRole("heading", { name: siteName, exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "All sites" })).toBeVisible();
-  await page.getByText("Switch garage. Current:").click();
-  await expect(page.getByRole("link", { name: "Group overview" }).first()).toBeVisible();
-  await page.keyboard.press("Escape");
+  const switcher = page.locator("summary:visible").filter({ hasText: "Switch garage. Current:" });
+  await switcher.click();
+  await expect(page.locator("details[open]").getByRole("link", { name: "Group overview" })).toBeVisible();
+  await switcher.click();
   await expectAccessibleAt(page, "overview");
 });
 
