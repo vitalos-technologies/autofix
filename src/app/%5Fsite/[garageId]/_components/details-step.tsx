@@ -125,12 +125,21 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, de
         busy={pending}
         className="pt-3"
         footnote={
-          <>
-            {deposit ? `${deposit.amount} deposit now; we hold your time for ${deposit.holdMin} minutes while you pay.` : "Nothing to pay now."}{" "}
-            <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
-              How we use your details
-            </Link>
-          </>
+          deposit ? (
+            <>
+              {`${deposit.amount} deposit now; we hold your time for ${deposit.holdMin} minutes while you pay.`}{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          ) : (
+            <>
+              Nothing to pay now.{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          )
         }
       />
     </>

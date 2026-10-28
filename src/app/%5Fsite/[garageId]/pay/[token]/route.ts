@@ -16,18 +16,18 @@ function seeOther(path: string) {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ garageId: string; token: string }> }) {
-  const params = await context.params;
+  const { garageId: siteGarageId, token } = await context.params;
   const garage = await getHostGarage().catch(() => null);
-  if (!garage || garage.id !== params.garageId) return new NextResponse("Not found", { status: 404, headers: HEADERS });
+  if (!garage || garage.id !== siteGarageId) return new NextResponse("Not found", { status: 404, headers: HEADERS });
   if (!(await consumeRateLimit(`${garage.id}:${requesterIp(request)}`, "pay_link", 30, 600))) return seeOther("/pay?link=limited");
-  if (!isPayTokenShape(params.token)) return seeOther("/pay?link=invalid");
-  const payment = await loadPaymentByToken(garage.id, params.token).catch(() => null);
+  if (!isPayTokenShape(token)) return seeOther("/pay?link=invalid");
+  const payment = await loadPaymentByToken(garage.id, token).catch(() => null);
   if (!payment) {
     const response = seeOther("/pay?link=invalid");
     response.cookies.set(PAY_COOKIE, "", payCookieOptions(0));
     return response;
   }
   const response = seeOther("/pay");
-  response.cookies.set(PAY_COOKIE, params.token, payCookieOptions());
+  response.cookies.set(PAY_COOKIE, token, payCookieOptions());
   return response;
 }

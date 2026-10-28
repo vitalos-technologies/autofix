@@ -95,6 +95,32 @@ export async function loadPaymentsSetup(garage: PlanGarage, db: SupabaseClient |
   return { readiness, provider, account: accountRow, settings: settingsRow, hasFeature, active: hasFeature && accountUsable(accountRow, provider) };
 }
 
+/**
+ * After the provider's onboarding: reads the garage's stored account from the provider and stores its
+ * state (the owner is the actor, so it needs Pro). Returns the settings page's flash query.
+ */
+export async function refreshConnectedAccount(garage: PlanGarage, ownerId: string): Promise<string> {
+  const provider = getPaymentsProvider();
+  const db = createAdminClient();
+  if (!provider || !db) return "?error=unavailable";
+  const setup = await loadPaymentsSetup(garage, db);
+  if (!setup.hasFeature) return "?error=plan_required";
+  const account = setup.account;
+  if (!account || account.provider !== provider.kind || account.status === "disconnected") return "";
+  const state = await provider.getAccount(account.account_ref);
+  if (!state) return "?error=provider";
+  const applied = await db.rpc("apply_payment_account", {
+    p_garage_id: garage.id,
+    p_provider: provider.kind,
+    p_account_ref: state.accountRef,
+    p_status: state.status,
+    p_charges_enabled: state.chargesEnabled,
+    p_actor: ownerId,
+  });
+  if (applied.error) return "?error=save_failed";
+  return state.status === "active" ? "?done=connected" : "?done=pending";
+}
+
 // ---------------------------------------------------------------------------------------------
 // Deposits (public booking flow on the garage host)
 
