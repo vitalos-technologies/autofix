@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { z } from "zod";
 import { Badge, PageHeader, Panel, textLinkClass } from "@/components/admin-ui";
+import { ServiceDepositPanel } from "@/components/payments/panels";
 import { formatDuration, formatServicePrice } from "@/components/book";
 import { CollectionDeliverySetting } from "@/components/courtesy/collection-setting";
 import { canManageSetup } from "@/lib/settings/setup";
@@ -56,6 +57,7 @@ export default async function EditServicePage({ params, searchParams }: PageProp
         </>
       )}
       <CollectionDeliverySetting client={admin.client} garage={admin.garage} serviceId={service.id} canEdit={canEdit} flash={(await searchParams)?.collection} />
+      <ServiceDepositPanel admin={admin} serviceId={service.id} />
     </div>
   );
 }

@@ -312,7 +312,7 @@ export function createSupabaseBookingEngine(options: SupabaseBookingEngineOption
         const row = result.data;
         const replayed = row.replayed === true || row.created === false;
         clearSlotCache(garageId);
-        if (!replayed) await notifyBooking({ type: "created", garageId, bookingId: row.booking_id });
+        if (!replayed && !options.deferCreatedNotice) await notifyBooking({ type: "created", garageId, bookingId: row.booking_id });
         return {
           ok: true,
           replayed,

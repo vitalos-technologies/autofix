@@ -1,4 +1,5 @@
 import {
+  Banknote,
   Bell,
   CalendarDays,
   ClipboardCheck,
@@ -55,6 +56,7 @@ export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; ico
   { feature: "health_checks", label: "Health checks", href: "/app/health-checks", icon: ClipboardCheck },
   { feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn },
   { feature: "courtesy_cars", label: "Courtesy cars", href: "/app/courtesy-cars", icon: CarFront },
+  { feature: "payments", label: "Payments", href: "/app/payments", icon: Banknote },
 ];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */

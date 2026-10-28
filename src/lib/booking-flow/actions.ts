@@ -42,6 +42,9 @@ import { draftVehicleFromLookup, vehicleName, type DraftVehicle } from "@/lib/bo
 import { attachBookingExtras, extrasSummary, getBookingExtrasOptions, readBookingExtras } from "@/lib/courtesy/booking-site";
 import { toE164UK } from "@/lib/messaging/phone";
 import { garageHasFeature } from "@/lib/plans/server";
+import { notifyBooking } from "@/lib/booking-engine/notify";
+import { writePayCookie } from "@/lib/payments/pay-session";
+import { depositQuote, releaseExpiredDeposits, startDeposit } from "@/lib/payments/server";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getGarage, type Garage } from "@/lib/tenancy/garage";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
@@ -311,6 +314,10 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
   const service = services.find((item) => item.id === draft.serviceId)!;
   const vehicle = draft.vehicle!;
   const locationMode = draft.locationMode!;
+  // P5.4: a Pro garage with payments connected may want a deposit for this service. The booking is
+  // still made by create_booking() below (it holds the slot); the deposit is added after it.
+  await releaseExpiredDeposits(garage.id);
+  const deposit = await depositQuote(garage, service.id);
   const input: CreateBookingInput = {
     serviceId: service.id,
     startsAt: draft.startsAt!,
@@ -347,7 +354,7 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
 
   let result: CreateBookingResult;
   try {
-    result = await getBookingEngine().createBooking(garage.id, parsed.data);
+    result = await getBookingEngine().createBooking(garage.id, parsed.data, deposit ? { deferCreatedNotice: true } : undefined);
   } catch {
     return { seq, message: GENERIC_MESSAGE };
   }
@@ -359,6 +366,13 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
     // Attached after the booking exists, by their own functions: they can never fail the booking.
     const attached = await attachBookingExtras(garage, { id: booking.id, reference: booking.reference }, extras.value);
     const extraLines = extrasSummary(attached);
+    let payToken: string | null = null;
+    if (deposit) {
+      const started = await startDeposit(garage, booking.id, deposit.provider);
+      if (started?.status === "pending") payToken = started.token;
+      // No deposit after all (or already paid): the confirmation that was held back goes now.
+      else if (!started && !result.replayed) await notifyBooking({ type: "created", garageId: garage.id, bookingId: booking.id });
+    }
     await clearBookingDraft();
     await writeJustBooked(garage.id, {
       reference: booking.reference,
@@ -374,6 +388,10 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
       contactHint: channel === "email" && email ? maskEmail(email) : maskMobile(phone!),
       ...(extraLines.length > 0 ? { extras: extraLines } : {}),
     });
+    if (payToken) {
+      await writePayCookie(payToken);
+      redirect("/pay");
+    }
     redirect(`/confirmed/${encodeURIComponent(booking.reference)}`);
   }
 

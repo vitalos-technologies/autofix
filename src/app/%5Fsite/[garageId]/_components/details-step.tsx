@@ -25,10 +25,12 @@ type DetailsStepProps = {
   humanCheck: boolean;
   /** P5.8: courtesy car request / collection and delivery offered for this slot (Pro garages). */
   extras?: BookingExtrasOptions;
+  /** P5.4: a deposit is taken after Confirm (formatted amount, minutes the slot is held). */
+  deposit?: { amount: string; holdMin: number } | null;
 };
 
 /** Step 4: who is bringing the car, how to send updates, reminder consent, Confirm booking. */
-export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, extras }: DetailsStepProps) {
+export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, extras, deposit = null }: DetailsStepProps) {
   const [state, formAction, pending] = useActionState<DetailsFormState, FormData>(confirmBookingAction, initialDetailsFormState);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -128,17 +130,26 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, ex
       <StickyActionBar
         type="submit"
         form={FORM_ID}
-        label="Confirm booking"
+        label={deposit ? "Confirm and pay deposit" : "Confirm booking"}
         showArrow={false}
         busy={pending}
         className="pt-3"
         footnote={
-          <>
-            Nothing to pay now.{" "}
-            <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
-              How we use your details
-            </Link>
-          </>
+          deposit ? (
+            <>
+              {`${deposit.amount} deposit now; we hold your time for ${deposit.holdMin} minutes while you pay.`}{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          ) : (
+            <>
+              Nothing to pay now.{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          )
         }
       />
     </>

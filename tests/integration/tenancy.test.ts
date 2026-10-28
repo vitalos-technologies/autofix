@@ -178,6 +178,7 @@ const ROLE_LIMITED_READS: Record<string, ReadonlyArray<"owner" | "manager" | "te
   garage_subscriptions: ["owner"],
   plan_requests: ["owner"],
   usage_events: ["owner", "manager"],
+  payment_accounts: ["owner", "manager"],
 };
 
 // ---------------------------------------------------------------------------
@@ -653,6 +654,27 @@ const FIXTURES: Record<string, Fixture> = {
       end_reason: "ended",
     }),
     patch: { reason: "Tampered reason" },
+  },
+  payment_accounts: {
+    create: (rows) => rows.insert("payment_accounts", { provider: "mock", account_ref: `mock_acct_tenancy_${rows.key}`, status: "active", charges_enabled: true }),
+    patch: { status: "disconnected" },
+  },
+  payment_settings: {
+    create: (rows) => rows.insert("payment_settings", { deposits_enabled: true, default_deposit_mode: "fixed", default_deposit_value: 2000, no_show_fee_pence: 2500 }),
+    patch: { no_show_fee_pence: 9999 },
+  },
+  payments: {
+    create: async (rows) => rows.insert("payments", {
+      kind: "no_show_fee",
+      amount_pence: 2500,
+      description: `Tenancy probe ${rows.key}`,
+      booking_id: await rows.booking(),
+      customer_id: await rows.customer(),
+      token_hash: createHash("sha256").update(`payment-${rows.key}-${localRunId}`).digest("hex"),
+      expires_at: "2096-04-20T09:00:00.000Z",
+      provider: "mock",
+    }),
+    patch: { status: "cancelled" },
   },
   plan_requests: {
     create: (rows) => rows.insert("plan_requests", { requested_plan: "pro", requested_by: rows.ownerId, note: `Tenancy probe ${rows.key}` }),

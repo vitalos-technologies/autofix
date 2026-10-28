@@ -756,3 +756,81 @@ Additive edits to shared files: `GROW_NAV_ITEMS` (one line, `CarFront`), `JobCar
 | garage host `/details` | Extras fieldset (Pro and something offered only); `/confirmed/[ref]` lists what happened |
 
 No new jobs, no customer messages (the only new message is a staff email to the garage's own address). No token links, so no `next.config.ts` header rule was needed.
+
+## Payments: deposits, pay-by-link and no-show fees (Phase 5, P5.4; DECISIONS A318–A325)
+
+### Schema (`20261029000400_payments.sql`; pgTAP `030_payments`)
+
+| Object | Notes |
+| --- | --- |
+| `services.deposit_mode`, `services.deposit_value` (new columns) | `default` (follow the garage), `none`, `fixed` (pence, 100–100000) or `percent` (1–100 of `price_pence`). Trigger `services_deposit_plan_guard` raises `PLAN_REQUIRED: payments` when a member changes them without Pro; other service edits are untouched |
+| `payment_accounts` (tenant, one per garage) | `provider` (`mock`/`stripe`), `account_ref`, `status` (`pending`/`active`/`restricted`/`disconnected`), `charges_enabled`, `connected_by`, `connected_at`, `disconnected_at`. **Owners and managers read** (`ROLE_LIMITED_READS`); written only by `apply_payment_account()` and `disconnect_payment_account()` |
+| `payment_settings` (tenant, one per garage) | `deposits_enabled`, `default_deposit_mode` (`none`/`fixed`/`percent`), `default_deposit_value`, `deposit_hold_min` (30–180, default 30), `no_show_fee_pence` (null or 100–100000), `updated_by`. Members read; owners/managers insert/update with `garage_has_feature(garage_id, 'payments')` |
+| `payments` (tenant) | `kind` (`deposit`/`invoice`/`no_show_fee`), `status` (`pending`/`paid`/`expired`/`cancelled`/`failed`), `amount_pence`, `amount_paid_pence`, `description`, `booking_id`/`invoice_id`/`customer_id` (composite FKs, `on delete set null`), `token_hash` (SHA-256 of the pay-link token, unique), `expires_at`, `provider`, `checkout_ref`, `provider_payment_ref`, `paid_at`, `attention` (`paid_after_release`/`invoice_not_open`/`overpaid`/`amount_mismatch`), `cancelled_reason`, `notified_at`/`notify_channel`/`notify_outcome`, `created_by`. One live (pending or paid) deposit and one live no-show fee per booking (partial unique index). Members read (no plan check); no direct writes |
+| `payment_webhook_events` (platform) | `event_id` pk, `provider`, `type`, `target_garage_id`, `outcome`; ids only. Service role |
+| Trigger `bookings_payments_follow_status` (on `bookings`, after update of status) | a booking cancelled by staff cancels its pending deposit (the customer's link stops working) |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `payment_deposit_amount(garage, service) → int` | service | the deposit in pence or null (deposits off, none, percent of a quote, under £1); capped at £1,000. Mirrored by `depositAmountPence()` (unit test) |
+| `create_deposit_payment(garage, booking, provider, token_hash) → payments` | service (the booking flow) | **after** `create_booking()`: the pending deposit, expiring after `deposit_hold_min`; null when none applies (not Pro, no active account for this provider, deposits off, booking not requested/confirmed). A replay rotates the token of the same deposit. Adds a "Waiting for the deposit" note to the booking |
+| `expire_pending_deposits(now, garage?) → table` | service | expires pending payments past `expires_at` (500 a call, `skip locked`). An unpaid deposit cancels its booking if still `requested`/`confirmed` (`cancellation_reason = 'Deposit not paid in time'`) through an ordinary status update: the status trigger logs it as a system change and `no_overlap` no longer counts it, so the slot is free |
+| `create_payment_request(kind, target, provider, token_hash) → payments` | owners, managers, front desk of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled); Pro; active account | `invoice`: the issued invoice's balance (≥ £1), replacing any open link; `no_show_fee`: the garage's fee for a `no_show` booking (asking again re-issues the same request). Links last 14 days. Audited `payments.link_created` |
+| `cancel_payment_request(payment)` | owners, managers, front desk; Pro | pending → cancelled ("Cancelled by the garage", or "Deposit waived by the garage"). Audited |
+| `apply_payment_paid(garage, payment, provider, ref, amount, paid_at) → jsonb` | service | once (a repeat returns `already: true`). Invoice: inserts into `invoice_payments` (method `card`, `created_by` = the member who sent the link), invoice `paid` when the balance reaches zero, else part-paid; more than the balance is recorded up to it and flagged `overpaid`; a voided/settled invoice is flagged `invoice_not_open`. Deposit paid after release: `paid_after_release`. Audited `payments.paid` (+ `invoice.marked_paid`/`invoice.part_payment_recorded`) |
+| `set_payment_checkout(garage, payment, ref)` | service | stores the Checkout Session id on a pending payment |
+| `apply_payment_account(garage, provider, ref, status, charges_enabled, actor)` | service | the owner's connect (`actor` set: needs Pro) or a provider webhook (`actor` null: only the account the garage already holds, never reconnects a disconnected one). Audited `payments.account_<status>` |
+| `disconnect_payment_account()` | owner of the selected garage (not plan gated, so Essentials can disconnect) | `disconnected`, charges off |
+| `set_service_deposit(service, mode, value)` | owners, managers; Pro | a service's deposit rule. Audited `service.deposit_changed` |
+| `claim_payment_webhook_event`, `finish_payment_webhook_event` | service | once per provider event |
+
+`create_booking`, `create_booking_at`, `available_slots*` and `staff_available_slots*` are not replaced. **No double
+booking:** the booking is created first by `create_booking()` and holds its resource like any other booking; an unpaid
+deposit only ever *removes* a booking (cancelled), never adds one (pgTAP 030: a pending deposit refuses an overlapping
+second booking, expiry frees it, the next customer books it).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/payments/provider.ts` | **`PaymentsProvider`** (`kind`, `startConnect`, `getAccount`, `createCheckout`, `getCheckout`, `cancelCheckout`, `parseWebhook`), `AccountState`, `ConnectResult`, `CheckoutRequest`, `CheckoutResult`, `CheckoutState`, `PaymentsEvent` |
+| `src/lib/payments/index.ts` | `readPaymentsConfig(env)`, `getPaymentsReadiness()` (`mock`/`stripe_test`/`configuration_required`/`live_key_refused`/`mock_not_in_production`), `getPaymentsProvider()` (null when payments cannot run), `PAYMENTS_READINESS_MESSAGES` |
+| `src/lib/payments/stripe.ts` | `createStripePaymentsProvider(config, fetch)` (REST + fetch, no SDK: Express accounts, Account Links, Checkout Sessions with `Stripe-Account`, expire, retrieve), `mapStripePaymentsEvent`, `accountState`, `checkoutExpiry`; signatures via `verifyStripeSignature` from `src/lib/billing/stripe.ts` with its own secret |
+| `src/lib/payments/mock.ts` | `createMockPaymentsProvider()` |
+| `src/lib/payments/amounts.ts` (client-safe) | kinds, statuses, labels, `formatPounds`, `parsePoundsToPence`, `depositAmountPence`, `parseDepositRule`, `depositRuleLabel`, `paymentTotals`, limits |
+| `src/lib/payments/tokens.ts` | `createPayToken()` (32 random bytes, base64url; hash stored), `hashPayToken`, `isPayTokenShape`, `PAY_COOKIE` (`af_pay`, httpOnly, path `/pay`), `payCookieOptions` |
+| `src/lib/payments/messages.ts` (pure) | `chooseLinkChannel(customer)` (own channel; STOP → email, else none), `composeLinkMessage()` (SMS/WhatsApp end with "Reply STOP to opt out.") |
+| `src/lib/payments/server.ts` | `loadPaymentsSetup(garage)`, `accountUsable`, `depositQuote`, `startDeposit`, `releaseExpiredDeposits(garage?)` (never throws; closes Stripe checkouts; clears the slot cache), `loadPaymentByToken`, `markPaymentPaid` (a deposit paid in time sends the held-back booking confirmation), `syncCheckout`, `applyPaymentsEvent`, `refreshConnectedAccount`, `sendPaymentLink` (getChannel, `messages` row, outcome on the payment) |
+| `src/lib/payments/admin-actions.ts` ("use server") | `connectPaymentsAction`, `disconnectPaymentsAction` (owners), `savePaymentSettingsAction`, `saveServiceDepositAction` (owners/managers), `sendInvoicePaymentLinkAction`, `chargeNoShowFeeAction`, `cancelPaymentAction` (owners/managers/front desk). All but disconnect check `featureProblem(admin, "payments")` |
+| `src/lib/payments/pay-session.ts` | `writePayCookie`, `readPayCookie` |
+| `src/lib/payments/jobs.ts` | handler `payments.expire_deposits` |
+| `src/components/payments/*` | `PaymentStatusBadge`, `PAYMENT_FLASH`, `DepositRuleFields`, `PaymentSettingsForm`, `ServiceDepositForm`, `BookingPaymentsPanel`, `InvoicePaymentLinkPanel`, `ServiceDepositPanel`, `InvoicePayLinkBadge`/`loadInvoicePayLinks` |
+| Booking engine (additive) | `CreateBookingOptions.deferCreatedNotice`: the booking flow holds back the "created" notification while a deposit is due |
+
+Routes:
+
+| Route | Host | What |
+| --- | --- | --- |
+| `/app/payments` | admin | Pro. Payments list (filter by kind), totals this month, cancel/waive pending; `ProLockedPage` (with existing rows below) on Essentials. Nav: one line in `GROW_NAV_ITEMS` |
+| `/app/payments/settings` | admin | Pro. Connect/disconnect (owners), deposits, hold, no-show fee (owners/managers), deposit per service |
+| `GET /app/payments/settings/return` | admin | Stripe onboarding return/refresh: reads the account, stores it |
+| Panels on `/app/bookings/[id]` (`#payments`), `/app/invoices/[id]` (`#payments`), `/app/settings/services/[id]` (`#deposit`); badge on `/app/invoices` | admin | additive: one import + one element each |
+| `/details` (booking step 4) | garage | "Confirm and pay deposit" and the hold time when a deposit applies |
+| `/time` | garage | releases the garage's expired deposits before showing times |
+| `GET /pay/[token]` | garage | moves the token into `af_pay` and 303s to `/pay` (`Referrer-Policy: no-referrer`, also in `next.config.ts`) |
+| `/pay` | garage | the payment from `af_pay` only: pay (mock: test payment here; Stripe: Checkout Session on the garage's account), paid, expired ("Book again"), cancelled; `?paid=1` reads the checkout back if the webhook lags |
+| `POST /api/webhooks/payments/stripe` | any | Stripe Connect webhook, `STRIPE_PAYMENTS_WEBHOOK_SECRET`, raw-body signature, once per event; 503 until configured |
+
+Jobs: `payments.expire_deposits` (in `JOB_KINDS`, the registry, the `daily` cron and its own cron name
+`/api/cron/payments.expire_deposits`, period 5 minutes). Because Vercel Hobby runs crons once a day, expired deposits
+are also released by the booking flow (`/time`, Confirm), `/pay` and `/app/payments` for that garage.
+
+The deposit journey: Confirm → `create_booking()` (holds the bay; confirmation held back) → `create_deposit_payment()`
+→ `af_pay` cookie → `/pay` → paid: `apply_payment_paid()` + the booking confirmation (`notifyBooking created`); not
+paid by `expires_at`: `expire_pending_deposits()` cancels the booking ("Deposit not paid in time") and the slot is free.
+If the deposit cannot be added after the booking was made, the booking stands and its confirmation is sent at once.
+
+**Reusing the provider (P5.5 service plans by Direct Debit):** `PaymentsProvider` is per garage account; add recurring
+methods next to the existing ones (e.g. `startMandate`, `createSubscription`) and new `PaymentsEvent` kinds, keep
+`parseWebhook` + `payment_webhook_events` for idempotency, and keep `getPaymentsProvider()` as the single test-mode/live
+gate. Stripe Direct Debit (Bacs) would use the same connected account (`Stripe-Account`).

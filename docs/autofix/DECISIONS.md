@@ -250,6 +250,14 @@
 | A355 | Any member (owner, manager, technician, front desk) may reserve, release, check out/in, decline and book collection; only owners/managers manage the fleet | Low |
 | A356 | On Essentials existing cars, loans and legs stay readable (select policies don't check the plan) but every write and action is refused; the booking site offers nothing | Low |
 | A357 | Moving a booking shifts a reserved loan by the same absolute amount (so a move across the clock change keeps the same length, not the same closing time); loans already out are not moved | Low |
+| A318 | A deposit-pending booking keeps its normal status (`confirmed`, or `requested` when it needs approval) and holds the bay; the deposit's state lives on `payments`, shown on the booking page. No new booking status, so the diary, status machinery and `no_overlap` are unchanged | Low: staff could start work on a booking whose deposit is still pending; the booking page shows it |
+| A319 | Default hold 30 minutes (30–180), because Stripe Checkout sessions last at least 30 minutes; when the hold ends the job/booking flow closes the checkout. A deposit paid in the gap after release is recorded and flagged `paid_after_release` (refund or rebook), never re-books | Low |
+| A320 | Direct charges on the garage's connected Express account, GBP, no Autofix application fee. Connect onboarding is Stripe-hosted (Account Links) | Medium: Temitope may want a platform fee or Standard accounts |
+| A321 | The mock provider is refused on Vercel production (`mock_not_in_production`): a customer must never "pay" where no money moves. Stripe asked for but not ready (or a live key) means payments are off, not mocked | Low |
+| A322 | Pay links are service messages (the customer's own invoice/booking): sent at once on the customer's channel, not held for quiet hours; texts honour STOP (`opted_out_at`) with email as the fallback, else nothing is sent and staff are told. The link message is stored in `messages` (inbox history) | Low |
+| A323 | Online invoice payments are recorded in `invoice_payments` with method `card` and `created_by` = the member who sent the link (the column is not null); the reference reads "Paid online (provider) <payment id>" | Low |
+| A324 | Who may: connect/disconnect owners; amounts and per-service deposits owners and managers; send links, charge no-show fees, cancel links and waive deposits owners, managers and front desk (not technicians). Payments are readable by every member; the account by owners and managers | Low |
+| A325 | An expired deposit cancels the booking silently (the customer never had a confirmation; `/pay` tells them). Phone and walk-in bookings made by staff never take a deposit. Invoice and no-show links last 14 days | Low |
 
 ## Waiting on Temitope
 
@@ -288,3 +296,7 @@ Agents: add items here instead of doing them. Each needs his explicit OK.
 - [ ] Advanced: `SMS_SEGMENT_COST_PENCE`: the price per SMS segment to show in Reminder return (with the plan prices and allowances, D17). Until then only counts are shown.
 - [ ] Advanced: Nothing else: no keys, accounts or money involved.
 - [ ] Courtesy: Nothing blocking. Product calls to confirm: A350 (default window), A351 (van vs driver for collection) and A352 (mobile visits not yet avoiding held van legs).
+- [ ] Payments:: Stripe Connect test mode: a Stripe test account with Connect enabled, its `sk_test_` key as `STRIPE_SECRET_KEY` (shared with billing) and a **Connect** webhook endpoint for `/api/webhooks/payments/stripe` (events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `account.updated`) with its secret as `STRIPE_PAYMENTS_WEBHOOK_SECRET`, then `PAYMENTS_PROVIDER=stripe`. None exist in `.env.example` or CI as of 28 Oct 2026; everything was built and tested on the mock.
+- [ ] Payments:: Decide: Express vs Standard accounts and any Autofix fee on garage payments (A320); live payments (needs approval; live keys are refused).
+- [ ] Payments:: A 5-minute scheduler for `/api/cron/payments.expire_deposits` (Vercel Pro cron or an external one with `CRON_SECRET`); until then expired deposits are released daily and whenever the garage's booking page, `/pay` or `/app/payments` is used.
+- [ ] Payments:: Solicitor review of the deposit and no-show wording (customer-facing: details step, `/pay`, link texts).
