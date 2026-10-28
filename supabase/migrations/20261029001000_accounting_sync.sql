@@ -82,6 +82,8 @@ create table public.accounting_connection_secrets (
 comment on table public.accounting_connection_secrets is
   'P5.10: OAuth tokens of an accounting connection as AES-256-GCM ciphertext (v1.<iv>.<tag>.<data>, key ACCOUNTING_TOKEN_KEY outside the database, the garage id as associated data). Service role only.';
 
+create index accounting_connection_secrets_garage_idx on public.accounting_connection_secrets (garage_id, connection_id);
+
 create table public.accounting_sync_items (
   id uuid primary key default gen_random_uuid(),
   garage_id uuid not null default public.current_garage_id() references public.garages(id) on delete cascade,
@@ -135,7 +137,12 @@ create policy "owners and managers read the accounting connection" on public.acc
   using (garage_id = (select public.current_garage_id()) and (select public.current_garage_role()) in ('owner', 'manager'));
 
 -- accounting_connection_secrets
---   (no policies and no grants for anon or authenticated: tokens are service role only)
+--   "nobody on the staff side reads tokens"  select  nobody (false; there is no SELECT grant either):
+--   tokens are service role only. The policy exists so the table follows the tenancy rule
+--   "every tenant table has a select policy scoped to the selected garage".
+create policy "nobody on the staff side reads tokens" on public.accounting_connection_secrets
+  for select to authenticated
+  using (garage_id = (select public.current_garage_id()) and false);
 
 -- accounting_sync_items
 --   "owners and managers read sync status"  select  owners/managers of the selected garage
