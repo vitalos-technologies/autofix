@@ -25,7 +25,7 @@ type Call = (
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACCOUNT = /^acct_[A-Za-z0-9]{6,64}$/;
 const CHECKOUT = /^cs_(test_)?[A-Za-z0-9]{6,200}$/;
-const SUBSCRIPTION = /^sub_[A-Za-z0-9]{6,200}$/;
+const SUBSCRIPTION = /^sub_[A-Za-z0-9_]{6,200}$/;
 
 /** Stripe's subscription status as ours; null = no change (incomplete, paused, unknown). */
 export function planStatusFromStripe(status: unknown): PlanSubscriptionStatus | null {
