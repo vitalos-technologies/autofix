@@ -423,3 +423,18 @@ Proxy: `/signup/*` gets the session refresh `/app` gets (no MFA rules there); th
 | `src/components/onboarding/*`, `src/components/team/*` | `OnboardingFrame`, `OnboardingProgress`, `TextField`, `Notice`, `ONBOARDING_STEPS`/`ONBOARDING_PATHS`; `InviteForm`, `ResendInviteButton`, `MemberList`, `PendingInviteList` |
 
 No background job kinds: invite emails are sent inline through `getChannel("email")`.
+
+## Django super admin (Phase 5, P5.1)
+
+`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D16; assumptions A130–A139; full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
+
+| Piece | Where | What |
+| --- | --- | --- |
+| Role and views | `supabase/migrations/20261028004000_superadmin_role.sql`, pgTAP 028 | Role `autofix_superadmin` (NOLOGIN in the migration; read-only sessions, `search_path = superadmin`, 10s statement timeout, 10 connections). Schema `superadmin`: one read-only view per table it reads (`garages`, `garage_members`, `garage_invites`, `admin_profiles`, `platform_admins`, `customers`, `vehicles`, `services`, `resources`, `bookings`, `garage_domains`, `jobs`, `reminder_sends`, `messages`, `calls`, `garage_agreements`, `platform_audit_log`, `platform_impersonations`), contact details and registrations masked by `superadmin.mask_phone/mask_email/mask_registration`, no bodies, payloads or token hashes. EXECUTE on `platform_update_garage`, `platform_retry_job`, `platform_request_domains_check` only |
+| `platform_request_domains_check(uuid, text)` | same migration | Platform admin at AAL2, reason 5–500, pending/verifying custom domains only; queues `domains.check` with dedupe key `domains.check:platform:<5-minute bucket>`; audited `platform.domain_check_requested` |
+| Data access | `superadmin/apps/autofix/models.py`, `router.py`, `db.py` | Unmanaged read-only models on alias `autofix`; `AutofixRouter` never migrates or writes it; `call_platform_function()` is the only write path (allowlisted function, `SET TRANSACTION READ WRITE`, `request.jwt.claims` = the user's linked platform admin with `aal2`) |
+| Reads / writes | `apps/autofix/selectors.py`, `services.py` | Page data (Europe/London windows) / role + TOTP + link + reason checks, the platform call and our audit event |
+| Status | `apps/autofix/status.py`, `GET /api/platform/v1/status` | ADR-044 product status for the Vitalos Product Pipeline (Bearer `AUTOFIX_STATUS_TOKEN`; counts only) |
+| View as support | `POST /garages/<id>/view-as-support/` | Audited, then redirects to `AUTOFIX_APP_URL/admin/garages/<id>`; the read-only session starts in Autofix under the admin's own sign-in and MFA |
+
+Pages: `/` Overview, `/garages/` (+ `/garages/<id>/?tab=overview|team|bookings|domains|messaging|plan|agreements|audit`), `/jobs/`, `/messaging/`, `/domains/`, `/signups/`, `/activity/`, `/audit/` and `/audit/autofix/`, `/team/`, `/notifications/`, `/settings/`, `/help/`, `/system/health/`, `/api/v1/` (+ `/api/schema/`, `/api/docs/`), `/django-admin/`, `/healthz/`.

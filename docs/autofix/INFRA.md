@@ -45,6 +45,8 @@ Security headers (P4.3): `X-Frame-Options` and `Content-Security-Policy` are set
 
 Added: see `.autofix/env.autofix.example` (appended to `.env.example` by `/bootstrap`).
 
+Django super admin (P5.1, `superadmin/`, its own container; see `superadmin/.env.example`): `DJANGO_SECRET_KEY`, `DATABASE_URL` (its own Postgres 17), `AUTOFIX_DATABASE_URL` (Autofix Supabase as `autofix_superadmin`: session pooler, user `autofix_superadmin.<project-ref>`, `sslmode=require`; the role's password is set out of band with `alter role autofix_superadmin with login password '…'`, never in a migration), `AUTOFIX_STATUS_TOKEN` (32+ characters, shared with the Vitalos platform's Product Pipeline), `AUTOFIX_APP_URL` (`https://autofix.vitalos.co.uk`), `AUTOFIX_SUPERADMIN_URL` (`https://superadmin.autofix.vitalos.co.uk`, not live), `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD`, `PRIMARY_OWNER_EMAIL`, `SENTRY_DSN`. None of these are Vercel variables.
+
 ## Jobs and crons (P3.7)
 
 The job queue is the `jobs` table (P3.6). `GET /api/cron/<name>` (`Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends by itself) queues that name's platform job for the current period (dedupe key per UTC day, per 10-minute slot for `reminders.send`, per 5-minute slot for `domains.check`), then drains due jobs of every kind for up to 20 seconds. `POST /api/jobs/drain` (same header; optional JSON `{"kinds": [...], "budgetMs": 1000-50000}`) only drains. Booking notifications and HELP answers are also drained straight after the request that queued them (`after()`).

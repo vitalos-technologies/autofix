@@ -16,6 +16,7 @@ Autofix is Vitalos's multi-tenant garage booking platform (working name). Garage
 | `design/DESIGN.md` | Design system, components, screen-to-route map |
 | `design/screenshots/*.png` | What each screen must look like (2x). Look at these before UI work |
 | `design/screens/*.dc.html` | Exact markup and inline styles per screen (`{{accent}}` = garage colour) |
+| `superadmin/README.md` | The Django super admin (P5.1): pages, how it reaches Autofix (role `autofix_superadmin`), quality gates |
 | `docs/SOB_Autofix_Full_Codex_Architecture.md` | SOB's original spec. Context only; SOB-specific rules (no MOT, no tyres, Doncaster SEO) do NOT apply here |
 
 ## Stack and commands

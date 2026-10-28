@@ -1,0 +1,265 @@
+{
+  "base_url": "http://localhost:8000",
+  "checks": [
+    {
+      "check": "login page returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "signed in and on the overview",
+      "ok": true,
+      "detail": "http://localhost:8000/"
+    },
+    {
+      "check": "/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/garages/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/garages/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/signups/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/signups/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/domains/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/domains/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/messaging/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/messaging/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/jobs/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/jobs/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/activity/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/activity/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/audit/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/audit/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/audit/autofix/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/audit/autofix/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/notifications/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/notifications/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/team/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/team/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/system/health/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/system/health/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/settings/users/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/settings/users/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/settings/tokens/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/settings/tokens/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/notifications/preferences/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/notifications/preferences/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/account/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/help/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/help/ shows its heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "/api/docs/ returns 200",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garages list has at least one garage",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage detail opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab overview loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab team loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab bookings loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab domains loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab messaging loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab plan loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab agreements loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "garage tab audit loads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "View as support asks for a reason first",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "command palette finds the Garages page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "live search answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "status endpoint answers for product autofix",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "no CSP violations in the browser console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "temporary smoke-test authenticator removed",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
