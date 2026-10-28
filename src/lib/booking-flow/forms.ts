@@ -29,7 +29,8 @@ export type ServiceFormState = Base & {
 export type TimeFormState = Base;
 
 export type DetailsFormState = Base & {
-  fieldErrors?: FieldErrors<"name" | "phone" | "email">;
+  /** P5.8 adds the collection address fields (collection and delivery, Pro). */
+  fieldErrors?: FieldErrors<"name" | "phone" | "email" | "collectionPostcode" | "collectionAddress">;
   /** Step to go back to when the problem is an earlier choice (service or area). */
   editHref?: string;
   editLabel?: string;

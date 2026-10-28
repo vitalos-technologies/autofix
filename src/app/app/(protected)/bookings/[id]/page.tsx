@@ -18,6 +18,7 @@ import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
 import { RescheduleControls } from "./booking-controls";
+import { CourtesyBookingPanel } from "./courtesy-panel";
 import { NoteForm } from "./note-form";
 import { StatusControls } from "./status-controls";
 
@@ -52,7 +53,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * collected; cancel; no-show), moving it, notes and the booking_events timeline. Reads and status
  * writes go through the garage's RLS client; another garage's booking is "not found".
  */
-export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
+export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string; courtesy?: string; courtesyError?: string }> }) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const admin = await getAdminContext({ allowTrustedDevice: true });
@@ -69,7 +70,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   }
   if (booking === null) notFound();
 
-  const notice = NOTICES[(await searchParams).notice ?? ""] ?? null;
+  const query = await searchParams;
+  const notice = NOTICES[query.notice ?? ""] ?? null;
   if (!booking) {
     return (
       <div className="flex flex-col gap-5">
@@ -199,6 +201,14 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <span className="text-[15px] text-grey-700">{car ?? "Car details not recorded"}</span>
             </div>
           </Panel>
+
+          <CourtesyBookingPanel
+            client={admin.client}
+            garage={admin.garage}
+            booking={booking}
+            timeZone={timeZone}
+            flash={{ done: query.courtesy, error: query.courtesyError }}
+          />
 
           <Panel id="history" title="History">
             <NoteForm bookingId={booking.id} />

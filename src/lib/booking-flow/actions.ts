@@ -38,7 +38,9 @@ import type { DetailsFormState, ServiceFormState, TimeFormState, VehicleFormStat
 import { clientIp, loadBookingServices, passHumanCheck } from "@/lib/booking-flow/server";
 import { BOOKING_STEP_PATHS, firstIncompleteStep, serviceLocationModes } from "@/lib/booking-flow/steps";
 import { draftVehicleFromLookup, vehicleName, type DraftVehicle } from "@/lib/booking-flow/vehicle";
+import { attachBookingExtras, extrasSummary, getBookingExtrasOptions, readBookingExtras } from "@/lib/courtesy/booking-site";
 import { toE164UK } from "@/lib/messaging/phone";
+import { garageHasFeature } from "@/lib/plans/server";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getGarage, type Garage } from "@/lib/tenancy/garage";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
@@ -280,7 +282,16 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
   const requestedChannel = text(formData.get("channel"));
   const channel: CustomerChannel = (messageChannels as readonly string[]).includes(requestedChannel) ? (requestedChannel as CustomerChannel) : "sms";
   if (channel === "email" && !rawEmail) fieldErrors.email = "Add your email address to get updates by email.";
-  if (Object.keys(fieldErrors).length > 0) return { seq, fieldErrors };
+  // P5.8: courtesy car request and collection and delivery, only when this garage offers them now.
+  const offeredExtras = await getBookingExtrasOptions(garage, {
+    serviceId: storedDraft.serviceId!,
+    startsAt: storedDraft.startsAt!,
+    durationMin: services.find((item) => item.id === storedDraft.serviceId)?.durationMin ?? 60,
+    locationMode: storedDraft.locationMode ?? "workshop",
+  });
+  const extras = readBookingExtras(formData, offeredExtras, garage.serviceArea, garageHasFeature(garage, "courtesy_cars"));
+  if (!extras.ok) Object.assign(fieldErrors, extras.fieldErrors);
+  if (Object.keys(fieldErrors).length > 0 || !extras.ok) return { seq, fieldErrors };
   // Consent only when the box was ticked; the wording stored is the wording this garage shows.
   const reminderConsent = formData.get("reminderConsent") === "yes";
 
@@ -341,6 +352,9 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
 
   if (result.ok) {
     const booking = result.booking;
+    // Attached after the booking exists, by their own functions: they can never fail the booking.
+    const attached = await attachBookingExtras(garage, { id: booking.id, reference: booking.reference }, extras.value);
+    const extraLines = extrasSummary(attached);
     await clearBookingDraft();
     await writeJustBooked(garage.id, {
       reference: booking.reference,
@@ -354,6 +368,7 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
       registration: vehicle.registration,
       channel,
       contactHint: channel === "email" && email ? maskEmail(email) : maskMobile(phone!),
+      ...(extraLines.length > 0 ? { extras: extraLines } : {}),
     });
     redirect(`/confirmed/${encodeURIComponent(booking.reference)}`);
   }

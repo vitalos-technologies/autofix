@@ -232,6 +232,8 @@ export type JustBooked = {
   channel: CustomerChannel;
   /** Masked mobile (`07••• •••412`) or email (`s•••@example.com`). */
   contactHint: string;
+  /** P5.8: one line per extra (courtesy car request, collection and delivery) for the confirmation. */
+  extras?: string[];
 };
 
 const justBookedSchema = z.object({
@@ -246,6 +248,7 @@ const justBookedSchema = z.object({
   registration: z.string(),
   channel: z.enum(messageChannels),
   contactHint: z.string(),
+  extras: z.array(z.string().max(200)).max(4).optional(),
 });
 
 /** Cookie path: only the confirmation page receives it. */

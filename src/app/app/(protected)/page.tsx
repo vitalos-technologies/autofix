@@ -36,6 +36,7 @@ import {
 import { loadReminderMonth } from "@/lib/admin/reminders";
 import { formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayRange, localWeekRange, monthStart } from "@/lib/admin/dates";
 import { formatWholePounds, shapeToday, todayChips, type ReminderWeek } from "@/lib/admin/today";
+import { courtesyBookingIds } from "@/lib/courtesy/server";
 import { markMissedCallHandledAction } from "@/lib/calls/actions";
 import { countMissedCallsNeedingOk, listMissedCallsNeedingOk } from "@/lib/calls/missed-calls";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -133,6 +134,8 @@ export default async function TodayPage() {
   }
 
   const [resources, today, requests, opening, reminderMonth, reminders, calls, missedCount, activity] = loaded;
+  // P5.8: bookings with a courtesy car get a small car mark (never throws; no marks on failure).
+  const courtesy = await courtesyBookingIds(admin.client, admin.garage.id, today.map((booking) => booking.id));
   const view = shapeToday({
     today,
     requests: requests.rows,
@@ -212,6 +215,7 @@ export default async function TodayPage() {
                   href={bookingHref(booking.id)}
                   active={IN_WORKSHOP.includes(booking.status)}
                   actions={jobActions(booking)}
+                  courtesyCar={courtesy.has(booking.id)}
                 />
               </li>
             ))}
@@ -259,7 +263,7 @@ export default async function TodayPage() {
             <DiaryGrid
               className="min-w-0"
               resources={resources}
-              bookings={view.diary}
+              bookings={view.diary.map((booking) => ({ ...booking, courtesyCar: courtesy.has(booking.id) }))}
               date={dateKey}
               timeZone={timeZone}
               now={now}
