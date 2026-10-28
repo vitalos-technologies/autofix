@@ -378,6 +378,20 @@ type Fixture = {
   patch: Record<string, unknown>;
 };
 
+/** P5.11: a service plan and one subscription per car per status (one live subscription per car). */
+async function servicePlanSubscription(rows: GarageRows, status: "pending_mandate" | "cancelled" = "cancelled") {
+  const plan = await rows.insert("service_plans", { name: `Tenancy plan ${rows.key} ${status}`, price_pence: 1500, discount_percent: 5 }, "id");
+  return rows.insert("customer_plan_subscriptions", {
+    plan_id: plan.id,
+    customer_id: await rows.customer(),
+    vehicle_id: await rows.vehicle(),
+    status,
+    price_pence: 1500,
+    provider: "mock",
+    ...(status === "cancelled" ? { cancelled_at: "2096-04-01T09:00:00.000Z" } : {}),
+  }, "id");
+}
+
 const FIXTURES: Record<string, Fixture> = {
   agent_call_log: {
     create: async (rows) => rows.insert("agent_call_log", {
@@ -503,6 +517,7 @@ const FIXTURES: Record<string, Fixture> = {
   },
   // Written only by the import RPCs; staff have no update grant, so the probe is refused.
   customer_imports: { create: (rows) => rows.customerImport(), patch: { file_name: "tampered.csv" } },
+  customer_plan_subscriptions: { create: (rows) => servicePlanSubscription(rows, "pending_mandate"), patch: { status: "active", started_at: "2096-04-01T09:00:00.000Z" } },
   customers: { create: (rows) => rows.customer(), patch: { name: "Tampered" } },
   enquiries: { create: (rows) => rows.enquiry(), patch: { description: "Tampered" } },
   enquiry_attachments: {
@@ -696,6 +711,34 @@ const FIXTURES: Record<string, Fixture> = {
   },
   resources: { create: (rows) => rows.resource(), patch: { name: "Tampered" } },
   services: { create: (rows) => rows.service(), patch: { name: "Tampered" } },
+  service_plans: { create: (rows) => rows.insert("service_plans", { name: `Tenancy plan ${rows.key}`, price_pence: 1500, discount_percent: 5 }), patch: { name: "Tampered" } },
+  service_plan_inclusions: {
+    create: async (rows) => {
+      const plan = await rows.insert("service_plans", { name: `Tenancy inclusion plan ${rows.key}`, price_pence: 1500 }, "id");
+      return rows.insert("service_plan_inclusions", { plan_id: plan.id, service_id: await rows.service(), uses_per_year: 1 });
+    },
+    patch: { uses_per_year: 12 },
+  },
+  service_plan_uses: {
+    create: async (rows) => {
+      const subscription = await servicePlanSubscription(rows);
+      return rows.insert("service_plan_uses", {
+        subscription_id: subscription.id,
+        booking_id: await rows.booking(),
+        service_id: await rows.service(),
+        plan_year_start: "2096-04-01T09:00:00.000Z",
+        source: "staff",
+      });
+    },
+    patch: { status: "released", released_at: "2096-04-02T09:00:00.000Z" },
+  },
+  service_plan_invoice_applications: {
+    create: async (rows) => {
+      const subscription = await servicePlanSubscription(rows);
+      return rows.insert("service_plan_invoice_applications", { invoice_id: (await rows.issuedInvoice()).id, subscription_id: subscription.id, discount_pence: 100 });
+    },
+    patch: { discount_pence: 99999 },
+  },
   service_prices: {
     create: (rows) => rows.insert("service_prices", { service_slug: "tenancy-probe", minimum: 1000, maximum: 2000, label: `Probe ${rows.key}` }),
     patch: { label: "Tampered" },
