@@ -426,7 +426,7 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 
 ## Django super admin (Phase 5, P5.1)
 
-`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D18; assumptions A400–A410; full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
+`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D18; assumptions A400–A414; served at `autofix.vitalos.co.uk/superadmin` through `src/proxy.ts` (`src/lib/superadmin/proxy.ts`: shared-secret gate, only `afsa_*` cookies forwarded); full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
 
 | Piece | Where | What |
 | --- | --- | --- |
@@ -435,6 +435,7 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 | Data access | `superadmin/apps/autofix/models.py`, `router.py`, `db.py` | Unmanaged read-only models on alias `autofix`; `AutofixRouter` never migrates or writes it; `call_platform_function()` is the only write path (allowlisted function, `SET TRANSACTION READ WRITE`, `request.jwt.claims` = the user's linked platform admin with `aal2`) |
 | Reads / writes | `apps/autofix/selectors.py`, `services.py` | Page data (Europe/London windows) / role + TOTP + link + reason checks, the platform call and our audit event |
 | Status | `apps/autofix/status.py`, `GET /api/platform/v1/status` | ADR-044 product status for the Vitalos Product Pipeline (Bearer `AUTOFIX_STATUS_TOKEN`; counts only) |
+| Path mode | `src/lib/superadmin/proxy.ts`, `superadmin/apps/core/wsgi.py`, `ProxyGateMiddleware`, `apps/accounts/stepup.py` | `/superadmin/*` on the admin host is forwarded to `SUPERADMIN_ORIGIN` with `x-autofix-superadmin-proxy`; the container 404s anything without it; cookies `__Secure-afsa_*` on `Path=/superadmin/`; a fresh TOTP code with each change, personal-data view, user change and API token (D18) |
 | View as support | `POST /garages/<id>/view-as-support/` | Audited, then redirects to `AUTOFIX_APP_URL/admin/garages/<id>`; the read-only session starts in Autofix under the admin's own sign-in and MFA |
 
 Pages: `/` Overview, `/garages/` (+ `/garages/<id>/?tab=overview|team|bookings|domains|messaging|plan|agreements|audit`), `/jobs/`, `/messaging/`, `/domains/`, `/signups/`, `/activity/`, `/audit/` and `/audit/autofix/`, `/team/`, `/notifications/`, `/settings/`, `/help/`, `/system/health/`, `/api/v1/` (+ `/api/schema/`, `/api/docs/`), `/django-admin/`, `/healthz/`.

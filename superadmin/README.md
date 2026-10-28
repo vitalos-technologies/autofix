@@ -1,8 +1,8 @@
 # Autofix Super Admin
 
-The Vitalos staff console over every garage on Autofix: health, plans, bookings, messaging, domains, jobs and onboarding, with an append-only audit trail. It replicates the [Vitalos platform Super Admin](https://github.com/vitalos-technologies/vitalos-platform/tree/main/superadmin) (ADR-026) with the Autofix by Vitalos look (navy `#071127`, number-plate yellow `#f6c700`, Barlow Condensed and Inter). Planned address: `https://superadmin.autofix.vitalos.co.uk` (not deployed yet; [DECISIONS](../docs/autofix/DECISIONS.md) "Waiting on Temitope").
+The Vitalos staff console over every garage on Autofix: health, plans, bookings, messaging, domains, jobs and onboarding, with an append-only audit trail. It replicates the [Vitalos platform Super Admin](https://github.com/vitalos-technologies/vitalos-platform/tree/main/superadmin) (ADR-026) with the Autofix by Vitalos look (navy `#071127`, number-plate yellow `#f6c700`, Barlow Condensed and Inter). Address: `https://autofix.vitalos.co.uk/superadmin`, through the Autofix app's proxy (not deployed yet; [DECISIONS](../docs/autofix/DECISIONS.md) "Waiting on Temitope").
 
-Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (standalone CLI, no Node), PostgreSQL 17, django-simple-history, django-axes, django-otp, django-csp, Django REST Framework with drf-spectacular, WhiteNoise and gunicorn. Decision record: [DECISIONS D18](../docs/autofix/DECISIONS.md) (assumptions A400–A410).
+Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (standalone CLI, no Node), PostgreSQL 17, django-simple-history, django-axes, django-otp, django-csp, Django REST Framework with drf-spectacular, WhiteNoise and gunicorn. Decision record: [DECISIONS D18](../docs/autofix/DECISIONS.md) (assumptions A400–A414).
 
 ## How it reaches Autofix
 
@@ -14,6 +14,18 @@ Two databases:
 Writes never bypass Autofix's rules. The role may call three functions and nothing else: `platform_update_garage` (plan, status), `platform_retry_job` and `platform_request_domains_check`. Each runs in a read-write transaction as the signed-in person's **linked Autofix platform admin** (Settings → Users), after Django has checked their role, their TOTP and a 5–500 character reason; the function checks the platform admin again and writes Autofix's `platform_audit_log` and the garage's own audit log. Nothing touches bookings. `AutofixRouter` never migrates or writes the `autofix` alias, the models refuse writes, and `migrate --database autofix` is refused.
 
 **View as support** is an audited POST that redirects to the garage in Autofix's `/admin`, where the read-only session starts under your own Autofix sign-in and authenticator. Nothing but the garage id is in the link.
+
+## Served under /superadmin, and how that is secured
+
+The app lives on the Autofix app's host, at `/superadmin` (D18). `src/proxy.ts` forwards `/superadmin/*` to this container (`SUPERADMIN_ORIGIN` in Vercel). Because it shares an origin with the Autofix app:
+
+- **Proxy gate.** With `SUPERADMIN_PROXY_SECRET` set, every request must carry it in `x-autofix-superadmin-proxy` (constant-time check) or gets a bare 404. `/healthz/` is the only exception. `config/wsgi.py` also 404s anything outside `SUPERADMIN_PATH_PREFIX`.
+- **Proxy headers.** Only behind the gate: client IP from `x-autofix-superadmin-client-ip` (lockouts, audit), public host from `x-autofix-superadmin-host` (CSRF). The proxy strips browser-sent copies.
+- **Cookies.** `__Secure-afsa_session` and `__Secure-afsa_csrftoken`, `Path=/superadmin/`, `HttpOnly`, `Secure`, `SameSite=Strict`; the theme and sidebar preferences are `afsa_theme`/`afsa_sidebar` on the same path. The proxy forwards only `afsa_*` cookies, so Autofix's Supabase session never reaches this app.
+- **Step-up.** TOTP for every role (`OTP_REQUIRED_FOR_ALL`), plus a fresh authenticator code (`AUTOFIX_STEP_UP`) with every plan/status change, bulk status change, job retry, domain re-check, customer-details view, View as support, user change and API token.
+- **Headers.** Strict nonce CSP, `frame-ancestors 'none'`, `X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store`. Next.js adds none of its own under `/superadmin`.
+
+Locally the app runs at the root of `http://localhost:8000` (prefix empty, no secret). To try path mode through Next.js: set `SUPERADMIN_PATH_PREFIX=/superadmin` and a `SUPERADMIN_PROXY_SECRET` here, `SUPERADMIN_ORIGIN=http://localhost:8000` and the same secret in the repo's `.env.local`, and open `http://localhost:3000/superadmin/`.
 
 ## Pages
 
@@ -97,16 +109,16 @@ uv pip compile requirements-dev.in -o requirements-dev.txt --python-version 3.12
 
 ```sh
 ruff check . && ruff format --check .
-pytest                                          # 318 tests; DATABASE_URL / AUTOFIX_TEST_DATABASE_URL=postgres://… to match CI
+pytest                                          # 369 tests; DATABASE_URL / AUTOFIX_TEST_DATABASE_URL=postgres://… to match CI
 AUTOFIX_LIVE_DATABASE_URL=postgres://autofix_superadmin:…@127.0.0.1:54322/postgres \
 AUTOFIX_LIVE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:54322/postgres \
-  pytest -m integration                         # 39 tests against the local Supabase as autofix_superadmin
+  pytest -m integration                         # 40 tests against the local Supabase as autofix_superadmin
 DJANGO_SETTINGS_MODULE=config.settings.prod … python manage.py check --deploy --fail-level WARNING
 pip-audit --strict -r requirements.txt
 bandit -r apps config -c pyproject.toml
 ```
 
-CI also builds the image, runs the release job twice, starts the production image against the isolated local Supabase and drives `e2e/smoke.py` (52 checks) and `e2e/a11y.py` (axe-core, WCAG 2.2 AA, every page light and dark at 1440 and 390; no serious or critical violations) against it. The database side has its own pgTAP test (`supabase/tests/database/028_superadmin_role.test.sql`).
+CI also builds the image, runs the release job twice, starts the production image in path mode (`/superadmin`, proxy secret) against the isolated local Supabase, checks the proxy gate (404 without the secret), and drives `e2e/smoke.py` (52 checks) and `e2e/a11y.py` (axe-core, WCAG 2.2 AA, every page light and dark at 1440 and 390; no serious or critical violations) against it. The database side has its own pgTAP test (`supabase/tests/database/028_superadmin_role.test.sql`).
 
 ## Management commands
 

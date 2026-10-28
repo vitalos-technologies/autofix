@@ -71,11 +71,15 @@ jobs:
         env:
           DATABASE_URL: postgres://u@localhost:5432/db
           DJANGO_SETTINGS_MODULE: config.settings.prod
-          ALLOWED_HOSTS: superadmin.autofix.vitalos.co.uk
-          CSRF_TRUSTED_ORIGINS: https://superadmin.autofix.vitalos.co.uk
+          ALLOWED_HOSTS: autofix.vitalos.co.uk
+          CSRF_TRUSTED_ORIGINS: https://autofix.vitalos.co.uk
+          AUTOFIX_APP_URL: https://autofix.vitalos.co.uk
+          AUTOFIX_SUPERADMIN_URL: https://autofix.vitalos.co.uk/superadmin
+          SUPERADMIN_PATH_PREFIX: /superadmin
         run: |
           DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
-          export DJANGO_SECRET_KEY
+          SUPERADMIN_PROXY_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
+          export DJANGO_SECRET_KEY SUPERADMIN_PROXY_SECRET
           python manage.py check --deploy --fail-level WARNING
       - name: pip-audit (runtime dependencies)
         run: pip-audit --strict -r requirements.txt
@@ -153,13 +157,18 @@ jobs:
           umask 077
           status_token="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
           admin_password="$(python -c 'import secrets; print(secrets.token_urlsafe(18))')"
+          proxy_secret="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
           echo "::add-mask::$status_token"
           echo "::add-mask::$admin_password"
+          echo "::add-mask::$proxy_secret"
           {
             echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
             echo "DATABASE_URL=postgres://postgres:postgres@127.0.0.1:${pg_port}/superadmin"
             echo "AUTOFIX_DATABASE_URL=${AUTOFIX_LIVE_DATABASE_URL}?sslmode=disable"
             echo "AUTOFIX_STATUS_TOKEN=${status_token}"
+            # Path mode, as in production behind the Autofix proxy (DECISIONS D18).
+            echo "SUPERADMIN_PATH_PREFIX=/superadmin"
+            echo "SUPERADMIN_PROXY_SECRET=${proxy_secret}"
             echo "ALLOWED_HOSTS=localhost,127.0.0.1"
             echo "CSRF_TRUSTED_ORIGINS=http://localhost:${app_port}"
             echo "SECURE_SSL_REDIRECT=False"
@@ -173,9 +182,13 @@ jobs:
           docker run --rm --network host --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
           docker run -d --name "superadmin-ci-web-${slot}" --network host --env-file "$RUNNER_TEMP/app.env" "$image"
           for _ in $(seq 1 30); do curl -fsS "http://127.0.0.1:${app_port}/healthz/" && break; sleep 1; done
-          curl -fsS -o /dev/null "http://localhost:${app_port}/login/"
+          # The proxy gate: without the secret, even the sign-in page is a bare 404.
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${app_port}/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: wrong" "http://localhost:${app_port}/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: ${proxy_secret}" "http://localhost:${app_port}/login/")" = 404
+          curl -fsS -o /dev/null -H "x-autofix-superadmin-proxy: ${proxy_secret}" "http://localhost:${app_port}/superadmin/login/"
           echo "SLOT=${slot}" >> "$GITHUB_ENV"
-          echo "SMOKE_BASE_URL=http://localhost:${app_port}" >> "$GITHUB_ENV"
+          echo "SMOKE_BASE_URL=http://localhost:${app_port}/superadmin" >> "$GITHUB_ENV"
       - name: Install Chromium for the smoke test
         run: python -m playwright install chromium
       - name: Browser smoke test (every page at 1440 and 390, no CSP violations, status endpoint)
@@ -183,7 +196,8 @@ jobs:
           export SMOKE_EMAIL=ci-admin@example.test
           SMOKE_PASSWORD="$(grep '^BOOTSTRAP_ADMIN_PASSWORD=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
           SMOKE_STATUS_TOKEN="$(grep '^AUTOFIX_STATUS_TOKEN=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
-          export SMOKE_PASSWORD SMOKE_STATUS_TOKEN
+          SMOKE_PROXY_SECRET="$(grep '^SUPERADMIN_PROXY_SECRET=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          export SMOKE_PASSWORD SMOKE_STATUS_TOKEN SMOKE_PROXY_SECRET
           python e2e/smoke.py --screenshots "$RUNNER_TEMP/screenshots"
       - name: Accessibility (axe-core, WCAG 2.2 AA, light and dark, 1440 and 390)
         run: |
@@ -203,7 +217,9 @@ jobs:
           session.create()
           print(session.session_key)" | tail -n 1)"
           echo "::add-mask::$session"
-          python e2e/a11y.py --base "$SMOKE_BASE_URL" --axe "$axe" --session "$session"
+          proxy_secret="$(grep '^SUPERADMIN_PROXY_SECRET=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          python e2e/a11y.py --base "$SMOKE_BASE_URL" --axe "$axe" --session "$session" \
+            --cookie-name __Secure-afsa_session --proxy-secret "$proxy_secret"
       - name: Container logs
         if: always()
         run: docker logs "superadmin-ci-web-${SLOT:-0}" 2>&1 | tail -200 || true

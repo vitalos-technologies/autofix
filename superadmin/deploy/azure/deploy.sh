@@ -15,16 +15,19 @@
 #   DATABASE_URL            the super admin's own Postgres 17 (users, sessions, audit), sslmode=require
 #   AUTOFIX_DATABASE_URL    Autofix Supabase as autofix_superadmin (session pooler, sslmode=require)
 #   AUTOFIX_STATUS_TOKEN    32+ characters; the same value goes into the Vitalos platform's settings
+#   SUPERADMIN_PROXY_SECRET 32+ characters; the same value goes into Vercel (Autofix app, Sensitive)
 #   NEW_DJANGO_SECRET_KEY, NEW_BOOTSTRAP_ADMIN_PASSWORD   used only when the app has none yet
 #   BOOTSTRAP_ADMIN_EMAIL, PRIMARY_OWNER_EMAIL (optional), SENTRY_DSN (optional)
-# Fixed: APP_NAME=autofix-superadmin, DOMAIN=superadmin.autofix.vitalos.co.uk (DNS is a separate,
-# approved step), AUTOFIX_APP_URL=https://autofix.vitalos.co.uk.
+# Fixed: APP_NAME=autofix-superadmin, served at https://autofix.vitalos.co.uk/superadmin through the
+# Autofix app's proxy (DECISIONS D18; no DNS). The container's own address is only the proxy's
+# SUPERADMIN_ORIGIN, and it answers 404 to anything without the proxy secret.
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-autofix-superadmin}"
-DOMAIN="${DOMAIN:-superadmin.autofix.vitalos.co.uk}"
+PUBLIC_HOST="${PUBLIC_HOST:-autofix.vitalos.co.uk}"
+PREFIX="/superadmin"
 LOCATION="${LOCATION:-uksouth}"
-SECRETS=(DJANGO_SECRET_KEY DATABASE_URL AUTOFIX_DATABASE_URL AUTOFIX_STATUS_TOKEN BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD SENTRY_DSN)
+SECRETS=(DJANGO_SECRET_KEY DATABASE_URL AUTOFIX_DATABASE_URL AUTOFIX_STATUS_TOKEN SUPERADMIN_PROXY_SECRET BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD SENTRY_DSN)
 
 plan() {
   cat <<PLAN
@@ -33,10 +36,13 @@ Autofix Super Admin deployment plan
   Release job        ${APP_NAME}-release: bin/release.sh (migrate the super admin's own DB, bootstrap admin)
   Scheduled jobs     ${APP_NAME}-notify: manage.py notify_attention every 5 minutes
                      ${APP_NAME}-backup: bin/backup.sh nightly
-  Ingress            https://${DOMAIN} (managed certificate after the CNAME exists)
-  Plain settings     APP_ENVIRONMENT=production, APP_BASE_URL=https://${DOMAIN},
-                     AUTOFIX_SUPERADMIN_URL=https://${DOMAIN}, AUTOFIX_APP_URL=https://autofix.vitalos.co.uk,
-                     ALLOWED_HOSTS=${DOMAIN}, CSRF_TRUSTED_ORIGINS=https://${DOMAIN}, TRUSTED_PROXY_COUNT=1
+  Ingress            the container's own https address, reachable only with the proxy secret
+  Public address     https://${PUBLIC_HOST}${PREFIX} via the Autofix app (Vercel: SUPERADMIN_ORIGIN,
+                     SUPERADMIN_PROXY_SECRET); no DNS change
+  Plain settings     APP_ENVIRONMENT=production, SUPERADMIN_PATH_PREFIX=${PREFIX},
+                     APP_BASE_URL=https://${PUBLIC_HOST}, AUTOFIX_SUPERADMIN_URL=https://${PUBLIC_HOST}${PREFIX},
+                     AUTOFIX_APP_URL=https://autofix.vitalos.co.uk, ALLOWED_HOSTS=${PUBLIC_HOST},
+                     CSRF_TRUSTED_ORIGINS=https://${PUBLIC_HOST}, TRUSTED_PROXY_COUNT=1
   Secrets            ${SECRETS[*]}
   Expected cost      within the Container Apps free grant at this scale (scale to zero); to be confirmed
 PLAN
@@ -53,7 +59,7 @@ if [[ "${DEPLOY_APPROVED:-}" != "yes" ]]; then
   exit 2
 fi
 
-: "${AZ_SUBSCRIPTION:?}" "${AZ_RESOURCE_GROUP:?}" "${AZ_ENVIRONMENT:?}" "${IMAGE:?}" "${DATABASE_URL:?}" "${AUTOFIX_DATABASE_URL:?}"
+: "${AZ_SUBSCRIPTION:?}" "${AZ_RESOURCE_GROUP:?}" "${AZ_ENVIRONMENT:?}" "${IMAGE:?}" "${DATABASE_URL:?}" "${AUTOFIX_DATABASE_URL:?}" "${SUPERADMIN_PROXY_SECRET:?}"
 az account set --subscription "$AZ_SUBSCRIPTION"
 
 secret_args=()
@@ -67,9 +73,9 @@ for name in "${SECRETS[@]}"; do
   fi
 done
 env_args=(
-  "APP_ENVIRONMENT=production" "APP_BASE_URL=https://${DOMAIN}" "AUTOFIX_SUPERADMIN_URL=https://${DOMAIN}"
-  "AUTOFIX_APP_URL=https://autofix.vitalos.co.uk" "ALLOWED_HOSTS=${DOMAIN}" "CSRF_TRUSTED_ORIGINS=https://${DOMAIN}"
-  "TRUSTED_PROXY_COUNT=1"
+  "APP_ENVIRONMENT=production" "SUPERADMIN_PATH_PREFIX=${PREFIX}" "APP_BASE_URL=https://${PUBLIC_HOST}"
+  "AUTOFIX_SUPERADMIN_URL=https://${PUBLIC_HOST}${PREFIX}" "AUTOFIX_APP_URL=https://autofix.vitalos.co.uk"
+  "ALLOWED_HOSTS=${PUBLIC_HOST}" "CSRF_TRUSTED_ORIGINS=https://${PUBLIC_HOST}" "TRUSTED_PROXY_COUNT=1"
 )
 for name in "${SECRETS[@]}"; do
   ref="$(echo "$name" | tr '[:upper:]_' '[:lower:]-')"
@@ -84,4 +90,6 @@ else
     --ingress external --target-port 8000 --min-replicas 0 --max-replicas 1 --cpu 0.25 --memory 0.5Gi \
     --secrets "${secret_args[@]}" --env-vars "${env_args[@]}" >/dev/null
 fi
-echo "Deployed ${APP_NAME}. Bind https://${DOMAIN} once its CNAME exists (approved DNS step)."
+origin="https://$(az containerapp show -n "$APP_NAME" -g "$AZ_RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)"
+echo "Deployed ${APP_NAME}. In Vercel (Autofix, Production) set SUPERADMIN_ORIGIN=${origin} and the same"
+echo "SUPERADMIN_PROXY_SECRET (Sensitive), then redeploy; the app answers at https://${PUBLIC_HOST}${PREFIX}."

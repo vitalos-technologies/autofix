@@ -1,5 +1,5 @@
 {
-  "base_url": "http://localhost:8000",
+  "base_url": "http://localhost:8000/superadmin",
   "checks": [
     {
       "check": "login page returns 200",
@@ -9,7 +9,7 @@
     {
       "check": "signed in and on the overview",
       "ok": true,
-      "detail": "http://localhost:8000/"
+      "detail": "http://localhost:8000/superadmin/"
     },
     {
       "check": "/ returns 200",
