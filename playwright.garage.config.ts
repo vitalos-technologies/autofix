@@ -81,6 +81,8 @@ export default defineConfig({
       TURNSTILE_SECRET_KEY: "",
       // Mock channels only (no real texts or emails), whatever the shell exports.
       MESSAGING_MODE: "mock",
+      // P5.4: payments on the mock provider (no money moves), whatever the shell exports.
+      PAYMENTS_PROVIDER: "mock",
       // POST /api/jobs/drain and GET /api/cron/[job] for gate3.spec.ts (a local-only value, tests/helpers/jobs.ts).
       CRON_SECRET: PLAYWRIGHT_CRON_SECRET,
     },
@@ -125,6 +127,8 @@ export default defineConfig({
     { name: "signup", testMatch: "signup.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
     { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // P5.4 payments (mock provider): its own garage, owner and customers; axe at 390 and 1440, screenshots.
+    { name: "p5-payments", testMatch: "p5-payments.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

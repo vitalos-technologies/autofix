@@ -7,7 +7,7 @@ import { focusRing } from "@/components/book/styles";
 import { getPaymentsProvider } from "@/lib/payments";
 import { formatPounds } from "@/lib/payments/amounts";
 import { readPayCookie } from "@/lib/payments/pay-session";
-import { loadPaymentByToken, loadPaymentsSetup, syncCheckout, type PayPagePayment } from "@/lib/payments/server";
+import { loadPaymentByToken, loadPaymentsSetup, releaseExpiredDeposits, syncCheckout, type PayPagePayment } from "@/lib/payments/server";
 import { formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import { requireSiteGarage, type Garage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
@@ -83,6 +83,11 @@ export default async function PayPage({ params, searchParams }: PayPageProps) {
   if (payment && query.paid === "1" && payment.status === "pending" && (await syncCheckout(garage.id, payment).catch(() => false))) {
     payment = token ? await loadPaymentByToken(garage.id, token).catch(() => null) : null;
   }
+  // A deposit whose hold has run out: release its booking now (the job may not have run yet).
+  const now = new Date();
+  if (payment && payment.status === "pending" && Date.parse(payment.expires_at) <= now.getTime() && (await releaseExpiredDeposits(garage.id)) > 0) {
+    payment = token ? await loadPaymentByToken(garage.id, token).catch(() => null) : null;
+  }
 
   const timeZone = garage.timezone || "Europe/London";
   const subtitle = "Secure payment";
@@ -110,7 +115,6 @@ export default async function PayPage({ params, searchParams }: PayPageProps) {
 
   const setup = await loadPaymentsSetup(garage);
   const provider = getPaymentsProvider();
-  const now = new Date();
   const lapsed = Date.parse(payment.expires_at) <= now.getTime();
   const canPay = payment.status === "pending" && setup.active && provider?.kind === payment.provider && !lapsed;
   const amount = formatPounds(payment.status === "paid" ? (payment.amount_paid_pence ?? payment.amount_pence) : payment.amount_pence);
