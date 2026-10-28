@@ -234,10 +234,10 @@ export function createSageProvider(options: { env?: Readonly<Record<string, stri
       requireConfigured();
       return sageRequests.authorizeUrl(credentials, input);
     },
-    exchangeCode(input) {
+    async exchangeCode(input) {
       return token(sageRequests.exchange(credentials, input));
     },
-    refresh(tokens) {
+    async refresh(tokens) {
       if (!tokens.refreshToken) throw new AccountingError("AUTH_EXPIRED", { detail: "no refresh token" });
       return token(sageRequests.refresh(credentials, tokens.refreshToken));
     },

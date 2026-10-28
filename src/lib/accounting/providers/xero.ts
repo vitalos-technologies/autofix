@@ -221,10 +221,10 @@ export function createXeroProvider(options: { env?: Readonly<Record<string, stri
       requireConfigured();
       return xeroRequests.authorizeUrl(credentials, input);
     },
-    exchangeCode(input) {
+    async exchangeCode(input) {
       return token(xeroRequests.exchange(credentials, input));
     },
-    refresh(tokens) {
+    async refresh(tokens) {
       if (!tokens.refreshToken) throw new AccountingError("AUTH_EXPIRED", { detail: "no refresh token" });
       return token(xeroRequests.refresh(credentials, tokens.refreshToken));
     },

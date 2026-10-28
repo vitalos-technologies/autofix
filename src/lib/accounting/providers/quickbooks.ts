@@ -229,12 +229,12 @@ export function createQuickBooksProvider(options: { env?: Readonly<Record<string
       requireConfigured();
       return quickbooksRequests.authorizeUrl(credentials, input);
     },
-    exchangeCode(input) {
+    async exchangeCode(input) {
       const realmId = input.callbackParams.get("realmId");
       if (!realmId || !/^\d{1,30}$/.test(realmId)) throw new AccountingError("VALIDATION", { detail: "missing realmId" });
       return token(quickbooksRequests.exchange(credentials, input), realmId);
     },
-    refresh(tokens) {
+    async refresh(tokens) {
       if (!tokens.refreshToken) throw new AccountingError("AUTH_EXPIRED", { detail: "no refresh token" });
       return token(quickbooksRequests.refresh(credentials, tokens.refreshToken), tokens.tenantHint ?? null);
     },

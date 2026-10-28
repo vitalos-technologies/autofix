@@ -1,0 +1,78 @@
+{
+  "_source": "Hand-written from developer.intuit.com examples (OAuth 2 bearer token, CompanyInfo, query, Customer/Invoice/Payment create, Fault responses). Ids are illustrative.",
+  "callbackRealmId": "4620816365031117790",
+  "responses": {
+    "token": {
+      "status": 200,
+      "body": {
+        "token_type": "bearer",
+        "expires_in": 3600,
+        "refresh_token": "qbo-refresh-token",
+        "x_refresh_token_expires_in": 8726400,
+        "access_token": "qbo-access-token"
+      }
+    },
+    "tokenInvalidGrant": { "status": 400, "body": { "error": "invalid_grant" } },
+    "companyInfo": {
+      "status": 200,
+      "body": { "CompanyInfo": { "CompanyName": "Sandbox Company_GB_1", "Country": "GB", "Id": "1", "SyncToken": "4" }, "time": "2096-05-01T10:00:00.000-07:00" }
+    },
+    "queryEmpty": { "status": 200, "body": { "QueryResponse": {}, "time": "2096-05-01T10:00:00.000-07:00" } },
+    "customerCreated": {
+      "status": 200,
+      "body": { "Customer": { "Id": "58", "SyncToken": "0", "DisplayName": "Jo Bloggs", "PrimaryEmailAddr": { "Address": "jo@example.test" }, "Active": true }, "time": "2096-05-01T10:00:00.000-07:00" }
+    },
+    "invoiceCreated": {
+      "status": 200,
+      "body": { "Invoice": { "Id": "130", "SyncToken": "0", "DocNumber": "ACP-2096-000001", "TotalAmt": 170.0, "Balance": 170.0, "CustomerRef": { "value": "58" } }, "time": "2096-05-01T10:00:00.000-07:00" }
+    },
+    "paymentCreated": {
+      "status": 200,
+      "body": { "Payment": { "Id": "131", "SyncToken": "0", "TotalAmt": 50.0, "UnappliedAmt": 0, "CustomerRef": { "value": "58" } }, "time": "2096-05-02T10:00:00.000-07:00" }
+    },
+    "validation": {
+      "status": 400,
+      "body": {
+        "Fault": { "Error": [{ "Message": "Required param missing, need to supply the required value for the API", "Detail": "Required parameter Line.SalesItemLineDetail.ItemRef is missing in the request", "code": "2020", "element": "Line.SalesItemLineDetail.ItemRef" }], "type": "ValidationFault" },
+        "time": "2096-05-01T10:00:00.000-07:00"
+      }
+    },
+    "rateLimited": { "status": 429, "headers": { "Retry-After": "7" }, "body": { "Fault": { "Error": [{ "Message": "message=ThrottleExceeded; errorCode=003001; statusCode=429", "code": "3001" }], "type": "SERVICE" } } },
+    "unauthorised": {
+      "status": 401,
+      "body": { "Fault": { "Error": [{ "Message": "message=AuthenticationFailed; errorCode=003200; statusCode=401", "code": "3200" }], "type": "AUTHENTICATION" } }
+    }
+  },
+  "requests": {
+    "invoice": {
+      "method": "POST",
+      "url": "https://sandbox-quickbooks.api.intuit.com/v3/company/4620816365031117790/invoice?minorversion=75&requestid=af-invoice-test",
+      "headers": { "Authorization": "Bearer qbo-access-token" },
+      "body": {
+        "CustomerRef": { "value": "58" },
+        "DocNumber": "ACP-2096-000001",
+        "TxnDate": "2096-05-01",
+        "DueDate": "2096-05-08",
+        "CurrencyRef": { "value": "GBP" },
+        "PrivateNote": "Booking ACP-1234",
+        "Line": [
+          { "LineNum": 1, "DetailType": "SalesItemLineDetail", "Amount": 120, "Description": "Brake pads", "SalesItemLineDetail": { "ItemRef": { "value": "1" }, "Qty": 1, "UnitPrice": 120 } },
+          { "LineNum": 2, "DetailType": "SalesItemLineDetail", "Amount": 60, "Description": "Labour", "SalesItemLineDetail": { "ItemRef": { "value": "1" }, "Qty": 1.5, "UnitPrice": 40 } },
+          { "DetailType": "DiscountLineDetail", "Amount": 10, "DiscountLineDetail": { "PercentBased": false } }
+        ]
+      }
+    },
+    "payment": {
+      "method": "POST",
+      "url": "https://sandbox-quickbooks.api.intuit.com/v3/company/4620816365031117790/payment?minorversion=75&requestid=af-payment-test",
+      "headers": { "Authorization": "Bearer qbo-access-token" },
+      "body": {
+        "CustomerRef": { "value": "58" },
+        "TotalAmt": 50,
+        "TxnDate": "2096-05-02",
+        "PaymentRefNum": "Card ending 4242",
+        "Line": [{ "Amount": 50, "LinkedTxn": [{ "TxnId": "130", "TxnType": "Invoice" }] }]
+      }
+    }
+  }
+}
