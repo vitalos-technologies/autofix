@@ -7,10 +7,26 @@
 import { z } from "zod";
 import { manageLookupSchema } from "@/lib/booking-engine/manage-schema";
 import { bookingVehicleInputSchema, createBookingInputSchema, locationModes, messageChannels, type BookingStatus, type LocationMode, type PriceMode, type ServiceLocationMode } from "@/lib/booking-engine/types";
+import { planRequiredMessage } from "@/lib/plans/entitlements";
 import { registrationSchema } from "@/lib/vehicle/registration";
 
-export const agentTools = ["lookup_vehicle", "list_services", "available_slots", "create_booking", "get_booking", "garage_profile"] as const;
+export const agentTools = ["lookup_vehicle", "list_services", "available_slots", "create_booking", "get_booking", "garage_profile", "report_usage"] as const;
 export type AgentTool = (typeof agentTools)[number];
+
+/**
+ * Who a token is for (P5.12, D17). `workforce` is the AI front desk on calls and WhatsApp and needs
+ * Pro (feature `ai_front_desk`); `askbridge` is the website chat (Essentials) and may only hold the
+ * read-only tools below (the database refuses anything else).
+ */
+export const agentTokenAudiences = ["workforce", "askbridge"] as const;
+export type AgentTokenAudience = (typeof agentTokenAudiences)[number];
+export const ASKBRIDGE_TOOLS: readonly AgentTool[] = ["list_services", "available_slots", "garage_profile"];
+/** The Plan feature every workforce token needs. */
+export const AGENT_PRO_FEATURE = "ai_front_desk" as const;
+
+export function isAgentTokenAudience(value: unknown): value is AgentTokenAudience {
+  return value === "workforce" || value === "askbridge";
+}
 
 export function isAgentTool(value: unknown): value is AgentTool {
   return typeof value === "string" && (agentTools as readonly string[]).includes(value);
@@ -19,6 +35,7 @@ export function isAgentTool(value: unknown): value is AgentTool {
 export const agentErrorCodes = [
   "UNAUTHORIZED",
   "FORBIDDEN",
+  "PLAN_REQUIRED",
   "GARAGE_INACTIVE",
   "NOT_FOUND",
   "VEHICLE_NOT_FOUND",
@@ -38,6 +55,7 @@ export type AgentErrorCode = (typeof agentErrorCodes)[number];
 export const agentErrorStatus: Record<AgentErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
+  PLAN_REQUIRED: 403,
   GARAGE_INACTIVE: 403,
   NOT_FOUND: 404,
   VEHICLE_NOT_FOUND: 404,
@@ -57,6 +75,7 @@ export const agentErrorStatus: Record<AgentErrorCode, number> = {
 export const agentErrorMessages: Record<AgentErrorCode, string> = {
   UNAUTHORIZED: "Send a valid agent token as a bearer token.",
   FORBIDDEN: "This token may not call this tool.",
+  PLAN_REQUIRED: planRequiredMessage(AGENT_PRO_FEATURE),
   GARAGE_INACTIVE: "This garage is not taking bookings at the moment.",
   NOT_FOUND: "No booking matches that reference and registration.",
   VEHICLE_NOT_FOUND: "That vehicle could not be found. Take the make and model from the customer instead.",
@@ -73,7 +92,15 @@ export const agentErrorMessages: Record<AgentErrorCode, string> = {
 };
 
 export type AgentIssue = { path: string; message: string };
-export type AgentError = { code: AgentErrorCode; message: string; issues?: AgentIssue[]; alternatives?: AgentSlot[] };
+export type AgentError = {
+  code: AgentErrorCode;
+  message: string;
+  issues?: AgentIssue[];
+  alternatives?: AgentSlot[];
+  /** With `PLAN_REQUIRED`: the feature and the plan that includes it. */
+  feature?: typeof AGENT_PRO_FEATURE;
+  plan?: "pro";
+};
 
 // ---------------------------------------------------------------------------
 // Requests (POST JSON bodies; registrations never go in a URL)
@@ -124,6 +151,24 @@ export type AgentCreateBookingInput = z.infer<typeof agentCreateBookingInputSche
 
 export const getBookingInputSchema = manageLookupSchema;
 
+/** Longest single conversation Workforce may report, in minutes. */
+export const AGENT_MAX_USAGE_MINUTES = 600;
+/** How far back a usage report may be (a late report still counts in the month the conversation ended). */
+export const AGENT_USAGE_MAX_AGE_DAYS = 31;
+
+/**
+ * `report_usage` (P5.12): the AI front desk minutes one call or WhatsApp conversation used. Counted once
+ * per `conversationId` (the Twilio CallSid for calls, Workforce's conversation id for WhatsApp); never
+ * blocks at the allowance.
+ */
+export const reportUsageInputSchema = z.object({
+  conversationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "Use up to 128 letters, numbers, dots, colons, dashes or underscores"),
+  channel: z.enum(["call", "whatsapp"]),
+  minutes: z.number().positive().max(AGENT_MAX_USAGE_MINUTES),
+  endedAt: z.string().datetime({ offset: true }),
+}).strict();
+export type ReportUsageInput = z.infer<typeof reportUsageInputSchema>;
+
 export const agentInputSchemas = {
   lookup_vehicle: lookupVehicleInputSchema,
   list_services: emptyInputSchema,
@@ -131,6 +176,7 @@ export const agentInputSchemas = {
   create_booking: agentCreateBookingInputSchema,
   get_booking: getBookingInputSchema,
   garage_profile: emptyInputSchema,
+  report_usage: reportUsageInputSchema,
 } as const satisfies Record<AgentTool, z.ZodType>;
 
 // ---------------------------------------------------------------------------
@@ -181,6 +227,15 @@ export type AgentBookingStatus = {
   customerFirstName: string;
   canChangeOnline: boolean;
   changeDeadline: string;
+};
+
+export type AgentUsageReport = {
+  conversationId: string;
+  channel: "call" | "whatsapp";
+  /** Minutes counted for this conversation (on a replay, the first report's). */
+  minutes: number;
+  /** True when this conversation was already reported. */
+  replayed: boolean;
 };
 
 export type AgentGarageProfile = {

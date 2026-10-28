@@ -3,9 +3,13 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { z } from "zod";
 import {
+  AGENT_PRO_FEATURE,
+  AGENT_USAGE_MAX_AGE_DAYS,
   agentErrorMessages,
   agentErrorStatus,
   agentInputSchemas,
+  ASKBRIDGE_TOOLS,
+  type AgentUsageReport,
   type AgentBookingStatus,
   type AgentCreatedBooking,
   type AgentError,
@@ -22,6 +26,7 @@ import { getBookingEngine } from "@/lib/booking-engine";
 import { BookingEngineError } from "@/lib/booking-engine/errors";
 import { MAX_JSON_BYTES } from "@/lib/booking-engine/http";
 import type { OnlineService, Slot } from "@/lib/booking-engine/types";
+import { hasFeature } from "@/lib/plans/entitlements";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { garageUrl } from "@/lib/tenancy/urls";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
@@ -32,7 +37,9 @@ import { formatRegistration } from "@/lib/vehicle/registration";
 // Agent tool API (`POST /api/agent/v1/<tool>`, docs/autofix/agent-api.yaml).
 //
 // Every call: bearer token → HMAC hash → agent_tokens row (constant-time
-// check, not revoked, garage taking bookings) → tool scope → per-token and
+// check, not revoked, garage taking bookings) → plan (P5.12: a `workforce`
+// token, the AI front desk, needs Pro: 403 PLAN_REQUIRED; an `askbridge`
+// token, the Essentials website chat, only reads) → tool scope → per-token and
 // per-garage rate limits → strict zod body → tool → one agent_call_log row and
 // one structured log line (garage, token id, tool, outcome, status, latency;
 // never phone numbers, registrations or tokens). The garage is the token's;
@@ -53,7 +60,11 @@ const TOOL_RATE_LIMITS: Partial<Record<AgentTool, { limit: number; windowSeconds
   lookup_vehicle: { limit: 300, windowSeconds: 600, per: "garage" },
   create_booking: { limit: 30, windowSeconds: 600, per: "token" },
   get_booking: { limit: 30, windowSeconds: 600, per: "token" },
+  report_usage: { limit: 600, windowSeconds: 600, per: "token" },
 };
+
+/** A usage report may be dated at most this far ahead of the server clock. */
+const USAGE_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -265,6 +276,25 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
     if (!garage) return fail("GARAGE_INACTIVE");
     return ok(agentGarageProfile(garage));
   },
+
+  // P5.12: AI front desk minutes for one conversation. Counted once per conversation id; never
+  // blocks at the allowance (the month close records any overage).
+  async report_usage(input, { garageId, now }) {
+    const endedAt = new Date(input.endedAt);
+    const oldest = now.getTime() - AGENT_USAGE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    if (endedAt.getTime() > now.getTime() + USAGE_CLOCK_SKEW_MS || endedAt.getTime() < oldest) {
+      return fail("INVALID_REQUEST", { issues: [{ path: "endedAt", message: `Report a conversation that ended in the last ${AGENT_USAGE_MAX_AGE_DAYS} days` }] });
+    }
+    const result = await getAgentApiStore().recordAiMinutes({ garageId, conversationId: input.conversationId, minutes: input.minutes, endedAt });
+    if (result.status === "failed") return fail("UNAVAILABLE");
+    const usage: AgentUsageReport = {
+      conversationId: input.conversationId,
+      channel: input.channel,
+      minutes: result.minutes,
+      replayed: result.status === "replayed",
+    };
+    return ok({ usage }, usage.replayed ? 200 : 201);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -300,6 +330,11 @@ async function withinLimits(tool: AgentTool, token: AgentTokenRecord) {
 
 async function runTool(tool: AgentTool, request: Request, token: AgentTokenRecord, now: Date): Promise<ToolResult> {
   if (!ACTIVE_GARAGE_STATUSES.has(token.garage.status)) return fail("GARAGE_INACTIVE");
+  // D17: the AI front desk (Workforce) is Pro; the Askbridge chat stays on Essentials with read-only tools.
+  if (token.audience === "workforce" && !hasFeature(token.garage.plan, AGENT_PRO_FEATURE, now)) {
+    return fail("PLAN_REQUIRED", { feature: AGENT_PRO_FEATURE, plan: "pro" });
+  }
+  if (token.audience === "askbridge" && !ASKBRIDGE_TOOLS.includes(tool)) return fail("FORBIDDEN");
   if (!tokenAllows(token.scopes, tool)) return fail("FORBIDDEN");
   if (!(await withinLimits(tool, token))) return fail("RATE_LIMITED");
 
