@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
-// The admin host must not be indexed. Per-garage booking sites will publish
-// their own robots rules and sitemaps from /_site (P1.7 and later).
+// Admin host: only the marketing page (/) may be crawled; the admin, sign-up, auth and API never.
+// The longer, more specific "/$" rule wins over "/" for crawlers that follow RFC 9309.
 export default function robots(): MetadataRoute.Robots {
-  return { rules: { userAgent: "*", disallow: "/" } };
+  return { rules: { userAgent: "*", allow: "/$", disallow: "/" } };
 }

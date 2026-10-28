@@ -19,6 +19,7 @@
 | D11 | 25 Oct 2026 | Legal drafts (DPA template, customer privacy notice, PECR reminder wording) are written in `docs/autofix/legal/` for review | Drafts, not legal advice |
 | D14 | 27 Oct 2026 | Approved A160 and A198 (missed-call text-backs and staff replies are service messages sent without stored consent; STOP and opt-outs always block them) and A184 (default reminder texts leave out the car so each fits one SMS) | Still part of the solicitor review of the consent wording |
 | D15 | 27 Oct 2026 | Agents merge their own PRs once every CI check on the head commit is green; no separate approval needed. Merged PR #2 (Phases 1–4) into `main` on this basis | Red or pending checks are never merged; force-merges and skipped checks are not allowed |
+| D16 | 28 Oct 2026 | `autofix.vitalos.co.uk/` is the Autofix marketing page (Answerd's section layout in Autofix navy and plate yellow); "Log in" goes to `/app/login`, "Set up your garage" to `/signup`. Only `/` may be indexed (`robots.ts` allows `/$`; the root layout keeps every other admin-host page noindex). Asked for by Temitope | The copy only claims what the product does today: no prices, customer numbers or testimonials until Temitope supplies real ones |
 
 ## Assumed (proceed on these unless Temitope changes them)
 

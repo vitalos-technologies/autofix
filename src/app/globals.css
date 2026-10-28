@@ -73,6 +73,23 @@
   }
 }
 
+/* Marketing page (/): hero entrance, only when motion is welcome. Transform only, so text keeps full
+   contrast throughout. */
+@media (prefers-reduced-motion: no-preference) {
+  .mk-fade-up {
+    animation: mk-fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes mk-fade-up {
+  from {
+    transform: translateY(14px);
+  }
+  to {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
