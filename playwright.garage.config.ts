@@ -139,6 +139,8 @@ export default defineConfig({
     { name: "p5-courtesy-cars", testMatch: "p5-courtesy-cars.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // P5.4 payments (mock provider): its own garage, owner and customers; axe at 390 and 1440, screenshots.
     { name: "p5-payments", testMatch: "p5-payments.spec.ts", expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // P5.11 service plans (mock Direct Debit): its own garage, owner and customer; axe at 390 and 1440, screenshots.
+    { name: "p5-service-plans", testMatch: "p5-service-plans.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
     // P5.3 health checks: its own garage, owner and booking; the spec checks 390 and 1440 itself.
     { name: "p5-health-checks", testMatch: "p5-health-checks.spec.ts", expect: { timeout: 20_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
