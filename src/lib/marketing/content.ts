@@ -12,6 +12,7 @@ export const marketing = {
   nav: [
     { label: "How it works", href: "#how-it-works" },
     { label: "Features", href: "#features" },
+    { label: "Plans", href: "#plans" },
     { label: "FAQs", href: "#faqs" },
   ],
   login: { label: "Log in", href: "/app/login" },
@@ -92,6 +93,51 @@ export const marketing = {
     note: "Customers never need an app or an account: they book in the browser on their own phone.",
   },
 
+  // Two plans (DECISIONS D17). Essentials is what ships today; Pro lists the features being built, marked
+  // "Coming soon" until each one ships. No prices until Temitope sets them.
+  plans: {
+    id: "plans",
+    heading: "Two plans",
+    intro: "Essentials runs the garage. Pro grows it. Prices are coming soon.",
+    essentials: {
+      name: "Essentials",
+      tagline: "Run the garage",
+      status: "Available now",
+      features: [
+        "Booking page on a free link or your own domain",
+        "Registration lookup with MOT due dates",
+        "No double bookings, and your OK on jobs you want to check",
+        "Today and the diary, by bay and van",
+        "Customers and cars, with spreadsheet import",
+        "MOT, service and review reminders to customers who said yes",
+        "Missed calls texted back, with voicemail",
+        "One inbox for texts, WhatsApp and email",
+        "Invoices and quotes",
+        "Team roles and two-step sign-in",
+      ],
+    },
+    pro: {
+      name: "Pro",
+      tagline: "Grow the garage",
+      status: "Coming soon",
+      lead: "Everything in Essentials, plus:",
+      features: [
+        "Digital health checks with photos, approved online",
+        "Deposits, pay-by-link invoices and no-show fees",
+        "Service plans paid by monthly Direct Debit",
+        "Campaigns to customers who opted in",
+        "AI front desk for calls and WhatsApp",
+        "Xero, QuickBooks and Sage sync",
+        "Advanced reports and exports",
+        "Fleet and trade accounts",
+        "Courtesy cars, collection and delivery",
+        "Several sites under one login",
+      ],
+      note: "Pro features are being built now. Each one switches on as soon as it's ready.",
+    },
+    cta: { label: "Start with Essentials", href: "/signup" },
+  },
+
   faqs: {
     id: "faqs",
     heading: "Questions garages ask",
@@ -117,6 +163,10 @@ export const marketing = {
         a: "No. Reminders only go to customers who ticked the box, never outside 09:00 to 19:00 Monday to Saturday, and a STOP reply or the unsubscribe link stops them at once.",
       },
       {
+        q: "How much does it cost?",
+        a: "There are two plans, Essentials and Pro. Prices are being finalised. You can set up your garage and try your booking page now.",
+      },
+      {
         q: "We don't do MOTs. Does that matter?",
         a: "Not at all. MOT is a switch: leave it off and MOT services, dates and reminders never appear.",
       },
@@ -130,6 +180,7 @@ export const marketing = {
         links: [
           { label: "How it works", href: "#how-it-works" },
           { label: "Features", href: "#features" },
+          { label: "Plans", href: "#plans" },
           { label: "FAQs", href: "#faqs" },
         ],
       },

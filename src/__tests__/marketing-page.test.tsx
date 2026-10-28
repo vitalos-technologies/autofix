@@ -12,7 +12,7 @@ describe("marketing page (/ on the admin host)", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Your garage, fully booked.");
     expect(screen.getByRole("main")).toBeInTheDocument();
-    for (const name of [marketing.howItWorks.heading, marketing.features.heading, marketing.band.headline, marketing.garages.headline, marketing.faqs.heading]) {
+    for (const name of [marketing.howItWorks.heading, marketing.features.heading, marketing.band.headline, marketing.garages.headline, marketing.plans.heading, marketing.faqs.heading]) {
       expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
     }
   });
@@ -24,10 +24,22 @@ describe("marketing page (/ on the admin host)", () => {
     expect(within(header).getAllByRole("link", { name: "Set up your garage" }).every((link) => link.getAttribute("href") === "/signup")).toBe(true);
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(hrefs).not.toContain("/app");
-    for (const anchor of ["#how-it-works", "#features", "#faqs"]) {
+    for (const anchor of ["#how-it-works", "#features", "#plans", "#faqs"]) {
       expect(hrefs).toContain(anchor);
       expect(document.querySelector(anchor)).not.toBeNull();
     }
+  });
+
+  it("shows two plans, with Pro marked as coming soon and no prices", () => {
+    render(<HomePage />);
+    const essentials = screen.getByRole("article", { name: "Essentials" });
+    const pro = screen.getByRole("article", { name: "Pro" });
+    expect(within(essentials).getByText("Available now")).toBeInTheDocument();
+    expect(within(essentials).getAllByRole("listitem")).toHaveLength(marketing.plans.essentials.features.length);
+    expect(within(pro).getByText("Coming soon")).toBeInTheDocument();
+    expect(within(pro).getAllByRole("listitem")).toHaveLength(marketing.plans.pro.features.length);
+    expect(within(essentials).getByRole("link", { name: "Start with Essentials" })).toHaveAttribute("href", "/signup");
+    expect(screen.getByRole("region", { name: marketing.plans.heading }).textContent).not.toMatch(/£\s?\d/);
   });
 
   it("answers every FAQ in a native disclosure", () => {

@@ -310,10 +310,66 @@ function ForGarages() {
   );
 }
 
+function Plans() {
+  const { plans } = marketing;
+  return (
+    <section id={plans.id} aria-labelledby="plans-heading" className="scroll-mt-20 bg-grey-50 py-16 md:py-24">
+      <div className={shell}>
+        <SectionHeading id="plans-heading" eyebrow="Plans" heading={plans.heading} intro={plans.intro} />
+        <div className="mt-12 grid gap-5 lg:grid-cols-2 lg:gap-6">
+          <article aria-labelledby="plan-essentials" className="flex flex-col rounded-hero border border-grey-200 bg-white p-6 shadow-[0_16px_36px_-30px_rgba(7,17,39,0.45)] md:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 id="plan-essentials" className="text-[38px] leading-none font-bold text-navy-950">{plans.essentials.name}</h3>
+                <p className="mt-1.5 text-[16px] text-grey-700">{plans.essentials.tagline}</p>
+              </div>
+              <p className="rounded-full bg-success-bg px-3 py-1 text-[13px] font-semibold text-success-ink">{plans.essentials.status}</p>
+            </div>
+            <ul className="mt-6 flex-1 space-y-3">
+              {plans.essentials.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-3 text-[15px] leading-[1.5] text-grey-800">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-success-bg text-success-ink" aria-hidden="true">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                  {feature}
+                </li>
+              ))}
+            </ul>
+            <Link href={plans.cta.href} className={cn(primaryButton, "mt-8 w-full sm:w-fit")}>
+              {plans.cta.label} <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </article>
+          <article aria-labelledby="plan-pro" className="flex flex-col rounded-hero bg-navy-950 p-6 text-white shadow-[0_24px_48px_-24px_rgba(7,17,39,0.6)] md:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 id="plan-pro" className="text-[38px] leading-none font-bold">{plans.pro.name}</h3>
+                <p className="mt-1.5 text-[16px] text-white/80">{plans.pro.tagline}</p>
+              </div>
+              <p className="rounded-full bg-plate px-3 py-1 text-[13px] font-semibold text-plate-ink">{plans.pro.status}</p>
+            </div>
+            <p className="mt-6 text-[15px] font-semibold text-plate">{plans.pro.lead}</p>
+            <ul className="mt-3 flex-1 space-y-3">
+              {plans.pro.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-3 text-[15px] leading-[1.5] text-white/90">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-plate text-plate-ink" aria-hidden="true">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                  {feature}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-8 border-t border-navy-line pt-5 text-[14px] leading-[1.6] text-white/75">{plans.pro.note}</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Faqs() {
   const { faqs } = marketing;
   return (
-    <section id={faqs.id} aria-labelledby="faqs-heading" className="scroll-mt-20 bg-grey-50 py-16 md:py-24">
+    <section id={faqs.id} aria-labelledby="faqs-heading" className="scroll-mt-20 py-16 md:py-24">
       <div className={cn(shell, "grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16")}>
         <div>
           <SectionHeading id="faqs-heading" eyebrow="FAQs" heading={faqs.heading} />
@@ -403,6 +459,7 @@ export function MarketingPage() {
         <Features />
         <PhoneBand />
         <ForGarages />
+        <Plans />
         <Faqs />
       </main>
       <Footer />
