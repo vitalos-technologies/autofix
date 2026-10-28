@@ -94,7 +94,8 @@ describe("admin MFA proxy enforcement", () => {
 
 describe("proxy route matching", () => {
   it("runs on every route except build assets, so host routing covers /app, /auth and /admin", () => {
-    expect(config.matcher).toHaveLength(1);
+    // The second entry forwards the super admin's static files (src/lib/superadmin/proxy.ts).
+    expect(config.matcher).toEqual([expect.any(String), "/superadmin/:path*"]);
     const pattern = new RegExp(`^${config.matcher[0]!.replace("/((?!", "/(?!(?:").replace(").*)", ")).*")}$`);
     for (const path of ["/app/enquiries", "/auth/confirm", "/admin", "/", "/service"]) expect(pattern.test(path)).toBe(true);
     for (const path of ["/_next/static/chunk.js", "/_next/image", "/favicon.ico", "/email/logo.png"]) expect(pattern.test(path)).toBe(false);
