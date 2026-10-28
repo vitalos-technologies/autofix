@@ -93,12 +93,13 @@ export const marketing = {
     note: "Customers never need an app or an account: they book in the browser on their own phone.",
   },
 
-  // Two plans (DECISIONS D17). Essentials is what ships today; Pro lists the features being built, marked
-  // "Coming soon" until each one ships. No prices until Temitope sets them.
+  // Two plans (DECISIONS D17). Essentials is what ships today. Pro lists its features; `shipped: false` marks
+  // the ones still being built ("Coming soon"), so the page only claims what Autofix does. Every new garage
+  // starts on a 14-day Pro trial (P5.2). No prices until Temitope sets them.
   plans: {
     id: "plans",
     heading: "Two plans",
-    intro: "Essentials runs the garage. Pro grows it. Prices are coming soon.",
+    intro: "Essentials runs the garage. Pro grows it. Every new garage gets Pro free for 14 days, then chooses. Prices are coming soon.",
     essentials: {
       name: "Essentials",
       tagline: "Run the garage",
@@ -119,21 +120,22 @@ export const marketing = {
     pro: {
       name: "Pro",
       tagline: "Grow the garage",
-      status: "Coming soon",
+      status: "14-day free trial",
       lead: "Everything in Essentials, plus:",
+      comingSoon: "Coming soon",
       features: [
-        "Digital health checks with photos, approved online",
-        "Deposits, pay-by-link invoices and no-show fees",
-        "Service plans paid by monthly Direct Debit",
-        "Campaigns to customers who opted in",
-        "AI front desk for calls and WhatsApp",
-        "Xero, QuickBooks and Sage sync",
-        "Advanced reports and exports",
-        "Fleet and trade accounts",
-        "Courtesy cars, collection and delivery",
-        "Several sites under one login",
+        { label: "Digital health checks with photos, approved online", shipped: true },
+        { label: "Deposits, pay-by-link invoices and no-show fees", shipped: true },
+        { label: "Service plans paid by monthly Direct Debit", shipped: false },
+        { label: "Campaigns to customers who opted in", shipped: true },
+        { label: "AI front desk for calls", shipped: true },
+        { label: "Xero, QuickBooks and Sage sync", shipped: false },
+        { label: "Advanced reports and exports", shipped: true },
+        { label: "Fleet and trade accounts", shipped: false },
+        { label: "Courtesy cars, collection and delivery", shipped: true },
+        { label: "Several sites under one login", shipped: false },
       ],
-      note: "Pro features are being built now. Each one switches on as soon as it's ready.",
+      note: "Features marked coming soon are being built now. Each one switches on as soon as it's ready.",
     },
     cta: { label: "Start with Essentials", href: "/signup" },
   },
@@ -164,7 +166,7 @@ export const marketing = {
       },
       {
         q: "How much does it cost?",
-        a: "There are two plans, Essentials and Pro. Prices are being finalised. You can set up your garage and try your booking page now.",
+        a: "There are two plans, Essentials and Pro. Prices are being finalised. Every new garage gets Pro free for 14 days, so you can set up your garage and try everything now.",
       },
       {
         q: "We don't do MOTs. Does that matter?",

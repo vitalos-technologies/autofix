@@ -30,14 +30,22 @@ describe("marketing page (/ on the admin host)", () => {
     }
   });
 
-  it("shows two plans, with Pro marked as coming soon and no prices", () => {
+  it("shows two plans, the Pro trial, coming soon only on unshipped Pro features, and no prices", () => {
     render(<HomePage />);
     const essentials = screen.getByRole("article", { name: "Essentials" });
     const pro = screen.getByRole("article", { name: "Pro" });
     expect(within(essentials).getByText("Available now")).toBeInTheDocument();
     expect(within(essentials).getAllByRole("listitem")).toHaveLength(marketing.plans.essentials.features.length);
-    expect(within(pro).getByText("Coming soon")).toBeInTheDocument();
-    expect(within(pro).getAllByRole("listitem")).toHaveLength(marketing.plans.pro.features.length);
+    expect(within(pro).getByText("14-day free trial")).toBeInTheDocument();
+    const items = within(pro).getAllByRole("listitem");
+    expect(items).toHaveLength(marketing.plans.pro.features.length);
+    marketing.plans.pro.features.forEach((feature, index) => {
+      const item = items[index]!;
+      expect(item).toHaveTextContent(feature.label);
+      expect(within(item).queryByText("Coming soon") !== null).toBe(!feature.shipped);
+    });
+    // Only Pro features that have shipped are claimed as available (P5.3, P5.4, P5.5, P5.6, P5.8, P5.12).
+    expect(marketing.plans.pro.features.filter((feature) => feature.shipped).length).toBe(6);
     expect(within(essentials).getByRole("link", { name: "Start with Essentials" })).toHaveAttribute("href", "/signup");
     expect(screen.getByRole("region", { name: marketing.plans.heading }).textContent).not.toMatch(/£\s?\d/);
   });

@@ -350,11 +350,18 @@ function Plans() {
             <p className="mt-6 text-[15px] font-semibold text-plate">{plans.pro.lead}</p>
             <ul className="mt-3 flex-1 space-y-3">
               {plans.pro.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-3 text-[15px] leading-[1.5] text-white/90">
+                <li key={feature.label} className="flex items-start gap-3 text-[15px] leading-[1.5] text-white/90">
                   <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-plate text-plate-ink" aria-hidden="true">
                     <Check size={12} strokeWidth={3} />
                   </span>
-                  {feature}
+                  <span>
+                    {feature.label}
+                    {feature.shipped ? null : (
+                      <span className="ml-2 inline-block rounded-full border border-white/40 px-2 py-px text-[12px] font-semibold whitespace-nowrap text-white">
+                        {plans.pro.comingSoon}
+                      </span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
