@@ -18,7 +18,14 @@ info:
     Every authenticated call is audited (garage, token, tool, outcome,
     latency). Limits: 120 calls/minute per token, 600/minute per garage;
     `create_booking` and `get_booking` 30 per 10 minutes per token;
-    `lookup_vehicle` 300 per 10 minutes per garage.
+    `lookup_vehicle` 300 per 10 minutes per garage; `report_usage` 600 per
+    10 minutes per token.
+
+    Plans (D17, P5.12): the AI front desk (Workforce, `workforce` tokens) is
+    part of Autofix Pro. A `workforce` token whose garage is on Essentials
+    gets 403 `PLAN_REQUIRED` from every tool (checked before scopes); the call
+    is still audited. Askbridge (`askbridge` tokens, read-only tools) works on
+    every plan. Workforce reports minutes with `report_usage`.
 
     Errors are `{ code, message }` with fixed wording, plus `issues` on 422
     and `alternatives` on `SLOT_UNAVAILABLE`.
@@ -36,6 +43,7 @@ tags:
   - name: vehicles
   - name: bookings
   - name: garage
+  - name: usage
 paths:
   /lookup_vehicle:
     post:
@@ -204,13 +212,56 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/Unavailable" }
         default: { $ref: "#/components/responses/Error" }
+  /report_usage:
+    post:
+      operationId: report_usage
+      tags: [usage]
+      summary: Report the AI front desk minutes one call or WhatsApp conversation used (Workforce only).
+      description: |
+        Send one report when a conversation ends. `conversationId` is the Twilio
+        `CallSid` for calls and Workforce's own conversation id for WhatsApp; the
+        same id is counted once (a repeat answers 200 with `replayed: true` and the
+        minutes first counted). Minutes may be fractional (rounded to 0.01). Reports
+        never block: past the garage's monthly allowance they are still counted and
+        the overage is billed when the month closes. `endedAt` must be within the
+        last 31 days and decides the month (garage's local time). Askbridge tokens
+        cannot call this tool.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportUsageRequest" }
+            example: { conversationId: "CA0123456789abcdef0123456789abcdef", channel: call, minutes: 3.5, endedAt: "2026-10-28T10:04:30.000Z" }
+      responses:
+        "201":
+          description: Counted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportUsageResponse" }
+        "200":
+          description: This conversation was already counted (`replayed`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportUsageResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     agentToken:
       type: http
       scheme: bearer
       bearerFormat: afat_<43 base64url characters>
-      description: Per-garage service token. Issued once by Vitalos; only its HMAC is stored. Scopes limit which tools it may call.
+      description: |
+        Per-garage service token. Issued once (by Vitalos, or by the garage owner on
+        Settings, AI front desk); only its HMAC is stored. Scopes limit which tools it
+        may call. Each token has an audience: `workforce` (the AI front desk on calls
+        and WhatsApp, every tool; the garage needs Autofix Pro, else every call is
+        403 `PLAN_REQUIRED`) or `askbridge` (the website chat, on every plan;
+        `list_services`, `available_slots` and `garage_profile` only).
   responses:
     Unauthorized:
       description: Missing, malformed, unknown or revoked token (`UNAUTHORIZED`).
@@ -220,7 +271,11 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
-      description: The token's scopes do not include this tool (`FORBIDDEN`), or the garage is not taking bookings (`GARAGE_INACTIVE`).
+      description: |
+        The token's scopes do not include this tool (`FORBIDDEN`), the garage is not
+        taking bookings (`GARAGE_INACTIVE`), or a `workforce` token's garage is not on
+        Autofix Pro (`PLAN_REQUIRED`, with `feature: ai_front_desk` and `plan: pro`):
+        tell the caller the garage will call them back.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -259,6 +314,7 @@ components:
       enum:
         - UNAUTHORIZED
         - FORBIDDEN
+        - PLAN_REQUIRED
         - GARAGE_INACTIVE
         - NOT_FOUND
         - VEHICLE_NOT_FOUND
@@ -293,6 +349,8 @@ components:
         alternatives:
           type: array
           items: { $ref: "#/components/schemas/Slot" }
+        feature: { const: ai_front_desk, description: "With PLAN_REQUIRED: the Autofix feature the garage's plan lacks." }
+        plan: { const: pro, description: "With PLAN_REQUIRED: the plan that includes it." }
     SlotUnavailableError:
       allOf:
         - $ref: "#/components/schemas/Error"
@@ -485,6 +543,32 @@ components:
       properties:
         booking: { $ref: "#/components/schemas/CreatedBooking" }
         replayed: { type: boolean }
+    ReportUsageRequest:
+      type: object
+      additionalProperties: false
+      required: [conversationId, channel, minutes, endedAt]
+      properties:
+        conversationId:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          description: Twilio CallSid for calls; Workforce's conversation id for WhatsApp. Never a phone number.
+        channel: { type: string, enum: [call, whatsapp] }
+        minutes: { type: number, exclusiveMinimum: 0, maximum: 600 }
+        endedAt: { $ref: "#/components/schemas/Instant" }
+    ReportUsageResponse:
+      type: object
+      additionalProperties: false
+      required: [usage]
+      properties:
+        usage:
+          type: object
+          additionalProperties: false
+          required: [conversationId, channel, minutes, replayed]
+          properties:
+            conversationId: { type: string }
+            channel: { type: string, enum: [call, whatsapp] }
+            minutes: { type: number, minimum: 0 }
+            replayed: { type: boolean }
     GetBookingRequest:
       type: object
       additionalProperties: false
