@@ -182,6 +182,8 @@ test("an online booking for the car uses the included service, and staff see the
     await site.getByRole("button", { name: "Enter details manually" }).click({ timeout: 2_000 });
     await expect(site.getByLabel("Make")).toBeVisible({ timeout: 2_000 });
   }).toPass();
+  // Opening manual entry moves focus to Make on the next frame; wait for it so the plate isn't typed into Make.
+  await expect(site.getByLabel("Make")).toBeFocused();
   await site.getByLabel("Registration").fill(REGISTRATION);
   await expect(site.getByLabel("Registration")).not.toHaveValue("");
   await site.getByLabel("Make").fill("Ford");

@@ -89,6 +89,8 @@ async function bookToDetails(page: Page, registration: string, name: string, pho
     await page.getByRole("button", { name: "Enter details manually" }).click({ timeout: 2_000 });
     await expect(page.getByLabel("Make")).toBeVisible({ timeout: 2_000 });
   }).toPass();
+  // Opening manual entry moves focus to Make on the next frame; wait for it so the plate isn't typed into Make.
+  await expect(page.getByLabel("Make")).toBeFocused();
   await page.getByLabel("Registration").fill(registration);
   await expect(page.getByLabel("Registration")).not.toHaveValue("");
   await page.getByLabel("Make").fill("Ford");
