@@ -60,6 +60,10 @@ describe("plan year (service_plan_year_start)", () => {
     expect(planYearStart(at("2026-10-25T09:00:00Z"), at("2026-12-01T12:00:00Z")).toISOString()).toBe("2026-10-25T09:00:00.000Z");
     expect(planYearStart(at("2026-10-25T09:00:00Z"), at("2026-01-01T12:00:00Z")).toISOString()).toBe("2026-10-25T09:00:00.000Z");
   });
+  it("keeps the sub-second part of started_at (matched against the stored plan_year_start)", () => {
+    expect(planYearStart(at("2026-10-28T13:05:07.123Z"), at("2027-11-01T08:00:00Z")).toISOString()).toBe("2027-10-28T12:05:07.123Z"); // 13:05 local: GMT then, BST now
+    expect(planYearStart(at("2026-10-28T13:05:07.123Z"), at("2026-10-30T08:00:00Z")).toISOString()).toBe("2026-10-28T13:05:07.123Z");
+  });
   it("moves 29 February to 28 February in other years", () => {
     expect(planYearStart(at("2028-02-29T10:00:00Z"), at("2029-03-01T10:00:00Z")).toISOString()).toBe("2029-02-28T10:00:00.000Z");
   });

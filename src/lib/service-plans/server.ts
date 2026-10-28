@@ -155,7 +155,8 @@ export async function loadUsage(
     .eq("subscription_id", subscription.id)
     .eq("status", "used");
   const rows = (data ?? []) as Array<{ service_id: string; plan_year_start: string }>;
-  const thisYear = rows.filter((row) => Date.parse(row.plan_year_start) === Date.parse(yearStart));
+  // Same instant, give or take the microseconds a Date cannot hold.
+  const thisYear = rows.filter((row) => Math.abs(Date.parse(row.plan_year_start) - Date.parse(yearStart)) < 1000);
   return {
     yearStart,
     usage: plan.inclusions.map((inclusion) => ({ ...inclusion, used: thisYear.filter((row) => row.service_id === inclusion.serviceId).length })),

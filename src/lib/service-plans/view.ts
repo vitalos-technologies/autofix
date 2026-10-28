@@ -118,7 +118,8 @@ export function planYearStart(startedAt: Date, at: Date, timeZone = "Europe/Lond
   const year = start.year + years;
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   const day = start.month === 2 && start.day === 29 && !leap ? 28 : start.day;
-  return fromLocal({ ...start, year, day }, timeZone);
+  // Keep the sub-second part (timestamptz has microseconds; a Date keeps milliseconds).
+  return new Date(fromLocal({ ...start, year, day }, timeZone).getTime() + startedAt.getUTCMilliseconds());
 }
 
 // ---------------------------------------------------------------------------------------------
