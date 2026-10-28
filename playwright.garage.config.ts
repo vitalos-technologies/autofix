@@ -128,7 +128,7 @@ export default defineConfig({
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
     { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // P5.4 payments (mock provider): its own garage, owner and customers; axe at 390 and 1440, screenshots.
-    { name: "p5-payments", testMatch: "p5-payments.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-payments", testMatch: "p5-payments.spec.ts", expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

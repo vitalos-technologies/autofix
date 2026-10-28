@@ -79,14 +79,15 @@ export default async function PayPage({ params, searchParams }: PayPageProps) {
   const token = await readPayCookie();
   let payment = token ? await loadPaymentByToken(garage.id, token).catch(() => null) : null;
 
-  // Back from the provider's checkout: apply it now if the webhook has not yet.
+  // Back from the provider's checkout: apply it now if the webhook has not yet. (Reading the row again in this
+  // render would return the memoised first read, so the new state is applied here.)
   if (payment && query.paid === "1" && payment.status === "pending" && (await syncCheckout(garage.id, payment).catch(() => false))) {
-    payment = token ? await loadPaymentByToken(garage.id, token).catch(() => null) : null;
+    payment = { ...payment, status: "paid", paid_at: new Date().toISOString() };
   }
   // A deposit whose hold has run out: release its booking now (the job may not have run yet).
   const now = new Date();
   if (payment && payment.status === "pending" && Date.parse(payment.expires_at) <= now.getTime() && (await releaseExpiredDeposits(garage.id)) > 0) {
-    payment = token ? await loadPaymentByToken(garage.id, token).catch(() => null) : null;
+    payment = { ...payment, status: "expired" };
   }
 
   const timeZone = garage.timezone || "Europe/London";

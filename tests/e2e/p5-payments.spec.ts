@@ -168,7 +168,7 @@ test("the owner connects payments and sets the deposit and no-show fee", async (
   await expect(staff.getByText(/No payment account is connected/)).toBeVisible();
   await expect(staff.getByRole("link", { name: /Payments/ }).first()).toBeVisible();
 
-  await staff.getByRole("link", { name: "Payment settings" }).click();
+  await staff.getByRole("link", { name: "Payment settings", exact: true }).click();
   await expect(staff.getByRole("heading", { level: 1, name: "Payment settings" })).toBeVisible();
   await staff.getByRole("button", { name: "Connect payments" }).click();
   await expect(staff.getByText("Payments connected. Deposits and payment links can be used now.")).toBeVisible();
