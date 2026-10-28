@@ -497,6 +497,29 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { purpose: "messaging" },
   },
+  // P5.3 health checks: start_health_check() (idempotent per booking) creates the check and its checklist.
+  health_checks: {
+    create: async (rows) => rows.rpc("start_health_check", { p_booking_id: await rows.booking() }),
+    patch: { summary: "Tampered" },
+  },
+  health_check_items: {
+    create: async (rows) => rows.rpc("start_health_check", { p_booking_id: await rows.booking() }),
+    patch: { note: "Tampered" },
+  },
+  // Staff may insert and delete media rows (no update grant): the update probe is refused.
+  health_check_media: {
+    create: async (rows) => {
+      const checkId = String(await rows.rpc("start_health_check", { p_booking_id: await rows.booking() }));
+      return rows.insert("health_check_media", {
+        check_id: checkId,
+        object_path: `${rows.garage.id}/health-checks/${checkId}/${randomUUID()}.png`,
+        content_type: "image/png",
+        size_bytes: PNG.length,
+        kind: "image",
+      });
+    },
+    patch: { content_type: "image/jpeg" },
+  },
   invoice_email_attempts: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },
   invoice_email_sends: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },
   invoice_items: { create: (rows) => rows.issuedInvoice(), patch: { description: "Tampered" } },
