@@ -1,5 +1,6 @@
 import {
   Bell,
+  Calculator,
   CalendarDays,
   Clock,
   FileText,
@@ -48,7 +49,9 @@ export type AdminNavOptions = {
 export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
-export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
+  { feature: "accounting_sync", label: "Accounting", href: "/app/settings/accounting", icon: Calculator },
+];
 
 function proItems(items: typeof GROW_NAV_ITEMS, locked: ReadonlySet<string> | undefined): AdminNavItem[] {
   return items.map(({ feature, ...item }) => ({ ...item, proLocked: locked?.has(feature) ?? false }));
