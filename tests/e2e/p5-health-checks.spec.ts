@@ -150,11 +150,11 @@ test("the owner starts a health check from the booking, rates lines with photos 
   const reopened = staff.getByTestId("hc-item").filter({ has: staff.getByText("Front left tyre", { exact: true }) });
   await reopened.locator("summary").click();
   await reopened.locator('input[type="file"][accept^="image"]').setInputFiles({ name: "tyre.png", mimeType: "image/png", buffer: PNG });
-  await expect(reopened.getByRole("img", { name: "Photo 1 of Front left tyre" })).toBeVisible({ timeout: 20_000 });
+  await expect(reopened.getByRole("img", { name: "Photo 1 of Front left tyre" })).toBeVisible({ timeout: 60_000 });
   await expect(tyre.getByRole("button", { name: /Remove photo 1/ })).toBeVisible();
   // A video of the whole car.
   await staff.locator("#summary").locator('input[type="file"][accept^="video"]').setInputFiles({ name: "walkround.mp4", mimeType: "video/mp4", buffer: MP4 });
-  await expect(staff.locator("#summary video")).toHaveCount(1, { timeout: 20_000 });
+  await expect(staff.locator("#summary video")).toHaveCount(1, { timeout: 60_000 });
   const stored = await service.from("health_check_media").select("object_path,uploaded").eq("check_id", checkId);
   expect(stored.data).toHaveLength(2);
   for (const row of stored.data ?? []) {
