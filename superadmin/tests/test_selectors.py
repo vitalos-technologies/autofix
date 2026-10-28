@@ -40,29 +40,32 @@ def test_d17_plans_and_old_plans_count_the_same(af):
     af.garage(plan="growth", status="active")  # old Essentials
     af.garage(plan="essentials", status="active")
     af.garage(plan="front_desk", status="active")  # old Pro
-    af.garage(plan="pro", status="active", trial_ends_at=past)  # trial over: paid Pro
+    af.garage(plan="pro", plan_chosen="pro", status="active", trial_ends_at=past)  # trial over, chose Pro
+    af.garage(plan="pro", status="active", trial_ends_at=past)  # trial over, not chosen: Essentials
     af.garage(plan="pro", status="onboarding", trial_ends_at=future)  # D17 trial
     af.garage(plan="trial", status="active")  # old trial
     af.garage(plan="essentials", status="suspended")
-    assert selectors.plan_counts() == {"essentials": 3, "pro": 2, "trial": 2}
-    assert selectors.subscription_counts() == {"active": 4, "trialing": 2, "pastDue": 1}
+    assert selectors.plan_counts() == {"essentials": 4, "pro": 2, "trial": 2}
+    assert selectors.subscription_counts() == {"active": 5, "trialing": 2, "pastDue": 1}
     assert selectors.garage_counts()["trial"] == 2
 
 
 @pytest.mark.parametrize(
-    ("plan", "trial_days", "label", "key"),
+    ("plan", "trial_days", "chosen", "label", "key"),
     [
-        ("growth", None, "Essentials", "essentials"),
-        ("front_desk", None, "Pro", "pro"),
-        ("trial", None, "Pro (trial)", "trial"),
-        ("essentials", None, "Essentials", "essentials"),
-        ("pro", 5, "Pro (trial)", "trial"),
-        ("pro", -5, "Pro", "pro"),
+        ("growth", None, None, "Essentials", "essentials"),
+        ("front_desk", None, None, "Pro", "pro"),
+        ("trial", None, None, "Pro (trial)", "trial"),
+        ("essentials", None, None, "Essentials", "essentials"),
+        ("pro", None, "pro", "Pro", "pro"),
+        ("pro", 5, None, "Pro (trial)", "trial"),
+        ("pro", -5, "pro", "Pro", "pro"),
+        ("pro", -5, None, "Essentials", "essentials"),  # lapsed trial (garage_effective_plan)
     ],
 )
-def test_plan_labels_across_d17(af, plan, trial_days, label, key):
+def test_plan_labels_across_d17(af, plan, trial_days, chosen, label, key):
     ends = timezone.now() + timedelta(days=trial_days) if trial_days is not None else None
-    garage = af.garage(plan=plan, trial_ends_at=ends)
+    garage = af.garage(plan=plan, trial_ends_at=ends, plan_chosen=chosen)
     assert garage.plan_label == label and garage.plan_key == key
 
 
@@ -71,8 +74,9 @@ def test_plan_filters_across_d17(af):
     af.garage(name="New pro", plan="pro")
     af.garage(name="New trial", plan="pro", trial_ends_at=timezone.now() + timedelta(days=3))
     af.garage(name="Old trial", plan="trial")
+    af.garage(name="Lapsed trial", plan="pro", trial_ends_at=timezone.now() - timedelta(days=1))
     names = lambda key: sorted(g.name for g in selectors.garages({"plan": key}))  # noqa: E731
-    assert names("essentials") == ["Old essentials"]
+    assert names("essentials") == ["Lapsed trial", "Old essentials"]
     assert names("pro") == ["New pro"]
     assert names("trial") == ["New trial", "Old trial"]
 

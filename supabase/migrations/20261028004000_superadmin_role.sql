@@ -111,9 +111,10 @@ create view superadmin.garages with (security_barrier = true) as
     garage.booking_prefix,
     garage.phone,
     garage.email,
-    -- D17's Pro trial. Read from the row as JSON so this view works before and after the plans
-    -- migration adds the column (null until then).
+    -- D17's Pro trial and the plan the garage chose (20261029000100_plans.sql). Read from the row as
+    -- JSON because that migration runs after this one (null until it has).
     nullif(to_jsonb(garage) ->> 'trial_ends_at', '')::timestamptz as trial_ends_at,
+    nullif(to_jsonb(garage) ->> 'plan_chosen', '') as plan_chosen,
     nullif(garage.settings #>> '{onboarding,started_at}', '')::timestamptz as onboarding_started_at,
     nullif(garage.settings #>> '{onboarding,completed_at}', '')::timestamptz as onboarding_completed_at,
     garage.cancelled_at,

@@ -295,7 +295,7 @@ def _tab_context(request, garage, tab: str) -> dict:
 
 
 def _plan_form(garage):
-    return PlanStatusForm(initial={"plan": plans.canonical(garage.plan), "status": garage.status})
+    return PlanStatusForm(initial={"plan": plans.effective(garage), "status": garage.status})
 
 
 def _local_audit(garage):
@@ -338,7 +338,7 @@ def garage_plan(request, pk):
         return render_unavailable(request, error, "Garage")
     form = PlanStatusForm(
         request.POST or None,
-        initial={"plan": plans.canonical(garage.plan), "status": garage.status},
+        initial={"plan": plans.effective(garage), "status": garage.status},
         user=request.user,
     )
     if request.method == "POST" and form.is_valid():

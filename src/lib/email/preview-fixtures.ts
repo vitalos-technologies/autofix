@@ -22,7 +22,7 @@ export const previewGarage: Garage = {
   timezone: "Europe/London",
   logoUrl: null,
   accent: "#0f766e",
-  plan: "growth",
+  plan: "essentials",
   motEnabled: true,
   bookingPrefix: "HRM",
   slotStepMin: 15,

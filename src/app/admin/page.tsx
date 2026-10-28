@@ -6,8 +6,8 @@ import { PageHeader } from "@/components/admin-ui/page-header";
 import { Panel } from "@/components/admin-ui/panel";
 import { buttonClass, textLinkClass } from "@/components/admin-ui/styles";
 import { requirePlatformAdmin } from "@/lib/platform/access";
-import { GARAGE_PLANS, GARAGE_STATUSES, isGaragePlan, isGarageStatus, PLAN_LABELS, STATUS_LABELS } from "@/lib/platform/policy";
-import { listGarages, type GarageListItem } from "@/lib/platform/store";
+import { GARAGE_PLAN_FILTERS, GARAGE_STATUSES, isGaragePlanFilter, isGarageStatus, PLAN_FILTER_LABELS, PLAN_LABELS, STATUS_LABELS } from "@/lib/platform/policy";
+import { listGarages, listPlanRequests, type GarageListItem } from "@/lib/platform/store";
 import { DomainStatus, GarageStatusBadge, PlanBadge } from "./_components/badges";
 import { formatDate, formatWhen } from "./_components/format";
 import { fieldClass, labelClass } from "./_components/field-styles";
@@ -57,15 +57,38 @@ export default async function PlatformGaragesPage({ searchParams }: { searchPara
   const params = await searchParams;
   const q = single(params.q)?.trim().slice(0, 80) || undefined;
   const status = isGarageStatus(single(params.status)) ? (single(params.status) as (typeof GARAGE_STATUSES)[number]) : undefined;
-  const plan = isGaragePlan(single(params.plan)) ? (single(params.plan) as (typeof GARAGE_PLANS)[number]) : undefined;
+  const plan = isGaragePlanFilter(single(params.plan)) ? (single(params.plan) as (typeof GARAGE_PLAN_FILTERS)[number]) : undefined;
   const page = Math.max(1, Number.parseInt(single(params.page) ?? "1", 10) || 1);
-  const result = await listGarages(admin.client, { search: q, status, plan, page });
+  const [result, requests] = await Promise.all([
+    listGarages(admin.client, { search: q, status, plan, page }),
+    listPlanRequests(admin.client).catch(() => []),
+  ]);
   const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const query = { q, status, plan };
 
   return (
     <>
       <PageHeader eyebrow="Vitalos platform" title="Garages" description="Every garage on Autofix. Open one to change its plan or status, or to view it as support." />
+      {requests.length ? (
+        <Panel id="plan-requests" title="Plan requests" count={requests.length} countLabel="open plan requests">
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {requests.map((request) => (
+              <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-input border border-grey-200 p-3">
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[15px] font-bold text-navy-950">
+                    {request.garage_name} asks for {PLAN_LABELS[request.requested_plan] ?? request.requested_plan}
+                  </span>
+                  <span className="text-[13.5px] text-grey-700">
+                    {request.requested_by} · {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(request.created_at))}
+                    {request.note ? ` · "${request.note}"` : ""}
+                  </span>
+                </span>
+                <Link href={`/admin/garages/${request.garage_id}#plan-status`} className={buttonClass("secondary", "sm")}>Open garage</Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
       <Panel title="Find a garage">
         <form method="get" action="/admin" className="grid gap-3.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
           <div>
@@ -83,7 +106,7 @@ export default async function PlatformGaragesPage({ searchParams }: { searchPara
             <label htmlFor="garage-plan" className={labelClass}>Plan</label>
             <select id="garage-plan" name="plan" defaultValue={plan ?? ""} className={fieldClass}>
               <option value="">Any plan</option>
-              {GARAGE_PLANS.map((value) => <option key={value} value={value}>{PLAN_LABELS[value]}</option>)}
+              {GARAGE_PLAN_FILTERS.map((value) => <option key={value} value={value}>{PLAN_FILTER_LABELS[value]}</option>)}
             </select>
           </div>
           <button type="submit" className={buttonClass("primary")}>Search</button>

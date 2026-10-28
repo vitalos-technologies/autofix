@@ -46,8 +46,9 @@ def admin_rows():
             "insert into public.platform_admins (user_id) values (%s) on conflict do nothing", [ADMIN]
         )
         conn.execute(
-            "insert into public.garages (id, slug, name, booking_prefix, plan, status) values "
-            "(%s, 'sa-integration', 'SA Integration Garage', 'SAI', 'trial', 'active')",
+            # plan and trial_ends_at take their defaults: a new garage starts on the Pro trial (D17).
+            "insert into public.garages (id, slug, name, booking_prefix, status) values "
+            "(%s, 'sa-integration', 'SA Integration Garage', 'SAI', 'active')",
             [GARAGE],
         )
         conn.execute(
@@ -135,7 +136,9 @@ def test_default_read_only_session_refuses_function_writes(admin_rows):
             "select set_config('request.jwt.claims', %s, false)",
             [f'{{"sub":"{ADMIN}","role":"authenticated","aal":"aal2"}}'],
         )
-        conn.execute("select public.platform_update_garage(%s, 'growth', null, 'read only test')", [GARAGE])
+        conn.execute(
+            "select public.platform_update_garage(%s, 'essentials', null, 'read only test')", [GARAGE]
+        )
 
 
 @pytest.mark.parametrize(
@@ -178,12 +181,16 @@ def test_selectors_read_through_the_role(live):
 
 
 def test_plan_change_goes_through_platform_update_garage(live, admin_rows):
+    garage = selectors.garage(GARAGE)
+    assert garage.plan == "pro" and garage.plan_key == "trial" and garage.trial_ends_at is not None
     result = db.call_platform_function(
         "platform_update_garage",
-        [str(GARAGE), "growth", None, "Integration test plan change"],
+        [str(GARAGE), "essentials", None, "Integration test plan change"],
         actor_id=ADMIN,
     )
-    assert result["plan"] == "growth"
+    assert result["plan"] == "essentials" and result["trial_ends_at"] is None
+    garage = selectors.garage(GARAGE)
+    assert garage.plan_chosen == "essentials" and garage.plan_label == "Essentials"
     entry = admin_rows.execute(
         "select action, reason from public.platform_audit_log where target_garage_id = %s order by id desc limit 1",
         [GARAGE],
@@ -199,16 +206,14 @@ def test_plan_change_goes_through_platform_update_garage(live, admin_rows):
 def test_a_non_admin_actor_is_refused(live):
     with pytest.raises(db.PlatformError) as error:
         db.call_platform_function(
-            "platform_update_garage", [str(GARAGE), "trial", None, "Should be refused"], actor_id=uuid.uuid4()
+            "platform_update_garage", [str(GARAGE), "pro", None, "Should be refused"], actor_id=uuid.uuid4()
         )
     assert error.value.code == "PLATFORM_ADMIN_REQUIRED"
 
 
 def test_short_reason_is_refused_by_the_database(live):
     with pytest.raises(db.PlatformError) as error:
-        db.call_platform_function(
-            "platform_update_garage", [str(GARAGE), "trial", None, "no"], actor_id=ADMIN
-        )
+        db.call_platform_function("platform_update_garage", [str(GARAGE), "pro", None, "no"], actor_id=ADMIN)
     assert error.value.code == "INVALID_REASON"
 
 
@@ -249,27 +254,14 @@ def test_status_payload_from_real_data(live, settings):
     assert body["product"] == "autofix" and body["tenants"]["total"] >= 1
 
 
-def test_garages_view_reads_trial_ends_at_before_and_after_the_plans_migration(admin_rows):
-    """D17 adds garages.trial_ends_at; the view reads it from the row as JSON, so both states work."""
+def test_garages_view_reads_the_d17_trial_and_chosen_plan(admin_rows):
+    """The view reads trial_ends_at and plan_chosen (20261029000100_plans.sql) from the row as JSON."""
+    admin_rows.execute(
+        "update public.garages set trial_ends_at = '2030-01-01T00:00:00Z', plan_chosen = 'pro' where id = %s",
+        [GARAGE],
+    )
     with role() as conn:
-        assert conn.execute(
-            "select trial_ends_at from superadmin.garages where id = %s", [GARAGE]
-        ).fetchone() == (None,)
-    exists = admin_rows.execute(
-        "select 1 from information_schema.columns where table_schema = 'public' and table_name = 'garages' "
-        "and column_name = 'trial_ends_at'"
-    ).fetchone()
-    if exists:
-        pytest.skip("the plans migration already added trial_ends_at")
-    admin_rows.execute("alter table public.garages add column trial_ends_at timestamptz")
-    try:
-        admin_rows.execute(
-            "update public.garages set trial_ends_at = '2030-01-01T00:00:00Z' where id = %s", [GARAGE]
-        )
-        with role() as conn:
-            value = conn.execute(
-                "select trial_ends_at from superadmin.garages where id = %s", [GARAGE]
-            ).fetchone()[0]
-        assert value is not None and value.year == 2030
-    finally:
-        admin_rows.execute("alter table public.garages drop column trial_ends_at")
+        ends, chosen = conn.execute(
+            "select trial_ends_at, plan_chosen from superadmin.garages where id = %s", [GARAGE]
+        ).fetchone()
+    assert ends.year == 2030 and chosen == "pro"

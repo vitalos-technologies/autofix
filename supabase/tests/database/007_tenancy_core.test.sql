@@ -93,8 +93,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('17000000-0000-4000-8000-0000000000ab', 'core-both@pgtap.test', '{}'::jsonb);
 
 insert into public.garages (id, slug, name, booking_prefix, plan) values
-  ('a7000000-0000-4000-8000-000000000001', 'pgtap-core-a', 'Core Garage A', 'CGA', 'growth'),
-  ('b7000000-0000-4000-8000-000000000001', 'pgtap-core-b', 'Core Garage B', 'CGB', 'trial');
+  ('a7000000-0000-4000-8000-000000000001', 'pgtap-core-a', 'Core Garage A', 'CGA', 'essentials'),
+  ('b7000000-0000-4000-8000-000000000001', 'pgtap-core-b', 'Core Garage B', 'CGB', 'pro');
 
 insert into public.garage_members (garage_id, user_id, role) values
   ('a7000000-0000-4000-8000-000000000001', '17000000-0000-4000-8000-0000000000a1', 'owner'),
@@ -153,7 +153,7 @@ select results_eq(
   array[0::bigint], 'owner B cannot rename garage A'
 );
 select throws_ok(
-  $$update public.garages set plan = 'front_desk' where id = 'b7000000-0000-4000-8000-000000000001'$$,
+  $$update public.garages set plan = 'pro' where id = 'b7000000-0000-4000-8000-000000000001'$$,
   '42501', null, 'owners cannot change their own plan'
 );
 select throws_ok(

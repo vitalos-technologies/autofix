@@ -89,7 +89,7 @@ def change_plan_status(request, garage: Garage, *, plan: str | None, status: str
     # plan=None keeps the plan as it is (bulk status changes never touch plans or trials).
     if (plan is not None and plan not in plan_rules.LABELS) or status not in statuses:
         raise ValidationError("Choose a plan and a status.")
-    new_plan = None if plan is None or plan_rules.same_plan(garage.plan, plan) else plan
+    new_plan = None if plan is None or plan_rules.same_plan(garage, plan) else plan
     new_status = status if status != garage.status else None
     if new_plan is None and new_status is None:
         raise ValidationError(FRIENDLY_ERRORS["NOTHING_TO_CHANGE"])

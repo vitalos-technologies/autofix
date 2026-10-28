@@ -71,13 +71,15 @@ describe("GET /api/cron/[job]", () => {
       ["domains.check", {}, "cron:domains.check:2026-10-27T11:05Z", undefined],
       ["retention", {}, "cron:retention:2026-10-27", undefined],
       ["platform.close_impersonations", {}, "cron:platform.close_impersonations:2026-10-27T11:00Z", undefined],
+      ["plans.expire_trials", {}, "cron:plans.expire_trials:2026-10-27", undefined],
+      ["billing.close_usage", {}, "cron:billing.close_usage:2026-10-27", undefined],
       ["customers.enrich", {}, "cron:customers.enrich:2026-10-27", undefined],
       ["mot.refresh", {}, "cron:mot.refresh:2026-10-27", undefined],
     ]);
     expect(drain).toHaveBeenCalledWith(expect.objectContaining({ db, queue, budgetMs: CRON_DRAIN_BUDGET_MS }));
     expect(CRON_DRAIN_BUDGET_MS).toBe(20_000);
     const body = await response.json();
-    expect(body).toEqual({ job: "daily", queued: 7, drain: summary() });
+    expect(body).toEqual({ job: "daily", queued: 9, drain: summary() });
   });
 
   it("queues just one kind for a per-kind cron, and 404s unknown names", async () => {

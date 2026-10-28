@@ -101,6 +101,7 @@ class Garage(AutofixModel):
     email = models.TextField(null=True, blank=True)
     # D17's 14-day Pro trial; null until the plans migration adds the column (the view reads it safely).
     trial_ends_at = models.DateTimeField(null=True, blank=True)
+    plan_chosen = models.TextField(null=True, blank=True)
     onboarding_started_at = models.DateTimeField(null=True, blank=True)
     onboarding_completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
@@ -116,9 +117,9 @@ class Garage(AutofixModel):
 
     @property
     def plan_key(self) -> str:
-        from .plans import TRIAL, canonical, on_trial
+        from .plans import TRIAL, effective, on_trial
 
-        return TRIAL if on_trial(self) else canonical(self.plan)
+        return TRIAL if on_trial(self) else effective(self)
 
     @property
     def plan_label(self) -> str:

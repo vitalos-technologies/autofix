@@ -70,6 +70,18 @@ export default async function PlatformGaragePage({ params }: { params: Promise<{
             Suspended and cancelled garages stop taking bookings: the booking site answers &ldquo;page not found&rdquo; (within a minute), the
             agent API refuses calls and no new slots are offered. Cancelled garages also disappear from their team&apos;s admin.
           </p>
+          <p className="m-0 text-[14px] text-grey-700">
+            {garage.trial_ends_at
+              ? `On the Pro trial until ${formatDate(garage.trial_ends_at)}${garage.plan_chosen === "pro" ? " (chose Pro)" : ", then Essentials unless they choose Pro"}.`
+              : `Using ${garage.effective_plan === "pro" ? "Pro" : "Essentials"}${garage.subscription ? ` · billing ${garage.subscription.provider}, ${garage.subscription.status}` : ""}.`}{" "}
+            Setting a plan here counts as the garage&apos;s choice and ends any trial.
+          </p>
+          {garage.plan_request ? (
+            <p className="m-0 rounded-input border border-[#bcd3f5] bg-info-bg p-3 text-[14px] font-semibold text-info-ink">
+              {garage.plan_request.requested_by} asked for {garage.plan_request.plan === "pro" ? "Pro" : "Essentials"} on {formatDate(garage.plan_request.created_at)}
+              {garage.plan_request.note ? `: "${garage.plan_request.note}"` : "."}
+            </p>
+          ) : null}
           <GarageChangeForm garageId={garage.id} plan={garage.plan} status={garage.status} />
         </Panel>
         <Panel id="view-as-support" title="View as support">

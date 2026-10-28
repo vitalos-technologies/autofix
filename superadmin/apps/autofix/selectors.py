@@ -116,11 +116,11 @@ def garage_counts() -> dict[str, int]:
 
 @reads
 def plan_counts() -> dict[str, int]:
-    """Garages that are not cancelled: Essentials, Pro (paid) and on the Pro trial (old or D17 values)."""
+    """Garages that are not cancelled: Essentials (a lapsed trial included), Pro and on the Pro trial."""
     live = Garage.objects.exclude(status="cancelled")
     return {
-        "essentials": live.filter(plans.paid_q(), plan__in=plans.DB_VALUES[plans.ESSENTIALS]).count(),
-        "pro": live.filter(plans.paid_q(), plan__in=plans.DB_VALUES[plans.PRO]).count(),
+        "essentials": live.filter(plans.filter_q(plans.ESSENTIALS)).count(),
+        "pro": live.filter(plans.filter_q(plans.PRO)).count(),
         "trial": live.filter(plans.trial_q()).count(),
     }
 

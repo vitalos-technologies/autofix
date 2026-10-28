@@ -355,3 +355,21 @@ def test_old_plan_names_are_no_longer_offered(client_for, superadmin, seeded, pl
     )
     assert response.status_code == 200
     platform.assert_not_called()
+
+
+def test_choosing_pro_during_the_d17_trial_makes_it_the_chosen_plan(client_for, superadmin, af, platform):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    garage = af.garage(plan="pro", status="active", trial_ends_at=timezone.now() + timedelta(days=5))
+    response = client_for(superadmin).post(
+        reverse("autofix:garage_plan", args=[garage.pk]),
+        {"plan": "pro", "status": "active", "reason": REASON},
+        **HX,
+    )
+    assert response.status_code == 204
+    platform.assert_called_once_with(
+        "platform_update_garage", [str(garage.pk), "pro", None, REASON], actor_id=mock.ANY
+    )
+    assert "Pro (trial) → Pro" in AuditEvent.objects.get(action="autofix.garage_updated").summary
