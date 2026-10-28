@@ -14,6 +14,7 @@ from django.utils.html import format_html
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from apps.accounts import stepup
 from apps.accounts.roles import SUPERADMIN, SUPPORT, can_change_autofix, can_support, role_required
 from apps.audit.services import record
 from apps.core.csv_io import csv_response
@@ -218,7 +219,7 @@ def garage_bulk(request):
         garages = selectors.garages_by_ids(ids)
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Garages")
-    form = BulkStatusForm(request.POST if request.POST.get("confirm") else None)
+    form = BulkStatusForm(request.POST if request.POST.get("confirm") else None, user=request.user)
     if request.POST.get("confirm") and form.is_valid():
         done, failed = 0, []
         for garage in garages:
@@ -336,7 +337,9 @@ def garage_plan(request, pk):
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Garage")
     form = PlanStatusForm(
-        request.POST or None, initial={"plan": plans.canonical(garage.plan), "status": garage.status}
+        request.POST or None,
+        initial={"plan": plans.canonical(garage.plan), "status": garage.status},
+        user=request.user,
     )
     if request.method == "POST" and form.is_valid():
         try:
@@ -370,7 +373,7 @@ def view_as_support(request, pk):
         garage = _garage_or_404(pk)
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Garage")
-    form = ViewAsSupportForm(request.POST or None)
+    form = ViewAsSupportForm(request.POST or None, user=request.user)
     if request.method == "POST" and form.is_valid():
         destination = services.view_as_support(request, garage, form.cleaned_data["reason"])
         return _allow_handoff(HttpResponseRedirect(destination))
@@ -395,6 +398,10 @@ def booking_people(request, pk):
     """Customer names and masked contacts on a garage's recent bookings. Support only; audited."""
     if not can_support(request.user):
         raise PermissionDenied
+    if not stepup.check(request.user, request.POST.get(stepup.FIELD)):
+        response = render(request, "autofix/tabs/_step_up_refused.html", {"message": stepup.INVALID})
+        response["Cache-Control"] = "no-store"
+        return response
     try:
         garage = _garage_or_404(pk)
         rows = selectors.garage_booking_people(garage)

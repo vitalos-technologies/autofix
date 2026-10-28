@@ -10,6 +10,8 @@ from .base import (
     AUTOFIX_STATUS_TOKEN,
     DATABASES,
     SENTRY_DSN,
+    SUPERADMIN_PROXY_SECRET,
+    URL_PREFIX,
     env,
 )
 
@@ -28,7 +30,7 @@ DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = env.bool("DB_DISABLE_SERVE
 APP_ENVIRONMENT = env("APP_ENVIRONMENT", default="production")
 AUTOFIX_APP_URL = env("AUTOFIX_APP_URL", default="https://autofix.vitalos.co.uk").strip().rstrip("/")
 AUTOFIX_SUPERADMIN_URL = (
-    env("AUTOFIX_SUPERADMIN_URL", default="https://superadmin.autofix.vitalos.co.uk").strip().rstrip("/")
+    env("AUTOFIX_SUPERADMIN_URL", default="https://autofix.vitalos.co.uk/superadmin").strip().rstrip("/")
 )
 APP_BASE_URL = env("APP_BASE_URL", default=AUTOFIX_SUPERADMIN_URL).rstrip("/")
 
@@ -56,19 +58,38 @@ for _name, _url in (("AUTOFIX_APP_URL", AUTOFIX_APP_URL), ("AUTOFIX_SUPERADMIN_U
         raise ImproperlyConfigured(f"{_name} must be https in production.")
 if AUTOFIX_STATUS_TOKEN and len(AUTOFIX_STATUS_TOKEN) < 32:
     raise ImproperlyConfigured("AUTOFIX_STATUS_TOKEN must be at least 32 characters.")
+# Path mode: only the Autofix proxy, holding the shared secret, may reach the app.
+if URL_PREFIX and len(SUPERADMIN_PROXY_SECRET) < 32:
+    raise ImproperlyConfigured(
+        "SUPERADMIN_PROXY_SECRET (32+ characters) is required with SUPERADMIN_PATH_PREFIX."
+    )
+
+# Same origin as the Autofix app: a second factor for every role and a fresh code per sensitive action.
+OTP_REQUIRED_FOR_ALL = env.bool("OTP_REQUIRED_FOR_ALL", default=True)
+AUTOFIX_STEP_UP = env.bool("AUTOFIX_STEP_UP", default=True)
 
 # TLS terminates at the platform ingress, which sets X-Forwarded-Proto.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
 SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# Under a path the host's HSTS policy belongs to the Autofix app; don't widen it from here.
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not URL_PREFIX
 SECURE_HSTS_PRELOAD = False
 # Preload-list submission is a decision for the whole vitalos.co.uk apex, not this subdomain
 # (docs/autofix/DECISIONS.md), so its deploy-check warning is acknowledged here.
 SILENCED_SYSTEM_CHECKS = ["security.W021"]
+if URL_PREFIX:
+    SILENCED_SYSTEM_CHECKS.append("security.W005")  # includeSubDomains, see above
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+# __Secure- cookies are refused by browsers unless sent over https with Secure. (__Host- would need
+# Path=/, which would hand them to the Autofix app on the same host.) Strict: never sent cross-site.
+COOKIE_NAME_PREFIX = "__Secure-"
+SESSION_COOKIE_NAME = "__Secure-afsa_session"
+CSRF_COOKIE_NAME = "__Secure-afsa_csrftoken"
+SESSION_COOKIE_SAMESITE = "Strict"
+CSRF_COOKIE_SAMESITE = "Strict"
 TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=1)
 
 STORAGES = {

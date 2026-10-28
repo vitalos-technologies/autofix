@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate, get_user_model, password_validatio
 from apps.core.forms import StyledFormMixin
 
 from .roles import ROLE_DESCRIPTIONS, ROLES
+from .stepup import StepUpMixin
 
 
 class LoginForm(StyledFormMixin, forms.Form):
@@ -49,7 +50,7 @@ class OTPTokenForm(StyledFormMixin, forms.Form):
 ROLE_CHOICES = [(role, f"{role} — {ROLE_DESCRIPTIONS[role]}") for role in ROLES]
 
 
-class UserCreateForm(StyledFormMixin, forms.Form):
+class UserCreateForm(StyledFormMixin, StepUpMixin, forms.Form):
     email = forms.EmailField()
     full_name = forms.CharField(max_length=150, required=False)
     role = forms.ChoiceField(choices=ROLE_CHOICES, initial="Support")
@@ -77,7 +78,7 @@ class UserCreateForm(StyledFormMixin, forms.Form):
         return cleaned
 
 
-class UserEditForm(StyledFormMixin, forms.Form):
+class UserEditForm(StyledFormMixin, StepUpMixin, forms.Form):
     full_name = forms.CharField(max_length=150, required=False)
     role = forms.ChoiceField(choices=[("", "No role (no access)"), *ROLE_CHOICES], required=False)
     autofix_admin = forms.ChoiceField(
@@ -98,7 +99,7 @@ class ProfileForm(StyledFormMixin, forms.ModelForm):
         fields = ["full_name"]
 
 
-class ApiTokenForm(StyledFormMixin, forms.Form):
+class ApiTokenForm(StyledFormMixin, StepUpMixin, forms.Form):
     name = forms.CharField(max_length=100, help_text="What the token is for, e.g. 'Power BI read-only'.")
     expires_in_days = forms.TypedChoiceField(
         label="Expires",

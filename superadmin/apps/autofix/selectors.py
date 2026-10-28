@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.db.models import Count, Exists, Max, OuterRef, Q
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.kpi import Kpi
@@ -212,7 +213,7 @@ def attention_items(now: datetime | None = None, limit: int = ATTENTION_LIMIT) -
                 "critical",
                 f"Job {job.kind} failed{where}",
                 redact(job.last_error) or "No error recorded",
-                "/jobs/",
+                reverse("autofix:jobs"),
                 job.finished_at,
                 str(job.garage_id or ""),
                 key=f"job:{job.id}",
@@ -225,7 +226,7 @@ def attention_items(now: datetime | None = None, limit: int = ATTENTION_LIMIT) -
                 "warning",
                 f"Job {job.kind} is stuck (lock expired)",
                 f"Attempt {job.attempts} of {job.max_attempts}",
-                "/jobs/",
+                reverse("autofix:jobs"),
                 job.locked_until,
                 key=f"lock:{job.id}",
             )
@@ -240,7 +241,7 @@ def attention_items(now: datetime | None = None, limit: int = ATTENTION_LIMIT) -
                 "critical" if domain.status == "failed" else "warning",
                 f"{domain.hostname} is failing verification",
                 f"{domain.garage.name}: {redact(domain.error) or domain.get_status_display()}",
-                f"/garages/{domain.garage_id}/?tab=domains",
+                f"{reverse('autofix:garage', args=[domain.garage_id])}?tab=domains",
                 domain.last_checked_at or domain.updated_at,
                 str(domain.garage_id),
                 key=f"domain:{domain.id}:{domain.status}",
@@ -257,7 +258,7 @@ def attention_items(now: datetime | None = None, limit: int = ATTENTION_LIMIT) -
                 "warning",
                 f"{garage.name} has been onboarding for {hours} hours",
                 "No DPA or onboarding not completed",
-                f"/garages/{garage.id}/",
+                reverse("autofix:garage", args=[garage.id]),
                 garage.created_at,
                 str(garage.id),
                 key=f"onboarding:{garage.id}",
@@ -279,7 +280,7 @@ def attention_items(now: datetime | None = None, limit: int = ATTENTION_LIMIT) -
                 "critical" if row["total"] >= 10 else "warning",
                 f"{provider}: {row['total']} {row['channel']} failure{'s' if row['total'] != 1 else ''} in 24 hours",
                 "See Messaging for error codes",
-                "/messaging/",
+                reverse("autofix:messaging"),
                 row["latest"],
                 key=f"messaging:{row['provider']}:{row['channel']}:{london_day_start(now).date()}",
             )

@@ -18,6 +18,8 @@ def confirmed_devices(user):
 def otp_required(user) -> bool:
     if not user.is_authenticated:
         return False
+    if getattr(settings, "OTP_REQUIRED_FOR_ALL", False):
+        return True
     if settings.OTP_REQUIRED_FOR_SUPERADMIN and is_superadmin(user):
         return True
     return confirmed_devices(user).exists()

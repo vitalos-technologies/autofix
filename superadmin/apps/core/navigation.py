@@ -8,7 +8,7 @@ convenience: every view enforces its own role on the server.
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from django.urls import NoReverseMatch, reverse
+from django.urls import NoReverseMatch, get_script_prefix, reverse
 from django.utils.module_loading import import_string
 
 
@@ -30,10 +30,11 @@ class NavItem:
         return reverse(self.url_name)
 
     def matches(self, path: str) -> bool:
+        """``path`` is the request's path_info, without any script prefix."""
         if self.children:
             return any(child.matches(path) for child in self.children)
         if self.exact:
-            return path == self.url
+            return path == "/" + self.url.removeprefix(get_script_prefix())
         return any(path.startswith(prefix) for prefix in self.prefixes)
 
 

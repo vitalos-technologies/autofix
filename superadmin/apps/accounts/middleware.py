@@ -18,7 +18,7 @@ class OTPEnforcementMiddleware:
         user = request.user
         if (
             user.is_authenticated
-            and not request.path.startswith(EXEMPT_PREFIXES)
+            and not request.path_info.startswith(EXEMPT_PREFIXES)
             and not user.is_verified()
             and otp_required(user)
         ):

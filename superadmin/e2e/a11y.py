@@ -13,6 +13,7 @@ browser context bypasses CSP for axe only.
 import argparse
 import re
 import sys
+from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -46,16 +47,34 @@ def garage_pages(page, base: str) -> list[str]:
     page.goto(base + "/garages/")
     link = page.locator("#garage-results tbody a").first
     href = link.get_attribute("href") if link.count() else None
-    if not href or not re.fullmatch(r"/garages/[0-9a-f-]{36}/", href):
+    prefix = urlsplit(base).path.rstrip("/")  # /superadmin behind the Autofix proxy
+    if not href or not re.fullmatch(rf"{re.escape(prefix)}/garages/[0-9a-f-]{{36}}/", href):
         return []
+    href = href[len(prefix) :]
     return [f"{href}?tab={tab}" for tab in GARAGE_TABS] + [f"{href}view-as-support/"]
+
+
+def session_cookie(base: str, name: str, value: str) -> dict:
+    """The session cookie as the app sets it: scoped to its path, Secure for __Secure- names."""
+    parts = urlsplit(base)
+    return {
+        "name": name,
+        "value": value,
+        "domain": parts.hostname,
+        "path": parts.path.rstrip("/") + "/",
+        "secure": name.startswith("__Secure-") or parts.scheme == "https",
+        "httpOnly": True,
+        "sameSite": "Lax",
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://localhost:8000")
     parser.add_argument("--axe", required=True, help="Path to axe.min.js (axe-core)")
-    parser.add_argument("--session", required=True, help="afsa_session cookie value")
+    parser.add_argument("--session", required=True, help="Session cookie value")
+    parser.add_argument("--cookie-name", default="afsa_session", help="__Secure-afsa_session in production")
+    parser.add_argument("--proxy-secret", default="", help="SUPERADMIN_PROXY_SECRET behind the Autofix proxy")
     parser.add_argument("--chromium", default=None, help="Chromium executable (optional)")
     args = parser.parse_args()
     base = args.base.rstrip("/")
@@ -64,15 +83,23 @@ def main() -> int:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(**({"executable_path": args.chromium} if args.chromium else {}))
         for scheme, (width, viewport) in [(s, v) for s in ("light", "dark") for v in VIEWPORTS.items()]:
-            context = browser.new_context(viewport=viewport, color_scheme=scheme, bypass_csp=True)
+            context = browser.new_context(
+                viewport=viewport,
+                color_scheme=scheme,
+                bypass_csp=True,
+                extra_http_headers={"x-autofix-superadmin-proxy": args.proxy_secret}
+                if args.proxy_secret
+                else None,
+            )
+            cookie = session_cookie(base, args.cookie_name, args.session)
             page = context.new_page()
-            context.add_cookies([{"name": "afsa_session", "value": args.session, "url": base}])
+            context.add_cookies([cookie])
             extra = garage_pages(page, base)
             label = f"{scheme}/{width}"
             for path in PAGES + extra:
                 context.clear_cookies()
                 if path != "/login/":
-                    context.add_cookies([{"name": "afsa_session", "value": args.session, "url": base}])
+                    context.add_cookies([cookie])
                 response = page.goto(base + path)
                 page.wait_for_load_state("networkidle")
                 if response is None or response.status >= 400:

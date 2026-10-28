@@ -1,5 +1,6 @@
 from django.conf import settings
 
+from apps.accounts import stepup
 from apps.accounts.otp import confirmed_devices, otp_required
 from apps.accounts.roles import (
     can_change_autofix,
@@ -14,9 +15,9 @@ from apps.audit.services import previous_sign_in
 
 from . import navigation
 
-THEME_COOKIE = "theme"
+THEME_COOKIE = "afsa_theme"
 THEMES = ("light", "dark", "system")
-SIDEBAR_COOKIE = "sidebar_state"
+SIDEBAR_COOKIE = "afsa_sidebar"
 ENVIRONMENT_LABELS = {
     "production": "Production",
     "staging": "Staging",
@@ -40,7 +41,7 @@ def app_context(request):
     pending_otp = authenticated and not verified and otp_required(user)
     show_chrome = authenticated and not pending_otp
     theme = request.COOKIES.get(THEME_COOKIE, "system")
-    path = request.path
+    path = request.path_info  # without the /superadmin prefix, like the nav prefixes
     return {
         "show_chrome": show_chrome,
         "theme": theme if theme in THEMES else "system",
@@ -49,6 +50,8 @@ def app_context(request):
         "nav_active": navigation.active_item(path) if show_chrome else None,
         "nav_crumb": navigation.crumb_label(navigation.active_item(path)) if show_chrome else "",
         "csp_nonce": getattr(request, "csp_nonce", ""),
+        "step_up": stepup.enabled(),
+        "cookie_path": settings.COOKIE_PATH,
         "app_environment": settings.APP_ENVIRONMENT,
         "is_superadmin": authenticated and is_superadmin(user),
         "can_support": authenticated and can_support(user),

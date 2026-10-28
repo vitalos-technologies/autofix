@@ -1,5 +1,5 @@
 {% load static django_htmx ui %}<!doctype html>
-<html lang="en-GB" class="h-full" data-theme="{{ theme|default:'system' }}" data-sidebar="{% if sidebar_collapsed %}collapsed{% else %}expanded{% endif %}">
+<html lang="en-GB" class="h-full" data-cookie-path="{{ cookie_path }}" data-theme="{{ theme|default:'system' }}" data-sidebar="{% if sidebar_collapsed %}collapsed{% else %}expanded{% endif %}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

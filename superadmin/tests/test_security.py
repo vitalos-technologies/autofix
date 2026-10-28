@@ -78,6 +78,8 @@ def _prod_env(**overrides):
         "AUTOFIX_SUPERADMIN_URL": "https://superadmin.autofix.vitalos.co.uk",
         "AUTOFIX_DATABASE_URL": "postgres://autofix_superadmin@db.example.test:5432/postgres",
         "AUTOFIX_STATUS_TOKEN": "",
+        "SUPERADMIN_PATH_PREFIX": "",
+        "SUPERADMIN_PROXY_SECRET": "",
     }
     env.update(overrides)
     return env

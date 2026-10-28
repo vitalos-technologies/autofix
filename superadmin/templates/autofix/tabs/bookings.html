@@ -23,8 +23,8 @@
     <div class="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
       <h2 id="recent-heading" class="text-xl">Recent bookings</h2>
       {% if can_support %}
-        <form method="post" action="{% url 'autofix:booking_people' garage.pk %}" hx-post="{% url 'autofix:booking_people' garage.pk %}" hx-target="#booking-people" hx-swap="innerHTML" data-no-submit-overlay>
-          {% csrf_token %}
+        <form method="post" action="{% url 'autofix:booking_people' garage.pk %}" hx-post="{% url 'autofix:booking_people' garage.pk %}" hx-target="#booking-people" hx-swap="innerHTML" class="flex flex-wrap items-center gap-2" data-no-submit-overlay>
+          {% csrf_token %}{% include "partials/step_up_inline.html" with id="people" %}
           <button type="submit" class="btn btn-secondary btn-sm" data-testid="show-customers">{% icon "eye" "h-4 w-4" %} Show customer details (audited)</button>
         </form>
       {% endif %}

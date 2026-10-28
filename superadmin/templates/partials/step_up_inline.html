@@ -1,0 +1,1 @@
+{% if step_up %}<label class="sr-only" for="code-{{ id }}">Authenticator code</label><input id="code-{{ id }}" name="step_up_code" required minlength="6" maxlength="7" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" placeholder="Code" class="input-sm w-24" data-testid="step-up-code">{% endif %}

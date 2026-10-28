@@ -89,9 +89,10 @@ def login_view(request):
             LAST_EMAIL_COOKIE,
             form.user.email,
             max_age=90 * 24 * 60 * 60,
+            path=settings.COOKIE_PATH,
             secure=request.is_secure(),
             httponly=True,
-            samesite="Lax",
+            samesite="Strict",
         )
         return response
     context = {"form": form, "next": _next_url(request, default="")}
@@ -238,7 +239,7 @@ def settings_users(request):
 @role_required(SUPERADMIN)
 @require_http_methods(["GET", "POST"])
 def user_create(request):
-    form = UserCreateForm(request.POST or None)
+    form = UserCreateForm(request.POST or None, user=request.user)
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
@@ -291,7 +292,7 @@ def user_edit(request, pk):
     choices = _admin_choices()
     if target.autofix_admin_id and str(target.autofix_admin_id) not in {key for key, _ in choices}:
         choices.append((str(target.autofix_admin_id), f"{target.autofix_admin_id} (not found in Autofix)"))
-    form = UserEditForm(request.POST or None, initial=initial, admin_choices=choices)
+    form = UserEditForm(request.POST or None, initial=initial, admin_choices=choices, user=request.user)
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
@@ -329,13 +330,13 @@ def user_edit(request, pk):
 @require_http_methods(["GET", "POST"])
 def settings_tokens(request):
     user = request.user
-    form = ApiTokenForm(request.POST or None)
+    form = ApiTokenForm(request.POST or None, user=user)
     new_token = None
     if request.method == "POST" and form.is_valid():
         days = form.cleaned_data["expires_in_days"]
         expires_at = timezone.now() + timedelta(days=days) if days else None
         token, new_token = ApiToken.issue(user, form.cleaned_data["name"], expires_at=expires_at)
-        form = ApiTokenForm()
+        form = ApiTokenForm(user=user)
     tokens = ApiToken.objects.select_related("user")
     if not is_superadmin(user):
         tokens = tokens.filter(user=user)

@@ -7,7 +7,9 @@ Usage (credentials come only from the environment and are never printed):
     SMOKE_PASSWORD=... \
     python e2e/smoke.py --screenshots docs/screenshots
 
-If the account has no authenticator yet, the test enrols a temporary TOTP device and removes it at the
+Behind the Autofix proxy (path mode, e.g. SMOKE_BASE_URL=http://localhost:8000/superadmin), set
+SMOKE_PROXY_SECRET to the container's SUPERADMIN_PROXY_SECRET; the browser then sends it as the proxy
+would. If the account has no authenticator yet, the test enrols a temporary TOTP device and removes it at the
 end. If a device already exists, pass its base32 secret in SMOKE_TOTP_SECRET. The test changes nothing
 in Autofix: it opens every page at 1440 and 390 pixels wide, the garage tabs, the command palette and
 the live search, and checks the browser console for CSP violations. With SMOKE_STATUS_TOKEN it also
@@ -63,6 +65,9 @@ def totp(secret: str, at: float | None = None) -> str:
     offset = digest[-1] & 0x0F
     code = struct.unpack(">I", digest[offset : offset + 4])[0] & 0x7FFFFFFF
     return f"{code % 1_000_000:06d}"
+
+
+PROXY_HEADER = "x-autofix-superadmin-proxy"
 
 
 class Smoke:
@@ -179,8 +184,11 @@ class Smoke:
         token = os.environ.get("SMOKE_STATUS_TOKEN", "")
         if not token:
             return
+        headers = {"Authorization": f"Bearer {token}"}
+        if os.environ.get("SMOKE_PROXY_SECRET"):
+            headers[PROXY_HEADER] = os.environ["SMOKE_PROXY_SECRET"]
         request = urllib.request.Request(  # noqa: S310 - the base URL is the operator's own
-            self.url("/api/platform/v1/status"), headers={"Authorization": f"Bearer {token}"}
+            self.url("/api/platform/v1/status"), headers=headers
         )
         with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310  # nosec B310
             body = json.loads(response.read())
@@ -212,7 +220,12 @@ def main() -> int:
         if executable:
             launch["executable_path"] = executable
         browser = playwright.chromium.launch(**launch)
-        context = browser.new_context(viewport=WIDTHS["1440"], color_scheme="light")
+        proxy_secret = os.environ.get("SMOKE_PROXY_SECRET", "")
+        context = browser.new_context(
+            viewport=WIDTHS["1440"],
+            color_scheme="light",
+            extra_http_headers={PROXY_HEADER: proxy_secret} if proxy_secret else None,
+        )
         page = context.new_page()
         console_errors: list[str] = []
         page.on(

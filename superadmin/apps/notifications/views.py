@@ -63,7 +63,7 @@ def open_notification(request, pk):
     notification = services.mark_read(request.user, pk)
     target = notification.url if notification else ""
     if not target or not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
-        target = "/notifications/"
+        target = reverse("notifications:list")
     return HttpResponseRedirect(target)
 
 
@@ -71,7 +71,9 @@ def open_notification(request, pk):
 @require_POST
 def read_all(request):
     count = services.mark_all_read(request.user)
-    return changed_response(request, "/notifications/", f"{count} notification(s) marked as read.")
+    return changed_response(
+        request, reverse("notifications:list"), f"{count} notification(s) marked as read."
+    )
 
 
 @login_required

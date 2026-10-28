@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -18,6 +19,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.accounts import stepup
 from apps.accounts.roles import (
     ROLE_LABELS,
     SUPERADMIN,
@@ -39,6 +41,13 @@ from ..forms import ReasonForm
 from .common import parse_uuid, render_unavailable
 
 logger = logging.getLogger(__name__)
+
+
+def _form_error(form) -> str:
+    """One line for an inline action form: the reason or the step-up code, whichever failed."""
+    if "reason" in form.errors:
+        return "Give a reason of 5 to 500 characters."
+    return " ".join(message for messages_ in form.errors.values() for message in messages_)
 
 
 # --- Jobs --------------------------------------------------------------------------------------
@@ -66,11 +75,11 @@ def job_retry(request, pk):
         job = selectors.job(parse_uuid(pk))
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Jobs")
-    form = ReasonForm(request.POST)
+    form = ReasonForm(request.POST, user=request.user)
     if job is None:
         messages.error(request, "That job could not be found.")
     elif not form.is_valid():
-        messages.error(request, "Give a reason of 5 to 500 characters.")
+        messages.error(request, _form_error(form))
     else:
         try:
             outcome = services.retry_job(request, job, form.cleaned_data["reason"])
@@ -120,13 +129,16 @@ def _domain_row(can_check, csrf_input):
                 '<form method="post" action="{}" class="flex flex-wrap items-center gap-2">{}'
                 '<label class="sr-only" for="reason-{}">Reason for re-checking {}</label>'
                 '<input id="reason-{}" name="reason" required minlength="5" maxlength="500" placeholder="Reason" '
-                'class="input-sm">'
+                'class="input-sm">{}'
                 '<button type="submit" class="btn btn-secondary btn-sm">Re-check</button></form>',
                 reverse("autofix:domain_recheck", args=[domain.pk]),
                 csrf_input,
                 domain.pk,
                 domain.hostname,
                 domain.pk,
+                render_to_string(
+                    "partials/step_up_inline.html", {"step_up": stepup.enabled(), "id": domain.pk}
+                ),
             )
         elif domain.checkable:
             action = "SuperAdmin only"
@@ -204,7 +216,7 @@ def domain_recheck(request, pk):
         domain = selectors.domain(parse_uuid(pk))
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Domains")
-    form = ReasonForm(request.POST)
+    form = ReasonForm(request.POST, user=request.user)
     back = request.POST.get("next", "")
     if not url_has_allowed_host_and_scheme(
         back, allowed_hosts={request.get_host()}, require_https=request.is_secure()
@@ -213,7 +225,7 @@ def domain_recheck(request, pk):
     if domain is None:
         messages.error(request, "That domain could not be found.")
     elif not form.is_valid():
-        messages.error(request, "Give a reason of 5 to 500 characters.")
+        messages.error(request, _form_error(form))
     else:
         try:
             outcome = services.request_domain_check(request, domain, form.cleaned_data["reason"])

@@ -4,7 +4,11 @@ from django.conf import settings
 
 
 def client_ip(request, *args, **kwargs) -> str:
-    """Resolve the client IP, trusting X-Forwarded-For only for the configured proxy hops."""
+    """Resolve the client IP: the Autofix proxy's header behind the proxy gate, else X-Forwarded-For
+    for the configured proxy hops only."""
+    proxied = getattr(request, "proxied_client_ip", "")
+    if proxied:
+        return proxied
     remote_addr = request.META.get("REMOTE_ADDR", "")
     proxies = getattr(settings, "TRUSTED_PROXY_COUNT", 0)
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")

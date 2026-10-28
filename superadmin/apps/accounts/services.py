@@ -1,5 +1,7 @@
 """User and role administration rules."""
 
+from urllib.parse import urlsplit
+
 from django.contrib.auth import get_user_model, password_validation
 from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -168,7 +170,9 @@ def setup_link(user, base_url: str, *, request=None, actor=None, reason="setup_l
         },
     )
     record(f"auth.{reason}", request=request, actor=actor, entity=user, summary=f"For {user.email}")
-    return base_url.rstrip("/") + path
+    # ``path`` already carries any /superadmin prefix, so only the base URL's origin is used.
+    base = urlsplit(base_url)
+    return f"{base.scheme}://{base.netloc}{path}"
 
 
 @transaction.atomic

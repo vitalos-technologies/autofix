@@ -1,10 +1,12 @@
 """Settings shared by every environment. Secrets and hosts come only from the environment."""
 
+import re
 from datetime import timedelta
 from pathlib import Path
 
 import environ
 from csp.constants import NONCE, NONE, SELF
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -17,6 +19,19 @@ DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 APP_ENVIRONMENT = env("APP_ENVIRONMENT", default="development")
+
+# --- Path mode (DECISIONS D18) -------------------------------------------------------------------
+# Production serves the super admin at https://autofix.vitalos.co.uk/superadmin: the Autofix app's
+# proxy (src/proxy.ts) forwards /superadmin/* here with a shared secret header. Empty prefix: the app
+# answers at the root of its own host (local development, tests).
+URL_PREFIX = env("SUPERADMIN_PATH_PREFIX", default="").strip().rstrip("/")
+if URL_PREFIX and not re.fullmatch(r"(/[a-z0-9-]+)+", URL_PREFIX):
+    raise ImproperlyConfigured("SUPERADMIN_PATH_PREFIX must look like /superadmin.")
+# Django builds every URL (reverse, static, redirects) under the prefix; config/wsgi.py strips it.
+FORCE_SCRIPT_NAME = URL_PREFIX or None
+# Shared secret the proxy sends in X-Autofix-Superadmin-Proxy. Set: every request without it gets a
+# bare 404 (apps.core.middleware.ProxyGateMiddleware), so the origin cannot be used directly.
+SUPERADMIN_PROXY_SECRET = env("SUPERADMIN_PROXY_SECRET", default="")
 
 INSTALLED_APPS = [
     "apps.core.apps.SuperAdminSiteConfig",
@@ -44,6 +59,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "apps.core.middleware.ProxyGateMiddleware",
     "apps.core.middleware.HealthCheckMiddleware",
     "apps.core.middleware.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -134,13 +150,18 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:overview"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
-# Sessions: 8 hour absolute lifetime, HTTP-only cookies.
+# Sessions: 8 hour absolute lifetime, HTTP-only cookies scoped to the prefix, so the Autofix app on
+# the same host never receives them (and the proxy forwards only these cookies here).
+COOKIE_PATH = f"{URL_PREFIX}/"
+COOKIE_NAME_PREFIX = ""  # "__Secure-" in production
 SESSION_COOKIE_AGE = 8 * 60 * 60
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_NAME = "afsa_session"
+SESSION_COOKIE_PATH = COOKIE_PATH
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_NAME = "afsa_csrftoken"
+CSRF_COOKIE_PATH = COOKIE_PATH
 
 # django-axes: lock an email+IP combination after repeated failures.
 AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
@@ -158,6 +179,11 @@ TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
 # (plan, status, retries, re-checks) also need a verified device, whatever the role.
 OTP_TOTP_ISSUER = "Autofix Super Admin"
 OTP_REQUIRED_FOR_SUPERADMIN = env.bool("OTP_REQUIRED_FOR_SUPERADMIN", default=True)
+# Every role, not just SuperAdmin (production default: the app shares an origin with Autofix).
+OTP_REQUIRED_FOR_ALL = env.bool("OTP_REQUIRED_FOR_ALL", default=False)
+# A fresh authenticator code with each change to Autofix, each personal-data view, user changes and
+# API token creation (apps.accounts.stepup). Production default: on.
+AUTOFIX_STEP_UP = env.bool("AUTOFIX_STEP_UP", default=False)
 
 APP_BASE_URL = env("APP_BASE_URL", default="http://localhost:8000").rstrip("/")
 PRIMARY_OWNER_EMAIL = env("PRIMARY_OWNER_EMAIL", default="").strip().lower()
@@ -184,7 +210,8 @@ TIME_ZONE = "Europe/London"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "/static/"
+# Under the prefix (/superadmin/static/); WhiteNoise strips FORCE_SCRIPT_NAME to match path_info.
+STATIC_URL = f"{URL_PREFIX}/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {

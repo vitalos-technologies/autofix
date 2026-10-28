@@ -40,7 +40,9 @@
 
   function setCookie(name, value) {
     var secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = name + "=" + value + "; Path=/; Max-Age=31536000; SameSite=Lax" + secure;
+    // Scoped to the app's path, so the Autofix app on the same host never sees them.
+    var path = root.getAttribute("data-cookie-path") || "/";
+    document.cookie = name + "=" + value + "; Path=" + path + "; Max-Age=31536000; SameSite=Strict" + secure;
   }
 
   function isTyping(target) {
@@ -58,7 +60,7 @@
   function toggleCollapsed() {
     var collapsed = root.getAttribute("data-sidebar") !== "collapsed";
     root.setAttribute("data-sidebar", collapsed ? "collapsed" : "expanded");
-    setCookie("sidebar_state", collapsed ? "collapsed" : "expanded");
+    setCookie("afsa_sidebar", collapsed ? "collapsed" : "expanded");
     document.querySelectorAll("[data-sidebar-toggle]").forEach(function (button) {
       button.setAttribute("aria-expanded", collapsed ? "false" : "true");
       var label = button.querySelector(".nav-label");
@@ -121,7 +123,7 @@
     var current = root.getAttribute("data-theme") || "system";
     var next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
     root.setAttribute("data-theme", next);
-    setCookie("theme", next);
+    setCookie("afsa_theme", next);
     document.querySelectorAll("[data-theme-label]").forEach(function (label) {
       label.textContent = next.charAt(0).toUpperCase() + next.slice(1);
     });
