@@ -91,7 +91,7 @@ export function AccountChooser({
               defaultValue=""
               onChange={(event) => {
                 const vehicle = account.vehicles.find((item) => item.registration === event.target.value);
-                if (vehicle) onFill({ registration: vehicle.registration, make: vehicle.make ?? "", model: vehicle.model ?? "" });
+                if (vehicle) onFill({ registration: formatRegistration(vehicle.registration), make: vehicle.make ?? "", model: vehicle.model ?? "" });
               }}
               aria-describedby={`${id}-vehicle-hint`}
               className={selectClass}

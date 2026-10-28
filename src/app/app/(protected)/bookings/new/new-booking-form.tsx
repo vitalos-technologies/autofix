@@ -95,6 +95,7 @@ export function NewBookingForm({
   const [freeTime, setFreeTime] = useState("");
   // P5.7: values filled from an account's car or driver; `version` re-mounts the fields with them.
   const [fill, setFill] = useState<AccountFill & { version: number }>({ version: 0 });
+  const [poError, setPoError] = useState<string | undefined>(undefined);
   const applyFill = (next: AccountFill) => {
     if (next.registration) setRegistration(next.registration);
     setFill((previous) => ({ ...previous, ...next, version: previous.version + 1 }));
@@ -110,7 +111,21 @@ export function NewBookingForm({
   const locationMode = modes.includes(mode) ? mode : (modes[0] ?? "workshop");
 
   return (
-    <form action={action} className="flex flex-col gap-[18px]" noValidate>
+    <form
+      action={action}
+      className="flex flex-col gap-[18px]"
+      noValidate
+      onSubmit={(event) => {
+        // P5.7: an account that needs a PO is checked here first, so a missing PO never costs the
+        // rest of the form (React resets a form after its action returns an error).
+        const po = event.currentTarget.elements.namedItem("poNumber");
+        if (po instanceof HTMLInputElement && po.required && !po.value.trim()) {
+          event.preventDefault();
+          setPoError("Enter the PO number");
+          po.focus();
+        } else setPoError(undefined);
+      }}
+    >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="source" value={source} />
       <input type="hidden" name="locationMode" value={locationMode} />
@@ -124,7 +139,7 @@ export function NewBookingForm({
 
       <div className="flex flex-wrap items-start gap-[18px]">
         <div className="flex min-w-0 flex-[999_1_520px] flex-col gap-[18px]">
-          {accounts.length ? <AccountChooser accounts={accounts} initialAccountId={initialAccountId} onFill={applyFill} errors={{ accountId: errors.accountId, poNumber: errors.poNumber }} /> : null}
+          {accounts.length ? <AccountChooser accounts={accounts} initialAccountId={initialAccountId} onFill={applyFill} errors={{ accountId: errors.accountId, poNumber: poError ?? errors.poNumber }} /> : null}
 
           <Panel title="How did they book?">
             <SegmentedControl

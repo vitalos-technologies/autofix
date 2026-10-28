@@ -117,7 +117,7 @@ test("cars and drivers go on the account through POST forms", async () => {
   const people = page.locator("#people");
   await people.getByLabel("Add a driver or contact").fill("Dee");
   await people.getByRole("button", { name: "Find" }).click();
-  await people.getByRole("button", { name: `Add as driver: ${DRIVER.name}` }).click();
+  await people.getByRole("button", { name: new RegExp(`^Add as driver\\s*: ${DRIVER.name}$`) }).click();
   await expect(page.getByText("Driver added.")).toBeVisible();
   await page.reload();
   await expect(people.getByRole("link", { name: DRIVER.name })).toBeVisible();
@@ -140,9 +140,9 @@ test("staff book the account's car with a PO through the staff booking path", as
   await page.getByLabel("Date and time").fill(`${londonDate(3)}T06:15`);
   await expectAccessibleAt(page, "booking");
 
-  // The account needs a PO: the booking is refused before create_booking() runs.
+  // The account needs a PO: the form stops before anything is sent (the server checks it again).
   await page.getByRole("button", { name: /^Book in for / }).click();
-  await expect(page.getByText("This account needs a PO number on every booking.")).toBeVisible();
+  await expect(page.getByText("Enter the PO number")).toBeVisible();
   await page.getByLabel("PO number").fill("PO-4410");
   await page.getByRole("button", { name: /^Book in for / }).click();
   await expect(page).toHaveURL(/\/app\/bookings\/[0-9a-f-]{36}\?notice=created$/);
