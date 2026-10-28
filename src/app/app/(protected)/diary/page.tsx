@@ -20,6 +20,7 @@ import { AdminDataError, loadBookingsStarting, loadOpeningHours, loadResources }
 import { addDays, formatDayMonth, formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayRange, startOfLocalDay, weekStart } from "@/lib/admin/dates";
 import { diaryDayHref, diaryParams, diaryWeekHref, neighbourWeeks, shapeWeek, UNASSIGNED_ROW } from "@/lib/admin/diary";
 import { diaryHours, toDiaryBooking } from "@/lib/admin/today";
+import { courtesyBookingIds } from "@/lib/courtesy/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +81,9 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
     loaded = null;
   }
 
+  // P5.8: bookings with a courtesy car get a small car mark (never throws; no marks on failure).
+  const courtesy = loaded ? await courtesyBookingIds(admin.client, admin.garage.id, loaded[1].map((booking) => booking.id)) : new Set<string>();
+
   const newBooking = (
     <Link href="/app/bookings/new" className={buttonClass("primary", "md", "px-[18px]")}>
       <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
@@ -109,7 +113,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
         {loaded ? (
           <DiaryGrid
             resources={loaded[0]}
-            bookings={loaded[1].map(toDiaryBooking)}
+            bookings={loaded[1].map((booking) => ({ ...toDiaryBooking(booking), courtesyCar: courtesy.has(booking.id) }))}
             date={day}
             timeZone={timeZone}
             now={now}
@@ -213,6 +217,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
                             service={booking.serviceName}
                             status={booking.status}
                             href={bookingHref(booking.id)}
+                            courtesyCar={courtesy.has(booking.id)}
                           />
                         </li>
                       ))}

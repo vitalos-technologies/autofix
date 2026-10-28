@@ -8,6 +8,8 @@ import type { CustomerChannel } from "@/lib/booking-engine/types";
 import { confirmBookingAction } from "@/lib/booking-flow/actions";
 import { CHANNEL_OPTIONS } from "@/lib/booking-flow/copy";
 import { initialDetailsFormState, type DetailsFormState } from "@/lib/booking-flow/forms";
+import { BookingExtrasFields } from "./booking-extras";
+import type { BookingExtrasOptions } from "@/lib/courtesy/booking-site";
 import { FormAlert } from "./booking-screen";
 import { TextField } from "./text-field";
 
@@ -21,10 +23,14 @@ type DetailsStepProps = {
   /** The garage checks this booking before confirming it. */
   needsApproval: boolean;
   humanCheck: boolean;
+  /** P5.8: courtesy car request / collection and delivery offered for this slot (Pro garages). */
+  extras?: BookingExtrasOptions;
+  /** P5.4: a deposit is taken after Confirm (formatted amount, minutes the slot is held). */
+  deposit?: { amount: string; holdMin: number } | null;
 };
 
 /** Step 4: who is bringing the car, how to send updates, reminder consent, Confirm booking. */
-export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: DetailsStepProps) {
+export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, extras, deposit = null }: DetailsStepProps) {
   const [state, formAction, pending] = useActionState<DetailsFormState, FormData>(confirmBookingAction, initialDetailsFormState);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -39,6 +45,8 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: 
     handledSeq.current = state.seq;
     const first = (["name", "phone", "email"] as const).find((field) => state.fieldErrors?.[field]);
     if (first) document.getElementById(`customer-${first}`)?.focus();
+    else if (state.fieldErrors?.collectionAddress) document.getElementById("collection-address")?.focus();
+    else if (state.fieldErrors?.collectionPostcode) document.getElementById("collection-postcode")?.focus();
   }, [state]);
 
   return (
@@ -88,6 +96,10 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: 
         <SegmentedControl label="Updates by" variant="outline" options={CHANNEL_OPTIONS} value={channel} onChange={setChannel} />
         <input type="hidden" name="channel" value={channel} />
 
+        {extras && (extras.courtesy || extras.collection) ? (
+          <BookingExtrasFields offered={extras} errors={{ postcode: state.fieldErrors?.collectionPostcode, address: state.fieldErrors?.collectionAddress }} />
+        ) : null}
+
         <ConsentCheckbox name="reminderConsent" value="yes" checked={consent} onCheckedChange={setConsent} motEnabled={motEnabled} />
 
         {needsApproval ? (
@@ -118,17 +130,26 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: 
       <StickyActionBar
         type="submit"
         form={FORM_ID}
-        label="Confirm booking"
+        label={deposit ? "Confirm and pay deposit" : "Confirm booking"}
         showArrow={false}
         busy={pending}
         className="pt-3"
         footnote={
-          <>
-            Nothing to pay now.{" "}
-            <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
-              How we use your details
-            </Link>
-          </>
+          deposit ? (
+            <>
+              {`${deposit.amount} deposit now; we hold your time for ${deposit.holdMin} minutes while you pay.`}{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          ) : (
+            <>
+              Nothing to pay now.{" "}
+              <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
+                How we use your details
+              </Link>
+            </>
+          )
         }
       />
     </>

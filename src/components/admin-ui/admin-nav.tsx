@@ -1,7 +1,12 @@
 import {
+  Banknote,
   Bell,
+  Building2,
+  Calculator,
   CalendarDays,
   ClipboardCheck,
+  ChartColumn,
+  CarFront,
   Clock,
   FileText,
   Globe,
@@ -51,11 +56,17 @@ export type AdminNavOptions = {
 export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
   { feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone },
   { feature: "health_checks", label: "Health checks", href: "/app/health-checks", icon: ClipboardCheck },
+  { feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn },
+  { feature: "courtesy_cars", label: "Courtesy cars", href: "/app/courtesy-cars", icon: CarFront },
+  { feature: "payments", label: "Payments", href: "/app/payments", icon: Banknote },
+  { feature: "multi_site", label: "Group overview", href: "/app/group", icon: Building2 },
+  { feature: "fleet_accounts", label: "Fleet accounts", href: "/app/accounts", icon: Building2 },
 ];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
 export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
   { feature: "ai_front_desk", label: "AI front desk", href: "/app/settings/ai-front-desk", icon: Headset },
+  { feature: "accounting_sync", label: "Accounting", href: "/app/settings/accounting", icon: Calculator },
 ];
 
 function proItems(items: typeof GROW_NAV_ITEMS, locked: ReadonlySet<string> | undefined): AdminNavItem[] {

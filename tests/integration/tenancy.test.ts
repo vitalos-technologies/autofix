@@ -174,10 +174,15 @@ const ACTOR_ROLES: Partial<Record<ActorKey, "owner" | "manager" | "technician">>
  * roles read zero rows of their own garage; everyone else's positive control reads them all.
  */
 const ROLE_LIMITED_READS: Record<string, ReadonlyArray<"owner" | "manager" | "technician">> = {
+  accounting_connections: ["owner", "manager"],
+  accounting_sync_items: ["owner", "manager"],
   billing_usage_reports: ["owner"],
+  garage_group_sites: ["owner", "manager"],
+  garage_groups: ["owner", "manager"],
   garage_subscriptions: ["owner"],
   plan_requests: ["owner"],
   usage_events: ["owner", "manager"],
+  payment_accounts: ["owner", "manager"],
 };
 
 // ---------------------------------------------------------------------------
@@ -225,6 +230,9 @@ class GarageRows {
     return `${name}-${this.key.toLowerCase()}-${localRunId}`;
   }
 
+  /** P5.9: the group this garage is the home of. */
+  homeGroup = () => this.once("homeGroup", async () => String((await this.insert("garage_groups", { name: `Tenancy group ${this.key}` }, "id")).id));
+
   customer = () => this.once("customer", async () => String((await this.insert("customers", {
     name: `Tenancy Customer ${this.key}`,
     phone: this.key === "A" ? "+447700900901" : "+447700900902",
@@ -271,6 +279,19 @@ class GarageRows {
     const digits = (BigInt(`0x${localRunId}`) % 100_000_000n).toString().padStart(8, "0");
     return `+44${prefix}${this.key === "A" ? "1" : "2"}${digits}`;
   }
+
+  /** P5.7: a business account (service role insert) and its monthly statement. */
+  businessAccount = () => this.once("businessAccount", async () => String((await this.insert("business_accounts", {
+    name: `Tenancy Fleet ${this.key}`,
+    billing_email: `${this.tag("fleet")}@example.test`,
+  }, "id")).id));
+
+  accountStatement = () => this.once("accountStatement", async () => String((await this.insert("account_statements", {
+    account_id: await this.businessAccount(),
+    reference: `TN${this.key}-ST-209604-001`,
+    period_start: "2096-04-01",
+    period_end: "2096-04-30",
+  }, "id")).id));
 
   reminderRule = () => this.once("reminderRule", async () => String((await this.insert("reminder_rules", {
     kind: "mot",
@@ -355,6 +376,24 @@ class GarageRows {
   });
 
   /** Claims an email send (invoice_email_sends + invoice_email_attempts); after the payment, which a pending send would block. */
+  /** P5.10: an accounting connection (and its encrypted-token row) through the service-role function. */
+  accountingConnection = () => this.once("accountingConnection", async () => {
+    const sealed = `v1.${"a".repeat(16)}.${"b".repeat(22)}.${this.key.toLowerCase()}${localRunId}`;
+    const { data, error } = await service.rpc("accounting_save_connection", {
+      p_garage_id: this.garage.id,
+      p_provider: "xero",
+      p_tenant_id: `tenancy-org-${this.key}`,
+      p_tenant_name: `Tenancy Org ${this.key}`,
+      p_scopes: ["accounting.transactions"],
+      p_connected_by: this.ownerId,
+      p_access_token_ct: sealed,
+      p_refresh_token_ct: sealed,
+      p_expires_at: "2096-04-01T00:30:00.000Z",
+    });
+    if (error || !data) throw new Error(`fixture accounting connection (garage ${this.key}): ${error?.message ?? "no row returned"}`);
+    return String((data as { id: string }).id);
+  });
+
   invoiceEmail = () => this.once("invoiceEmail", async () => {
     const invoice = await this.issuedInvoice();
     await this.invoicePayment();
@@ -390,10 +429,18 @@ const FIXTURES: Record<string, Fixture> = {
   },
   agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
   ai_front_desk_settings: { create: (rows) => rows.insert("ai_front_desk_settings", { enabled: false }), patch: { enabled: true } },
+  accounting_connections: { create: (rows) => rows.accountingConnection(), patch: { tenant_name: "Tampered" } },
+  accounting_connection_secrets: { create: (rows) => rows.accountingConnection(), patch: { expires_at: "2096-04-02T00:00:00.000Z" } },
+  accounting_sync_items: {
+    create: async (rows) => rows.insert("accounting_sync_items", { connection_id: await rows.accountingConnection(), entity: "invoice", local_id: randomUUID() }),
+    patch: { status: "failed", last_error_code: "TAMPERED" },
+  },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },
   },
+  // P5.7 fleet and trade accounts.
+  account_statements: { create: (rows) => rows.accountStatement(), patch: { total_pence: 99 } },
   billing_usage_reports: {
     create: (rows) => rows.insert("billing_usage_reports", {
       period_month: "2096-04-01",
@@ -416,6 +463,15 @@ const FIXTURES: Record<string, Fixture> = {
       notification_type: "confirmed",
     }),
     patch: { status: "failed" },
+  },
+  // P5.6: written only by assign_booking_technician(); staff have no update grant, so the probe is refused.
+  booking_assignments: {
+    create: async (rows) => rows.insert("booking_assignments", {
+      booking_id: await rows.booking(),
+      technician_id: rows.ownerId,
+      technician_name: `Tenancy technician ${rows.key}`,
+    }),
+    patch: { technician_name: "Tampered" },
   },
   booking_events: {
     create: async (rows) => rows.insert("booking_events", {
@@ -454,8 +510,63 @@ const FIXTURES: Record<string, Fixture> = {
     },
     patch: { status: "cancelled", skip_reason: "tampered" },
   },
+  business_account_bookings: {
+    create: async (rows) => rows.insert("business_account_bookings", { booking_id: await rows.booking(), account_id: await rows.businessAccount(), po_number: `PO-${rows.key}` }),
+    patch: { po_number: "TAMPERED" },
+  },
+  business_account_customers: {
+    create: async (rows) => rows.insert("business_account_customers", { account_id: await rows.businessAccount(), customer_id: await rows.customer(), role: "driver" }),
+    patch: { role: "contact" },
+  },
+  business_account_invoices: {
+    create: async (rows) => rows.insert("business_account_invoices", {
+      invoice_id: (await rows.issuedInvoice()).id,
+      account_id: await rows.businessAccount(),
+      bill_to_name: `Tenancy Fleet ${rows.key}`,
+      statement_id: await rows.accountStatement(),
+    }),
+    patch: { po_number: "TAMPERED" },
+  },
+  business_account_vehicles: {
+    create: async (rows) => rows.insert("business_account_vehicles", { account_id: await rows.businessAccount(), vehicle_id: await rows.vehicle() }),
+    patch: { created_at: "2096-04-01T00:00:00.000Z" },
+  },
+  business_accounts: { create: (rows) => rows.businessAccount(), patch: { notes: "Tampered" } },
   closures: {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
+    patch: { reason: "Tampered" },
+  },
+  // P5.8: van legs, loans and requests are written only by their functions (no staff write grants).
+  collection_delivery_legs: {
+    create: async (rows) => rows.insert("collection_delivery_legs", {
+      booking_id: await rows.booking(),
+      leg: "collection",
+      status: "unassigned",
+      during: "[2096-04-02T08:00:00.000Z,2096-04-02T09:00:00.000Z)",
+      postcode: "DN4 5AA",
+      address: `Tenancy probe ${rows.key}`,
+    }),
+    patch: { address: "Tampered" },
+  },
+  courtesy_cars: {
+    create: (rows) => rows.insert("courtesy_cars", { name: `Tenancy car ${rows.key}`, registration: `CC${rows.key}${localRunId.slice(0, 4)}`.toUpperCase() }),
+    patch: { name: "Tampered" },
+  },
+  courtesy_car_loans: {
+    create: async (rows) => {
+      const car = await rows.insert("courtesy_cars", { name: `Tenancy loan car ${rows.key}`, registration: `CL${rows.key}${localRunId.slice(0, 4)}`.toUpperCase() }, "id");
+      return rows.insert("courtesy_car_loans", {
+        car_id: car.id,
+        booking_id: await rows.booking(),
+        customer_id: await rows.customer(),
+        during: "[2096-04-02T09:00:00.000Z,2096-04-02T17:30:00.000Z)",
+        notes: `Tenancy probe ${rows.key}`,
+      });
+    },
+    patch: { notes: "Tampered" },
+  },
+  courtesy_car_requests: {
+    create: async (rows) => rows.insert("courtesy_car_requests", { booking_id: await rows.booking(), customer_id: await rows.customer() }),
     patch: { reason: "Tampered" },
   },
   // Written only by the import RPCs; staff have no update grant, so the probe is refused.
@@ -511,6 +622,13 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { role: "manager" },
   },
   // Rows come from provisioning (owner, manager, technician, shared manager).
+  // P5.9 groups: garage_id is the group's home garage. Each test garage is the home of its own group.
+  garage_groups: { create: (rows) => rows.homeGroup(), patch: { name: "Tampered" } },
+  // P5.9: garage_id is the site (here the home garage's own site row).
+  garage_group_sites: {
+    create: async (rows) => rows.insert("garage_group_sites", { group_id: await rows.homeGroup(), home_garage_id: rows.garage.id }),
+    patch: { added_at: "2096-04-01T00:00:00.000Z" },
+  },
   garage_members: { create: async () => undefined, patch: { role: "manager" } },
   garage_subscriptions: {
     create: (rows) => rows.insert("garage_subscriptions", { provider: "mock", status: "none", plan: "essentials" }),
@@ -611,6 +729,27 @@ const FIXTURES: Record<string, Fixture> = {
       end_reason: "ended",
     }),
     patch: { reason: "Tampered reason" },
+  },
+  payment_accounts: {
+    create: (rows) => rows.insert("payment_accounts", { provider: "mock", account_ref: `mock_acct_tenancy_${rows.key}`, status: "active", charges_enabled: true }),
+    patch: { status: "disconnected" },
+  },
+  payment_settings: {
+    create: (rows) => rows.insert("payment_settings", { deposits_enabled: true, default_deposit_mode: "fixed", default_deposit_value: 2000, no_show_fee_pence: 2500 }),
+    patch: { no_show_fee_pence: 9999 },
+  },
+  payments: {
+    create: async (rows) => rows.insert("payments", {
+      kind: "no_show_fee",
+      amount_pence: 2500,
+      description: `Tenancy probe ${rows.key}`,
+      booking_id: await rows.booking(),
+      customer_id: await rows.customer(),
+      token_hash: createHash("sha256").update(`payment-${rows.key}-${localRunId}`).digest("hex"),
+      expires_at: "2096-04-20T09:00:00.000Z",
+      provider: "mock",
+    }),
+    patch: { status: "cancelled" },
   },
   plan_requests: {
     create: (rows) => rows.insert("plan_requests", { requested_plan: "pro", requested_by: rows.ownerId, note: `Tenancy probe ${rows.key}` }),

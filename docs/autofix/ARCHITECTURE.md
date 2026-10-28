@@ -661,3 +661,345 @@ No existing function or migration was changed (`create_booking`, `available_slot
 CSP on garage hosts gains `media-src 'self' blob: https:` (and the Supabase origin when it is plain http, i.e. the local stack, also in `img-src`), so signed video URLs play (`src/lib/booking-page/security-headers.ts`, `storageOrigin` from `src/proxy.ts`).
 
 No background jobs: sending is inline through `getChannel()` like staff replies.
+
+## Advanced reports and exports (Phase 5, P5.6; DECISIONS A334–A341)
+
+### Schema (`supabase/migrations/20261029000600_reports.sql`; pgTAP `032_reports`)
+
+| Object | Notes |
+| --- | --- |
+| `booking_assignments` (tenant) | `garage_id` (default `current_garage_id()`), `booking_id` (composite FK → `bookings (garage_id, id)` on delete cascade, unique per garage), `technician_id → auth.users` (on delete set null), `technician_name` (snapshot, 1–120 chars, kept when the member leaves), `assigned_by`, `assigned_at`. RLS: members of the selected garage read (not plan checked, so readable after a downgrade); no staff write grants: written only by `assign_booking_technician()`. In `FIXTURES` of `tests/integration/tenancy.test.ts` |
+
+No existing table, function or migration is changed. `create_booking*`, `available_slots*` and `staff_available_slots*` are not touched.
+
+### SQL
+
+All `security definer`, `search_path = ''`. Report dates are garage-local and inclusive; the window is `[from 00:00, to + 1 00:00)` in `garages.timezone`, so a clock-change day is 23 or 25 hours long. Errors: `42501 NOT_ALLOWED`, `P0001 PLAN_REQUIRED: advanced_reports`, `22023 INVALID_RANGE` (from > to, or more than 366 days).
+
+| Function | Who | What |
+| --- | --- | --- |
+| `assign_booking_technician(booking uuid, technician uuid) → jsonb` | owners/managers of the selected garage (`garage_actor_allowed()`: AAL2 when enrolled), Pro | Sets (null: clears) who did the job. Technician must be a member of the garage (`22023 NOT_A_MEMBER`); booking must be the garage's and not trashed (`P0001 BOOKING_NOT_FOUND`). Name snapshot = profile display name, else account display name, else email local part. Audited `booking.technician_assigned` |
+| `report_revenue_by_service(from date, to date)` → `(service_id, service_name, bookings, invoiced_pence, estimated_pence, total_pence)` | owners/managers (or service role with `x-garage-id`), Pro | See A334 |
+| `report_revenue_by_technician(from, to)` → `(technician_id, technician_name, bookings, invoiced_pence, estimated_pence, total_pence)` | same | Same jobs grouped by `booking_assignments`; `technician_name` null = Unassigned (A335) |
+| `report_bay_utilisation(from, to)` → `(resource_id, resource_name, resource_kind, day, open_minutes, booked_minutes)` | same | One row per resource per local day (A336) |
+| `report_hours(from, to)` → `(technician_id, technician_name, jobs, measured_jobs, sold_minutes, worked_minutes)` | same | A337 |
+| `report_reminder_roi(from, to)` → `(kind, sent, booked, pence, sms_segments)` | same | A338, A339 |
+| `report_campaign_roi(from, to)` → `(available, sent, booked, pence)` | same | Feature-detected (A340) |
+| `report_window(from, to)`, `report_jobs(garage, from_at, to_at)`, `report_minutes(tstzmultirange)` | no API role (internals) | Caller check + window; the jobs the revenue/hours reports count; minutes in a multirange |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/reports/range.ts` (client-safe) | `REPORT_PRESETS` (`this_month`, `last_month`, `last_90_days`, `custom`), `PRESET_LABELS`, `MAX_REPORT_DAYS`, `ReportRange`, `RANGE_PROBLEMS`, `presetRange`, `resolveReportRange({range, from, to}, today)`, `rangeQuery`, `dayCount`, `rangeLabel` |
+| `src/lib/reports/csv.ts` (client-safe) | `safeCsvText` (prefixes `= + - @`, tab and CR with `'`), `csvCell`, `toCsv` (UTF-8 BOM, CRLF), `poundsCell` |
+| `src/lib/reports/shape.ts` (client-safe) | `REPORT_KINDS` (`revenue-by-service`, `revenue-by-technician`, `bay-utilisation`, `hours`, `reminder-roi`), `isReportKind`, row types and mappers, `revenueTotals`, `utilisationByResource`, `utilisationByWeek`, `hoursTotals`, `efficiency`, `roiTotals`, `smsCost`, `formatMinutes`, `formatPounds`, `formatShare`, CSV builders (`revenueCsv`, `utilisationCsv`, `hoursCsv`, `reminderRoiCsv`), `reportFileName` |
+| `src/lib/reports/config.ts` (client-safe) | `smsSegmentCostPence(env)` (`SMS_SEGMENT_COST_PENCE`, placeholder, null until set) |
+| `src/lib/reports/server.ts` | `loadRevenueByService`, `loadRevenueByTechnician`, `loadUtilisation`, `loadHours`, `loadReminderRoi`, `loadCampaignRoi`, `loadAllReports`, `ReportLoadError` (`plan_required` / `not_allowed` / `invalid_range` / `failed`). All through the admin's RLS client; nothing takes a garage id |
+| `src/lib/reports/export.ts` | `buildReportCsv(client, kind, range, costPerSegment)` |
+| `src/lib/reports/assignments.ts` | `loadBookingAssignment`, `loadTeamOptions` (`list_garage_team()`), `assignTechnician`, `ASSIGN_MESSAGES` |
+| `src/components/admin-ui/admin-nav.tsx` | `GROW_NAV_ITEMS` gains `{feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn}` |
+
+### Routes
+
+| Route | Who | Notes |
+| --- | --- | --- |
+| `/app/reports?range=this_month\|last_month\|last_90_days` or `?range=custom&from=YYYY-MM-DD&to=YYYY-MM-DD` | owners/managers on Pro | Essentials: `ProLockedPage` (owner gets "See Pro and upgrade"). Technicians / front desk on Pro: "Reports are for owners and managers", ask the owner. Range picker (preset chips + custom dates), four summary figures, five report panels (tables at 390 first, simple CSS bars with the figure as text), a CSV link on each. Only dates in the query string |
+| `GET /api/admin/reports/<kind>?range=…` | owners/managers on Pro | `text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="autofix-<kind>-<from>-to-<to>.csv"`, `Cache-Control: private, no-store`. 401 signed out, 404 unknown kind, 403 `PLAN_REQUIRED` (Essentials, also when the database says so mid-session), 403 `NOT_ALLOWED` (other roles), 400 `INVALID_RANGE`. Audited `report.exported` (kind, dates, row count). No registrations in any report or file name |
+| `/app/bookings/[id]` "Technician" panel | owners/managers on Pro: a select of the team + Save (`assignTechnicianAction` in `bookings/technician-actions.ts`, `requireStaffWriter`, `featureProblem`); others / Essentials: the assigned name read-only, if any | |
+
+No jobs, no customer-facing pages, no messages.
+
+## Courtesy cars and collection/delivery (Phase 5, P5.8; DECISIONS A350–A357)
+
+### Schema (`supabase/migrations/20261029000800_courtesy_cars.sql`; pgTAP `034_courtesy_cars`)
+
+| Table / column | Columns (all tenant tables: `garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS on, anon has no grants) |
+| --- | --- |
+| `courtesy_cars` | `name` (1-60), `registration` (normalised by the `normalise_vehicle_registration` trigger, unique per garage; shown only as a plate chip), `active`, `notes` (≤ 500), `mileage`, `fuel_eighths` (0-8, last reading), `sort`. Members read; owners/managers insert/update/delete through RLS **with `garage_has_feature(garage_id,'courtesy_cars')`**. A car with loans can't be deleted (FK, 23503): switch it off |
+| `courtesy_car_loans` | `car_id`, `booking_id` (composite FK, cascade), `customer_id`, `during tstzrange` (`[)`, finite, ≤ 31 days), `status` (`reserved`/`out`/`returned`/`cancelled`), `notes`, `mileage_out`/`fuel_out`/`checked_out_at`/`checked_out_by`, `mileage_in` (≥ out)/`fuel_in`/`returned_at`/`returned_by`, `damage_notes` (≤ 1000), `cancelled_at`/`cancelled_by`/`cancellation_reason`, `created_by`. **`courtesy_car_loans_no_overlap exclude using gist (car_id with =, during with &&) where (status <> 'cancelled')`**. Members read; no staff write grants (functions only) |
+| `courtesy_car_requests` | `booking_id`, `customer_id`, `status` (`open`/`confirmed`/`declined`/`withdrawn`), `free_at_request`, `loan_id`, `reason`, `handled_by`/`handled_at`. One live (open/confirmed) per booking. Members read; functions write |
+| `collection_delivery_legs` | `booking_id`, `leg` (`collection`/`delivery`), `resource_id` (a `mobile` resource, null when unassigned), `during`, `postcode` (normalised), `address` (≤ 300), `status` (`held`/`unassigned`/`cancelled`), `source` (`customer`/`staff`/`system`), `created_by`, `cancelled_at`. **`collection_delivery_legs_no_overlap exclude using gist (resource_id with =, during with &&) where (status = 'held')`**; one live leg of each kind per booking. Members read; functions write |
+| `services` (+) | `collection_delivery boolean default false`. Trigger `services_collection_delivery_guard`: a signed-in member switching it on needs Pro (`PLAN_REQUIRED`); switching off never does; server code/seeds (no `auth.uid()`) are not checked |
+| trigger `bookings_courtesy_follow` (after update of `status`, `during` on `bookings`) | Cancelled / no-show: reserved loans → cancelled, live legs → cancelled, open requests → withdrawn. Moved: a reserved loan shifts by the same amount when the car is free then (else it stays and a system note says "choose another car"); live legs are held again for the new times (if that fails the legs are cancelled and noted). Never blocks the booking change |
+
+Van windows (`collection_delivery_windows`): collection `[lower(during) − 2 × mobile_travel_min, lower(during))`, delivery `[upper(during), upper(during) + 2 × mobile_travel_min)` (out and back each way).
+
+Default loan window (`courtesy_car_default_window`): from the booking's `starts_at` to the latest `opening_hours.closes` of that local day, built as `(local date + closes) at time zone garages.timezone` (right on clock-change days), or to `ends_at` if later.
+
+### SQL functions
+
+| Function | Who | What |
+| --- | --- | --- |
+| `courtesy_car_options(booking, starts?, ends?) → table(car_id, name, registration, free, window_starts, window_ends)` | any member of the selected garage (`garage_actor_allowed()`), Pro | Every active car and whether it is free for the window (default: the booking's day) |
+| `reserve_courtesy_car(booking, car, starts?, ends?, notes?) → courtesy_car_loans` | any member, Pro | Per-car advisory lock, then insert; an exclusion violation becomes `COURTESY_CAR_UNAVAILABLE` (P0001). Confirms an open request; booking note; audited `courtesy_car.reserved`. Errors `BOOKING_NOT_FOUND`, `BOOKING_NOT_LIVE`, `COURTESY_CAR_NOT_FOUND`, `INVALID_LOAN: …` |
+| `release_courtesy_car(loan, reason?)` | any member, Pro | reserved → cancelled (`LOAN_STATE` otherwise); a confirmed request goes back to open |
+| `check_out_courtesy_car(loan, mileage, fuel_eighths, notes?)` | any member, Pro | reserved → out; `COURTESY_CAR_STILL_OUT` while the same car is out on another loan; car mileage/fuel updated |
+| `check_in_courtesy_car(loan, mileage, fuel_eighths, damage_notes?)` | any member, Pro | out → returned; mileage can't go down; an early return shortens `during` so the car is free again |
+| `decline_courtesy_car_request(request, reason?)` | any member, Pro | open → declined |
+| `hold_collection_delivery(booking, postcode, address?) → jsonb` / `release_collection_delivery(booking) → int` | any member, Pro | (Re)hold the van for both legs / cancel them |
+| `courtesy_car_free_count(garage, starts, ends) → int` | service role | Free cars for a would-be booking (default window); 0 for Essentials, so the option never appears |
+| `request_courtesy_car(garage, booking) → jsonb` | service role, Pro | After `create_booking()`: open request, idempotent per booking, `free_at_request` recorded, booking note |
+| `request_collection_delivery(garage, booking, postcode, address) → jsonb` | service role, Pro | After `create_booking()`: idempotent; `{status: held|partial|unassigned, legs, replayed}` |
+| internals (no API role): `courtesy_actor_garage`, `courtesy_car_default_window`, `courtesy_cars_free_in`, `courtesy_booking_note`, `courtesy_postcode`, `collection_delivery_windows`, `collection_delivery_hold`, `courtesy_follow_booking`, `guard_service_collection_delivery` | | `collection_delivery_hold` takes the same per-garage advisory lock as `create_booking()` (`public.create_booking:<garage>`), checks `workshop` mode + `services.collection_delivery` (`COLLECTION_NOT_OFFERED`) + `garages.service_area` (`OUTSIDE_SERVICE_AREA`), then picks the first active mobile resource with no live booking and no held leg overlapping each window |
+
+Nothing redefines `create_booking*`, `available_slots*` or `staff_available_slots*`.
+
+**Failure handling for collection/delivery.** The booking is always created first by `create_booking()` and always stands. Legs are held straight after by `request_collection_delivery()` (customer) or `hold_collection_delivery()` (staff). A leg with no free van (or lost to a concurrent hold: the exclusion violation is caught) is stored `unassigned`, the booking gets a system note ("no van free … call the customer"), the garage gets a staff email (`courtesy-extras:<booking>` idempotency key, garage address only, no registration), the leg shows under "Needs your OK" on `/app/courtesy-cars` with "Try the van again" on the booking, and the customer's confirmation says the garage will call. If the attach call itself fails the same staff email and customer wording apply.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/courtesy/view.ts` (client-safe, pure) | types `CourtesyCar`, `CourtesyLoan`, `CollectionLeg`, `CourtesyRequest`; `parseCarForm`, `parseLoanReading`, `parseLoanWindow(formData, tz)` (datetime-local in garage time via `zonedInstant`), `parseCollectionForm`, `normaliseCollectionPostcode`, `courtesyErrorCode`/`courtesyErrorMessage`, `courtesyFlash`, `COURTESY_DONE_MESSAGES`, `shapeFleetWeek(cars, loans, monday, tz, now)`, `bookingsWithCourtesyCar`, `parseRange` (PostgREST tstzrange), `localInputValue`, `safeCourtesyReturn`, `withFlash`, `FUEL_OPTIONS`, `fuelLabel`, `formatMiles` |
+| `src/lib/courtesy/server.ts` (RLS client) | `loadFleet`, `loadLoansBetween`, `loadLiveLoans`, `loadOpenRequests`, `loadUpcomingLegs`, `loadBookingCourtesy`, `loadCarOptions`, `courtesyBookingIds` (never throws; Today/Diary badge), `CourtesyDataError` |
+| `src/lib/courtesy/booking-site.ts` (service role) | `getBookingExtrasOptions(garage, {serviceId, startsAt, durationMin, locationMode})` (never throws), `readBookingExtras(formData, offered, serviceArea, proEnabled)`, `attachBookingExtras(garage, booking, choice)` (never throws; staff email), `extrasSummary` |
+| `src/app/app/(protected)/courtesy-cars/actions.ts` | `addCarAction`, `updateCarAction`, `setCarActiveAction`, `deleteCarAction` (owners/managers), `reserveCarAction`, `releaseLoanAction`, `checkOutAction`, `checkInAction`, `declineRequestAction`, `holdCollectionAction`, `releaseCollectionAction` (any member), `setServiceCollectionAction`. All `requireStaffWriter` (MFA), selected garage only, `garageHasFeature` → `?courtesyError=PLAN_REQUIRED`; redirects carry only a flash key (`?courtesy=` / `?courtesyError=`, `#courtesy` on bookings) |
+| `src/components/courtesy/courtesy-ui.tsx` | `CourtesyNotice`, `CourtesyCarChip`, `LoanItem`, `LoanReadingForm`, `CarFields`, `LOAN_TONES` |
+| `src/components/courtesy/collection-setting.tsx` | `CollectionDeliverySetting` (the switch on Setup · Services · Edit; Pro badge text for Essentials) |
+| `src/app/app/(protected)/bookings/[id]/courtesy-panel.tsx` | `CourtesyBookingPanel` (request banner, free cars for the booking's day + "Different times", check out/in, release, collection form/legs/cancel/try again; read-only on Essentials when data exists) |
+| `src/app/%5Fsite/[garageId]/_components/booking-extras.tsx` | `BookingExtrasFields` (details step "Extras": courtesy request, collect and deliver + address/postcode; defaults follow state so React's post-action form reset keeps them) |
+
+Additive edits to shared files: `GROW_NAV_ITEMS` (one line, `CarFront`), `JobCard`/`DiaryBooking` optional `courtesyCar` (chip / car icon + accessible label), Today and Diary pages (badge ids), booking page (panel + two flash params), service edit page (setting panel), `DetailsFormState.fieldErrors` (+ `collectionPostcode`, `collectionAddress`), `JustBooked.extras?` (sealed cookie, ≤ 4 lines), `confirmBookingAction` (extras read before, attached after `createBooking()`), details and confirmed pages, `admin-shell.test.tsx` (expects `GROW_NAV_ITEMS` hrefs instead of a fixed list).
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/courtesy-cars?week=YYYY-MM-DD` | Fleet: one card per car (state, mileage, fuel, Mon-Sun strip, the week's loans with check out / release / check in), "Needs your OK" (open requests, unassigned van legs), "Collections and deliveries" (from today), "Add a courtesy car" (owners/managers), Edit / on-off / delete per car. Essentials: `ProLockedPage` (+ read-only car list when there are cars) |
+| `/app/bookings/[id]#courtesy` | Courtesy car and collection panel |
+| `/app/settings/services/[id]#collection-delivery` | "Offer collection and delivery" switch (`?collection=on|off|plan|…`) |
+| garage host `/details` | Extras fieldset (Pro and something offered only); `/confirmed/[ref]` lists what happened |
+
+No new jobs, no customer messages (the only new message is a staff email to the garage's own address). No token links, so no `next.config.ts` header rule was needed.
+
+## Payments: deposits, pay-by-link and no-show fees (Phase 5, P5.4; DECISIONS A318–A325)
+
+### Schema (`20261029000400_payments.sql`; pgTAP `030_payments`)
+
+| Object | Notes |
+| --- | --- |
+| `services.deposit_mode`, `services.deposit_value` (new columns) | `default` (follow the garage), `none`, `fixed` (pence, 100–100000) or `percent` (1–100 of `price_pence`). Trigger `services_deposit_plan_guard` raises `PLAN_REQUIRED: payments` when a member changes them without Pro; other service edits are untouched |
+| `payment_accounts` (tenant, one per garage) | `provider` (`mock`/`stripe`), `account_ref`, `status` (`pending`/`active`/`restricted`/`disconnected`), `charges_enabled`, `connected_by`, `connected_at`, `disconnected_at`. **Owners and managers read** (`ROLE_LIMITED_READS`); written only by `apply_payment_account()` and `disconnect_payment_account()` |
+| `payment_settings` (tenant, one per garage) | `deposits_enabled`, `default_deposit_mode` (`none`/`fixed`/`percent`), `default_deposit_value`, `deposit_hold_min` (30–180, default 30), `no_show_fee_pence` (null or 100–100000), `updated_by`. Members read; owners/managers insert/update with `garage_has_feature(garage_id, 'payments')` |
+| `payments` (tenant) | `kind` (`deposit`/`invoice`/`no_show_fee`), `status` (`pending`/`paid`/`expired`/`cancelled`/`failed`), `amount_pence`, `amount_paid_pence`, `description`, `booking_id`/`invoice_id`/`customer_id` (composite FKs, `on delete set null`), `token_hash` (SHA-256 of the pay-link token, unique), `expires_at`, `provider`, `checkout_ref`, `provider_payment_ref`, `paid_at`, `attention` (`paid_after_release`/`invoice_not_open`/`overpaid`/`amount_mismatch`), `cancelled_reason`, `notified_at`/`notify_channel`/`notify_outcome`, `created_by`. One live (pending or paid) deposit and one live no-show fee per booking (partial unique index). Members read (no plan check); no direct writes |
+| `payment_webhook_events` (platform) | `event_id` pk, `provider`, `type`, `target_garage_id`, `outcome`; ids only. Service role |
+| Trigger `bookings_payments_follow_status` (on `bookings`, after update of status) | a booking cancelled by staff cancels its pending deposit (the customer's link stops working) |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `payment_deposit_amount(garage, service) → int` | service | the deposit in pence or null (deposits off, none, percent of a quote, under £1); capped at £1,000. Mirrored by `depositAmountPence()` (unit test) |
+| `create_deposit_payment(garage, booking, provider, token_hash) → payments` | service (the booking flow) | **after** `create_booking()`: the pending deposit, expiring after `deposit_hold_min`; null when none applies (not Pro, no active account for this provider, deposits off, booking not requested/confirmed). A replay rotates the token of the same deposit. Adds a "Waiting for the deposit" note to the booking |
+| `expire_pending_deposits(now, garage?) → table` | service | expires pending payments past `expires_at` (500 a call, `skip locked`). An unpaid deposit cancels its booking if still `requested`/`confirmed` (`cancellation_reason = 'Deposit not paid in time'`) through an ordinary status update: the status trigger logs it as a system change and `no_overlap` no longer counts it, so the slot is free |
+| `create_payment_request(kind, target, provider, token_hash) → payments` | owners, managers, front desk of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled); Pro; active account | `invoice`: the issued invoice's balance (≥ £1), replacing any open link; `no_show_fee`: the garage's fee for a `no_show` booking (asking again re-issues the same request). Links last 14 days. Audited `payments.link_created` |
+| `cancel_payment_request(payment)` | owners, managers, front desk; Pro | pending → cancelled ("Cancelled by the garage", or "Deposit waived by the garage"). Audited |
+| `apply_payment_paid(garage, payment, provider, ref, amount, paid_at) → jsonb` | service | once (a repeat returns `already: true`). Invoice: inserts into `invoice_payments` (method `card`, `created_by` = the member who sent the link), invoice `paid` when the balance reaches zero, else part-paid; more than the balance is recorded up to it and flagged `overpaid`; a voided/settled invoice is flagged `invoice_not_open`. Deposit paid after release: `paid_after_release`. Audited `payments.paid` (+ `invoice.marked_paid`/`invoice.part_payment_recorded`) |
+| `set_payment_checkout(garage, payment, ref)` | service | stores the Checkout Session id on a pending payment |
+| `apply_payment_account(garage, provider, ref, status, charges_enabled, actor)` | service | the owner's connect (`actor` set: needs Pro) or a provider webhook (`actor` null: only the account the garage already holds, never reconnects a disconnected one). Audited `payments.account_<status>` |
+| `disconnect_payment_account()` | owner of the selected garage (not plan gated, so Essentials can disconnect) | `disconnected`, charges off |
+| `set_service_deposit(service, mode, value)` | owners, managers; Pro | a service's deposit rule. Audited `service.deposit_changed` |
+| `claim_payment_webhook_event`, `finish_payment_webhook_event` | service | once per provider event |
+
+`create_booking`, `create_booking_at`, `available_slots*` and `staff_available_slots*` are not replaced. **No double
+booking:** the booking is created first by `create_booking()` and holds its resource like any other booking; an unpaid
+deposit only ever *removes* a booking (cancelled), never adds one (pgTAP 030: a pending deposit refuses an overlapping
+second booking, expiry frees it, the next customer books it).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/payments/provider.ts` | **`PaymentsProvider`** (`kind`, `startConnect`, `getAccount`, `createCheckout`, `getCheckout`, `cancelCheckout`, `parseWebhook`), `AccountState`, `ConnectResult`, `CheckoutRequest`, `CheckoutResult`, `CheckoutState`, `PaymentsEvent` |
+| `src/lib/payments/index.ts` | `readPaymentsConfig(env)`, `getPaymentsReadiness()` (`mock`/`stripe_test`/`configuration_required`/`live_key_refused`/`mock_not_in_production`), `getPaymentsProvider()` (null when payments cannot run), `PAYMENTS_READINESS_MESSAGES` |
+| `src/lib/payments/stripe.ts` | `createStripePaymentsProvider(config, fetch)` (REST + fetch, no SDK: Express accounts, Account Links, Checkout Sessions with `Stripe-Account`, expire, retrieve), `mapStripePaymentsEvent`, `accountState`, `checkoutExpiry`; signatures via `verifyStripeSignature` from `src/lib/billing/stripe.ts` with its own secret |
+| `src/lib/payments/mock.ts` | `createMockPaymentsProvider()` |
+| `src/lib/payments/amounts.ts` (client-safe) | kinds, statuses, labels, `formatPounds`, `parsePoundsToPence`, `depositAmountPence`, `parseDepositRule`, `depositRuleLabel`, `paymentTotals`, limits |
+| `src/lib/payments/tokens.ts` | `createPayToken()` (32 random bytes, base64url; hash stored), `hashPayToken`, `isPayTokenShape`, `PAY_COOKIE` (`af_pay`, httpOnly, path `/pay`), `payCookieOptions` |
+| `src/lib/payments/messages.ts` (pure) | `chooseLinkChannel(customer)` (own channel; STOP → email, else none), `composeLinkMessage()` (SMS/WhatsApp end with "Reply STOP to opt out.") |
+| `src/lib/payments/server.ts` | `loadPaymentsSetup(garage)`, `accountUsable`, `depositQuote`, `startDeposit`, `releaseExpiredDeposits(garage?)` (never throws; closes Stripe checkouts; clears the slot cache), `loadPaymentByToken`, `markPaymentPaid` (a deposit paid in time sends the held-back booking confirmation), `syncCheckout`, `applyPaymentsEvent`, `refreshConnectedAccount`, `sendPaymentLink` (getChannel, `messages` row, outcome on the payment) |
+| `src/lib/payments/admin-actions.ts` ("use server") | `connectPaymentsAction`, `disconnectPaymentsAction` (owners), `savePaymentSettingsAction`, `saveServiceDepositAction` (owners/managers), `sendInvoicePaymentLinkAction`, `chargeNoShowFeeAction`, `cancelPaymentAction` (owners/managers/front desk). All but disconnect check `featureProblem(admin, "payments")` |
+| `src/lib/payments/pay-session.ts` | `writePayCookie`, `readPayCookie` |
+| `src/lib/payments/jobs.ts` | handler `payments.expire_deposits` |
+| `src/components/payments/*` | `PaymentStatusBadge`, `PAYMENT_FLASH`, `DepositRuleFields`, `PaymentSettingsForm`, `ServiceDepositForm`, `BookingPaymentsPanel`, `InvoicePaymentLinkPanel`, `ServiceDepositPanel`, `InvoicePayLinkBadge`/`loadInvoicePayLinks` |
+| Booking engine (additive) | `CreateBookingOptions.deferCreatedNotice`: the booking flow holds back the "created" notification while a deposit is due |
+
+Routes:
+
+| Route | Host | What |
+| --- | --- | --- |
+| `/app/payments` | admin | Pro. Payments list (filter by kind), totals this month, cancel/waive pending; `ProLockedPage` (with existing rows below) on Essentials. Nav: one line in `GROW_NAV_ITEMS` |
+| `/app/payments/settings` | admin | Pro. Connect/disconnect (owners), deposits, hold, no-show fee (owners/managers), deposit per service |
+| `GET /app/payments/settings/return` | admin | Stripe onboarding return/refresh: reads the account, stores it |
+| Panels on `/app/bookings/[id]` (`#payments`), `/app/invoices/[id]` (`#payments`), `/app/settings/services/[id]` (`#deposit`); badge on `/app/invoices` | admin | additive: one import + one element each |
+| `/details` (booking step 4) | garage | "Confirm and pay deposit" and the hold time when a deposit applies |
+| `/time` | garage | releases the garage's expired deposits before showing times |
+| `GET /pay/[token]` | garage | moves the token into `af_pay` and 303s to `/pay` (`Referrer-Policy: no-referrer`, also in `next.config.ts`) |
+| `/pay` | garage | the payment from `af_pay` only: pay (mock: test payment here; Stripe: Checkout Session on the garage's account), paid, expired ("Book again"), cancelled; `?paid=1` reads the checkout back if the webhook lags |
+| `POST /api/webhooks/payments/stripe` | any | Stripe Connect webhook, `STRIPE_PAYMENTS_WEBHOOK_SECRET`, raw-body signature, once per event; 503 until configured |
+
+Jobs: `payments.expire_deposits` (in `JOB_KINDS`, the registry, the `daily` cron and its own cron name
+`/api/cron/payments.expire_deposits`, period 5 minutes). Because Vercel Hobby runs crons once a day, expired deposits
+are also released by the booking flow (`/time`, Confirm), `/pay` and `/app/payments` for that garage.
+
+The deposit journey: Confirm → `create_booking()` (holds the bay; confirmation held back) → `create_deposit_payment()`
+→ `af_pay` cookie → `/pay` → paid: `apply_payment_paid()` + the booking confirmation (`notifyBooking created`); not
+paid by `expires_at`: `expire_pending_deposits()` cancels the booking ("Deposit not paid in time") and the slot is free.
+If the deposit cannot be added after the booking was made, the booking stands and its confirmation is sent at once.
+
+**Reusing the provider (P5.5 service plans by Direct Debit):** `PaymentsProvider` is per garage account; add recurring
+methods next to the existing ones (e.g. `startMandate`, `createSubscription`) and new `PaymentsEvent` kinds, keep
+`parseWebhook` + `payment_webhook_events` for idempotency, and keep `getPaymentsProvider()` as the single test-mode/live
+gate. Stripe Direct Debit (Bacs) would use the same connected account (`Stripe-Account`).
+
+## Multi-site (Phase 5, P5.9; DECISIONS A358–A365)
+
+### Model
+
+A group belongs to a **home garage**. The home garage holds the group's plan and its subscription (and so the extra-site charge). Every garage in a group, the home garage included, has one row in `garage_group_sites`; a garage is in at most one group. A garage in no group is treated as a "group of one" by the read functions, so `/app/group` works before the first site is added.
+
+Tenancy is unchanged: every garage-scoped read or write still uses the member's **selected** garage (`af_garage` → `getAdminContext` → `x-garage-id` → `current_garage_id()`). The group functions start from the selected garage, find its group in SQL, and aggregate **only** sites of that group where the caller is owner or manager (`garage_role()` per site). No group read takes a garage id from the request. The only id a form sends is the site to remove, and `group_remove_site()` refuses it unless it is a non-home site of the selected garage's own group and the caller owns the selected garage, that site and the home garage.
+
+### Tables (`supabase/migrations/20261029000900_multi_site.sql`; pgTAP `035_multi_site`)
+
+| Table | Notes |
+| --- | --- |
+| `garage_groups` (tenant) | `garage_id` = the **home** garage (unique: one group per home), `name` (home garage's name at creation), `created_by`, `created_at`; unique (`id`, `garage_id`) for the child FK. RLS select: owners/managers of the selected garage when it is the home. No write policies, no staff write grants: written only by `group_add_site()` |
+| `garage_group_sites` (tenant) | `garage_id` = the **site** (unique), `group_id`, `home_garage_id` (composite FK (`group_id`, `home_garage_id`) → `garage_groups (id, garage_id)` on delete cascade), `added_by`, `added_at`. RLS select: owners/managers of the selected garage, its own row only. Written only by `group_add_site()` / `group_remove_site()` |
+
+Both are ordinary tenant tables (`garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS, anon revoked), in the tenancy suite `FIXTURES` and `ROLE_LIMITED_READS` (owner, manager). Select policies don't check the plan.
+
+### SQL functions (all `security definer`, `search_path = ''`)
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `garage_group_home(garage) → uuid` | internal (service role) | the home garage of the garage's group, or null |
+| `group_visible_sites() → table(garage_id, home_garage_id, is_home)` | internal | sites of the selected garage's group (or the selected garage alone) where the caller is owner/manager; 42501 unless owner/manager of the selected garage |
+| `group_summary() → table(group_id, group_name, home_garage_id, is_home, site_count, visible_sites, can_add_sites, multi_site)` | owners/managers of the selected garage | no plan check (the page needs it for the locked state) |
+| `group_overview(now) → table(garage_id, name, slug, accent, is_home, is_selected, today_bookings, open_requests, revenue_month_pence, won_back_bookings, won_back_pence)` | owners/managers of the selected garage | per site, in **each site's own time zone**: bookings starting today (not requested/cancelled/no-show/trashed), open requests (`requested`, not ended, as the Bookings badge), revenue this month (issued or paid invoices issued this month, not trashed), reminder work won back this month (`reminder_won_back()`). `PLAN_REQUIRED: multi_site` (P0001) unless the home garage's effective plan is Pro |
+| `group_report(from, to) → table(garage_id, name, is_home, bookings, revenue_pence)` | owners/managers of the selected garage | same definitions over local dates `from..to` (≤ 366 days, else 22023); `PLAN_REQUIRED` as above |
+| `group_add_site(p_garage jsonb) → jsonb` | owner of the selected garage **and** of the home garage, MFA rules of `garage_actor_allowed()` | creates the group on first use (home = selected garage), calls `create_garage(auth.uid(), p_garage)` (wrapped, not replaced: defaults seeded, caller is owner, 3 per 24 h), copies the home garage's `plan`/`trial_ends_at`/`plan_chosen` to the new garage, adds the site; returns `{garage_id, slug, group_id, home_garage_id, site_count, extra_sites}`. `PLAN_REQUIRED: multi_site`, `GROUP_FORBIDDEN` (42501), `GROUP_FULL` (101 sites), and `create_garage()`'s codes. Audited `group.created`, `group.site_added` (home), `group.joined` (new site) |
+| `group_remove_site(site) → jsonb` | owner of the selected garage, of that site and of the home garage | never the home garage (`GROUP_HOME_SITE`); deletes the site row only (garage and data stay), the site drops to Essentials (keeps a running group trial); returns `{home_garage_id, site_count, extra_sites}`. Allowed without Pro (it only lowers the charge). Audited `group.site_removed` / `group.left` |
+| `record_group_extra_sites(home, provider) → integer` | service role | sets `garage_subscriptions.extra_sites` on the home garage to sites − 1 (upserts the row with the provider kind) |
+| trigger `garages_group_plan_sync` → `garage_groups_sync_plan()` | — | after a change of `plan`, `trial_ends_at` or `plan_chosen` on a **home** garage, every other site of its group gets the same values. So trial expiry, billing webhooks, `choose_essentials()` and Vitalos plan changes on the home garage reach the whole group, and the app's checks (`garageHasFeature(admin.garage)`, which read the selected garage's own columns) agree with SQL |
+
+Not touched: `create_booking*`, `available_slots*`, `staff_available_slots*`, `create_garage()`, any earlier migration.
+
+### Modules
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/group/report.ts` (client-safe, pure) | `GroupSummary`, `GroupOverviewSite`, `GroupReportSite`, `toGroupSummary`, `toOverviewSite`, `toReportSite`, `overviewTotals`, `reportTotals`, `parseReportRange` (default this month to date, swapped when back to front, cut to 366 days), `GROUP_REPORT_MAX_DAYS`, `extraSites`, `extraSitesLabel`, `extraSitePriceLine` (placeholder "Price to be confirmed" until `PLAN_EXTRA_SITE_PRICE_PENCE`), `groupReportCsv` (BOM, CRLF, total row, formula-injection guard), `groupReportFileName` |
+| `src/lib/group/server.ts` | `loadGroupSummary`, `selectedGarageInGroup` (RLS read of the selected garage's site row), `loadGroupOverview`, `loadGroupReport`, `GroupDataError` (`PLAN_REQUIRED`/`FORBIDDEN`/`UNAVAILABLE`), `syncExtraSites({homeGarageId, extraSites, actorId}, provider?)`: `getBillingProvider().setExtraSites({garageId, subscriptionRef, count})`, then `record_group_extra_sites()` with the service role; a provider failure is audited `group.billing_failed` and nothing is recorded |
+| `src/lib/group/actions.ts` (server actions) | `addSiteAction` (form state; zod/wizard parsing from `src/lib/signup/schema.ts`, owner + MFA verified + `featureProblem(admin, "multi_site")`), `removeSiteAction` (confirm step, `?done=` / `?error=` codes) |
+| `src/components/group/add-site-form.tsx` | `AddSiteForm` (client, `useActionState`) |
+| `src/components/admin-ui/garage-switcher.tsx` | new prop `groupHref`: "Group overview" link under the garages; `AdminShell` passes `groupOverviewHref`; the protected layout and `/app/more` set it when the selected garage is in a group and the member is owner/manager |
+| `src/components/admin-ui/admin-nav.tsx` | one `GROW_NAV_ITEMS` line: `{ feature: "multi_site", label: "Group overview", href: "/app/group", icon: Building2 }` |
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/group` | Owners and managers. Essentials (selected garage or home garage) → `ProLockedPage` (`canUpgrade` for owners, `hasExistingData` when a group exists). Pro: totals (cars in today, waiting for OK, revenue this month, won back), a card per site (Open = switch garage, Remove for owners), "N more sites not shown" when the member doesn't manage every site, the report (date range GET form, table with total, Download CSV), Add a site (owners of the home garage, MFA verified; shows the extra-site price placeholder and current extra sites), the remove confirmation (`?confirm=<site>`). Technicians and front desk get a notice |
+| `GET /api/admin/group/report?from&to` | CSV of `group_report()` through the RLS client; 401 signed out, 403 for other roles, 403 `PLAN_REQUIRED` (`featureGuard`, and the SQL error if the home garage is on Essentials); `Cache-Control: private, no-store`; audited `group.report_exported` |
+
+No jobs, no customer-facing pages, no messages.
+
+## Fleet and trade accounts (Phase 5, P5.7; DECISIONS A342–A349)
+
+### Schema (`supabase/migrations/20261029000700_fleet_accounts.sql`; pgTAP `033_fleet_accounts`)
+
+Every table: `garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS on, composite FKs to its parents, anon has no grants. Select policies do **not** check the plan (a downgraded garage keeps reading); write policies and functions check `garage_has_feature(garage_id, 'fleet_accounts')`.
+
+| Table | Columns | Who |
+| --- | --- | --- |
+| `business_accounts` | `name` (2–120, unique among active per garage, case-insensitive), `kind` (`fleet`/`trade`), `company_number` (`^[A-Z0-9]{8}$`), `billing_email`, `billing_address` (≤ 500), `contact_name`, `contact_phone` (E.164), `contact_email`, `payment_terms_days` (0–120, default 30), `po_required`, `discount_percent` (0–100], `credit_limit_pence`, `billing` (`monthly`/`per_invoice`), `notes`, `archived_at`, `created_by` | all members read; owners/managers insert and update (column grants; archive = `archived_at`); no delete |
+| `business_account_vehicles` | `account_id`, `vehicle_id` (unique per garage: a car is on one account), `added_by` | all read; owners/managers insert/delete |
+| `business_account_customers` | `account_id`, `customer_id`, `role` (`driver`/`contact`), unique per account | all read; owners/managers insert/update role/delete |
+| `business_account_bookings` | `booking_id` (unique), `account_id`, `po_number` (≤ 40), `set_by` | all read; written by `set_booking_account()` only |
+| `business_account_invoices` | `invoice_id` (unique), `account_id`, `po_number`, `bill_to_name/email/address` (snapshot at link time), `statement_id` | all read; written by the invoice link trigger and account functions only |
+| `account_statements` | `reference` (`<prefix>-ST-YYYYMM-NNN`), `period_start`/`period_end` (a calendar month), `status` (`draft`/`issued`/`paid`), `invoice_count`, `total_pence`, `issue_date`, `due_date` (issue + terms), `issued_at/by`, `paid_at`, `payment_method`, `payment_reference`, `emailed_at`, `emailed_to`, `email_status`, `email_provider_id`, `email_count`; unique (garage, account, period_start) | all read; written by the statement functions only |
+
+| SQL (all `security definer`, `search_path = ''`) | Who | What |
+| --- | --- | --- |
+| `add_business_account_vehicle(account, registration, make, model) → jsonb {vehicle_id, created, linked}` | owners/managers, Pro (`require_account_manager()`: `garage_actor_allowed()` + role + `require_garage_feature`) | the garage's car by normalised reg, or a new one; `VEHICLE_ON_OTHER_ACCOUNT`, `ACCOUNT_NOT_FOUND`, `INVALID_REGISTRATION`; audited |
+| `set_booking_account(booking, account \| null, po) → business_account_bookings` | any member (`garage_actor_allowed()`), Pro | charges a booking (made by `create_booking()`) to an account after the fact: `PO_REQUIRED`, `VEHICLE_ON_OTHER_ACCOUNT`, `BOOKING_NOT_FOUND`; adds the car to the account when on none, the customer as driver, links the booking's invoices not yet on a statement; null clears; audited. **Never redefines `create_booking`** |
+| trigger `invoices_link_account` (`link_account_invoice()`, after insert / update of `booking_id` on `invoices`) | — | an invoice for an account booking gets a `business_account_invoices` row (bill-to + PO). Skipped when the garage isn't on Pro. Never changes the invoice row |
+| `generate_account_statement(account, month_start) → account_statements` | owners/managers, Pro | make or refresh the draft for that month: issued/paid, not deleted account invoices with `issue_date <= month end` on no statement; `NOTHING_TO_BILL`, `INVALID_PERIOD`; issued statements come back unchanged |
+| `issue_account_statement(statement)` | owners/managers, Pro | refresh, then issue: `issue_date` = garage-local today, `due_date` = + `payment_terms_days`; `STATEMENT_NOT_DRAFT` |
+| `mark_account_statement_paid(statement, paid_at, method, reference)` | owners/managers, Pro | `record_invoice_payment()` for each unpaid invoice's balance, then `paid` |
+| `record_account_statement_email(statement, recipient, outcome, provider_id)` | owners/managers, Pro | records a send (`sent`/`failed`) |
+| `generate_monthly_account_statements(garage, month_start) → int` | service role | job: drafts for active monthly accounts; 0 for a garage not on Pro; idempotent per account and month |
+| `build_account_statement(...)`, `link_invoice_to_account(...)`, `require_account_manager()` | internal (no grants) | |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/accounts/view.ts` (client-safe) | `parseAccountForm`, `accountFormValues`, `EMPTY_ACCOUNT_FORM`, `normaliseCompanyNumber`, `cleanPoNumber`, `previousStatementMonth`/`currentStatementMonth`/`recentStatementMonths` (Europe/London), `periodLabel`, `longDate`, `formatPounds`, `lineBalance`, `statementTotals`, `creditPosition`, `statementCsv` (formula-safe), `statementFileName`, `accountInvoiceTerms`, `accountErrorMessage`, labels |
+| `src/lib/accounts/queries.ts` (server, RLS client + explicit garage) | `listAccounts`, `getAccountDetail`, `getStatementDetail`, `getBookingAccount`, `getInvoiceAccount` (both null on any error), `listBookingFormAccounts`, `searchVehicles`, `searchCustomers` |
+| `src/lib/accounts/bookings.ts` | `checkBookingAccount` (before the booking), `chargeBookingToAccount` (`set_booking_account` after it) |
+| `src/lib/accounts/statement-email.ts` | `renderStatementEmail`, `sendStatementEmail` (`getChannel("email")`, key `account_statement:<id>:<n>`) |
+| `src/lib/accounts/statement-pdf.tsx` | `StatementDocument`, `renderStatementPdf` (@react-pdf, invoice style) |
+| `src/lib/accounts/jobs.ts` | `accountsStatementsHandler` (job `accounts.statements`) |
+| `src/app/app/(protected)/accounts/actions.ts` | `saveAccountAction`, `archiveAccountAction`, `searchAccountVehiclesAction`, `addAccountVehicleAction`, `removeAccountVehicleAction`, `searchAccountPeopleAction`, `addAccountPersonAction`, `removeAccountPersonAction`, `generateStatementAction`, `issueStatementAction`, `markStatementPaidAction`, `emailStatementAction`. All `requireSetupContext` (AAL2) + owner/manager + `featureProblem(admin, "fleet_accounts")` |
+
+Routes: `/app/accounts` (list; locked card + read-only list on Essentials), `/app/accounts/new`, `/app/accounts/[id]` (money, cars with MOT due when `mot_enabled`, add car by search or registration, drivers/contacts, not yet billed, recent bookings, statements + "Make or refresh"), `/app/accounts/[id]/edit`, `/app/accounts/statements/[id]` (issue, email, mark paid, print), `GET /api/admin/accounts/statements/[id]/pdf`, `GET /api/admin/accounts/statements/[id]/csv`. Nav: one line in `GROW_NAV_ITEMS` ("Fleet accounts").
+
+Changes to shared code (additive): `/app/bookings/new` gets an optional Account step (`account-chooser.tsx`; `?account=<id>` preselects) and the action checks the account before and calls `set_booking_account` after `createStaffBooking`; booking detail shows Account + PO (`?notice=account_not_set` if the link failed); invoice detail shows "Charged to account" and, for monthly accounts, "On the monthly statement" instead of the send panel; `sendInvoiceAction` refuses monthly-account invoices (`?notice=on_statement`); `renderInvoicePdf(invoice, garage, billTo?)` bills the account (invoice PDF route and email attachment); invoice-from-booking prefills payment terms / PO note.
+
+Job: `accounts.statements` in `JOB_KINDS`, registry (18 s), `daily` cron and its own cron name. Platform job, no payload: for each non-cancelled garage with an active monthly account, `generate_monthly_account_statements(garage, previous month in the garage's time zone)`. Run daily, so the 1st makes last month's drafts and a missed day catches up. It never emails.
+
+## Accounting sync (Phase 5, P5.10; DECISIONS A366–A373)
+
+### Schema (`supabase/migrations/20261029001000_accounting_sync.sql`; pgTAP `036_accounting_sync`)
+
+| Object | Notes |
+| --- | --- |
+| `accounting_connections` (tenant) | `provider` (`xero`/`quickbooks`/`sage`/`fake`), `status` (`pending` = organisation not chosen / `connected` / `needs_reconnect` / `disconnected`), `tenant_id`, `tenant_name`, `scopes text[]`, `settings jsonb` (account mapping, no secrets), `connected_by`, `connected_at`, `last_sync_at`, `last_error_code` (code only), `disconnected_at`. **One active (not disconnected) row per garage** (partial unique index). Owners and managers read; no staff writes. Disconnected rows stay as history |
+| `accounting_connection_secrets` (tenant, **service role only**) | `connection_id` pk (composite FK to the connection, cascade), `access_token_ct`, `refresh_token_ct` (AES-256-GCM ciphertext `v1.<iv>.<tag>.<data>`, checked by a constraint), `expires_at`, `refresh_expires_at`. RLS on, no grants for anon/authenticated and a deny-all select policy (`... and false`, so the table meets the 007 tenancy rules). Deleted on disconnect |
+| `accounting_sync_items` (tenant) | `connection_id`, `entity` (`contact`/`invoice`/`payment`), `local_id`, `remote_id`, `status` (`pending`/`synced`/`failed`), `attempts`, `next_attempt_at`, `last_error_code`, `synced_at`. Unique (`connection_id`, `entity`, `local_id`): idempotent per entity. Owners and managers read; written by definer functions and the job. Kept on disconnect |
+| Triggers `invoices_accounting_sync` (after update of status, draft → issued), `invoice_payments_accounting_sync` (after insert) | `accounting_queue_after_invoice_change()` → `accounting_queue_entity()`: only for garages whose effective plan has `accounting_sync` and that have a pending/connected/needs_reconnect connection. Any error is a `WARNING`, never blocks issuing or recording. No invoice function was changed |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `accounting_save_connection(garage, provider, tenant_id, tenant_name, scopes, connected_by, access_ct, refresh_ct, expires_at, refresh_expires_at)` | service (OAuth callback) | `require_garage_feature(…,'accounting_sync')`; reuses a pending/needs_reconnect row of the same provider + organisation (keeps its history), ends one of another provider/organisation; upserts the ciphertext; queues a sync when connected (items that waited during a `needs_reconnect` go out). Audited `accounting.connected` |
+| `accounting_choose_tenant(garage, connection, tenant_id, tenant_name, actor)` | service (server action, after the owner + plan check and checking the id is one the provider listed) | pending → connected, queues a sync. Audited |
+| `accounting_disconnect(garage, actor)` | service | ends the active connection, deletes its tokens, closes its pending items as `failed DISCONNECTED`, keeps history. Allowed on Essentials. Audited |
+| `enqueue_accounting_sync(garage, run_at)` | service, triggers | queues `accounting.sync {garageId}` unless one is already **queued** to run by then (no dedupe key: keys are unique for ever) |
+| `accounting_queue_entity(garage, entity, local_id)` | internal (triggers) | the plan + connection check, item insert (`on conflict do nothing`), job |
+| `accounting_request_sync() → int` ("Sync now") | owners/managers of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled), `require_garage_feature` | failed items → pending with fresh attempts; queues invoices issued and payments recorded since `connected_at` that have no item; queues the job. Audited |
+| `accounting_retry_item(item) → accounting_sync_items` ("Retry") | owners/managers, Pro | one failed item of the active connected connection → pending |
+| `accounting_due_garages(limit) → setof uuid` | service | garages with due pending items (daily fan-out) |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/accounting/types.ts` (client-safe) | `AccountingProvider` interface (`authorizeUrl`, `exchangeCode`, `refresh`, `revoke`, `listTenants`, `upsertContact`, `pushInvoice`, `pushPayment`), `TokenSet`, `ContactInput`/`InvoiceInput`/`PaymentInput`, `AccountingSettings`, `AccountingError` (`RATE_LIMITED` with `retryAfterSeconds`, `AUTH_EXPIRED`, `VALIDATION`, `NOT_FOUND`, `PROVIDER_UNAVAILABLE`, `NETWORK`, `CONFIGURATION_REQUIRED`, `UNEXPECTED_RESPONSE`; `.retryable`), `parseRetryAfter`, `penceToDecimal`, provider ids and names |
+| `src/lib/accounting/http.ts` | `send` (fetch with a 12 s timeout), `mapHttpError` (429 → RATE_LIMITED + Retry-After, 401/403 → AUTH_EXPIRED, 400/409/422 → VALIDATION, 404, 5xx), `mapTokenResponse`, `mapTokenError` (`invalid_grant` → AUTH_EXPIRED) |
+| `src/lib/accounting/providers/xero.ts` | `createXeroProvider`, pure `xeroRequests` / `xeroMappers`: OAuth + PKCE (login.xero.com, identity.xero.com), `GET /connections`, `Contacts` (find by `ContactNumber` `AF-<id>`, then by name, else create), `POST /Invoices` (ACCREC, AUTHORISED, `NoTax`, account `200`, discount as a negative line, `Idempotency-Key`), `PUT /Payments` (account `090`), revoke |
+| `src/lib/accounting/providers/quickbooks.ts` | `createQuickBooksProvider`, `quickbooksRequests` / `quickbooksMappers`: Intuit OAuth (realmId from the callback), CompanyInfo, Customer query/create, Invoice (SalesItemLineDetail with item `1`, DiscountLineDetail), Payment (LinkedTxn), `requestid` idempotency, Fault mapping; sandbox unless `QUICKBOOKS_ENVIRONMENT=production` |
+| `src/lib/accounting/providers/sage.ts` | `createSageProvider`, `sageRequests` / `sageMappers`: Sage OAuth, `/businesses` (`X-Business`), contacts (reference `AF…`), `sales_invoices` (looked up by number first; ledger account looked up), `contact_payments` (`CUSTOMER_RECEIPT`, allocated to the invoice; bank account looked up), `$dataCode` error mapping |
+| `src/lib/accounting/providers/fake.ts` | `createFakeProvider`, `fakeAccountingStore`, `resetFakeAccountingStore`, `FAKE_TENANTS`: in-memory OAuth with PKCE (redirects straight back to the callback), two organisations, idempotent creates, balance checks; switches by customer name: "Fail Once", "Rate Limit", "Auth Expired" |
+| `src/lib/accounting/providers/index.ts` | `getAccountingProvider(id, {env, fetch, now})`, `accountingMode` (`ACCOUNTING_PROVIDER_MODE`: `fake` default serves every choice with the fake, "(test mode)"; `live` = real adapters), `PROVIDER_ENV_VARS` |
+| `src/lib/accounting/crypto.ts` | `sealText`/`openText` (AES-256-GCM, associated data), `accountingKey` (`ACCOUNTING_TOKEN_KEY`; a fixed development key outside production, refuses in production), `hasAccountingKey`, `tokenAad(garageId)` |
+| `src/lib/accounting/oauth.ts` | `ACCOUNTING_OAUTH_COOKIE` (`af_accounting_oauth`: sealed {state, PKCE verifier, provider, garage, user, expiry}; httpOnly, SameSite=Lax, path `/api/admin/accounting`, 10 min), `createOAuthState`, `sealOAuthState`/`openOAuthState`, `pkceChallenge` (S256), `checkCallback` (state in constant time, expiry, provider, garage, user) |
+| `src/lib/accounting/sync.ts` | `runAccountingSync(garageId, deps)` and the `AccountingSyncRepo` seam: plan + connected check; invoices before payments (a payment waits for its invoice, fails `INVOICE_NOT_SYNCED` if the invoice failed); contact found/created on the way; refresh 60 s before expiry and once on AUTH_EXPIRED, refused refresh → `needs_reconnect` (items stay pending); RATE_LIMITED stops the run and queues the next after Retry-After; retryable errors back off 2, 4, 8 … min, `failed` after 6 attempts; validation/not found fail at once; void invoices are not sent; batch of 25, respects the job deadline; codes only |
+| `src/lib/accounting/repository.ts` | `createSupabaseAccountingRepo(db)`, `sealTokens`/`openTokens`, `loadConnectionTokens`, `saveConnectionTokens` (service role, every query names the garage) |
+| `src/lib/accounting/server.ts` | `loadAccountingOverview(client, garageId)` (RLS client: counts, failed list, recent), `saveConnection`, `listConnectionTenants`, `chooseTenant`, `disconnect` (revoke at the provider best effort, then `accounting_disconnect`), `accountingCallbackUrl` |
+| `src/lib/accounting/routes.ts` | `requireAccountingOwner(request)` (signed in, not impersonating, MFA done, `featureGuard` 403 `PLAN_REQUIRED`, owner), `settingsRedirect`, `isSameOrigin`, `routeProvider` |
+| `src/lib/accounting/jobs.ts` | `accounting.sync` handler: with `garageId` runs the engine; without (daily cron) queues each garage from `accounting_due_garages()` |
+
+Routes:
+
+| Route | Who | What |
+| --- | --- | --- |
+| `/app/settings/accounting` | owners and managers (technicians see "owners and managers only"); Essentials → `ProLockedPage` (+ disconnect of an old connection) | choose Xero / QuickBooks / Sage (owners; "Configuration required" when the app's keys are missing), choose organisation, connection details, reconnect banner (`#reconnect-banner`) when `needs_reconnect`, Sync now (owners/managers), Needs attention list with Retry, sync status counts and recent items, Disconnect with confirmation (owners). Actions in `settings/accounting/actions.ts` (`requireSetupContext`, garage from the session) |
+| `POST /api/admin/accounting/[provider]/connect` | owner, MFA, Pro, same origin | sets the state cookie, 303 to the provider's consent page; 403 `PLAN_REQUIRED` on Essentials; GET → 405 |
+| `GET /api/admin/accounting/[provider]/callback` | owner, MFA, Pro | checks the cookie against the query state and the session's garage and user, exchanges the code (PKCE verifier), lists organisations, stores encrypted tokens, 303 back (`?choose=1` when several organisations). Never logs codes, tokens or provider text |
+
+Jobs: `accounting.sync` added to `JOB_KINDS` (after `billing.close_usage`), the registry (18 s) and the `daily` cron plus its own `accounting.sync` cron name. Sync now and Retry drain `accounting.sync` straight after the response (`after()`), like Askbridge.
+
+Nav: one line in `PRO_SETUP_NAV_ITEMS` (`Accounting`, `Calculator` icon). Env (`.env.example`, `# P5.10`): `ACCOUNTING_PROVIDER_MODE`, `ACCOUNTING_TOKEN_KEY`, `XERO_CLIENT_ID/SECRET`, `QUICKBOOKS_CLIENT_ID/SECRET`, `QUICKBOOKS_ENVIRONMENT`, `SAGE_CLIENT_ID/SECRET`.
+
+Shared files touched (additive): `src/lib/jobs/{types,registry,cron}.ts`, `src/components/admin-ui/admin-nav.tsx` (icon import + one nav line), `src/__tests__/jobs-routes.test.ts` and `src/__tests__/admin-shell.test.tsx` (now derive the daily kinds and the Pro nav items instead of hard-coding them), `tests/integration/tenancy.test.ts` (fixtures), `playwright.garage.config.ts` (project + a local-only `ACCOUNTING_TOKEN_KEY` for the production build), `tests/e2e/garage-specs.ts`, `package.json` (`test:e2e:p5-accounting`), `.env.example`.

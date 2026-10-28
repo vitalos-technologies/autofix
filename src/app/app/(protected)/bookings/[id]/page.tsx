@@ -7,9 +7,11 @@ import { z } from "zod";
 import { BookingEmailThreadButton } from "@/components/admin/booking-email-thread-button";
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
 import { PageHeader, Panel, SOURCE_LABELS, StatusPill, buttonClass, textLinkClass } from "@/components/admin-ui";
+import { BookingPaymentsPanel } from "@/components/payments/panels";
 import { formatServicePrice, formatSlotLabel, formatTime } from "@/components/book/format";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CHANGE_MESSAGES } from "@/lib/admin/booking-changes";
+import { getBookingAccount } from "@/lib/accounts/queries";
 import { formatUkPhone, telLink, vehicleName } from "@/lib/admin/bookings";
 import { AdminDataError, loadBookingDetail, loadOpeningHours } from "@/lib/admin/data";
 import { addDays, isoWeekday, localDateKey } from "@/lib/admin/dates";
@@ -18,18 +20,23 @@ import { formatPounds } from "@/lib/health-checks/checklist";
 import { loadBookingHealthCheck, type BookingHealthCheck } from "@/lib/health-checks/server";
 import { healthCheckStatusLine } from "@/lib/health-checks/view";
 import { garageHasFeature } from "@/lib/plans/server";
+import { loadBookingAssignment, loadTeamOptions } from "@/lib/reports/assignments";
+import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { markBookingSeenAction, startBookingEnquiryThreadAction } from "../actions";
 import { startHealthCheckAction } from "../../health-checks/actions";
 import { RescheduleControls } from "./booking-controls";
+import { CourtesyBookingPanel } from "./courtesy-panel";
 import { NoteForm } from "./note-form";
 import { StatusControls } from "./status-controls";
+import { TechnicianForm } from "./technician-form";
 
 export const metadata: Metadata = { title: "Booking" };
 
 const NOTICES: Record<string, { tone: "error" | "success"; text: string }> = {
   created: { tone: "success", text: "Booking made. The customer gets their confirmation now." },
+  account_not_set: { tone: "error", text: "Booking made, but it could not be charged to the account. Check the account and PO number." },
   ...Object.fromEntries(Object.entries(CHANGE_MESSAGES).map(([code, text]) => [code, { tone: "error" as const, text }])),
 };
 
@@ -85,7 +92,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * collected; cancel; no-show), moving it, notes and the booking_events timeline. Reads and status
  * writes go through the garage's RLS client; another garage's booking is "not found".
  */
-export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
+export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string; courtesy?: string; courtesyError?: string; payments?: string }> }) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const admin = await getAdminContext({ allowTrustedDevice: true });
@@ -102,7 +109,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   }
   if (booking === null) notFound();
 
-  const notice = NOTICES[(await searchParams).notice ?? ""] ?? null;
+  const query = await searchParams;
+  const notice = NOTICES[query.notice ?? ""] ?? null;
   if (!booking) {
     return (
       <div className="flex flex-col gap-5">
@@ -114,6 +122,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
     );
   }
 
+  // P5.7: the fleet or trade account (and PO) the booking is charged to, if any.
+  const account = await getBookingAccount(admin.client, admin.garage.id, booking.id);
   const tel = telLink(booking.customerPhone);
   const car = vehicleName(booking);
   const today = localDateKey(new Date(), timeZone);
@@ -123,6 +133,13 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   const timeline = booking.events.map((event) => timelineEntry(event, { currentUserId: admin.user.id, timeZone }));
   const healthCheck = await loadBookingHealthCheck(admin.client, booking.id);
   const canStartHealthCheck = garageHasFeature(admin.garage, "health_checks") && booking.status !== "cancelled" && booking.status !== "no_show";
+  // P5.6: who did the job (Pro, set by owners/managers; kept readable after a downgrade).
+  const reportsOn = garageHasFeature(admin.garage, "advanced_reports");
+  const canAssign = reportsOn && canManageSetup(admin.role);
+  const [assignment, team] = await Promise.all([
+    loadBookingAssignment(admin.client, booking.id),
+    canAssign ? loadTeamOptions(admin.client) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -181,6 +198,12 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
                 {SOURCE_LABELS[booking.source]}, {formatSlotLabel(booking.createdAt, timeZone)}
               </Fact>
               {booking.status === "cancelled" && booking.cancellationReason ? <Fact label="Cancelled">{booking.cancellationReason}</Fact> : null}
+              {account ? (
+                <Fact label="Account">
+                  <Link href={`/app/accounts/${account.accountId}`} className={textLinkClass}>{account.name}</Link>
+                  <span className="block text-grey-600">{account.poNumber ? `PO ${account.poNumber}` : "No PO number"}</span>
+                </Fact>
+              ) : null}
             </dl>
             {booking.symptoms.length > 0 ? (
               <div className="flex flex-col gap-1.5">
@@ -199,6 +222,17 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <p className="m-0 text-[15px] leading-normal whitespace-pre-wrap text-grey-800">{booking.notes ?? "No note."}</p>
             </div>
           </Panel>
+
+          {canAssign ? (
+            <Panel id="technician" title="Technician">
+              <TechnicianForm bookingId={booking.id} current={assignment} team={team} />
+            </Panel>
+          ) : assignment ? (
+            <Panel id="technician" title="Technician">
+              <p className="m-0 text-[15px] text-grey-800">{assignment.technicianName} did this job.</p>
+            </Panel>
+          ) : null}
+          <BookingPaymentsPanel admin={admin} bookingId={booking.id} status={booking.status} flash={query.payments} />
 
           <Panel id="move" title="Move this booking">
             {movable ? (
@@ -236,6 +270,13 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
           </Panel>
 
           <HealthCheckPanel bookingId={booking.id} check={healthCheck} canStart={canStartHealthCheck} />
+          <CourtesyBookingPanel
+            client={admin.client}
+            garage={admin.garage}
+            booking={booking}
+            timeZone={timeZone}
+            flash={{ done: query.courtesy, error: query.courtesyError }}
+          />
 
           <Panel id="history" title="History">
             <NoteForm bookingId={booking.id} />

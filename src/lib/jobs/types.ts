@@ -18,6 +18,9 @@ export const JOB_KINDS = [
   "platform.close_impersonations",
   "plans.expire_trials",
   "billing.close_usage",
+  "payments.expire_deposits",
+  "accounts.statements",
+  "accounting.sync",
   "customers.enrich",
   "mot.refresh",
 ] as const;

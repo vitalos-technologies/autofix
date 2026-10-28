@@ -96,12 +96,15 @@ const s = StyleSheet.create({
   footerBrand: { width: "66%", color: c.secondary, fontSize: 7.2 }, footerStrong: { color: c.navy, fontFamily: "Helvetica-Bold" }, footerMeta: { width: "31%", textAlign: "right", color: c.secondary, fontSize: 7.2 },
 });
 
-export async function renderInvoicePdf(invoice: Invoice, garage: InvoiceGarage) {
+/** P5.7: the fleet or trade account an invoice is charged to (bill-to snapshot and PO), shown as "Billed to". */
+export type InvoiceBillTo = { name: string; email: string | null; address: string | null; poNumber: string | null };
+
+export async function renderInvoicePdf(invoice: Invoice, garage: InvoiceGarage, billTo: InvoiceBillTo | null = null) {
   const logo = await loadGarageLogo(garage.logoUrl);
-  return renderToBuffer(<InvoiceDocument invoice={invoice} garage={garage} logo={logo} />);
+  return renderToBuffer(<InvoiceDocument invoice={invoice} garage={garage} logo={logo} billTo={billTo} />);
 }
 
-export function InvoiceDocument({ invoice, garage, logo }: { invoice: Invoice; garage: InvoiceGarage; logo: string | null }) {
+export function InvoiceDocument({ invoice, garage, logo, billTo = null }: { invoice: Invoice; garage: InvoiceGarage; logo: string | null; billTo?: InvoiceBillTo | null }) {
   const website = new URL(garageBaseUrl(garage)).host;
   const watermark = invoice.status === "draft" ? "DRAFT" : invoice.status === "void" ? "VOID" : null;
   const status = invoiceStatusLabel(invoice.status).toUpperCase();
@@ -122,7 +125,7 @@ export function InvoiceDocument({ invoice, garage, logo }: { invoice: Invoice; g
 
       <SummaryStrip invoice={invoice} status={status} />
       <View style={s.details} wrap={false}>
-        <View style={s.detailColumn}><SectionHeading>Billed to</SectionHeading><Text style={s.customerName}>{invoice.customer_name}</Text>{splitAddress(invoice.customer_address).map((line, index) => <Text key={`${line}-${index}`} style={s.detailLine}>{line}</Text>)}{invoice.customer_email && <Text style={s.detailLine}>{invoice.customer_email}</Text>}{invoice.customer_phone && <Text style={s.detailLine}>{invoice.customer_phone}</Text>}</View>
+        {billTo ? <View style={s.detailColumn}><SectionHeading>Billed to</SectionHeading><Text style={s.customerName}>{billTo.name}</Text>{splitAddress(billTo.address).map((line, index) => <Text key={`${line}-${index}`} style={s.detailLine}>{line}</Text>)}{billTo.email && <Text style={s.detailLine}>{billTo.email}</Text>}{billTo.poNumber && <Text style={s.detailLine}>PO: {billTo.poNumber}</Text>}<Text style={s.detailLine}>Driver: {invoice.customer_name}</Text></View> : <View style={s.detailColumn}><SectionHeading>Billed to</SectionHeading><Text style={s.customerName}>{invoice.customer_name}</Text>{splitAddress(invoice.customer_address).map((line, index) => <Text key={`${line}-${index}`} style={s.detailLine}>{line}</Text>)}{invoice.customer_email && <Text style={s.detailLine}>{invoice.customer_email}</Text>}{invoice.customer_phone && <Text style={s.detailLine}>{invoice.customer_phone}</Text>}</View>}
         <View style={s.detailColumn}><SectionHeading>Vehicle / Service</SectionHeading>{invoice.vehicle_registration && <View style={s.registrationPanel}><Text style={s.registration}>{invoice.vehicle_registration.toUpperCase()}</Text></View>}{vehicleName(invoice) && <Text style={s.vehicleName}>{vehicleName(invoice)}</Text>}{invoice.service_name && <Text style={s.service}>{invoice.service_name}</Text>}{invoice.appointment_start && <Text style={s.detailLine}>{formatDateTime(invoice.appointment_start)}</Text>}{!invoice.vehicle_registration && !vehicleName(invoice) && !invoice.service_name && <Text style={s.detailLine}>No vehicle or service details recorded.</Text>}</View>
       </View>
 

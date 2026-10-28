@@ -6,6 +6,9 @@ import { readBookingSession } from "@/lib/booking-engine/state";
 import { LOCATION_LABELS } from "@/lib/booking-flow/copy";
 import { loadBookingServices, needsHumanCheck } from "@/lib/booking-flow/server";
 import { redirectForStep } from "@/lib/booking-flow/steps";
+import { getBookingExtrasOptions } from "@/lib/courtesy/booking-site";
+import { formatPounds } from "@/lib/payments/amounts";
+import { depositQuote } from "@/lib/payments/server";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { BookingScreen, BookingUnavailable } from "../_components/booking-screen";
 import { DetailsStep } from "../_components/details-step";
@@ -33,6 +36,13 @@ export default async function DetailsPage({ params }: { params: Promise<{ garage
   const target = redirectForStep("details", draft, services);
   if (target) redirect(target);
   const service = services.find((item) => item.id === draft.serviceId)!;
+  const extras = await getBookingExtrasOptions(garage, {
+    serviceId: service.id,
+    startsAt: draft.startsAt!,
+    durationMin: service.durationMin,
+    locationMode: draft.locationMode ?? "workshop",
+  });
+  const deposit = await depositQuote(garage, service.id);
 
   return (
     <BookingScreen garage={garage} step={4} subtitle="Almost done" back={back}>
@@ -51,6 +61,8 @@ export default async function DetailsPage({ params }: { params: Promise<{ garage
         motEnabled={garage.motEnabled}
         needsApproval={service.needsApproval || garage.approveOnline}
         humanCheck={needsHumanCheck(meta)}
+        extras={extras}
+        deposit={deposit ? { amount: formatPounds(deposit.amountPence), holdMin: deposit.holdMin } : null}
       />
     </BookingScreen>
   );
