@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseTokenName, type IssueTokenState } from "@/lib/ai-front-desk/forms";
 import { issueAgentToken } from "@/lib/agent-api/store";
+import { AgentTokenConfigError } from "@/lib/agent-api/tokens";
 import { isPlanRequiredDatabaseError, PlanRequiredError } from "@/lib/plans/entitlements";
 import { featureProblem } from "@/lib/plans/server";
 import { auditSetupChange, NOT_ALLOWED_MESSAGES, requireSetupContext, roleAllows, stateFor } from "@/lib/settings/server";
@@ -42,7 +43,11 @@ export async function issueWorkforceTokenAction(previous: IssueTokenState, formD
   try {
     issued = await issueAgentToken({ garageId: admin.garage.id, name: parsed.name, audience: "workforce" }, createAdminClient());
   } catch (error) {
-    const message = error instanceof PlanRequiredError ? error.message : "The token could not be created. Try again.";
+    const message = error instanceof PlanRequiredError
+      ? error.message
+      : error instanceof AgentTokenConfigError
+        ? "Tokens can't be created until Vitalos finishes setting up the AI front desk. Try again later."
+        : "The token could not be created. Try again.";
     return stateFor(previous, { status: "error", message });
   }
   await auditSetupChange(admin, "agent_token.issued", "agent_token", issued.id, { name: issued.name, audience: issued.audience });

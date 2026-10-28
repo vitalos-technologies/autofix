@@ -34,7 +34,7 @@ export function IssueTokenForm({ canEdit }: { canEdit: boolean }) {
             autoComplete="off"
             disabled={!canEdit}
             error={state.fieldErrors?.name}
-            className="min-w-0 flex-[1_1_260px]"
+            fieldClassName="min-w-0 flex-[1_1_260px]"
           />
           <SubmitButton disabled={!canEdit} className={buttonClass("primary", "md", "w-full sm:w-auto")}>
             <KeyRound size={16} strokeWidth={2} aria-hidden="true" />
