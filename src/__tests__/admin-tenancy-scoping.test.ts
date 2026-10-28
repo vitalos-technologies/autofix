@@ -189,8 +189,11 @@ describe("admin pages stay on the garage's RLS client", () => {
       "src/app/app/(protected)/bookings/actions.ts",
       "src/app/app/(protected)/configuration/security/actions.ts",
       "src/app/app/(protected)/configuration/security/page.tsx",
+      // P5.12: issue_agent_token() is service-role only (agent_tokens has no staff grant); the garage is the context garage.
+      "src/app/app/(protected)/settings/ai-front-desk/actions.ts",
       "src/app/app/(protected)/settings/booking-page/actions.ts",
     ]);
+    expect(readFileSync(join(root, "src/app/app/(protected)/settings/ai-front-desk/actions.ts"), "utf8")).toContain("issueAgentToken({ garageId: admin.garage.id");
     expect(readFileSync(join(root, "src/app/app/(protected)/bookings/actions.ts"), "utf8")).toContain("p_garage_id: admin.garage.id");
     const bookingPage = readFileSync(join(root, "src/app/app/(protected)/settings/booking-page/actions.ts"), "utf8");
     expect(bookingPage.match(/Domain\(admin\.garage\.id|DomainNow\(admin\.garage\.id/g)?.length).toBe(4);

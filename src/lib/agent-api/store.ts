@@ -3,8 +3,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BookingEngineError } from "@/lib/booking-engine/errors";
 import { findBookingForManage, type ManagedBooking } from "@/lib/booking-engine/manage";
-import { agentTools, isAgentTool, type AgentErrorCode, type AgentTool } from "@/lib/agent-api/schemas";
+import { agentTools, ASKBRIDGE_TOOLS, isAgentTokenAudience, isAgentTool, type AgentErrorCode, type AgentTokenAudience, type AgentTool } from "@/lib/agent-api/schemas";
 import { generateAgentToken, hashAgentToken } from "@/lib/agent-api/tokens";
+import { isPlanRequiredDatabaseError, PlanRequiredError, type PlanState } from "@/lib/plans/entitlements";
+import { recordUsage, type UsageRecorder } from "@/lib/plans/usage";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { GarageAddress } from "@/lib/tenancy/garage";
 
@@ -18,9 +20,14 @@ export type AgentTokenRecord = {
   garageId: string;
   tokenHash: string;
   scopes: AgentTool[];
+  /** P5.12: `workforce` (AI front desk, needs Pro) or `askbridge` (website chat, Essentials). */
+  audience: AgentTokenAudience;
   revokedAt: string | null;
-  garage: { status: string; motEnabled: boolean; timezone: string };
+  garage: { status: string; motEnabled: boolean; timezone: string; plan: PlanState };
 };
+
+/** `recorded`: counted now; `replayed`: this conversation was already counted (`minutes` is the stored figure); `failed`: try again. */
+export type AiMinutesResult = { status: "recorded" | "replayed"; minutes: number } | { status: "failed" };
 
 export type AgentCallEntry = {
   garageId: string;
@@ -57,6 +64,13 @@ export interface AgentApiStore {
   recordCall(entry: AgentCallEntry): Promise<void>;
   garageProfile(garageId: string, today: string): Promise<AgentGarageRecord | null>;
   findBooking(garageId: string, reference: string, registration: string): Promise<ManagedBooking | null>;
+  /** P5.12: AI front desk minutes for one conversation, once per conversation id (`ai:<conversationId>`). Never throws. */
+  recordAiMinutes(input: { garageId: string; conversationId: string; minutes: number; endedAt: Date }): Promise<AiMinutesResult>;
+}
+
+/** The usage source key for one AI front desk conversation. */
+export function aiUsageSourceKey(conversationId: string) {
+  return `ai:${conversationId}`;
 }
 
 type Related<T> = T | T[] | null;
@@ -67,8 +81,9 @@ type TokenRow = {
   garage_id: string;
   token_hash: string;
   scopes: string[] | null;
+  audience: string | null;
   revoked_at: string | null;
-  garages: Related<{ status: string; mot_enabled: boolean | null; timezone: string | null }>;
+  garages: Related<{ status: string; mot_enabled: boolean | null; timezone: string | null; plan: string | null; trial_ends_at: string | null; plan_chosen: string | null }>;
 };
 
 /** `last_used_at` is refreshed at most once a minute per token. */
@@ -100,7 +115,11 @@ function activeCustomDomain(domains: Array<{ hostname: string; kind: string | nu
 
 const hhmm = (value: string) => value.slice(0, 5);
 
-export function createSupabaseAgentApiStore(getClient: () => SupabaseClient | null = createAdminClient, now: () => Date = () => new Date()): AgentApiStore {
+export function createSupabaseAgentApiStore(
+  getClient: () => SupabaseClient | null = createAdminClient,
+  now: () => Date = () => new Date(),
+  record: UsageRecorder = recordUsage,
+): AgentApiStore {
   function client() {
     const value = getClient();
     if (!value) throw new BookingEngineError("UNAVAILABLE");
@@ -111,7 +130,7 @@ export function createSupabaseAgentApiStore(getClient: () => SupabaseClient | nu
     async findToken(tokenHash) {
       const { data, error } = await client()
         .from("agent_tokens")
-        .select("id,garage_id,token_hash,scopes,revoked_at,garages(status,mot_enabled,timezone)")
+        .select("id,garage_id,token_hash,scopes,audience,revoked_at,garages(status,mot_enabled,timezone,plan,trial_ends_at,plan_chosen)")
         .eq("token_hash", tokenHash)
         .maybeSingle();
       if (error) throw new BookingEngineError("UNAVAILABLE");
@@ -124,9 +143,37 @@ export function createSupabaseAgentApiStore(getClient: () => SupabaseClient | nu
         garageId: row.garage_id,
         tokenHash: row.token_hash,
         scopes: (row.scopes ?? []).filter(isAgentTool),
+        // Anything unexpected is treated as workforce: the stricter of the two (needs Pro).
+        audience: isAgentTokenAudience(row.audience) ? row.audience : "workforce",
         revokedAt: row.revoked_at,
-        garage: { status: garage.status, motEnabled: Boolean(garage.mot_enabled), timezone: garage.timezone || "Europe/London" },
+        garage: {
+          status: garage.status,
+          motEnabled: Boolean(garage.mot_enabled),
+          timezone: garage.timezone || "Europe/London",
+          plan: { plan: garage.plan, trialEndsAt: garage.trial_ends_at, planChosen: garage.plan_chosen },
+        },
       };
+    },
+
+    async recordAiMinutes({ garageId, conversationId, minutes, endedAt }) {
+      const sourceKey = aiUsageSourceKey(conversationId);
+      if (await record({ garageId, metric: "ai_minutes", quantity: minutes, sourceKey, at: endedAt })) {
+        return { status: "recorded", minutes: Math.round(minutes * 100) / 100 };
+      }
+      // recordUsage() is false both for a source already counted and for a failure: look for the row.
+      try {
+        const { data, error } = await client()
+          .from("usage_events")
+          .select("quantity")
+          .eq("garage_id", garageId)
+          .eq("metric", "ai_minutes")
+          .eq("source_key", sourceKey)
+          .maybeSingle();
+        if (error || !data) return { status: "failed" };
+        return { status: "replayed", minutes: Number((data as { quantity: number | string }).quantity) };
+      } catch {
+        return { status: "failed" };
+      }
     },
 
     async recordCall(entry) {
@@ -214,25 +261,39 @@ export function setAgentApiStoreForTests(next: AgentApiStore | null) {
   store = next;
 }
 
-export type IssuedAgentToken = { id: string; garageId: string; name: string; scopes: AgentTool[]; createdAt: string; token: string };
+export type IssuedAgentToken = { id: string; garageId: string; name: string; scopes: AgentTool[]; audience: AgentTokenAudience; createdAt: string; token: string };
 
 /**
  * Issues a token for one garage (service role). The raw token is in the result
  * and nowhere else: hand it to Workforce/Askbridge and do not store it.
+ * P5.12: `audience` defaults to `workforce` (every tool, report_usage included;
+ * the garage needs Pro, else PlanRequiredError); `askbridge` tokens get the
+ * read-only tools.
  */
 export async function issueAgentToken(
-  input: { garageId: string; name: string; scopes?: readonly AgentTool[] },
+  input: { garageId: string; name: string; scopes?: readonly AgentTool[]; audience?: AgentTokenAudience },
   client: SupabaseClient | null = createAdminClient(),
 ): Promise<IssuedAgentToken> {
   if (!client) throw new BookingEngineError("UNAVAILABLE");
+  const audience = input.audience ?? "workforce";
   const token = generateAgentToken();
   const { data, error } = await client.rpc("issue_agent_token", {
     p_garage_id: input.garageId,
     p_name: input.name,
-    p_scopes: input.scopes ? [...input.scopes] : [...agentTools],
+    p_scopes: input.scopes ? [...input.scopes] : audience === "askbridge" ? [...ASKBRIDGE_TOOLS] : [...agentTools],
     p_token_hash: hashAgentToken(token),
+    p_audience: audience,
   });
+  if (isPlanRequiredDatabaseError(error)) throw new PlanRequiredError("ai_front_desk");
   if (error || !data) throw new Error(`issue_agent_token failed: ${error?.code ?? "no result"}`);
-  const row = data as { id: string; garage_id: string; name: string; scopes: string[]; created_at: string };
-  return { id: row.id, garageId: row.garage_id, name: row.name, scopes: row.scopes.filter(isAgentTool), createdAt: row.created_at, token };
+  const row = data as { id: string; garage_id: string; name: string; scopes: string[]; audience?: string; created_at: string };
+  return {
+    id: row.id,
+    garageId: row.garage_id,
+    name: row.name,
+    scopes: row.scopes.filter(isAgentTool),
+    audience: isAgentTokenAudience(row.audience) ? row.audience : audience,
+    createdAt: row.created_at,
+    token,
+  };
 }

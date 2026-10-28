@@ -1,6 +1,7 @@
 import "server-only";
 
-import { afterRecordingTwiml, dialTwiml, isTwilioRecordingUrl, isVoiceStep, MISSED_DIAL_STATUSES, voicemailTwiml, voiceStepUrl, type VoiceStep } from "@/lib/calls/twiml";
+import { workforceSipUri, workforceVoiceTarget, type WorkforceVoiceTarget } from "@/lib/ai-front-desk/hand-off";
+import { afterRecordingTwiml, agentDialTwiml, dialTwiml, isTwilioRecordingUrl, isVoiceStep, MISSED_DIAL_STATUSES, voicemailTwiml, voiceStepUrl, type VoiceStep } from "@/lib/calls/twiml";
 import { createJobLogger } from "@/lib/jobs/log";
 import { safeErrorCode, type JobKind, type JobLogger } from "@/lib/jobs/types";
 import type { ChannelKind, DeliveryStatus } from "./channel";
@@ -34,6 +35,13 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 //   voicemail (?step=recorded / ?step=recording store its link). A missed call
 //   queues `calls.text_back`, drained after the response, so the caller gets
 //   the text within seconds.
+// - voice, AI front desk (P5.12, Pro): where a call is missed, a garage on Pro
+//   with the front desk switched on (ai_front_desk_hand_off()) and a platform
+//   Workforce SIP target (WORKFORCE_VOICE_SIP_URI) is put through to the
+//   Workforce agent instead (no text-back queued); ?step=agent falls back to
+//   the voicemail and the text-back when that leg isn't answered. Without all
+//   three, or if the check fails, the flow above is unchanged
+//   (src/lib/ai-front-desk/hand-off.ts).
 // Logs carry ids, kinds and outcome codes only: never numbers or bodies.
 
 export type TwilioWebhookKind = "sms" | "whatsapp" | "status" | "voice";
@@ -88,6 +96,10 @@ export interface TwilioWebhookRepo {
   /** Stores the voicemail link on the call (by CallSid, unique across garages); false when there is no such call. */
   recordVoicemail(callSid: string, voicemail: { url: string; durationSeconds: number | null }): Promise<boolean>;
   queueTextBack(garageId: string, callId: string): Promise<void>;
+  /** P5.12: hand this garage's missed calls to the Workforce agent (ai_front_desk_hand_off())? Absent means never. */
+  aiFrontDeskHandOff?(garageId: string): Promise<boolean>;
+  /** P5.12: the call row for a CallSid in this garage (the text-back after an unanswered Workforce leg). */
+  findCallId?(garageId: string, callSid: string): Promise<string | null>;
 }
 
 export type TwilioWebhookDeps = {
@@ -98,6 +110,8 @@ export type TwilioWebhookDeps = {
   /** Drains the jobs the webhook queued (HELP answers, text-backs) after the response. */
   drainQueued?: (kinds: JobKind[]) => Promise<unknown>;
   log?: JobLogger;
+  /** P5.12: the Workforce SIP target; undefined reads WORKFORCE_VOICE_SIP_URI from `env` (or process.env). */
+  workforceVoiceTarget?: WorkforceVoiceTarget | null;
 };
 
 type Outcome = { status: "processed" | "ignored"; outcome: string; response?: Response; queued?: JobKind[] };
@@ -197,13 +211,33 @@ function seconds(raw: string | undefined, max: number) {
 const FORWARD_LOOP_WINDOW_MS = 2 * 60 * 1000;
 const DIAL_STATUSES = new Set(["completed", "answered", "busy", "no-answer", "failed", "canceled"]);
 
-type VoiceContext = { signedUrl: string; step: VoiceStep | null };
+type VoiceContext = { signedUrl: string; step: VoiceStep | null; agentTarget: WorkforceVoiceTarget | null };
 
 function voicemail(routed: RoutedNumber, context: VoiceContext) {
   return twimlResponse(voicemailTwiml({
     garageName: routed.garageName,
     recordedUrl: voiceStepUrl(context.signedUrl, "recorded"),
     recordingStatusUrl: voiceStepUrl(context.signedUrl, "recording"),
+  }));
+}
+
+/**
+ * P5.12 hook point: the Workforce target when this missed call goes to the AI front desk, else null
+ * (Essentials, switched off, not configured, or the check failed: never lose a call over it).
+ */
+async function aiFrontDeskTarget(repo: TwilioWebhookRepo, garageId: string, context: VoiceContext): Promise<WorkforceVoiceTarget | null> {
+  if (!context.agentTarget || !repo.aiFrontDeskHandOff) return null;
+  try {
+    return (await repo.aiFrontDeskHandOff(garageId)) ? context.agentTarget : null;
+  } catch {
+    return null;
+  }
+}
+
+function agentDial(target: WorkforceVoiceTarget, routed: RoutedNumber, callSid: string, context: VoiceContext) {
+  return twimlResponse(agentDialTwiml({
+    sipUri: workforceSipUri(target, { garageId: routed.garageId, callSid }),
+    actionUrl: voiceStepUrl(context.signedUrl, "agent"),
   }));
 }
 
@@ -216,6 +250,7 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
   const to = stripWhatsApp(form.To);
   if (!isE164(to)) return null;
   if (context.step === "dial") return dialFinished(form, repo, callSid, to, context);
+  if (context.step === "agent") return agentFinished(form, repo, callSid, to, context);
 
   const rawStatus = form.CallStatus?.trim().toLowerCase() || "ringing";
   const callStatus = CALL_STATUSES.has(rawStatus) ? rawStatus : "ringing";
@@ -240,18 +275,20 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
     const loop = target !== null
       && (form.ForwardedFrom?.trim() === target || (from !== null && await repo.callerRangRecently(routed.garageId, from, callSid, FORWARD_LOOP_WINDOW_MS)));
     const dialling = target !== null && !loop;
+    const agent = dialling ? null : await aiFrontDeskTarget(repo, routed.garageId, context);
     let queued: JobKind[] | undefined;
     if (record) {
       const { callId } = await repo.recordCall({ garageId: routed.garageId, callSid, from, to, status: callStatus, durationSeconds: null, missed: !dialling });
-      if (!dialling && callId) {
+      if (!dialling && !agent && callId) {
         await repo.queueTextBack(routed.garageId, callId);
         queued = ["calls.text_back"];
       }
     }
     const response = dialling && target
       ? twimlResponse(dialTwiml({ number: target, actionUrl: voiceStepUrl(context.signedUrl, "dial") }))
-      : voicemail(routed, context);
-    return { status: "processed", outcome: dialling ? "call_dialling" : loop ? "call_forward_returned" : "call_missed", response, queued };
+      : agent ? agentDial(agent, routed, callSid, context) : voicemail(routed, context);
+    const outcome = dialling ? "call_dialling" : agent ? "call_ai_front_desk" : loop ? "call_forward_returned" : "call_missed";
+    return { status: "processed", outcome, response, queued };
   };
 
   // A repeated request (Twilio retrying a slow answer) gets the same TwiML, without the writes.
@@ -270,17 +307,51 @@ async function dialFinished(form: Record<string, string>, repo: TwilioWebhookRep
   const answer = async (record: boolean): Promise<Outcome> => {
     const routed = await repo.findGarageByNumber(to);
     if (!routed) return { status: "ignored", outcome: "unrouted", response: twimlResponse("<Hangup/>") };
+    const agent = missed ? await aiFrontDeskTarget(repo, routed.garageId, context) : null;
     let queued: JobKind[] | undefined;
     if (record) {
       const { callId } = await repo.recordDialOutcome(routed.garageId, callSid, { dialStatus, missed, durationSeconds: seconds(form.DialCallDuration, 86_400) });
-      if (missed && callId) {
+      if (missed && !agent && callId) {
         await repo.queueTextBack(routed.garageId, callId);
         queued = ["calls.text_back"];
       }
     }
     return {
       status: "processed",
-      outcome: missed ? "dial_missed" : "dial_answered",
+      outcome: missed ? (agent ? "dial_missed_ai_front_desk" : "dial_missed") : "dial_answered",
+      response: missed ? (agent ? agentDial(agent, routed, callSid, context) : voicemail(routed, context)) : twimlResponse("<Hangup/>"),
+      queued,
+    };
+  };
+
+  if (!claimed) return { ...(await answer(false)), outcome: "duplicate", queued: undefined };
+  return withEvent(repo, eventKey, () => answer(true));
+}
+
+/**
+ * `?step=agent` (P5.12): how the Workforce leg went. Answered: done (Workforce reports the minutes).
+ * Not answered: the Essentials fallback, voicemail plus the text-back.
+ */
+async function agentFinished(form: Record<string, string>, repo: TwilioWebhookRepo, callSid: string, to: string, context: VoiceContext): Promise<Outcome> {
+  const raw = form.DialCallStatus?.trim().toLowerCase() ?? "";
+  const missed = MISSED_DIAL_STATUSES.has(DIAL_STATUSES.has(raw) ? raw : "failed");
+  const eventKey = `voice:${callSid}:agent`;
+  const claimed = await repo.claimEvent(eventKey, "voice", callSid);
+
+  const answer = async (record: boolean): Promise<Outcome> => {
+    const routed = await repo.findGarageByNumber(to);
+    if (!routed) return { status: "ignored", outcome: "unrouted", response: twimlResponse("<Hangup/>") };
+    let queued: JobKind[] | undefined;
+    if (record && missed && repo.findCallId) {
+      const callId = await repo.findCallId(routed.garageId, callSid);
+      if (callId) {
+        await repo.queueTextBack(routed.garageId, callId);
+        queued = ["calls.text_back"];
+      }
+    }
+    return {
+      status: "processed",
+      outcome: missed ? "agent_missed" : "agent_answered",
       response: missed ? voicemail(routed, context) : twimlResponse("<Hangup/>"),
       queued,
     };
@@ -329,7 +400,8 @@ export async function handleTwilioWebhook(request: Request, kind: TwilioWebhookK
   try {
     if (kind === "voice") {
       const step = new URL(request.url).searchParams.get("step");
-      outcome = await voice(verified.form, repo, { signedUrl: twilioWebhookUrl(request, deps.env), step: isVoiceStep(step) ? step : null });
+      const agentTarget = deps.workforceVoiceTarget !== undefined ? deps.workforceVoiceTarget : workforceVoiceTarget(deps.env ?? process.env);
+      outcome = await voice(verified.form, repo, { signedUrl: twilioWebhookUrl(request, deps.env), step: isVoiceStep(step) ? step : null, agentTarget });
     } else {
       outcome = kind === "status" ? await status(verified.form, repo) : await inbound(verified.form, kind, repo);
     }

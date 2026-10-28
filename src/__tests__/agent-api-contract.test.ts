@@ -31,8 +31,9 @@ import { POST as garageProfile } from "@/app/api/agent/v1/garage_profile/route";
 import { POST as getBooking } from "@/app/api/agent/v1/get_booking/route";
 import { POST as listServices } from "@/app/api/agent/v1/list_services/route";
 import { POST as lookupVehicle } from "@/app/api/agent/v1/lookup_vehicle/route";
+import { POST as reportUsage } from "@/app/api/agent/v1/report_usage/route";
 import { agentInputSchemas, agentTools, type AgentTool } from "@/lib/agent-api/schemas";
-import { setAgentApiStoreForTests, type AgentApiStore, type AgentCallEntry, type AgentGarageRecord, type AgentTokenRecord } from "@/lib/agent-api/store";
+import { setAgentApiStoreForTests, type AgentApiStore, type AgentCallEntry, type AgentGarageRecord, type AgentTokenRecord, type AiMinutesResult } from "@/lib/agent-api/store";
 import { hashAgentToken } from "@/lib/agent-api/tokens";
 import { setBookingEngineForTests } from "@/lib/booking-engine";
 import { VehicleLookupError } from "@/lib/vehicle/provider";
@@ -48,6 +49,8 @@ const TOKEN = `afat_${"A".repeat(43)}`;
 const NARROW_TOKEN = `afat_${"B".repeat(43)}`;
 const REVOKED_TOKEN = `afat_${"C".repeat(43)}`;
 const SUSPENDED_TOKEN = `afat_${"D".repeat(43)}`;
+const PRO = { plan: "pro", trialEndsAt: null, planChosen: "pro" } as const;
+const ESSENTIALS = { plan: "essentials", trialEndsAt: null, planChosen: "essentials" } as const;
 
 function tokenRecord(raw: string, overrides: Partial<AgentTokenRecord> = {}): AgentTokenRecord {
   return {
@@ -55,8 +58,9 @@ function tokenRecord(raw: string, overrides: Partial<AgentTokenRecord> = {}): Ag
     garageId: GARAGE_ID,
     tokenHash: hashAgentToken(raw),
     scopes: [...agentTools],
+    audience: "workforce",
     revokedAt: null,
-    garage: { status: "active", motEnabled: true, timezone: "Europe/London" },
+    garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: PRO },
     ...overrides,
   };
 }
@@ -113,7 +117,15 @@ const store: AgentApiStore = {
   garageProfile: vi.fn(async (garageId: string) => (garageId === GARAGE_ID ? profile : null)),
   findBooking: vi.fn(async (garageId: string, reference: string, registration: string) =>
     garageId === GARAGE_ID && reference === "HRM-4821" && registration === "AB12CDE" ? managed : null),
+  recordAiMinutes: vi.fn(async ({ garageId, conversationId, minutes }: { garageId: string; conversationId: string; minutes: number }): Promise<AiMinutesResult> => {
+    const key = `${garageId}:ai:${conversationId}`;
+    const stored = usage.get(key);
+    if (stored !== undefined) return { status: "replayed", minutes: stored };
+    usage.set(key, minutes);
+    return { status: "recorded", minutes };
+  }),
 };
+const usage = new Map<string, number>();
 
 const services: OnlineService[] = [
   { id: SERVICE_ID, name: "Full service", description: "Oil, filters, checks", durationMin: 120, bufferMin: 15, pricePence: 18900, priceMode: "fixed", locationMode: "workshop", isMot: false, needsApproval: false, minNoticeH: 2, maxDaysAhead: 60, sort: 1 },
@@ -130,6 +142,7 @@ const routes: Record<AgentTool, (request: Request) => Promise<Response>> = {
   create_booking: createBooking,
   get_booking: getBooking,
   garage_profile: garageProfile,
+  report_usage: reportUsage,
 };
 
 function agentRequest(tool: AgentTool, body: unknown, init: { token?: string | null; contentType?: string; raw?: string } = {}) {
@@ -184,6 +197,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   calls.length = 0;
   logLines.length = 0;
+  usage.clear();
   harness.blockedScopes = new Set();
   harness.providerConfigured = true;
   tokens.clear();
@@ -191,7 +205,7 @@ beforeEach(() => {
     tokenRecord(TOKEN),
     tokenRecord(NARROW_TOKEN, { scopes: ["list_services", "garage_profile"] }),
     tokenRecord(REVOKED_TOKEN, { revokedAt: "2026-10-01T00:00:00.000Z" }),
-    tokenRecord(SUSPENDED_TOKEN, { garage: { status: "suspended", motEnabled: false, timezone: "Europe/London" } }),
+    tokenRecord(SUSPENDED_TOKEN, { garage: { status: "suspended", motEnabled: false, timezone: "Europe/London", plan: PRO } }),
   ]) tokens.set(record.tokenHash, record);
   engine.listOnlineServices.mockResolvedValue(services);
   engine.getAvailableSlots.mockResolvedValue([
@@ -325,7 +339,7 @@ describe("lookup_vehicle", () => {
   });
 
   it("drops MOT fields when the garage has MOT off", async () => {
-    const record = tokenRecord(TOKEN, { garage: { status: "active", motEnabled: false, timezone: "Europe/London" } });
+    const record = tokenRecord(TOKEN, { garage: { status: "active", motEnabled: false, timezone: "Europe/London", plan: PRO } });
     tokens.set(record.tokenHash, record);
     const result = await call("lookup_vehicle", { registration: "AB12CDE" });
     expect(result.body.vehicle).not.toHaveProperty("motStatus");
@@ -435,6 +449,98 @@ describe("garage_profile", () => {
       policies: { agentBookingsNeedConfirmation: true, cancellationCutoffHours: 24, mobileServiceArea: ["DN1", "DN2"] },
       faqs: [{ question: "Do you do courtesy cars?" }],
     });
+  });
+});
+
+describe("plans (P5.12, D17): the AI front desk is Pro, the Askbridge chat is Essentials", () => {
+  const ESSENTIALS_WORKFORCE = `afat_${"E".repeat(43)}`;
+  const ESSENTIALS_ASKBRIDGE = `afat_${"F".repeat(43)}`;
+  const EXPIRED_TRIAL = `afat_${"G".repeat(43)}`;
+  const LEGACY_ASKBRIDGE_WIDE = `afat_${"H".repeat(43)}`;
+
+  beforeEach(() => {
+    for (const record of [
+      tokenRecord(ESSENTIALS_WORKFORCE, { garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: ESSENTIALS } }),
+      tokenRecord(ESSENTIALS_ASKBRIDGE, { audience: "askbridge", scopes: ["list_services", "available_slots", "garage_profile"], garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: ESSENTIALS } }),
+      tokenRecord(EXPIRED_TRIAL, { garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: { plan: "pro", trialEndsAt: "2026-01-01T00:00:00.000Z", planChosen: null } } }),
+      // Belt and braces: an askbridge token whose scopes somehow name more than the read-only tools.
+      tokenRecord(LEGACY_ASKBRIDGE_WIDE, { audience: "askbridge", garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: ESSENTIALS } }),
+    ]) tokens.set(record.tokenHash, record);
+  });
+
+  it.each(agentTools)("%s: 403 PLAN_REQUIRED for a workforce token on Essentials, audited, before any work", async (tool) => {
+    const body = tool === "create_booking" ? bookingBody : {};
+    const result = await call(tool, body, { token: ESSENTIALS_WORKFORCE });
+    expect(result).toMatchObject({ status: 403, body: { code: "PLAN_REQUIRED", feature: "ai_front_desk", plan: "pro" } });
+    expect(result.body.message).toContain("Pro");
+    expect(calls).toEqual([expect.objectContaining({ tool, outcome: "PLAN_REQUIRED", httpStatus: 403, tokenId: "tok-E", garageId: GARAGE_ID })]);
+    expect(engine.createBooking).not.toHaveBeenCalled();
+    expect(engine.listOnlineServices).not.toHaveBeenCalled();
+    expect(store.recordAiMinutes).not.toHaveBeenCalled();
+  });
+
+  it("an expired, unconverted trial is Essentials at once", async () => {
+    expect(await call("list_services", {}, { token: EXPIRED_TRIAL })).toMatchObject({ status: 403, body: { code: "PLAN_REQUIRED" } });
+  });
+
+  it("an askbridge token on Essentials keeps its read-only tools and nothing else", async () => {
+    expect((await call("list_services", {}, { token: ESSENTIALS_ASKBRIDGE })).status).toBe(200);
+    expect((await call("garage_profile", {}, { token: ESSENTIALS_ASKBRIDGE })).status).toBe(200);
+    expect((await call("available_slots", { serviceId: SERVICE_ID, from: "2026-11-03", to: "2026-11-03" }, { token: ESSENTIALS_ASKBRIDGE })).status).toBe(200);
+    for (const tool of ["create_booking", "lookup_vehicle", "get_booking", "report_usage"] as const) {
+      expect(await call(tool, tool === "create_booking" ? bookingBody : {}, { token: LEGACY_ASKBRIDGE_WIDE })).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
+    }
+    expect(engine.createBooking).not.toHaveBeenCalled();
+  });
+
+  it("a workforce token on Pro (or a running trial) works as before", async () => {
+    expect((await call("list_services", {})).status).toBe(200);
+    const trial = tokenRecord(TOKEN, { garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: { plan: "pro", trialEndsAt: "2099-01-01T00:00:00.000Z", planChosen: null } } });
+    tokens.set(trial.tokenHash, trial);
+    expect((await call("list_services", {})).status).toBe(200);
+  });
+});
+
+describe("report_usage", () => {
+  const report = { conversationId: "CA0123456789abcdef0123456789abcdef", channel: "call", minutes: 3.5, endedAt: new Date(Date.now() - 60_000).toISOString() };
+
+  it("201 counts the minutes once per conversation; a repeat is 200 replayed with the first figure", async () => {
+    const first = await call("report_usage", report);
+    expect(first).toMatchObject({ status: 201, body: { usage: { conversationId: report.conversationId, channel: "call", minutes: 3.5, replayed: false } } });
+    expect(store.recordAiMinutes).toHaveBeenCalledWith({ garageId: GARAGE_ID, conversationId: report.conversationId, minutes: 3.5, endedAt: new Date(report.endedAt) });
+    const again = await call("report_usage", { ...report, minutes: 9 });
+    expect(again).toMatchObject({ status: 200, body: { usage: { minutes: 3.5, replayed: true } } });
+    expect(calls.map((entry) => [entry.tool, entry.outcome, entry.httpStatus])).toEqual([["report_usage", "OK", 201], ["report_usage", "OK", 200]]);
+  });
+
+  it("422 for bad bodies: no minutes, negative or huge minutes, an unknown channel, a garage id, a phone-number id, an old or future end", async () => {
+    const bad: unknown[] = [
+      { ...report, minutes: 0 },
+      { ...report, minutes: -1 },
+      { ...report, minutes: 601 },
+      { ...report, channel: "sms" },
+      { ...report, garageId: OTHER_GARAGE_ID },
+      { ...report, conversationId: "+44 7700 900123" },
+      { conversationId: report.conversationId, channel: "call", endedAt: report.endedAt },
+      { ...report, endedAt: "yesterday" },
+    ];
+    for (const body of bad) {
+      expect(await call("report_usage", body)).toMatchObject({ status: 422, body: { code: "INVALID_REQUEST" } });
+      expect(requestValidator("report_usage")(JSON.parse(JSON.stringify(body))), JSON.stringify(body)).toBe(false);
+    }
+    for (const endedAt of [new Date(Date.now() - 40 * 86_400_000).toISOString(), new Date(Date.now() + 3_600_000).toISOString()]) {
+      expect(await call("report_usage", { ...report, endedAt })).toMatchObject({ status: 422, body: { code: "INVALID_REQUEST", issues: [{ path: "endedAt" }] } });
+    }
+    expect(store.recordAiMinutes).not.toHaveBeenCalled();
+  });
+
+  it("503 when the minutes could not be stored (Workforce retries; the id keeps it counted once)", async () => {
+    vi.mocked(store.recordAiMinutes).mockResolvedValueOnce({ status: "failed" });
+    expect(await call("report_usage", report)).toMatchObject({ status: 503, body: { code: "UNAVAILABLE" } });
+  });
+
+  it("403 FORBIDDEN for a workforce token without the report_usage scope", async () => {
+    expect(await call("report_usage", report, { token: NARROW_TOKEN })).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
   });
 });
 

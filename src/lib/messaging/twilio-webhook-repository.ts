@@ -229,6 +229,18 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
       return (data ?? []).length > 0;
     },
 
+    async aiFrontDeskHandOff(garageId) {
+      const { data, error } = await db.rpc("ai_front_desk_hand_off", { p_garage_id: garageId });
+      if (error) throw databaseError("ai_front_desk.hand_off", error);
+      return data === true;
+    },
+
+    async findCallId(garageId, callSid) {
+      const { data, error } = await db.from("calls").select("id").eq("garage_id", garageId).eq("provider_call_sid", callSid).maybeSingle();
+      if (error) throw databaseError("calls.find", error);
+      return (data as { id: string } | null)?.id ?? null;
+    },
+
     async queueTextBack(garageId, callId) {
       await createSupabaseJobQueue(db).enqueue("calls.text_back", { garageId, callId }, { garageId, dedupeKey: `calls.text_back:${callId}` });
     },

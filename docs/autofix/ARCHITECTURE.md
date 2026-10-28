@@ -471,3 +471,72 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 Routes: `/app/settings/plan` (current plan, trial days left, usage meters, Essentials vs Pro `#compare`, owners: Upgrade/Request Pro, Manage billing, Move to Essentials; actions in `settings/plan/actions.ts`), `POST /api/webhooks/billing/stripe` (signature on the raw body; 503 until configured). `/admin` lists open plan requests; `/admin/garages/[id]` shows trial, chosen plan, subscription and the open request.
 
 **How every Pro feature gates (P5.3–P5.12):** (1) pages: `if (!garageHasFeature(admin.garage, f)) return <ProLockedPage feature={f} … canUpgrade={admin.role === "owner"} hasExistingData={…} />` (reads of existing rows may still render below it); (2) server actions: `featureProblem(admin, f)` / `requireAdminFeature`; (3) `/api/admin/*` and public garage-host routes: `featureGuard(garage, f)` → 403 `{code: "PLAN_REQUIRED", feature, plan: "pro", message}`; (4) SQL: `require_garage_feature()` in functions, `garage_has_feature()` in write policies; (5) the tenancy suite covers every new table (`FIXTURES`, and `ROLE_LIMITED_READS` for role-limited select policies).
+
+## AI front desk on Pro (Phase 5, P5.12; DECISIONS A382–A389)
+
+### Schema (`supabase/migrations/20261029001200_ai_front_desk.sql`; pgTAP `038_ai_front_desk`)
+
+| Object | Notes |
+| --- | --- |
+| `agent_tokens.audience` (+) | `workforce` (default) or `askbridge`. Check: an `askbridge` token's scopes ⊆ `list_services`, `available_slots`, `garage_profile`. Existing rows: `askbridge` when their scopes were already a subset of those three, else `workforce` (A382) |
+| `agent_tokens.scopes`, `agent_call_log.tool` (checks replaced) | add `report_usage`. Existing workforce tokens holding all six P4.2 tools gain `report_usage` (A383) |
+| `ai_front_desk_settings` (tenant, one row per garage, pk `garage_id`) | `enabled`, `enabled_at`, `updated_by`, timestamps. Members of the selected garage read (no plan check, so it stays readable after a downgrade); no staff table grants: written only by `set_ai_front_desk()`; service role reads/writes |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash, p_audience) → jsonb` | service role | New overload. `workforce` needs Pro (`require_garage_feature(…, 'ai_front_desk')` → `P0001 PLAN_REQUIRED: ai_front_desk`). Null scopes: the six P4.2 tools for workforce (unchanged default), the three read-only tools for askbridge. Returns `audience`, never the hash. `22023` for an unknown audience |
+| `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` | service role | P4.2 signature kept; now issues `workforce` tokens through the overload (so it also needs Pro) |
+| `list_agent_tokens()` | owners/managers of the selected garage | Recreated with an extra `audience` column |
+| `set_ai_front_desk(p_enabled boolean) → jsonb` | **owner** of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled; else `42501`) | Switching on needs Pro (`PLAN_REQUIRED`); off is always allowed. Upserts the row; audited `ai_front_desk.enabled` / `ai_front_desk.disabled` |
+| `ai_front_desk_hand_off(p_garage_id) → boolean` | service role | True when the garage is `active`/`onboarding`, on Pro (`garage_has_feature`) and switched on. Used by the voice webhook |
+
+No booking function is replaced (`create_booking*`, `available_slots*`, `staff_available_slots*` untouched).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/agent-api/schemas.ts` (+) | `agentTools` gains `report_usage`; `agentTokenAudiences`, `AgentTokenAudience`, `isAgentTokenAudience`, `ASKBRIDGE_TOOLS`, `AGENT_PRO_FEATURE`; error code `PLAN_REQUIRED` (403, message = `planRequiredMessage("ai_front_desk")`); `AgentError.feature/plan`; `reportUsageInputSchema` (strict: `conversationId` `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, `channel` `call`/`whatsapp`, `minutes` 0 < m ≤ 600, `endedAt` ISO with offset), `AGENT_MAX_USAGE_MINUTES`, `AGENT_USAGE_MAX_AGE_DAYS` (31), `AgentUsageReport` |
+| `src/lib/agent-api/store.ts` (+) | `AgentTokenRecord.audience` and `.garage.plan` (`PlanState`); `AgentApiStore.recordAiMinutes({garageId, conversationId, minutes, endedAt})` → `recorded`/`replayed` (with the stored minutes)/`failed` (calls `recordUsage()`, then reads `usage_events` to tell a repeat from a failure); `aiUsageSourceKey(id)` = `ai:<id>`; `issueAgentToken({…, audience})` (default `workforce` with all seven tools; `PlanRequiredError` for an Essentials garage); `AiMinutesResult` |
+| `src/lib/agent-api/handler.ts` (+) | Pipeline: token → garage status → **plan** (workforce + not Pro → `PLAN_REQUIRED`, uses `hasFeature()` on the token's garage) → askbridge tool guard → scope → limits → body → tool. Tool `report_usage` (201 counted / 200 `replayed` / 422 `endedAt` outside the last 31 days or > 5 min ahead / 503 when it could not be stored). Rate limit 600 per 10 min per token |
+| `src/app/api/agent/v1/report_usage/route.ts` | one line, like the other tools |
+| `src/lib/ai-front-desk/hand-off.ts` (client-safe) | `AI_FRONT_DESK_ENV`, `parseWorkforceVoiceTarget`, `workforceVoiceTarget(env)` (`WORKFORCE_VOICE_SIP_URI`, `sip:`/`sips:` only), `workforceSipUri(target, {garageId, callSid})` (adds `X-Autofix-Garage`, `X-Autofix-Call-Sid` SIP headers), `WorkforceConnection`, `workforceConnectionStatus` |
+| `src/lib/ai-front-desk/server.ts` | `usageMonthFirst(garage, now)`, `loadAiFrontDeskSettings`, `listAgentTokens` (RLS client → `AgentTokenRow[]`), `workforceConnection(tokens, env)`, `loadAiMinutesThisMonth(client, garage, now)` (`loadUsageMonth()` → `.ai`) |
+| `src/lib/ai-front-desk/forms.ts` (client-safe) | `IssueTokenState`, `initialIssueTokenState`, `parseTokenName`, `TOKEN_NAME_MAX`, `AI_FRONT_DESK_MESSAGES` |
+| `src/lib/calls/twiml.ts` (+) | `VoiceStep` gains `agent`; `agentDialTwiml({sipUri, actionUrl})` (`<Dial answerOnBridge action=?step=agent><Sip>…</Sip></Dial>`) |
+| `src/lib/messaging/twilio-webhooks.ts` (+) | `TwilioWebhookRepo.aiFrontDeskHandOff?` and `.findCallId?` (optional: absent = never hand off); `TwilioWebhookDeps.workforceVoiceTarget?`; hook `aiFrontDeskTarget()`; new step handler for `?step=agent` |
+| `src/lib/messaging/twilio-webhook-repository.ts` (+) | `aiFrontDeskHandOff` (rpc `ai_front_desk_hand_off`), `findCallId` |
+| `src/components/admin-ui/admin-nav.tsx` (+) | `PRO_SETUP_NAV_ITEMS` entry `{feature: "ai_front_desk", label: "AI front desk", href: "/app/settings/ai-front-desk", icon: Headset}` |
+
+Voice flow additions (`POST /api/webhooks/twilio/voice`):
+
+| Request | Event key | Writes | Answer |
+| --- | --- | --- | --- |
+| incoming call, no own phone to ring (or our forward came back), **hand-off on** | `voice:<CallSid>:<status>` | `calls` row `missed = true`; **no** `calls.text_back` | `<Dial timeout=20 answerOnBridge action=?step=agent><Sip>$WORKFORCE_VOICE_SIP_URI?X-Autofix-Garage=<garage id>&X-Autofix-Call-Sid=<CallSid></Sip></Dial>`; outcome `call_ai_front_desk` |
+| `?step=dial` missed (busy/no-answer/failed/canceled), **hand-off on** | `voice:<CallSid>:dial` | `dial_status`, `missed = true`; no text-back | the same `<Sip>` dial; outcome `dial_missed_ai_front_desk` |
+| `?step=agent` (`DialCallStatus` of the Workforce leg) | `voice:<CallSid>:agent` | missed statuses: `calls.text_back` queued (by CallSid → call id) | missed: the voicemail TwiML (`agent_missed`); answered: `<Hangup/>` (`agent_answered`) |
+
+"Hand-off on" = `WORKFORCE_VOICE_SIP_URI` valid **and** `ai_front_desk_hand_off(garage)`; if the check throws, the Essentials flow runs (a call is never lost to it). The garage's own phone is still rung first.
+
+**WhatsApp**: no hand-off in code. The hook point is `inbound()` in `src/lib/messaging/twilio-webhooks.ts`, after the inbound WhatsApp message is stored: for a garage where `ai_front_desk_hand_off()` is true, queue a job that forwards the stored message to Workforce's WhatsApp endpoint (signed, like the Askbridge sync), and Workforce replies through the agent API / messages pipeline. Not built until Workforce publishes that endpoint (Waiting on Temitope). Until then WhatsApp behaves as today on every plan; Workforce still reports any WhatsApp minutes with `report_usage` (`channel: whatsapp`).
+
+Routes:
+
+| Route | Who | What |
+| --- | --- | --- |
+| `POST /api/agent/v1/report_usage` | Workforce (`workforce` token with the `report_usage` scope, garage on Pro) | `{conversationId, channel, minutes, endedAt}` → `{usage: {conversationId, channel, minutes, replayed}}` |
+| `/app/settings/ai-front-desk` | members (read); owner (switch); owners/managers (tokens, minutes) | Pro: switch (`Switch` submits `setAiFrontDeskAction`), Workforce connection (`Calls` ready or waiting, token status, last used), Tokens for Workforce (`IssueTokenForm` → `issueWorkforceTokenAction`, raw token shown once with Copy; list with audience + Live/Revoked; `revokeAgentTokenAction`), This month (`UsageMeter` for `ai_minutes`, link to Plan). Essentials: `ProLockedPage` + "Missed calls still get a text back and can leave a voicemail on Essentials." |
+
+Server actions (`settings/ai-front-desk/actions.ts`, all through `requireSetupContext()` so MFA is done this session; the garage is the selected garage):
+
+| Action | Who | Gate | Audit |
+| --- | --- | --- | --- |
+| `setAiFrontDeskAction(formData)` | owner | on: `featureProblem(admin, "ai_front_desk")` then `set_ai_front_desk()` (Pro in SQL); off: always | in SQL |
+| `issueWorkforceTokenAction(state, formData)` | owners, managers | `featureProblem` + SQL `PLAN_REQUIRED`; name 1–80 chars | `agent_token.issued` (id, name, audience; never the token) |
+| `revokeAgentTokenAction(formData)` | owners, managers | none (revoking works on any plan) | `agent_token.revoked` |
+
+No agent-token UI existed before (tokens were issued only by Vitalos with the service role), so this page is the token UI. Askbridge tokens, if any, are listed there too with an "Askbridge chat" badge; the page only issues Workforce tokens.
+
+Jobs: none new (the existing `calls.text_back` is reused; `billing.close_usage` closes AI minutes as before).
+
+Env: `WORKFORCE_VOICE_SIP_URI` (server only, `.env.example` under `# P5.12`). `playwright.garage.config.ts` passes a local-only `AGENT_TOKEN_PEPPER` to the production server so the e2e can issue tokens.
