@@ -1,0 +1,50 @@
+# Local development: PostgreSQL 17 (the super admin's own database) plus the app with live reload.
+# Autofix data comes from the local Supabase (supabase start, in the repo root) as autofix_superadmin:
+#   psql "postgres://postgres:postgres@127.0.0.1:54322/postgres" \
+#        -c "alter role autofix_superadmin with login password '<local-only password>'"
+#   AUTOFIX_DB_PASSWORD='<local-only password>' docker compose up --build
+#   open http://localhost:8000     # create an admin: see README.md
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: superadmin
+      POSTGRES_USER: superadmin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superadmin -d superadmin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: >-
+      sh -c "python manage.py migrate --noinput --database default &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://superadmin:${POSTGRES_PASSWORD:-localdev}@db:5432/superadmin
+      AUTOFIX_DATABASE_URL: ${AUTOFIX_DATABASE_URL:-postgres://autofix_superadmin:${AUTOFIX_DB_PASSWORD:-unset}@host.docker.internal:54322/postgres}
+      AUTOFIX_APP_URL: http://localhost:3000
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      LOG_FORMAT: text
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.test}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
