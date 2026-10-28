@@ -146,7 +146,18 @@ jobs:
       - name: Integration tests as autofix_superadmin
         run: pytest -m integration
       - name: Build the production image
-        run: docker build -t "autofix-superadmin:ci-${{ github.run_id }}" .
+        run: |
+          # The runners' Docker CLI has no buildx plugin (the daemon has BuildKit), and the Dockerfile needs
+          # BuildKit. A pinned, checksum-verified plugin goes into this job's own Docker config only.
+          version=v0.37.2
+          sha256=982ca20490b45ed1ec8d99795974d3d874a358f75938c9c237305010e6b7e548
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG/cli-plugins"
+          curl -fsSL -o "$DOCKER_CONFIG/cli-plugins/docker-buildx" \
+            "https://github.com/docker/buildx/releases/download/${version}/buildx-${version}.linux-amd64"
+          echo "${sha256}  $DOCKER_CONFIG/cli-plugins/docker-buildx" | sha256sum -c -
+          chmod +x "$DOCKER_CONFIG/cli-plugins/docker-buildx"
+          docker buildx build --load -t "autofix-superadmin:ci-${{ github.run_id }}" .
       - name: Run the release job twice and start the production image
         run: |
           [[ "${RUNNER_NAME:-}" =~ ([0-9]+)$ ]] && slot=$((10#${BASH_REMATCH[1]})) || slot=0
