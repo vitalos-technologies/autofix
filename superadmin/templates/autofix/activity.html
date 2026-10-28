@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Activity · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Activity</h1>
+  <p class="muted mt-1 text-sm">What Vitalos staff did here and in Autofix, newest first. Sign-ins and IP addresses are on the Audit page.</p>
+  <nav class="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-2 dark:border-slate-800" aria-label="Activity source">
+    <a class="tab" href="?source=all" {% if source == "all" %}aria-current="page"{% endif %}>Everything</a>
+    <a class="tab" href="?source=superadmin" {% if source == "superadmin" %}aria-current="page"{% endif %}>Super admin</a>
+    <a class="tab" href="?source=autofix" {% if source == "autofix" %}aria-current="page"{% endif %}>Autofix platform</a>
+  </nav>
+  {% if error %}<p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status">{{ error }}</p>{% endif %}
+  <ol class="card mt-4 divide-y divide-slate-100 dark:divide-slate-800" data-testid="activity-feed">
+    {% for entry in entries %}
+      <li class="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 text-sm">
+        <span class="muted w-32 shrink-0 font-mono text-xs">{{ entry.when|date:"j M H:i" }}</span>
+        <span class="{% if entry.source == 'Autofix' %}{{ 'essentials'|badge_class }}{% else %}{{ 'slate'|badge_class }}{% endif %}">{{ entry.source }}</span>
+        <span class="min-w-0 flex-1"><span class="font-medium">{{ entry.actor }}</span> · {{ entry.text }}{% if entry.summary %}<span class="muted block break-words text-xs">{{ entry.summary }}</span>{% endif %}</span>
+      </li>
+    {% empty %}<li class="muted px-4 py-8 text-center text-sm">No activity yet.</li>{% endfor %}
+  </ol>
+{% endblock %}

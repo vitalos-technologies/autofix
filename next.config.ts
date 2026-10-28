@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   distDir: process.env.PLAYWRIGHT_LOCAL_INVOICING === "true" ? ".next/invoice-tests" : ".next",
   allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
+  // The Django super admin under /superadmin needs its trailing slashes; src/proxy.ts removes them
+  // everywhere else, exactly as Next.js would (308).
+  skipTrailingSlashRedirect: true,
   reactStrictMode: true,
   // Blocking metadata for every user agent (node_modules/next/dist/docs: htmlLimitedBots, "Disabling").
   // The garage layout's title comes from an async generateMetadata; streamed, the <title> lands in
@@ -29,7 +32,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        // Not /superadmin: the Django super admin sends its own, stricter headers (src/lib/superadmin/proxy.ts).
+        source: "/((?!superadmin/|superadmin$).*)",
         headers: [
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },

@@ -1,0 +1,16 @@
+{% load ui %}
+{# KPI card. Context: kpi (apps.core.overview.Kpi). Direction is text plus an icon, never colour alone. #}
+<div class="kpi" data-testid="kpi-{{ kpi.key }}">
+  <p class="kpi-label">{{ kpi.label }}</p>
+  <p class="kpi-value {% if kpi.value|length > 6 %}kpi-value-text{% endif %}">{{ kpi.value }}</p>
+  {% if kpi.delta %}
+    <p class="kpi-delta {% if kpi.delta.tone == 'better' %}kpi-better{% endif %}">
+      {% if kpi.delta.direction == "up" %}{% icon "up" "h-4 w-4 shrink-0" %}{% elif kpi.delta.direction == "down" %}{% icon "down" "h-4 w-4 shrink-0" %}{% else %}{% icon "arrow-right" "h-4 w-4 shrink-0" %}{% endif %}
+      <span>{{ kpi.delta.text }}</span>
+      {% if kpi.delta.tone == "better" %}<span class="sr-only">(improvement)</span>{% endif %}
+    </p>
+  {% elif kpi.note %}
+    <p class="kpi-delta">{{ kpi.note }}</p>
+  {% endif %}
+  <p class="kpi-time">{{ kpi.timeframe }}</p>
+</div>

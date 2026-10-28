@@ -1,0 +1,15 @@
+{% extends modal_base %}
+{% block modal_body %}
+  <form method="post" action="{{ action }}" hx-post="{{ action }}" hx-target="#modal" hx-swap="innerHTML" novalidate>
+    {% csrf_token %}
+    {% include "partials/form_fields.html" %}
+    <div class="mt-6 flex justify-end gap-2">
+      {% if request.htmx %}
+        <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+      {% else %}
+        <a class="btn btn-secondary" href="{{ cancel_url|default:"/" }}">Cancel</a>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">{{ submit }}</button>
+    </div>
+  </form>
+{% endblock %}

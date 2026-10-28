@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit trail · Autofix Super Admin{% endblock %}
+{% block breadcrumbs %}
+  <li class="muted hidden sm:block">Operate</li>
+  <li class="muted hidden sm:block" aria-hidden="true">/</li>
+  <li class="truncate font-medium" aria-current="page">Audit</li>
+{% endblock %}
+{% block content %}
+  <div>
+    <h1>Audit</h1>
+    <p class="muted mt-1 text-sm">Append-only. Security and operations events here, with IP addresses, and Autofix's own platform log. SuperAdmins only.</p>
+  </div>
+  {% include "audit/_tabs.html" with active="superadmin" %}
+
+  <form method="get" action="{% url 'audit:trail' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6"
+        hx-get="{% url 'audit:trail' %}" hx-trigger="change, keyup changed delay:300ms from:#f-actor" hx-target="#audit-results" hx-swap="outerHTML" hx-push-url="true"
+        data-testid="audit-filters">
+    <div class="lg:col-span-2">
+      <label class="field-label" for="f-actor">Actor (email)</label>
+      <input id="f-actor" name="actor" type="search" value="{{ filters.actor }}" autocomplete="off" class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <div>
+      <label class="field-label" for="f-action">Action</label>
+      <select id="f-action" name="action" class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All actions</option>
+        {% for key, label in action_choices %}<option value="{{ key }}" {% if key == filters.action %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="f-entity">Entity type</label>
+      <select id="f-entity" name="entity_type" class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All types</option>
+        {% for kind in entity_types %}<option value="{{ kind }}" {% if kind == filters.entity_type %}selected{% endif %}>{{ kind }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="f-from">From</label>
+      <input id="f-from" name="date_from" type="date" value="{{ filters.date_from }}" class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <div>
+      <label class="field-label" for="f-to">To</label>
+      <input id="f-to" name="date_to" type="date" value="{{ filters.date_to }}" class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if dir %}<input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <input type="hidden" name="density" value="{{ density }}">
+    <div class="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-6">
+      <button type="submit" class="btn btn-primary">Apply filters</button>
+      <a href="{% url 'audit:trail' %}" class="btn btn-ghost">Clear</a>
+      <button type="submit" formaction="{% url 'audit:export' %}" class="btn btn-secondary" data-testid="audit-export">Export CSV (up to 10,000 rows)</button>
+    </div>
+  </form>
+
+  <div class="mt-4">
+    {% include "partials/data_table.html" %}
+  </div>
+{% endblock %}

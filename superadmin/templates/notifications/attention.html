@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Needs attention · Autofix Super Admin{% endblock %}
+{% block breadcrumb_title %}Notifications{% endblock %}
+{% block content %}
+  <h1>Notifications</h1>
+  {% include "notifications/_tabs.html" %}
+  <section class="card mt-6" aria-labelledby="attention-title">
+    <div class="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+      <h2 id="attention-title" class="text-xl">Needs attention in Autofix</h2>
+      <p class="muted text-sm">Failed jobs, stuck job locks, domains failing verification, onboarding stuck over 48 hours, and text or email failures.</p>
+    </div>
+    {% include "autofix/_attention_list.html" with items=attention %}
+  </section>
+{% endblock %}

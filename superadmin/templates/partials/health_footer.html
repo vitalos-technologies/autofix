@@ -1,0 +1,7 @@
+{% load ui %}
+<a href="{% url 'core:health' %}" class="inline-flex min-h-6 items-center gap-2 rounded hover:underline {% if overall.status == 'fail' %}text-rose-700 dark:text-rose-300{% elif overall.status == 'warn' %}text-amber-800 dark:text-amber-300{% else %}text-slate-600 dark:text-slate-300{% endif %}" data-health="{{ overall.status }}">
+  {% if overall.status == "ok" %}{% icon "check" "h-4 w-4 text-mineral-700 dark:text-mineral-300" %}{% else %}{% icon "alert" "h-4 w-4" %}{% endif %}
+  <span>{{ overall.summary }}</span>
+  <span class="muted">· {{ environment_label }}</span>
+  <span class="sr-only">Open system health</span>
+</a>

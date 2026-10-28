@@ -135,6 +135,12 @@ Gate 5: the full Playwright suite plus a journey per new feature, axe on every n
 
 ---
 
+## Phase 5 · Operate
+
+| ID | Lane | Task | Done when |
+| --- | --- | --- | --- |
+| [x] P5.1 | api, data, ui, qa | Django super admin in `superadmin/`, replicating the Vitalos platform Super Admin (Temitope, 28 Oct 2026): accounts with axes + mandatory TOTP and roles SuperAdmin/Support/Finance; Autofix data on a second alias as the least-privilege `autofix_superadmin` role (read-only views, writes only through the platform functions); Overview, Garages (+ HTMX tabs, bulk bar, CSV), View as support hand-off, Jobs, Messaging, Domains, Sign-ups, Audit, Activity, Team, Settings, Help, `/api/v1/`; ADR-044 status at `/api/platform/v1/status` | Done (see the commit log of `phase-5/p5.1-django-superadmin`): migration `20261028004000_superadmin_role.sql`, pgTAP 028; `superadmin/` with 318 pytest tests (SQLite and PostgreSQL 17) plus 39 integration tests against the local Supabase as `autofix_superadmin`; Playwright `e2e/smoke.py` (52 checks against the production image, screenshots at 1440 and 390 in `superadmin/docs/screenshots/`); workflow `.github/workflows/superadmin.yml`; DECISIONS D18, A400–A410. Not deployed (Waiting on Temitope) |
+
 ## Definition of done (every task)
 
 - `pnpm lint && pnpm typecheck && pnpm test && pnpm build` pass (`pnpm verify`).

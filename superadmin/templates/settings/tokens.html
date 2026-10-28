@@ -1,0 +1,44 @@
+{% extends "settings/_shell.html" %}
+{% load ui %}
+{% block settings_panel %}
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="card p-6">
+      <h2 class="font-semibold">Create a token</h2>
+      <p class="muted mb-4 text-sm">Tokens give read-only access to <a class="underline" href="{% url 'api:docs' %}">/api/v1/</a> with your permissions. Send <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+      <form method="post" action="{% url 'accounts:settings_tokens' %}" hx-post="{% url 'accounts:settings_tokens' %}" hx-select="#settings-region" hx-target="#settings-region" hx-swap="outerHTML" novalidate>
+        {% csrf_token %}
+        {% include "partials/form_fields.html" %}
+        <button type="submit" class="btn btn-primary mt-4">{% icon "key" "h-4 w-4" %} Create token</button>
+      </form>
+    </section>
+    <section class="lg:col-span-2">
+      {% if new_token %}
+        <div class="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-emerald-800 dark:bg-emerald-950" role="alert">
+          <p class="font-semibold text-emerald-900 dark:text-emerald-100">Copy your new token now. It will not be shown again.</p>
+          <div class="mt-2 flex items-center gap-2">
+            <code id="new-token" class="block flex-1 break-all rounded bg-white p-2 font-mono text-xs dark:bg-slate-900" data-testid="new-token">{{ new_token }}</code>
+            <button type="button" class="btn btn-secondary btn-sm" data-copy="new-token">Copy</button>
+          </div>
+        </div>
+      {% endif %}
+      <div class="card overflow-x-auto" tabindex="0">
+        <table class="table-base">
+          <thead><tr><th scope="col">Name</th>{% if is_superadmin %}<th scope="col">Owner</th>{% endif %}<th scope="col">Prefix</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for token in tokens %}
+              <tr>
+                <td class="font-medium">{{ token.name }}</td>
+                {% if is_superadmin %}<td class="text-xs">{{ token.user.email }}</td>{% endif %}
+                <td><code class="text-xs">vsa_{{ token.prefix }}…</code></td>
+                <td class="text-xs">{{ token.last_used_at|date:"j M Y H:i"|default:"Never" }}</td>
+                <td class="text-xs">{{ token.expires_at|date:"j M Y"|default:"Never" }}</td>
+                <td>{% if token.is_usable %}<span class="{{ 'active'|badge_class }}">Active</span>{% elif token.revoked_at %}<span class="{{ 'cancelled'|badge_class }}">Revoked</span>{% else %}<span class="{{ 'slate'|badge_class }}">Expired</span>{% endif %}</td>
+                <td class="text-right">{% if token.is_usable %}{% url 'accounts:token_revoke' token.pk as revoke_url %}{% include "partials/post_button.html" with url=revoke_url label="Revoke" target=token.name style="btn-danger" show_label=True confirm="Revoke this token? Anything using it stops working immediately." %}{% endif %}</td>
+              </tr>
+            {% empty %}<tr><td colspan="7" class="muted py-6 text-center">No API tokens yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}

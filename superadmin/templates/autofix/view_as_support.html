@@ -1,0 +1,14 @@
+{% extends modal_base %}
+{% load ui %}
+{% block modal_body %}
+  <p class="text-sm">This records why you need to see <strong>{{ garage.name }}</strong>'s app, then opens the garage in Autofix. There you start a read-only support session (5 to 60 minutes) with your own Autofix sign-in and authenticator. Autofix logs it again, and the garage's owners can see it.</p>
+  <p class="muted mt-2 text-xs">No password, token or session is passed in the link.</p>
+  <form method="post" action="{{ action }}" class="mt-4" novalidate data-testid="view-as-support-form">
+    {% csrf_token %}
+    {% include "partials/form_fields.html" %}
+    <div class="mt-6 flex justify-end gap-2">
+      {% if request.htmx %}<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>{% else %}<a class="btn btn-secondary" href="{% url 'autofix:garage' garage.pk %}">Cancel</a>{% endif %}
+      <button type="submit" class="btn btn-primary">{% icon "external-link" "h-4 w-4" %} Continue to Autofix</button>
+    </div>
+  </form>
+{% endblock %}

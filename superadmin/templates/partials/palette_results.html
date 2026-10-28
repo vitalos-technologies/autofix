@@ -1,0 +1,22 @@
+{% load ui %}
+{% for group in groups %}
+  <div role="group" aria-labelledby="palette-group-{{ forloop.counter }}">
+    <p id="palette-group-{{ forloop.counter }}" class="muted px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider">{{ group.label }}</p>
+    {% for result in group.results %}
+      <a role="option" id="palette-opt-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" href="{{ result.url }}" aria-selected="false" data-palette-option
+         class="flex items-center gap-3 rounded px-2 py-2 text-sm hover:bg-slate-100 aria-selected:bg-cobalt-600/10 aria-selected:text-cobalt-600 dark:hover:bg-slate-800 dark:aria-selected:bg-cobalt/20 dark:aria-selected:text-cobalt-300">
+        {% icon result.icon "h-4 w-4 shrink-0 opacity-70" %}
+        <span class="min-w-0 flex-1 truncate font-medium">{{ result.label }}</span>
+        {% if result.hint %}<span class="muted truncate text-xs">{{ result.hint }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% empty %}
+  <p class="muted px-2 py-6 text-center text-sm">No matches for “{{ query }}”.</p>
+{% endfor %}
+{% if query %}
+  <a role="option" id="palette-opt-all" href="{% url 'core:search' %}?q={{ query|urlencode }}" aria-selected="false" data-palette-option
+     class="mt-1 flex items-center gap-3 rounded border-t border-slate-100 px-2 py-2 text-sm hover:bg-slate-100 aria-selected:bg-cobalt-600/10 aria-selected:text-cobalt-600 dark:border-slate-800 dark:hover:bg-slate-800 dark:aria-selected:bg-cobalt/20 dark:aria-selected:text-cobalt-300">
+    {% icon "search" "h-4 w-4 shrink-0 opacity-70" %}<span>Search everything for “{{ query }}”</span>
+  </a>
+{% endif %}

@@ -1,0 +1,45 @@
+{% load ui %}
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<div data-testid="tab-bookings">
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="card p-4 lg:col-span-2" aria-labelledby="trend-heading">
+      <h2 id="trend-heading" class="text-xl">Bookings made, last {{ bookings.days }} days</h2>
+      <p class="muted text-sm">{{ bookings.total }} in total, by day (Europe/London).</p>
+      <div class="mt-3 text-cobalt-600 dark:text-cobalt-300">{% sparkline bookings.trend None "h-24 w-full" 300 80 %}</div>
+    </section>
+    <section class="card p-4" aria-labelledby="mix-heading">
+      <h2 id="mix-heading" class="text-xl">Status and source</h2>
+      {% if bookings.by_status %}
+        <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          {% for row in bookings.by_status %}<div class="flex justify-between py-1.5"><dt>{{ row.status|capfirst }}</dt><dd class="tabular-nums">{{ row.total }}</dd></div>{% endfor %}
+        </dl>
+      {% else %}<p class="muted mt-3 py-2 text-sm">No bookings in this period.</p>{% endif %}
+      <dl class="mt-3 divide-y divide-slate-100 border-t border-slate-200 pt-2 text-sm dark:divide-slate-800 dark:border-slate-800">
+        {% for row in bookings.by_source %}<div class="flex justify-between py-1.5"><dt>{{ row.source|capfirst }}</dt><dd class="tabular-nums">{{ row.total }}</dd></div>{% endfor %}
+      </dl>
+    </section>
+  </div>
+  <section class="card mt-6 overflow-x-auto" tabindex="0" aria-labelledby="recent-heading">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
+      <h2 id="recent-heading" class="text-xl">Recent bookings</h2>
+      {% if can_support %}
+        <form method="post" action="{% url 'autofix:booking_people' garage.pk %}" hx-post="{% url 'autofix:booking_people' garage.pk %}" hx-target="#booking-people" hx-swap="innerHTML" class="flex flex-wrap items-center gap-2" data-no-submit-overlay>
+          {% csrf_token %}{% include "partials/step_up_inline.html" with id="people" %}
+          <button type="submit" class="btn btn-secondary btn-sm" data-testid="show-customers">{% icon "eye" "h-4 w-4" %} Show customer details (audited)</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="muted px-4 text-xs">No personal data here. Customer details are a separate, audited view for Support.</p>
+    <table class="table-base mt-2">
+      <caption class="sr-only">Recent bookings without personal data</caption>
+      <thead><tr><th scope="col">Reference</th><th scope="col">When</th><th scope="col">Service</th><th scope="col">Status</th><th scope="col">Source</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for booking in bookings.rows %}
+          <tr><td class="font-mono text-xs">{{ booking.reference }}</td><td class="whitespace-nowrap text-xs">{{ booking.starts_at|date:"D j M H:i" }}</td><td>{{ booking.service.name }}</td><td><span class="{{ booking.status|badge_class }}">{{ booking.status|capfirst }}</span></td><td class="text-xs">{{ booking.source|capfirst }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="muted py-6 text-center">No bookings yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <div id="booking-people" class="p-4"></div>
+  </section>
+</div>
+{% endif %}

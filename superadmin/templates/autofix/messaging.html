@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Messaging · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Messaging</h1>
+  <p class="muted mt-1 text-sm">Texts, WhatsApp and email across every garage, last {{ summary.days }} days. Counts only: no message text or numbers leave Autofix. Reminders may only go out with consent, 09:00–19:00 Monday to Saturday.</p>
+  <div class="mt-6">{% include "autofix/_messaging_summary.html" %}</div>
+{% endblock %}

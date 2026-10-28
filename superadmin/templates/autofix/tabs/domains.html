@@ -1,0 +1,31 @@
+{% load ui %}
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<section class="card overflow-x-auto" tabindex="0" aria-labelledby="domains-heading" data-testid="tab-domains">
+  <h2 id="domains-heading" class="px-4 pt-4 text-xl">Domains</h2>
+  <table class="table-base mt-2">
+    <caption class="sr-only">This garage's booking page addresses</caption>
+    <thead><tr><th scope="col">Domain</th><th scope="col">Kind</th><th scope="col">Verification</th><th scope="col">Last checked</th><th scope="col">Re-check</th></tr></thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+      {% for domain in domains %}
+        <tr>
+          <td><span class="font-mono text-xs">{{ domain.hostname }}</span>{% if domain.error %}<span class="muted block text-xs">{{ domain.error }}</span>{% endif %}</td>
+          <td>{% if domain.kind == "custom" %}Custom{% else %}Free subdomain{% endif %}</td>
+          <td><span class="{{ domain.status|badge_class }}">{{ domain.get_status_display }}</span></td>
+          <td class="text-xs">{{ domain.last_checked_at|date:"j M H:i"|default:"Never" }}</td>
+          <td>
+            {% if domain.checkable and can_change_autofix %}
+              <form method="post" action="{% url 'autofix:domain_recheck' domain.pk %}" class="flex flex-wrap items-center gap-2">
+                {% csrf_token %}<input type="hidden" name="next" value="{% url 'autofix:garage' garage.pk %}?tab=domains">
+                <label class="sr-only" for="reason-{{ domain.pk }}">Reason for re-checking {{ domain.hostname }}</label>
+                <input id="reason-{{ domain.pk }}" name="reason" required minlength="5" maxlength="500" placeholder="Reason" class="input-sm">
+                {% include "partials/step_up_inline.html" with id=domain.pk %}
+                <button type="submit" class="btn btn-secondary btn-sm">Re-check</button>
+              </form>
+            {% elif domain.status == "failed" %}<span class="muted text-xs">Garage presses Try again</span>{% else %}<span class="muted text-xs">—</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="muted py-6 text-center">No domains.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}

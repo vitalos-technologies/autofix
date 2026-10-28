@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Domains · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Domains</h1>
+  <p class="muted mt-1 text-sm">Each garage's booking page address and its verification state. A re-check queues Autofix's own domains.check job (at most one per 5 minutes).</p>
+  <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="kpi"><p class="kpi-label">Waiting for DNS</p><p class="kpi-value">{{ counts.pending_dns }}</p><p class="kpi-time">Custom domains</p></div>
+    <div class="kpi"><p class="kpi-label">Verifying</p><p class="kpi-value">{{ counts.verifying }}</p><p class="kpi-time">Custom domains</p></div>
+    <div class="kpi"><p class="kpi-label">Active</p><p class="kpi-value">{{ counts.active }}</p><p class="kpi-time">Custom domains</p></div>
+    <div class="kpi" data-testid="kpi-domains-failed"><p class="kpi-label">Failed</p><p class="kpi-value">{{ counts.failed }}</p><p class="kpi-time">After 48 hours without DNS</p></div>
+  </div>
+  <form method="get" action="{% url 'autofix:domains' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-3">
+    <div>
+      <label class="field-label" for="f-kind">Kind</label>
+      <select id="f-kind" name="kind" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="custom" {% if kind == "custom" %}selected{% endif %}>Custom domains</option>
+        <option value="subdomain" {% if kind == "subdomain" %}selected{% endif %}>Free subdomains</option>
+        <option value="all" {% if kind == "all" %}selected{% endif %}>All</option>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="f-dstatus">Verification</label>
+      <select id="f-dstatus" name="status" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">Any</option>
+        <option value="pending_dns" {% if status == "pending_dns" %}selected{% endif %}>Waiting for DNS</option>
+        <option value="verifying" {% if status == "verifying" %}selected{% endif %}>Verifying</option>
+        <option value="active" {% if status == "active" %}selected{% endif %}>Active</option>
+        <option value="failed" {% if status == "failed" %}selected{% endif %}>Failed</option>
+      </select>
+    </div>
+    <div><button type="submit" class="btn btn-primary">Filter</button></div>
+  </form>
+  <div class="mt-4">{% include "partials/data_table.html" %}</div>
+{% endblock %}

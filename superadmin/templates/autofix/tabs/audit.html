@@ -1,0 +1,20 @@
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<div class="grid gap-6 lg:grid-cols-2" data-testid="tab-audit">
+  <section class="card" aria-labelledby="platform-log-heading">
+    <h2 id="platform-log-heading" class="px-4 pt-4 text-xl">Autofix platform log</h2>
+    <ul class="mt-2 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+      {% for entry in platform_audit %}
+        <li class="px-4 py-2"><span class="font-medium">{{ entry.action }}</span><span class="muted block text-xs">{{ entry.created_at|date:"j M Y H:i" }} · {{ entry.actor_name }}</span>{% if entry.reason %}<span class="block text-xs break-words">{{ entry.reason }}</span>{% endif %}</li>
+      {% empty %}<li class="muted px-4 py-6">No platform actions for this garage.</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="card" aria-labelledby="local-log-heading">
+    <h2 id="local-log-heading" class="px-4 pt-4 text-xl">Super admin trail</h2>
+    <ul class="mt-2 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+      {% for event in local_audit %}
+        <li class="px-4 py-2"><span class="font-medium">{{ event.summary }}</span><span class="muted block text-xs">{{ event.created_at|date:"j M Y H:i" }} · {{ event.actor_email|default:"System" }} · {{ event.action }}</span></li>
+      {% empty %}<li class="muted px-4 py-6">Nothing recorded here for this garage.</li>{% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}

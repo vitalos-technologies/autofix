@@ -1,0 +1,3 @@
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<div data-testid="tab-messaging">{% include "autofix/_messaging_summary.html" with summary=messaging %}</div>
+{% endif %}

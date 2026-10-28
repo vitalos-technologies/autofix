@@ -1,0 +1,15 @@
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<section class="card overflow-x-auto" tabindex="0" aria-labelledby="agreements-heading" data-testid="tab-agreements">
+  <h2 id="agreements-heading" class="px-4 pt-4 text-xl">Agreements</h2>
+  <p class="muted px-4 text-xs">Data processing agreements accepted in Autofix (immutable records).</p>
+  <table class="table-base mt-2">
+    <caption class="sr-only">Accepted agreements</caption>
+    <thead><tr><th scope="col">Agreement</th><th scope="col">Version</th><th scope="col">Accepted by</th><th scope="col">When</th><th scope="col">Text hash</th></tr></thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+      {% for agreement in agreements %}
+        <tr><td class="font-medium">{% if agreement.kind == "dpa" %}DPA{% else %}{{ agreement.kind }}{% endif %}</td><td>{{ agreement.version }}</td><td>{{ agreement.accepted_by_name }} <span class="muted text-xs">({{ agreement.accepted_by_role }})</span></td><td class="text-xs">{{ agreement.accepted_at|date:"j M Y H:i" }}</td><td class="font-mono text-xs">{{ agreement.text_hash|slice:":12" }}…</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted py-6 text-center">No DPA accepted yet. The garage cannot finish onboarding without one.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}

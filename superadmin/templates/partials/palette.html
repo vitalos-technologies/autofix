@@ -1,0 +1,12 @@
+{% load ui %}
+<dialog id="palette" class="m-auto mt-[12vh] w-[min(36rem,calc(100vw-2rem))] rounded-md border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-midnight/60 backdrop:backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" aria-label="Command palette" data-testid="palette">
+  <div class="flex items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
+    {% icon "search" "h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" %}
+    <input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Go to a page, garage or setting"
+           placeholder="Go to a page, garage, domain or setting…" autocomplete="off" spellcheck="false" data-palette-input
+           class="h-12 w-full bg-transparent text-sm outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400"
+           name="q" hx-get="{% url 'core:palette' %}" hx-trigger="input changed delay:150ms, palette-open" hx-target="#palette-list" hx-swap="innerHTML">
+    <kbd class="rounded border border-slate-300 px-1.5 font-mono text-[10px] text-slate-500 dark:border-slate-600 dark:text-slate-400">Esc</kbd>
+  </div>
+  <div id="palette-list" class="max-h-[60vh] overflow-y-auto p-2" role="listbox" aria-label="Results">{% include "partials/skeleton.html" with kind="list" rows=4 %}</div>
+</dialog>

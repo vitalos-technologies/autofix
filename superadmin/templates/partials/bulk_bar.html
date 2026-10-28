@@ -1,0 +1,16 @@
+{# Bulk-action bar. Row checkboxes elsewhere on the page join this form with form="bulk-form". #}
+{% load ui %}
+<form id="bulk-form" method="post" action="{{ bulk_url }}" class="card mt-3 flex flex-wrap items-center gap-3 p-3" data-bulk-bar aria-label="Bulk actions" data-testid="bulk-bar">
+  {% csrf_token %}
+  <input type="hidden" name="qs" value="{{ bulk_qs }}">
+  <p class="text-sm font-medium" role="status" aria-live="polite" data-bulk-count>Select items to act on them</p>
+  <div class="flex flex-wrap items-center gap-2">
+    <label for="bulk-action" class="sr-only">Bulk action</label>
+    <select id="bulk-action" name="action" required class="block rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+      <option value="">Choose an action</option>
+      {% for action in bulk_actions %}<option value="{{ action.key }}">{{ action.label }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm" data-testid="bulk-apply">{% icon "check" "h-4 w-4" %} Apply</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-bulk-clear>{% icon "x" "h-4 w-4" %} Clear</button>
+  </div>
+</form>

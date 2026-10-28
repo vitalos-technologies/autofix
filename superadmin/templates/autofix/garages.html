@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Garages · Autofix Super Admin{% endblock %}
+{% block content %}
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1>Garages</h1>
+      <p class="muted mt-1 text-sm">Every garage on Autofix, newest first. Select rows for bulk actions.</p>
+    </div>
+    <a href="{{ export_url }}" class="btn btn-secondary" data-testid="garages-export">{% icon "download" "h-4 w-4" %} Export CSV</a>
+  </div>
+
+  <form method="get" action="{% url 'autofix:garages' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5"
+        hx-get="{% url 'autofix:garages' %}" hx-trigger="change, keyup changed delay:300ms from:#f-q" hx-target="#garage-results" hx-swap="outerHTML" hx-push-url="true"
+        data-testid="garage-filters">
+    <div class="sm:col-span-2">
+      <label class="field-label" for="f-q">Name or slug</label>
+      <input id="f-q" name="q" type="search" value="{{ filters.q }}" autocomplete="off" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <div>
+      <label class="field-label" for="f-plan">Plan</label>
+      <select id="f-plan" name="plan" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All plans</option>
+        {% for key, label in plans %}<option value="{{ key }}" {% if key == filters.plan %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="f-status">Status</label>
+      <select id="f-status" name="status" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All statuses</option>
+        {% for key, label in statuses %}<option value="{{ key }}" {% if key == filters.status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if dir %}<input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <input type="hidden" name="density" value="{{ density }}">
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{% url 'autofix:garages' %}" class="btn btn-ghost">Clear</a>
+    </div>
+  </form>
+
+  {% include "partials/bulk_bar.html" %}
+  <div class="mt-3">
+    <label class="mb-2 inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" data-bulk-all class="h-5 w-5 rounded border-slate-300"> Select all on this page</label>
+    {% include "partials/data_table.html" %}
+  </div>
+{% endblock %}

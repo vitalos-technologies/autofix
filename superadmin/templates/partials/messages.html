@@ -1,0 +1,7 @@
+{% if messages %}
+  <div class="mb-4 space-y-2" data-autodismiss>
+    {% for message in messages %}
+      <div role="status" class="rounded-lg px-4 py-3 text-sm {% if message.level_tag == 'error' %}bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-200{% else %}bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}

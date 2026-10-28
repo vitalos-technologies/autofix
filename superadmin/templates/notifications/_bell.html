@@ -1,0 +1,5 @@
+{% load ui %}
+<a href="{% url 'notifications:list' %}" class="btn btn-ghost btn-sm relative" aria-label="Notifications: {{ unread_count }} unread" data-testid="bell">
+  {% icon "bell" %}
+  {% if unread_count %}<span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white" data-testid="bell-count">{% if unread_count > 99 %}99+{% else %}{{ unread_count }}{% endif %}</span>{% endif %}
+</a>
