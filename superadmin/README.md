@@ -120,6 +120,43 @@ bandit -r apps config -c pyproject.toml
 
 CI also builds the image, runs the release job twice, starts the production image in path mode (`/superadmin`, proxy secret) against the isolated local Supabase, checks the proxy gate (404 without the secret), and drives `e2e/smoke.py` (52 checks) and `e2e/a11y.py` (axe-core, WCAG 2.2 AA, every page light and dark at 1440 and 390; no serious or critical violations) against it. The database side has its own pgTAP test (`supabase/tests/database/028_superadmin_role.test.sql`).
 
+## Deploy
+
+Production runs on Azure Container Apps (consumption plan, scale to zero) and answers at `https://autofix.vitalos.co.uk/superadmin` through the Autofix app's proxy. The image is a private GitHub package. Its own data lives in schema `superadmin_app` in Autofix's Supabase project. Expected cost: £0 (DECISIONS D18, A415–A417). `.github/workflows/superadmin-deploy.yml` does everything: image, Supabase roles, Azure, Vercel variables and redeploy, and the live check. `superadmin/deploy/azure/deploy.sh --dry-run` prints what it creates.
+
+### One-time steps (Temitope)
+
+Never paste these values into a chat. Each goes straight into GitHub at **github.com/vitalos-technologies/autofix → Settings → Secrets and variables → Actions → New repository secret**.
+
+1. **Azure deploy identity.** Open https://shell.azure.com, signed in as the subscription owner, and choose **Bash**. Paste the script below. It starts the CI machine if it is stopped, creates resource group `rg-autofix-superadmin` and a deploy login that can change only that group, and prints four lines. Add each as a repository secret with the name before `=` and the value after it: `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
+
+   ```bash
+   set -e
+   SUB=$(az account show --query id -o tsv)
+   echo "Subscription: $(az account show --query '[name,state]' -o tsv)"
+   VM=$(az vm list -d --query "[?name=='autofix-ci'].{rg:resourceGroup,state:powerState}" -o tsv)
+   RG_VM=$(echo "$VM" | cut -f1)
+   [ -n "$RG_VM" ] && [ "$(echo "$VM" | cut -f2)" != "VM running" ] && az vm start -g "$RG_VM" -n autofix-ci
+   for p in Microsoft.App Microsoft.OperationalInsights; do az provider register -n "$p" --wait; done
+   RG=rg-autofix-superadmin
+   az group create -n "$RG" -l uksouth --tags app=autofix-superadmin -o none
+   az ad sp create-for-rbac --name autofix-superadmin-deploy --role Contributor \
+     --scopes "$(az group show -n "$RG" --query id -o tsv)" --query "{appId:appId,password:password,tenant:tenant}" -o tsv \
+     | awk -v s="$SUB" '{print "AZURE_CLIENT_ID="$1"\nAZURE_CLIENT_SECRET="$2"\nAZURE_TENANT_ID="$3"\nAZURE_SUBSCRIPTION_ID="s}'
+   ```
+
+2. **Read-only GitHub token for the image.** Azure needs it to pull the private package. Open https://github.com/settings/tokens/new (Personal access tokens → **Tokens (classic)**; GitHub's fine-grained tokens can't read packages). Set Note `autofix-superadmin image pull`, Expiration **1 year**, and tick **only** `read:packages`. Generate it and add it as repository secret `GHCR_PULL_TOKEN`. If your GitHub username is not `Isaacpyo`, also add a repository **variable** `GHCR_PULL_USERNAME` with your username.
+3. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens → **Generate new token**, name `autofix-github-actions`. Add it as repository secret `SUPABASE_ACCESS_TOKEN`. It's the same secret Launch ops already expects. The deploy uses it to create the super admin's role and schema and to give `autofix_superadmin` a login password. That password is generated in the job, sent to Supabase only as a SCRAM hash, stored only in Azure and never shown, so there's no SQL to run by hand.
+4. **Bring production's database up to date.** Run **Actions → Launch ops → Run workflow** with task `supabase-migrate` and **apply** ticked. It applies the merged migrations production doesn't have yet, the super admin's role among them.
+5. **Deploy.** Run **Actions → Super Admin deploy → Run workflow** and type `DEPLOY`. It ends with `https://autofix.vitalos.co.uk/superadmin/login/` answering.
+6. **Set your password.** Open https://autofix.vitalos.co.uk/superadmin/ once, to wake it. Then in Azure Cloud Shell run the command below. It prints a one-time 30-minute link; open it, set a password, then set up your authenticator app.
+
+   ```bash
+   az containerapp exec -g rg-autofix-superadmin -n autofix-superadmin --command "python manage.py issue_setup_link"
+   ```
+
+Re-run **Super Admin deploy** for each new version. It keeps every secret and password.
+
 ## Management commands
 
 - `create_superadmin [--email EMAIL] [--password]` creates the bootstrap SuperAdmin if it is missing and otherwise leaves the account unchanged. The password is read **only** from `$BOOTSTRAP_ADMIN_PASSWORD`; `--password` resets an existing account's password from it.
