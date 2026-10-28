@@ -24,27 +24,27 @@ function clearCookie(response: NextResponse) {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const providerId = routeProvider((await params).provider);
   if (!providerId) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404, headers: NO_STORE });
-  const guard = await requireAccountingOwner();
+  const guard = await requireAccountingOwner(request);
   if ("response" in guard) return clearCookie(guard.response);
   const { admin } = guard;
 
   const query = request.nextUrl.searchParams;
   const cookie = openOAuthState(request.cookies.get(ACCOUNTING_OAUTH_COOKIE)?.value);
   const problem = checkCallback(cookie, { state: query.get("state"), provider: providerId, garageId: admin.garage.id, userId: admin.user.id });
-  if (problem) return clearCookie(settingsRedirect({ error: problem === "expired" ? "connect_expired" : "connect_state" }));
-  if (query.get("error")) return clearCookie(settingsRedirect({ error: "connect_denied" }));
+  if (problem) return clearCookie(settingsRedirect(request, { error: problem === "expired" ? "connect_expired" : "connect_state" }));
+  if (query.get("error")) return clearCookie(settingsRedirect(request, { error: "connect_denied" }));
   const code = query.get("code");
-  if (!code || code.length > 4096) return clearCookie(settingsRedirect({ error: "connect_failed" }));
+  if (!code || code.length > 4096) return clearCookie(settingsRedirect(request, { error: "connect_failed" }));
 
   try {
     const provider = getAccountingProvider(providerId);
-    const tokens = await provider.exchangeCode({ code, codeVerifier: cookie!.verifier, redirectUri: accountingCallbackUrl(providerId), callbackParams: query });
+    const tokens = await provider.exchangeCode({ code, codeVerifier: cookie!.verifier, redirectUri: accountingCallbackUrl(providerId, request.url), callbackParams: query });
     const tenants = await provider.listTenants(tokens);
-    if (tenants.length === 0) return clearCookie(settingsRedirect({ error: "no_organisation" }));
+    if (tenants.length === 0) return clearCookie(settingsRedirect(request, { error: "no_organisation" }));
     const saved = await saveConnection({ garageId: admin.garage.id, provider: providerId, tokens, tenants, userId: admin.user.id });
-    return clearCookie(settingsRedirect(saved.status === "pending" ? { choose: "1" } : { done: "connected" }));
+    return clearCookie(settingsRedirect(request, saved.status === "pending" ? { choose: "1" } : { done: "connected" }));
   } catch (error) {
     console.error("[accounting] connect failed", isAccountingError(error) ? error.code : "unexpected");
-    return clearCookie(settingsRedirect({ error: "connect_failed" }));
+    return clearCookie(settingsRedirect(request, { error: "connect_failed" }));
   }
 }

@@ -27,6 +27,7 @@
     "test:e2e:signup": "playwright test --config playwright.garage.config.ts --project=signup",
     "test:e2e:gate3": "playwright test --config playwright.garage.config.ts --project=gate3",
     "test:e2e:p5-plans": "playwright test --config playwright.garage.config.ts --project=p5-plans",
+    "test:e2e:p5-accounting": "playwright test --config playwright.garage.config.ts --project=p5-accounting",
     "test:lighthouse": "lhci autorun",
     "test:lighthouse:askbridge": "node scripts/lighthouse-askbridge.mjs",
     "test:load": "node scripts/load/slots-load.mjs",

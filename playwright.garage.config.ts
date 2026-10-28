@@ -77,6 +77,8 @@ export default defineConfig({
       BOOKING_STATE_SECRET: process.env.BOOKING_STATE_SECRET || "playwright-local-booking-state-key-not-a-secret",
       // tests/helpers/booking-fixtures.ts and tests/e2e/legal.spec.ts derive link tokens with the same value.
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
+      // P5.10: encrypts accounting OAuth tokens; a local-only 32-byte value (hex), not a secret.
+      ACCOUNTING_TOKEN_KEY: process.env.ACCOUNTING_TOKEN_KEY || "706c61797772696768742d6c6f63616c2d6163636f756e74696e672d6b657921",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
       // Mock channels only (no real texts or emails), whatever the shell exports.
@@ -126,6 +128,7 @@ export default defineConfig({
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
     { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "p5-plans", testMatch: "p5-plans.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-accounting", testMatch: "p5-accounting.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });

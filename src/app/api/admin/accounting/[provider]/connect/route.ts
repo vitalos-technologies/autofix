@@ -18,19 +18,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const providerId = routeProvider((await params).provider);
   if (!providerId) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404, headers: NO_STORE });
   if (!isSameOrigin(request)) return NextResponse.json({ error: "BAD_ORIGIN" }, { status: 403, headers: NO_STORE });
-  const guard = await requireAccountingOwner();
+  const guard = await requireAccountingOwner(request);
   if ("response" in guard) return guard.response;
   const { admin } = guard;
 
   const provider = getAccountingProvider(providerId);
-  if (!provider.configured || !hasAccountingKey()) return settingsRedirect({ error: "configuration_required", provider: providerId });
+  if (!provider.configured || !hasAccountingKey()) return settingsRedirect(request, { error: "configuration_required", provider: providerId });
 
   const state = createOAuthState({ provider: providerId, garageId: admin.garage.id, userId: admin.user.id });
   let authorizeUrl: string;
   try {
-    authorizeUrl = provider.authorizeUrl({ state: state.state, codeChallenge: pkceChallenge(state.verifier), redirectUri: accountingCallbackUrl(providerId) });
+    authorizeUrl = provider.authorizeUrl({ state: state.state, codeChallenge: pkceChallenge(state.verifier), redirectUri: accountingCallbackUrl(providerId, request.url) });
   } catch {
-    return settingsRedirect({ error: "configuration_required", provider: providerId });
+    return settingsRedirect(request, { error: "configuration_required", provider: providerId });
   }
   try {
     await recordAdminAudit(admin.garage.id, { actorId: admin.user.id, action: "accounting.connect_started", entityType: "accounting_connection", entityId: providerId, detail: { provider: providerId } });

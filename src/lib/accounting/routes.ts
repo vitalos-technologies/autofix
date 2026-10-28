@@ -3,7 +3,6 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { featureGuard } from "@/lib/plans/server";
 import { getAdminContext, type AdminContext } from "@/lib/tenancy/admin";
-import { adminUrl } from "@/lib/tenancy/urls";
 import { ACCOUNTING_SETTINGS_PATH } from "./server";
 import { REAL_ACCOUNTING_PROVIDERS, type AccountingProviderId } from "./types";
 
@@ -12,8 +11,9 @@ import { REAL_ACCOUNTING_PROVIDERS, type AccountingProviderId } from "./types";
 
 export const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 
-export function settingsRedirect(query: Record<string, string>) {
-  const url = new URL(adminUrl(ACCOUNTING_SETTINGS_PATH));
+/** Back to the settings page on the host the request came in on (the admin host; middleware routes it here). */
+export function settingsRedirect(request: Request, query: Record<string, string>) {
+  const url = new URL(ACCOUNTING_SETTINGS_PATH, request.url);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   return NextResponse.redirect(url, { status: 303, headers: NO_STORE });
 }
@@ -37,15 +37,15 @@ export function isSameOrigin(request: Request): boolean {
  * The owner of the selected garage, with MFA done in this session, on a plan with accounting sync.
  * Returns the context, or the response to send instead (login, MFA step-up, owner only, 403 PLAN_REQUIRED).
  */
-export async function requireAccountingOwner(): Promise<{ admin: AdminContext } | { response: NextResponse }> {
+export async function requireAccountingOwner(request: Request): Promise<{ admin: AdminContext } | { response: NextResponse }> {
   const admin = await getAdminContext();
-  if (!admin) return { response: NextResponse.redirect(new URL(adminUrl("/app/login")), { status: 303, headers: NO_STORE }) };
-  if (admin.impersonation) return { response: settingsRedirect({ error: "read_only" }) };
+  if (!admin) return { response: NextResponse.redirect(new URL("/app/login", request.url), { status: 303, headers: NO_STORE }) };
+  if (admin.impersonation) return { response: settingsRedirect(request, { error: "read_only" }) };
   if (admin.mfaState !== "verified" && admin.mfaState !== "unenrolled_allowed") {
-    return { response: NextResponse.redirect(new URL(adminUrl(`/app/mfa?returnTo=${encodeURIComponent(ACCOUNTING_SETTINGS_PATH)}&stepUp=1`)), { status: 303, headers: NO_STORE }) };
+    return { response: NextResponse.redirect(new URL(`/app/mfa?returnTo=${encodeURIComponent(ACCOUNTING_SETTINGS_PATH)}&stepUp=1`, request.url), { status: 303, headers: NO_STORE }) };
   }
   const blocked = featureGuard(admin.garage, "accounting_sync");
   if (blocked) return { response: blocked };
-  if (admin.role !== "owner") return { response: settingsRedirect({ error: "owner_only" }) };
+  if (admin.role !== "owner") return { response: settingsRedirect(request, { error: "owner_only" }) };
   return { admin };
 }

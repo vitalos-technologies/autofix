@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
 import { adminUrl } from "@/lib/tenancy/urls";
-import { getAccountingProvider } from "./providers";
+import { accountingMode, getAccountingProvider } from "./providers";
 import { loadConnectionTokens, mapConnectionRow, sealTokens } from "./repository";
 import type { SyncEntity, SyncItemStatus } from "./sync";
 import { AccountingError, isAccountingProviderId, type AccountingProviderId, type AccountingTenant, type TokenSet } from "./types";
@@ -19,8 +19,15 @@ function serviceDb(): SupabaseClient {
 
 export const ACCOUNTING_SETTINGS_PATH = "/app/settings/accounting";
 
-export function accountingCallbackUrl(provider: AccountingProviderId): string {
-  return adminUrl(`/api/admin/accounting/${provider}/callback`);
+/**
+ * The OAuth redirect URI. Live providers get the registered admin-host URI
+ * (https://autofix.vitalos.co.uk/api/admin/accounting/<provider>/callback); the fake, which never leaves
+ * the app, comes back to the host the request came in on (local runs and e2e on another port).
+ */
+export function accountingCallbackUrl(provider: AccountingProviderId, requestUrl?: string): string {
+  const path = `/api/admin/accounting/${provider}/callback`;
+  if (requestUrl && accountingMode() === "fake") return new URL(path, requestUrl).toString();
+  return adminUrl(path);
 }
 
 export type ConnectionView = {
