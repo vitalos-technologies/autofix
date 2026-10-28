@@ -125,6 +125,7 @@ export default defineConfig({
     { name: "signup", testMatch: "signup.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
     { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-plans", testMatch: "p5-plans.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
   ],
 });
