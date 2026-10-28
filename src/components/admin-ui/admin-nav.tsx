@@ -17,6 +17,7 @@ import {
   Lock,
   MessageSquare,
   Palette,
+  Repeat,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -57,6 +58,7 @@ export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; ico
   { feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn },
   { feature: "courtesy_cars", label: "Courtesy cars", href: "/app/courtesy-cars", icon: CarFront },
   { feature: "payments", label: "Payments", href: "/app/payments", icon: Banknote },
+  { feature: "service_plans", label: "Service plans", href: "/app/service-plans", icon: Repeat },
 ];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */

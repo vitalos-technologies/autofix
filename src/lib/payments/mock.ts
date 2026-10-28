@@ -27,6 +27,16 @@ export function createMockPaymentsProvider(): PaymentsProvider {
     async cancelCheckout() {
       return true;
     },
+    // P5.11: the mock "sets up" a Direct Debit on the garage host's plan confirm page.
+    async startMandate() {
+      return { kind: "local" };
+    },
+    async getMandate() {
+      return null;
+    },
+    async cancelMandate() {
+      return true;
+    },
     parseWebhook() {
       return null;
     },

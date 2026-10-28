@@ -15,6 +15,7 @@ import {
   type DataTableColumn,
 } from "@/components/admin-ui";
 import { PlateChip } from "@/components/book/plate-chip";
+import { CustomerPlansPanel } from "@/components/service-plans/panels";
 import { formatUkMobile } from "@/lib/customers/csv";
 import { getCustomerDetail, type CustomerBooking, type CustomerVehicle } from "@/lib/customers/queries";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -35,8 +36,9 @@ function formatInstant(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone }).format(new Date(value));
 }
 
-export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CustomerPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ plans?: string; plansError?: string }> }) {
   const { id } = await params;
+  const query = await searchParams;
   const admin = await getAdminContext({ allowTrustedDevice: true });
   if (!admin) notFound();
   const customer = await getCustomerDetail(admin.client, id);
@@ -143,6 +145,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <p className="m-0 text-[13px] text-grey-600">MOT dates come from the DVSA MOT history and are checked again before reminders go out.</p>
         ) : null}
       </Panel>
+
+      <CustomerPlansPanel admin={admin} customerId={customer.id} flash={{ done: query.plans, error: query.plansError }} />
 
       <Panel title="Bookings" count={customer.bookings.length} countLabel="bookings">
         <DataTable

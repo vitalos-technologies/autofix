@@ -9,10 +9,14 @@ export type {
   CheckoutState,
   ConnectGarage,
   ConnectResult,
+  MandateRequest,
+  MandateResult,
+  MandateState,
   PaymentAccountStatus,
   PaymentsEvent,
   PaymentsProvider,
   PaymentsProviderKind,
+  PlanSubscriptionStatus,
 } from "./provider";
 
 type Env = Readonly<Record<string, string | undefined>>;

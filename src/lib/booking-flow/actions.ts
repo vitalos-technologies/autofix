@@ -46,6 +46,7 @@ import { notifyBooking } from "@/lib/booking-engine/notify";
 import { writePayCookie } from "@/lib/payments/pay-session";
 import { depositQuote, releaseExpiredDeposits, startDeposit } from "@/lib/payments/server";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { recordPlanBooking } from "@/lib/service-plans/server";
 import { getGarage, type Garage } from "@/lib/tenancy/garage";
 import { getConfiguredVehicleProvider } from "@/lib/vehicle/configured-provider";
 import { withMotVisibility } from "@/lib/vehicle/mot";
@@ -366,6 +367,8 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
     // Attached after the booking exists, by their own functions: they can never fail the booking.
     const attached = await attachBookingExtras(garage, { id: booking.id, reference: booking.reference }, extras.value);
     const extraLines = extrasSummary(attached);
+    // P5.11: a car on a service plan uses its included service (its own function, after create_booking()).
+    await recordPlanBooking(garage.id, booking.id);
     let payToken: string | null = null;
     if (deposit) {
       const started = await startDeposit(garage, booking.id, deposit.provider);

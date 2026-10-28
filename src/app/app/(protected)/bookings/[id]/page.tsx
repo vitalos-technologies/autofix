@@ -8,6 +8,7 @@ import { BookingEmailThreadButton } from "@/components/admin/booking-email-threa
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
 import { PageHeader, Panel, SOURCE_LABELS, StatusPill, buttonClass, textLinkClass } from "@/components/admin-ui";
 import { BookingPaymentsPanel } from "@/components/payments/panels";
+import { BookingPlanPanel } from "@/components/service-plans/panels";
 import { formatServicePrice, formatSlotLabel, formatTime } from "@/components/book/format";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CHANGE_MESSAGES } from "@/lib/admin/booking-changes";
@@ -90,7 +91,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * collected; cancel; no-show), moving it, notes and the booking_events timeline. Reads and status
  * writes go through the garage's RLS client; another garage's booking is "not found".
  */
-export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string; courtesy?: string; courtesyError?: string; payments?: string }> }) {
+export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string; courtesy?: string; courtesyError?: string; payments?: string; plans?: string; plansError?: string }> }) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const admin = await getAdminContext({ allowTrustedDevice: true });
@@ -260,6 +261,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
           </Panel>
 
           <HealthCheckPanel bookingId={booking.id} check={healthCheck} canStart={canStartHealthCheck} />
+          <BookingPlanPanel admin={admin} bookingId={booking.id} flash={{ done: query.plans, error: query.plansError }} />
           <CourtesyBookingPanel
             client={admin.client}
             garage={admin.garage}
