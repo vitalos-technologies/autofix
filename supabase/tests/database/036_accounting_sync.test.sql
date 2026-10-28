@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 set local timezone to 'UTC';
 
-select plan(44);
+select plan(45);
 
 -- P5.10 accounting sync: accounting_connections, accounting_connection_secrets,
 -- accounting_sync_items, accounting_save_connection(), accounting_choose_tenant(),
@@ -102,6 +102,8 @@ select throws_ok($$select public.accounting_save_connection('a1360000-0000-4000-
                    'plaintext-token', null, now())$$, '23514', null, 'tokens must be ciphertext');
 select is((public.accounting_choose_tenant(pg_temp.p(), (select id from public.accounting_connections where garage_id = pg_temp.p()),
            'org-1', 'Pro Garage Ltd', '13600000-0000-4000-8000-0000000000a1')).status, 'connected', 'choosing the organisation connects');
+select is((select count(*)::integer from public.jobs where kind = 'accounting.sync' and garage_id = pg_temp.p() and status = 'queued'), 1,
+          'and queues a sync for anything waiting');
 select throws_ok($$select public.accounting_choose_tenant('a1360000-0000-4000-8000-000000000003',
                    (select id from public.accounting_connections where garage_id = 'a1360000-0000-4000-8000-000000000001'), 'x', 'x', null)$$,
                  'P0002', 'CONNECTION_NOT_FOUND', 'another garage''s connection cannot be chosen for');

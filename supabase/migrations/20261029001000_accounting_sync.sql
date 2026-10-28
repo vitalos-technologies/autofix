@@ -242,6 +242,10 @@ begin
   insert into public.admin_audit_log (garage_id, actor_id, action, entity_type, entity_id, detail)
   values (p_garage_id, p_connected_by, 'accounting.connected', 'accounting_connection', saved.id::text,
           jsonb_build_object('provider', p_provider, 'status', saved.status));
+  -- After a reconnect, items that waited go out straight away.
+  if saved.status = 'connected' then
+    perform public.enqueue_accounting_sync(p_garage_id, null);
+  end if;
   return saved;
 end
 $$;
@@ -274,6 +278,7 @@ begin
   insert into public.admin_audit_log (garage_id, actor_id, action, entity_type, entity_id, detail)
   values (p_garage_id, p_actor, 'accounting.organisation_chosen', 'accounting_connection', saved.id::text,
           jsonb_build_object('provider', saved.provider));
+  perform public.enqueue_accounting_sync(p_garage_id, null);
   return saved;
 end
 $$;
