@@ -140,6 +140,7 @@ const draftSchema = z.object({
   note: z.string().max(2000).optional(),
   startsAt: z.string().optional(),
   reminderSendId: z.string().optional(),
+  campaignSendId: z.string().uuid().optional(),
   idempotencyKey: z.string().optional(),
 });
 

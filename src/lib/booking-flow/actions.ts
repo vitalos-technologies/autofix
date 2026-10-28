@@ -36,6 +36,7 @@ import {
 import { dateKeyInZone } from "@/lib/booking-flow/dates";
 import type { DetailsFormState, ServiceFormState, TimeFormState, VehicleFormState } from "@/lib/booking-flow/forms";
 import { clientIp, loadBookingServices, passHumanCheck } from "@/lib/booking-flow/server";
+import { attributeCampaignBooking } from "@/lib/campaigns/open-link";
 import { BOOKING_STEP_PATHS, firstIncompleteStep, serviceLocationModes } from "@/lib/booking-flow/steps";
 import { draftVehicleFromLookup, vehicleName, type DraftVehicle } from "@/lib/booking-flow/vehicle";
 import { toE164UK } from "@/lib/messaging/phone";
@@ -71,6 +72,7 @@ function withoutVehicle(draft: BookingDraft): BookingDraft {
   delete next.vehicle;
   // A reminder link (/r/{token}) is about one car: another car is an ordinary booking.
   delete next.reminderSendId;
+  delete next.campaignSendId;
   return next;
 }
 
@@ -341,6 +343,8 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
 
   if (result.ok) {
     const booking = result.booking;
+    // P5.5: a booking from a campaign link counts for the campaign (same customer and car; checked in SQL).
+    if (draft.campaignSendId) await attributeCampaignBooking(garage.id, draft.campaignSendId, booking.id);
     await clearBookingDraft();
     await writeJustBooked(garage.id, {
       reference: booking.reference,

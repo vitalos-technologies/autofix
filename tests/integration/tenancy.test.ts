@@ -427,6 +427,32 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { data: { tampered: true } },
   },
   bookings: { create: (rows) => rows.booking(), patch: { notes: "Tampered" } },
+  campaigns: {
+    create: (rows) => rows.insert("campaigns", { name: `Tenancy campaign ${rows.key}`, segment: {}, template: "{garage}: hi {link}", email_subject: "Tenancy" }),
+    patch: { name: "Tampered" },
+  },
+  campaign_sends: {
+    create: async (rows) => {
+      const campaign = await rows.insert("campaigns", {
+        name: `Tenancy sent ${rows.key}`,
+        segment: {},
+        template: "{garage}: hi {link}",
+        email_subject: "Tenancy",
+        status: "scheduled",
+        send_at: "2096-04-03T09:00:00.000Z",
+        recipients: 1,
+        scheduled_at: "2096-04-01T09:00:00.000Z",
+      }, "id");
+      return rows.insert("campaign_sends", {
+        campaign_id: campaign.id,
+        customer_id: await rows.customer(),
+        vehicle_id: await rows.vehicle(),
+        channel: "sms",
+        send_at: "2096-04-03T09:00:00.000Z",
+      });
+    },
+    patch: { status: "cancelled", skip_reason: "tampered" },
+  },
   closures: {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
     patch: { reason: "Tampered" },
