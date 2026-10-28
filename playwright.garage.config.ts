@@ -129,6 +129,10 @@ export default defineConfig({
     // Gate 3: its own garage, owner and customer (the customer on a 390 phone, the owner at 1440); axe at 390 and 1440.
     { name: "gate3", testMatch: "gate3.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "p5-plans", testMatch: "p5-plans.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    // P5.5 Campaigns: its own garage, owner and customers; axe and screenshots at 390 and 1440.
+    { name: "p5-campaigns", testMatch: "p5-campaigns.spec.ts", use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
+    // P5.3 health checks: its own garage, owner and booking; the spec checks 390 and 1440 itself.
+    { name: "p5-health-checks", testMatch: "p5-health-checks.spec.ts", expect: { timeout: 20_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
   ],
 });

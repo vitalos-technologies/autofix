@@ -94,6 +94,8 @@ describe("shell navigation", () => {
       "/app/customers",
       "/app/reminders",
       "/app/messages",
+      "/app/campaigns",
+      "/app/health-checks",
       "/app/settings/services",
       "/app/settings/hours",
       "/app/settings/resources",
@@ -148,7 +150,9 @@ describe("Pro sections in the nav (P5.2)", () => {
   it("keeps a locked Pro link visible with a Pro badge, and unlocked ones plain", async () => {
     const nav = await import("@/components/admin-ui/admin-nav");
     const { Megaphone } = await import("lucide-react");
-    nav.GROW_NAV_ITEMS.push({ feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone });
+    // P5.5 added Campaigns to the Grow group; the probe only adds it when it is not there yet.
+    const added = !nav.GROW_NAV_ITEMS.some((item) => item.feature === "campaigns");
+    if (added) nav.GROW_NAV_ITEMS.push({ feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone });
     try {
       const { unmount } = render(<AdminNavGroups groups={defaultAdminNav({ lockedFeatures: new Set(["campaigns"]) })} activeHref="/app" />);
       const link = screen.getByRole("link", { name: /Campaigns/ });
@@ -160,7 +164,7 @@ describe("Pro sections in the nav (P5.2)", () => {
       expect(screen.getByRole("link", { name: /Campaigns/ })).not.toHaveTextContent("Pro");
       expect(screen.getByText("Grow")).toBeInTheDocument();
     } finally {
-      nav.GROW_NAV_ITEMS.pop();
+      if (added) nav.GROW_NAV_ITEMS.pop();
     }
   });
 });

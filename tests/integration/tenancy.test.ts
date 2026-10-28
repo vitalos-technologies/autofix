@@ -428,6 +428,32 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { data: { tampered: true } },
   },
   bookings: { create: (rows) => rows.booking(), patch: { notes: "Tampered" } },
+  campaigns: {
+    create: (rows) => rows.insert("campaigns", { name: `Tenancy campaign ${rows.key}`, segment: {}, template: "{garage}: hi {link}", email_subject: "Tenancy" }),
+    patch: { name: "Tampered" },
+  },
+  campaign_sends: {
+    create: async (rows) => {
+      const campaign = await rows.insert("campaigns", {
+        name: `Tenancy sent ${rows.key}`,
+        segment: {},
+        template: "{garage}: hi {link}",
+        email_subject: "Tenancy",
+        status: "scheduled",
+        send_at: "2096-04-03T09:00:00.000Z",
+        recipients: 1,
+        scheduled_at: "2096-04-01T09:00:00.000Z",
+      }, "id");
+      return rows.insert("campaign_sends", {
+        campaign_id: campaign.id,
+        customer_id: await rows.customer(),
+        vehicle_id: await rows.vehicle(),
+        channel: "sms",
+        send_at: "2096-04-03T09:00:00.000Z",
+      });
+    },
+    patch: { status: "cancelled", skip_reason: "tampered" },
+  },
   closures: {
     create: (rows) => rows.insert("closures", { starts_on: "2096-12-25", ends_on: "2096-12-26", reason: `Tenancy probe ${rows.key}` }),
     patch: { reason: "Tampered" },
@@ -497,6 +523,29 @@ const FIXTURES: Record<string, Fixture> = {
       provider_sid: `PNtenancy${rows.key}${localRunId}`,
     }),
     patch: { purpose: "messaging" },
+  },
+  // P5.3 health checks: start_health_check() (idempotent per booking) creates the check and its checklist.
+  health_checks: {
+    create: async (rows) => rows.rpc("start_health_check", { p_booking_id: await rows.booking() }),
+    patch: { summary: "Tampered" },
+  },
+  health_check_items: {
+    create: async (rows) => rows.rpc("start_health_check", { p_booking_id: await rows.booking() }),
+    patch: { note: "Tampered" },
+  },
+  // Staff may insert and delete media rows (no update grant): the update probe is refused.
+  health_check_media: {
+    create: async (rows) => {
+      const checkId = String(await rows.rpc("start_health_check", { p_booking_id: await rows.booking() }));
+      return rows.insert("health_check_media", {
+        check_id: checkId,
+        object_path: `${rows.garage.id}/health-checks/${checkId}/${randomUUID()}.png`,
+        content_type: "image/png",
+        size_bytes: PNG.length,
+        kind: "image",
+      });
+    },
+    patch: { content_type: "image/jpeg" },
   },
   invoice_email_attempts: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },
   invoice_email_sends: { create: (rows) => rows.invoiceEmail(), patch: { status: "failed" } },

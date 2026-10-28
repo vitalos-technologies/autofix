@@ -141,6 +141,8 @@ export type BookingDraft = {
   startsAt?: string;
   /** From a verified `/r/{token}` link (P3.9). */
   reminderSendId?: string;
+  /** From a verified `/c/{token}` campaign link (P5.5); credited after the booking by attribute_campaign_booking(). */
+  campaignSendId?: string;
   /** Stable per draft so a double-submitted Confirm creates one booking. */
   idempotencyKey?: string;
 };

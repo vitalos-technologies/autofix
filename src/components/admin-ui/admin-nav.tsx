@@ -1,6 +1,7 @@
 import {
   Bell,
   CalendarDays,
+  ClipboardCheck,
   Clock,
   FileText,
   Globe,
@@ -9,6 +10,7 @@ import {
   CreditCard,
   LayoutDashboard,
   List,
+  Megaphone,
   Lock,
   MessageSquare,
   Palette,
@@ -46,7 +48,10 @@ export type AdminNavOptions = {
  * label, route, icon). A Pro feature adds its line here when its route exists, so the shell never links
  * to a page that isn't built (tests/e2e/admin-pages.spec.ts visits every link).
  */
-export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
+  { feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone },
+  { feature: "health_checks", label: "Health checks", href: "/app/health-checks", icon: ClipboardCheck },
+];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
 export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
