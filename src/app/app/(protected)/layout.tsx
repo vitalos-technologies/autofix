@@ -5,6 +5,7 @@ import { ImpersonationBanner } from "@/components/platform/impersonation-banner"
 import { countOpenRequests } from "@/lib/admin/data";
 import { getAdminNotificationSummary } from "@/lib/admin/notifications";
 import { searchAdmin } from "@/lib/admin/search-actions";
+import { selectedGarageInGroup } from "@/lib/group/server";
 import { hasFeature, planLabel } from "@/lib/plans/entitlements";
 import { PRO_FEATURES } from "@/lib/plans/features";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -29,7 +30,13 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   if (admin.mfaState === "enrollment_required") redirect("/app/mfa/enroll");
   if (admin.mfaState === "challenge_required") redirect("/app/mfa");
 
-  const [notifications, requests] = await Promise.all([getAdminNotificationSummary(admin.client), countOpenRequests(admin.client)]);
+  // P5.9: owners and managers of a garage in a group get "Group overview" in the switcher.
+  const groupMember = admin.role === "owner" || admin.role === "manager";
+  const [notifications, requests, inGroup] = await Promise.all([
+    getAdminNotificationSummary(admin.client),
+    countOpenRequests(admin.client),
+    groupMember ? selectedGarageInGroup(admin.client) : Promise.resolve(false),
+  ]);
   const now = new Date();
   const garages: AdminGarage[] = admin.memberships.map((membership) => {
     const selected = membership.garageId === admin.garage.id;
@@ -53,6 +60,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         garages={garages}
         currentGarageId={admin.garage.id}
         switchGarageAction={switchGarage}
+        groupOverviewHref={inGroup ? "/app/group" : undefined}
         nav={defaultAdminNav({ newBookings: requests, newBookingsLabel: `${requests} waiting for your OK`, lockedFeatures })}
         user={{ name: admin.profile.display_name, email: admin.user.email ?? "" }}
         bookingPageUrl={garageBaseUrl(admin.garage)}

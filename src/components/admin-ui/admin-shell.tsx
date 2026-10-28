@@ -18,6 +18,8 @@ export type AdminShellProps = {
   currentGarageId: string;
   /** Posts `garageId`; see GarageSwitcher. */
   switchGarageAction?: FormAction;
+  /** P5.9: "Group overview" link in the switcher when the selected garage is in a group. */
+  groupOverviewHref?: string;
   /** Sidebar groups; `defaultAdminNav()` gives Workshop / Customers / Setup. */
   nav: AdminNavGroup[];
   /**
@@ -73,6 +75,7 @@ export function AdminShell({
   garages,
   currentGarageId,
   switchGarageAction,
+  groupOverviewHref,
   nav,
   activeHref,
   user,
@@ -109,7 +112,7 @@ export function AdminShell({
           {/* The whole sidebar is the Main navigation landmark: mark, garage switcher and sections. */}
           <nav aria-label="Main" className="sticky top-0 flex max-h-dvh flex-col gap-[22px] overflow-y-auto px-3.5 py-5">
             <AutofixMark />
-            <GarageSwitcher garages={garages} currentGarageId={currentGarageId} switchGarageAction={switchGarageAction} />
+            <GarageSwitcher garages={garages} currentGarageId={currentGarageId} switchGarageAction={switchGarageAction} groupHref={groupOverviewHref} />
             <AdminNavGroups groups={nav} activeHref={activeHref} />
           </nav>
         </div>

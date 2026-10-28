@@ -94,6 +94,7 @@ describe("shell navigation", () => {
       "/app/customers",
       "/app/reminders",
       "/app/messages",
+      "/app/group",
       "/app/settings/services",
       "/app/settings/hours",
       "/app/settings/resources",
