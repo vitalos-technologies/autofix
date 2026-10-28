@@ -14,5 +14,7 @@ export default defineConfig([
     "test-results/**",
     "**/.wrangler/**",
     "**/.wrangler-dry-run/**",
+    // The Django super admin (P5.1) has its own tooling (ruff, bandit; superadmin/README.md).
+    "superadmin/**",
   ]),
 ]);

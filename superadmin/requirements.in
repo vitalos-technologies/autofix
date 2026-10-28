@@ -1,0 +1,17 @@
+# Runtime dependencies. Pin with: uv pip compile requirements.in -o requirements.txt --python-version 3.12 --python-platform linux
+Django>=5.2.8,<5.3
+django-environ
+django-htmx
+django-simple-history
+django-axes
+django-otp
+qrcode
+django-csp>=4
+djangorestframework
+drf-spectacular
+drf-spectacular-sidecar
+whitenoise
+gunicorn
+psycopg[binary]>=3.2
+python-json-logger>=3
+sentry-sdk
