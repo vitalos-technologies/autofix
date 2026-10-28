@@ -93,7 +93,7 @@ export function HealthCheckDecisions({ items }: { items: readonly Recommended[] 
         </p>
       ) : null}
       <button type="submit" disabled={left.length > 0} className={cn(managePrimaryAction, "disabled:cursor-not-allowed disabled:opacity-60", focusRing)}>
-        {nothingToDecide ? "Got it, thanks" : total > 0 ? `Confirm and approve ${formatPounds(total)}` : "Confirm: no extra work"}
+        {nothingToDecide ? "Got it, thanks" : left.length > 0 ? "Confirm your choices" : total > 0 ? `Confirm and approve ${formatPounds(total)}` : "Confirm: no extra work"}
       </button>
     </form>
   );

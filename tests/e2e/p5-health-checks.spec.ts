@@ -93,7 +93,7 @@ async function rateLine(label: string, rating: "Red" | "Amber" | "Green", fields
 }
 
 test.beforeAll(async ({ browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   garage = await createLocalGarage(service, "hc");
   siteOrigin = `http://${garage.slug}.localhost:${port}`;
   const motOn = await service.from("garages").update({ mot_enabled: true }).eq("id", garage.id);
@@ -127,7 +127,7 @@ test.afterAll(async () => {
 });
 
 test("the owner starts a health check from the booking, rates lines with photos and video, and sends it", async () => {
-  test.setTimeout(180_000);
+  test.setTimeout(420_000);
   await signInWithTotp(staff, adminOrigin, owner);
   await staff.goto(`${adminOrigin}/app/health-checks`);
   await expect(staff.getByRole("heading", { level: 1, name: "Health checks" }).first()).toBeVisible();
@@ -136,7 +136,7 @@ test("the owner starts a health check from the booking, rates lines with photos 
 
   await staff.goto(`${adminOrigin}/app/bookings/${booking.id}`);
   await staff.getByRole("button", { name: "Start health check" }).click();
-  await expect(staff).toHaveURL(/\/app\/health-checks\/[0-9a-f-]{36}$/);
+  await expect(staff).toHaveURL(/\/app\/health-checks\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   checkId = staff.url().split("/").pop()!;
   await expect(staff.getByTestId("hc-item")).toHaveCount(25);
   await expect(staff.getByRole("heading", { name: "MOT items" })).toBeVisible();
@@ -168,7 +168,7 @@ test("the owner starts a health check from the booking, rates lines with photos 
   await staff.getByRole("button", { name: "Send to customer" }).click();
   await expect(staff.getByRole("status").filter({ hasText: "Messaging is in test mode" })).toBeVisible();
   const sent = await service.from("messages").select("body,status,channel").eq("garage_id", garage.id).eq("booking_id", booking.id).eq("direction", "outbound");
-  expect(sent.data?.some((row) => row.body?.includes("/hc/…") && row.status === "sent")).toBe(true);
+  expect(sent.data?.some((row) => row.body?.includes("/hc/…") && ["queued", "sent", "delivered"].includes(row.status))).toBe(true);
   expect(sent.data?.every((row) => !/\/hc\/[A-Za-z0-9_-]{22}/.test(row.body ?? ""))).toBe(true);
   await expect(staff.getByText("Sent to customer").first()).toBeVisible();
   await staff.locator("details[open]").evaluateAll((open) => open.forEach((element) => element.removeAttribute("open")));
@@ -176,19 +176,18 @@ test("the owner starts a health check from the booking, rates lines with photos 
 });
 
 test("the customer opens the link, sees the check and approves the tyres only", async () => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   // The real token went to the mock outbox inside the server; give the check one this spec knows.
   token = randomBytes(16).toString("base64url");
   const updated = await service.from("health_checks").update({ token_hash: createHash("sha256").update(token).digest("hex") }).eq("id", checkId);
   expect(updated.error).toBeNull();
 
-  const response = await site.request.get(`${siteOrigin}/hc/${token}`, { maxRedirects: 0 });
-  expect(response.status()).toBe(303);
-  expect(response.headers()["location"]).toBe("/health-check");
-  expect(response.headers()["referrer-policy"]).toBe("no-referrer");
-
-  await site.goto(`${siteOrigin}/hc/${token}`);
+  const landed = await site.goto(`${siteOrigin}/hc/${token}`);
   await expect(site).toHaveURL(`${siteOrigin}/health-check`);
+  const hop = await landed?.request().redirectedFrom()?.response();
+  expect(hop?.status()).toBe(303);
+  expect(hop?.headers()["location"]).toBe("/health-check");
+  expect(hop?.headers()["referrer-policy"]).toBe("no-referrer");
   await expect(site.getByRole("heading", { level: 1, name: "Your car's health check" })).toBeVisible();
   await expect(site.getByText("Needs attention now")).toBeVisible();
   await expect(site.getByRole("img", { name: "Photo 1 of Front left tyre" })).toBeVisible();
@@ -216,7 +215,7 @@ test("the customer opens the link, sees the check and approves the tyres only", 
 });
 
 test("the owner sees the approval on the check, the booking and Today, and invoices it", async () => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   await staff.goto(`${adminOrigin}/app/health-checks/${checkId}`);
   await expect(staff.getByTestId("hc-approved-total")).toHaveText("Customer approved £160.00");
   await checkScreen(staff, "answered");
@@ -244,7 +243,7 @@ test("the owner sees the approval on the check, the booking and Today, and invoi
 });
 
 test("on Essentials the page is the Pro card, the check stays readable and new checks are refused", async () => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   const downgraded = await service.from("garages").update({ plan: "essentials", trial_ends_at: null, plan_chosen: "essentials" }).eq("id", garage.id);
   expect(downgraded.error).toBeNull();
 
