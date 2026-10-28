@@ -28,6 +28,11 @@ const MIGRATION_PROBES = [
   ["20261028002000", "twilio_webhook_events?select=id"],
   ["20261028002100", "calls?select=dial_status"],
   ["20261028003000", "messages?select=read_at"],
+  // 20261028004000 (superadmin_role) only adds a database role, which PostgREST can't see.
+  ["20261029000100", "garages?select=trial_ends_at"],
+  ["20261029000300", "health_checks?select=id"],
+  ["20261029000500", "campaigns?select=id"],
+  ["20261029001200", "ai_front_desk_settings?select=*"],
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
