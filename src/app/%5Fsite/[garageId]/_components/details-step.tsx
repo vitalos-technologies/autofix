@@ -21,10 +21,12 @@ type DetailsStepProps = {
   /** The garage checks this booking before confirming it. */
   needsApproval: boolean;
   humanCheck: boolean;
+  /** P5.4: a deposit is taken after Confirm (formatted amount, minutes the slot is held). */
+  deposit?: { amount: string; holdMin: number } | null;
 };
 
 /** Step 4: who is bringing the car, how to send updates, reminder consent, Confirm booking. */
-export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: DetailsStepProps) {
+export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, deposit = null }: DetailsStepProps) {
   const [state, formAction, pending] = useActionState<DetailsFormState, FormData>(confirmBookingAction, initialDetailsFormState);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -118,13 +120,13 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck }: 
       <StickyActionBar
         type="submit"
         form={FORM_ID}
-        label="Confirm booking"
+        label={deposit ? "Confirm and pay deposit" : "Confirm booking"}
         showArrow={false}
         busy={pending}
         className="pt-3"
         footnote={
           <>
-            Nothing to pay now.{" "}
+            {deposit ? `${deposit.amount} deposit now; we hold your time for ${deposit.holdMin} minutes while you pay.` : "Nothing to pay now."}{" "}
             <Link href="/privacy" className="text-grey-700 underline underline-offset-2 hover:text-navy-950">
               How we use your details
             </Link>

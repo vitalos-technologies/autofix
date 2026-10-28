@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { z } from "zod";
 import { Badge, PageHeader, Panel, textLinkClass } from "@/components/admin-ui";
+import { ServiceDepositPanel } from "@/components/payments/panels";
 import { formatDuration, formatServicePrice } from "@/components/book";
 import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -54,6 +55,7 @@ export default async function EditServicePage({ params }: PageProps) {
           </Panel>
         </>
       )}
+      <ServiceDepositPanel admin={admin} serviceId={service.id} />
     </div>
   );
 }

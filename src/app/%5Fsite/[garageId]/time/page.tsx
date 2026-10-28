@@ -7,6 +7,7 @@ import { LOCATION_LABELS } from "@/lib/booking-flow/copy";
 import { addDays, dateKeyInZone, isDateKey } from "@/lib/booking-flow/dates";
 import { loadBookingServices } from "@/lib/booking-flow/server";
 import { redirectForStep } from "@/lib/booking-flow/steps";
+import { releaseExpiredDeposits } from "@/lib/payments/server";
 import { formatPhoneForDisplay } from "@/lib/tenancy/contact";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { BookingScreen, BookingUnavailable } from "../_components/booking-screen";
@@ -32,6 +33,8 @@ export default async function TimePage({ params, searchParams }: TimePageProps) 
   const garage = await requireSiteGarage((await params).garageId);
   const { draft, meta } = await readBookingSession(garage.id);
   if (redirectForStep("time", draft, null) === "/") redirect("/");
+  // P5.4: a slot held for a deposit that was never paid is free again before times are shown.
+  await releaseExpiredDeposits(garage.id);
 
   const back = { href: "/service", label: "Back to service" };
   const unavailable = (

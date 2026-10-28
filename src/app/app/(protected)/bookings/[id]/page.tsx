@@ -7,6 +7,7 @@ import { z } from "zod";
 import { BookingEmailThreadButton } from "@/components/admin/booking-email-thread-button";
 import { MarkBookingSeen } from "@/components/admin/mark-booking-seen";
 import { PageHeader, Panel, SOURCE_LABELS, StatusPill, textLinkClass } from "@/components/admin-ui";
+import { BookingPaymentsPanel } from "@/components/payments/panels";
 import { formatServicePrice, formatSlotLabel, formatTime } from "@/components/book/format";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CHANGE_MESSAGES } from "@/lib/admin/booking-changes";
@@ -52,7 +53,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * collected; cancel; no-show), moving it, notes and the booking_events timeline. Reads and status
  * writes go through the garage's RLS client; another garage's booking is "not found".
  */
-export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
+export default async function BookingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string; payments?: string }> }) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const admin = await getAdminContext({ allowTrustedDevice: true });
@@ -69,7 +70,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
   }
   if (booking === null) notFound();
 
-  const notice = NOTICES[(await searchParams).notice ?? ""] ?? null;
+  const query = await searchParams;
+  const notice = NOTICES[query.notice ?? ""] ?? null;
   if (!booking) {
     return (
       <div className="flex flex-col gap-5">
@@ -164,6 +166,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
               <p className="m-0 text-[15px] leading-normal whitespace-pre-wrap text-grey-800">{booking.notes ?? "No note."}</p>
             </div>
           </Panel>
+
+          <BookingPaymentsPanel admin={admin} bookingId={booking.id} status={booking.status} flash={query.payments} />
 
           <Panel id="move" title="Move this booking">
             {movable ? (

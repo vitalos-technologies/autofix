@@ -165,6 +165,11 @@ export type CreateBookingOptions = {
    * hours and closures still apply unless `overrideHours`; the bay check and `no_overlap` always do.
    */
   staff?: StaffBookingContext;
+  /**
+   * P5.4: hold back the "created" notification (customer confirmation and staff alert). The booking flow
+   * sets it when a deposit is due: the confirmation is sent once the deposit is paid (src/lib/payments).
+   */
+  deferCreatedNotice?: boolean;
 };
 
 /** The staff time grid for one member (`staff_available_slots()`, at most 31 days). */
