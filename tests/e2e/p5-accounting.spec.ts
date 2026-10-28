@@ -55,6 +55,10 @@ async function expectAccessibleAt(target: Page, shot: string) {
   for (const width of [390, 1440]) {
     await target.setViewportSize({ width, height: width < 600 ? 844 : 1000 });
     await expect(target).toHaveTitle(/\S/);
+    // A server action's after() drain can refresh the page; axe waits until the page itself (its h1) is back,
+    // not the admin loading skeleton that streams in meanwhile.
+    await target.waitForLoadState("networkidle");
+    await expect(target.getByRole("heading", { level: 1 })).toBeVisible();
     const results = await new AxeBuilder({ page: target }).analyze();
     expect(results.violations, `axe at ${width}px`).toEqual([]);
     await expect.poll(() => target.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), { message: `horizontal scroll at ${width}px` }).toBeLessThanOrEqual(1);

@@ -1,5 +1,6 @@
 import { verifyStripeSignature } from "@/lib/billing/stripe";
 import type { AccountState, PaymentsEvent, PaymentsProvider } from "./provider";
+import { mapStripePlanEvent, stripeMandateMethods } from "./stripe-direct-debit";
 
 // Stripe Connect for garages' own payments (P5.4), TEST MODE ONLY, over Stripe's REST API with fetch
 // (no SDK), as src/lib/billing/stripe.ts does for Autofix's own plans.
@@ -54,7 +55,7 @@ export function checkoutExpiry(expiresAt: Date, now: Date = new Date()): number 
 }
 
 export function createStripePaymentsProvider(config: StripePaymentsConfig, fetcher: Fetch = fetch): PaymentsProvider {
-  async function call(method: "GET" | "POST", path: string, body: Record<string, string | number | undefined | null> | null, options: { account?: string; idempotencyKey?: string } = {}) {
+  async function call(method: "GET" | "POST" | "DELETE", path: string, body: Record<string, string | number | undefined | null> | null, options: { account?: string; idempotencyKey?: string } = {}) {
     const response = await fetcher(`${API}${path}`, {
       method,
       headers: {
@@ -72,6 +73,8 @@ export function createStripePaymentsProvider(config: StripePaymentsConfig, fetch
 
   return {
     kind: "stripe",
+    // P5.11: Bacs Direct Debit for service plans (./stripe-direct-debit.ts).
+    ...stripeMandateMethods(call),
     async startConnect({ garage, accountRef, returnUrl, refreshUrl }) {
       try {
         let account = accountRef && ACCOUNT.test(accountRef) ? accountRef : null;
@@ -188,6 +191,9 @@ export function mapStripePaymentsEvent(rawBody: string): PaymentsEvent | null {
   if (event.livemode === true) return ignored;
   const object = event.data?.object;
   if (!object) return ignored;
+  // P5.11: a service plan's Direct Debit (checked first: its checkout sessions carry no payment_id).
+  const plan = mapStripePlanEvent({ id: eventId, type, account: event.account, data: event.data });
+  if (plan) return plan;
 
   if (type === "checkout.session.completed" || type === "checkout.session.async_payment_succeeded") {
     const session = object as StripeCheckoutSession;

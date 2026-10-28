@@ -126,7 +126,7 @@ export const marketing = {
       features: [
         { label: "Digital health checks with photos, approved online", shipped: true },
         { label: "Deposits, pay-by-link invoices and no-show fees", shipped: true },
-        { label: "Service plans paid by monthly Direct Debit", shipped: false },
+        { label: "Service plans paid by monthly Direct Debit", shipped: true },
         { label: "Campaigns to customers who opted in", shipped: true },
         { label: "AI front desk for calls", shipped: true },
         { label: "Xero, QuickBooks and Sage sync", shipped: true },
@@ -135,7 +135,7 @@ export const marketing = {
         { label: "Courtesy cars, collection and delivery", shipped: true },
         { label: "Several sites under one login", shipped: true },
       ],
-      note: "Features marked coming soon are being built now. Each one switches on as soon as it's ready.",
+      note: "Try every Pro feature free for 14 days, then choose Pro or Essentials. Nothing you set up is lost if you choose Essentials.",
     },
     cta: { label: "Start with Essentials", href: "/signup" },
   },

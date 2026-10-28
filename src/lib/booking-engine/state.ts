@@ -37,7 +37,8 @@ export const BOOKING_STATE_MAX_AGE_S = 2 * 60 * 60;
 /** The confirmation page can show the booking for 30 minutes after it was made. */
 export const JUST_BOOKED_MAX_AGE_S = 30 * 60;
 
-type Purpose = typeof BOOKING_STATE_COOKIE | typeof JUST_BOOKED_COOKIE;
+// P5.11 adds `af_plan` (service plan sign-up, src/lib/service-plans/signup-session.ts).
+type Purpose = typeof BOOKING_STATE_COOKIE | typeof JUST_BOOKED_COOKIE | "af_plan";
 
 const DEV_SECRET = "autofix-development-booking-state-key-not-for-production";
 let warnedAboutDevKey = false;

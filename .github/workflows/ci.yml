@@ -125,7 +125,7 @@ jobs:
     # Never run code from forks on the self-hosted VM.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -185,6 +185,8 @@ jobs:
         run: pnpm test:e2e:signup
       - name: Gate 3, a reminder link books a car credited to the reminder (schedule via /api/jobs/drain, mock SMS, /r/ link, 5 steps, Today's won back; axe at 390 and 1440)
         run: pnpm test:e2e:gate3
+      - name: Gate 5, Phase 5 plans and Pro journeys (plans, health checks, payments, campaigns, reports, fleet, courtesy cars, multi-site, accounting, service plans, AI front desk; axe at 390 and 1440, Essentials locked states)
+        run: pnpm test:e2e:phase5
       - name: Admin-host browser tests (desktop and Pixel 5; customer import, invoice access)
         run: pnpm test:e2e
       - name: Keep Playwright reports

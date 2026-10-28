@@ -31,7 +31,14 @@ const MIGRATION_PROBES = [
   // 20261028004000 (superadmin_role) only adds a database role, which PostgREST can't see.
   ["20261029000100", "garages?select=trial_ends_at"],
   ["20261029000300", "health_checks?select=id"],
+  ["20261029000400", "payments?select=id"],
   ["20261029000500", "campaigns?select=id"],
+  ["20261029000600", "booking_assignments?select=booking_id"],
+  ["20261029000700", "business_accounts?select=id"],
+  ["20261029000800", "courtesy_cars?select=id"],
+  ["20261029000900", "garage_groups?select=id"],
+  ["20261029001000", "accounting_connections?select=id"],
+  ["20261029001100", "service_plans?select=id"],
   ["20261029001200", "ai_front_desk_settings?select=*"],
 ];
 
