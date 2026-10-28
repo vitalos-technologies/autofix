@@ -38,6 +38,8 @@ import { formatLongDate, formatShortDateKey, isoWeekday, localDateKey, localDayR
 import { formatWholePounds, shapeToday, todayChips, type ReminderWeek } from "@/lib/admin/today";
 import { markMissedCallHandledAction } from "@/lib/calls/actions";
 import { countMissedCallsNeedingOk, listMissedCallsNeedingOk } from "@/lib/calls/missed-calls";
+import { HealthCheckApprovalsPanel } from "@/components/health-checks/approvals-panel";
+import { loadRecentApprovals } from "@/lib/health-checks/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
 import { cn } from "@/lib/utils";
@@ -82,6 +84,8 @@ export default async function TodayPage() {
   const day = localDayRange(dateKey, timeZone);
   const week = localWeekRange(dateKey, timeZone);
   const bookingLink = garageBaseUrl(admin.garage);
+  // P5.3: "Customer approved £X" for health checks answered today (empty on any error).
+  const approvals = await loadRecentApprovals(admin.client, new Date(day.from));
 
   let loaded;
   try {
@@ -229,6 +233,7 @@ export default async function TodayPage() {
             }
           />
         )}
+        <HealthCheckApprovalsPanel id="hc-approvals-phone" approvals={approvals} className="mt-1.5" />
         <RecentActivityPanel id="activity-phone" entries={activity} userId={admin.user.id} now={now} className="mt-1.5" />
       </div>
 
@@ -318,6 +323,7 @@ export default async function TodayPage() {
               ) : null}
             </Panel>
             <RemindersPanel reminders={reminders} />
+            <HealthCheckApprovalsPanel id="hc-approvals" approvals={approvals} />
           </div>
         </div>
       </div>

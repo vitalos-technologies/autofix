@@ -1,6 +1,7 @@
 import {
   Bell,
   CalendarDays,
+  ClipboardCheck,
   Clock,
   FileText,
   Globe,
@@ -49,6 +50,7 @@ export type AdminNavOptions = {
  */
 export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
   { feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone },
+  { feature: "health_checks", label: "Health checks", href: "/app/health-checks", icon: ClipboardCheck },
 ];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */

@@ -593,3 +593,55 @@ Shared files touched (one line or entry each): `JOB_KINDS` (`campaigns.send` aft
 ### Job
 
 `campaigns.send` (payload `{garageId?}`): queued by `schedule_campaign()` for the send time, and by cron (`/api/cron/campaigns.send` every 10 minutes on Vercel Pro; part of `daily` on Hobby). Without a garage it fans out to garages with due sends (dedupe per 10-minute slot); with a garage it sends inside the window or re-queues itself for `nextSendWindow` (dedupe per window). SMS are metered by P5.2 in `getChannel("sms")`.
+
+## Digital health checks (Phase 5, P5.3; DECISIONS A310–A317)
+
+### Schema (`supabase/migrations/20261029000300_health_checks.sql`; pgTAP `029_health_checks`)
+
+| Object | Notes |
+| --- | --- |
+| `health_checks` (tenant) | One per booking (`unique (garage_id, booking_id)`, composite FK to `bookings`, cascade). `status` `draft` → `sent` → `responded`; `summary` (≤ 1000), `mileage`; link: `token_hash` (hex SHA-256, unique), `token_expires_at` (14 days), `sent_at`, `sent_by`, `sent_count`, `sent_channel`, `last_message_id` (→ `messages`); `first_viewed_at`, `responded_at`, `approved_total_pence`; `invoice_id` (→ `invoices`, set null), `invoiced_at`, `invoiced_by`. Policies: members of the selected garage read (no plan check); members on Pro update `summary`/`mileage` (column grants) while draft or sent. Inserts only through `start_health_check()` |
+| `health_check_items` (tenant) | Checklist lines, composite FK to the check (cascade). `section` (`tyres`, `brakes`, `lights`, `wipers`, `fluids`, `suspension`, `exhaust`, `battery`, `mot`, `other`), `label`, `position`, `mot_related`, `rating` (`red`/`amber`/`green`/`not_checked`), `note`, `recommended_work` + `price_pence` (both or neither, ≤ £100,000), `decision` (`approved`/`declined`) + `decided_at`. Members read; members on Pro insert, update (`label`, `rating`, `note`, `recommended_work`, `price_pence`) and delete undecided lines while the check is draft or sent. The decision is written only by `record_health_check_decisions()`. Approved rows are the booking's extras record |
+| `health_check_media` (tenant) | Photos (`image/jpeg`, `png`, `webp`, ≤ 10 MB) and videos (`video/mp4`, `video/quicktime`, ≤ 50 MB) for the check (`item_id` null) or a line. `object_path` must be `<garage_id>/health-checks/<check_id>/<uuid>.<ext>` (check constraint on the row's own garage and check). `uploaded` is set by the server (service role) once the object exists with the declared type and size. Members read; members on Pro insert (as themselves, `uploaded = false`) and delete while the check is editable; no staff update |
+| Storage bucket `health-check-media` | **Private**, 50 MB limit, the five MIME types above. Policy "garage staff read health check media": select for staff of the selected garage in their own folder (`(storage.foldername(name))[1] = current_garage_id()`). No insert policy: uploads use signed upload URLs created by the server for one exact path after the RLS insert of the media row. Served only through signed URLs (10 minutes in the admin, signed with the member's own client; 15 minutes on the customer page, service role) |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `start_health_check(booking) → uuid` | staff of the selected garage (`garage_actor_allowed()`), Pro | The booking's check, created the first time with the default checklist (`health_check_default_items(mot_enabled)`: 20 lines, 25 with MOT on). Idempotent. `PLAN_REQUIRED: health_checks`, `BOOKING_NOT_FOUND`, `BOOKING_CLOSED` (cancelled / no-show). Audited `health_check.started` |
+| `claim_health_check_send(garage, check, member, token_hash, expires_at, body, provider) → jsonb` | service role | Before the server sends: member is owner/manager/front desk, garage has the feature, check not responded and has a rated line, customer not anonymised, texts/WhatsApp not opted out, address on their channel, a messaging number for texts. Stores the link hash and expiry (an earlier link stops working), marks the check `sent`, inserts the outbound `messages` row (`sending`, on the booking). Refuses a body that contains a `/hc/<token>`. `{status: claimed, message_id, channel, to}` or `{status: skipped, reason}`. Audited `health_check.sent` |
+| `open_health_check_link(garage, token_hash, now) → jsonb` | service role | `{status: ok, check_id}` / `invalid` / `expired`; notes the first view. Works for an answered check (read-only) until expiry |
+| `record_health_check_decisions(garage, check, decisions, now) → jsonb` | service role | The customer's approve/decline for **every** line with recommended work, at the price they saw (`changed` if a price moved). Marks the check `responded` with `approved_total_pence`, adds a `booking_events` note (actor `customer`, `data.source = 'health_check'`) and audits `health_check.responded`. Idempotent (`already`). `closed`, `expired`, `plan_required`, `invalid`, `not_found` |
+| `add_health_check_to_invoice(check) → jsonb` | staff with invoice rights (through the existing `save_invoice_draft()`: `garage_actor_allowed()`, AAL2 when enrolled), Pro | Appends the approved lines ("Health check: <work> (<line>)", qty 1, the approved price) to the booking's newest draft invoice, or creates a booking draft with them (a further draft is allowed when an issued invoice exists). Once per check while that invoice exists. Adds a staff `booking_events` note. `{invoice_id, added, created, already}` |
+| `health_check_editable(garage, check)`, `health_check_default_items(mot)` | helpers (members / service) | Used by the write policies and `start_health_check()` |
+
+No existing function or migration was changed (`create_booking`, `available_slots*`, invoicing functions untouched).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/health-checks/checklist.ts` (client-safe) | `HEALTH_CHECK_SECTIONS`, `SECTION_LABELS`, `HEALTH_CHECK_RATINGS`, `RATING_LABELS`, `STATUS_LABELS`, `LIMITS`, `MEDIA_TYPES`, `mediaProblem`, `mediaObjectPath`, `DEFAULT_CHECKLIST` (unit test compares with the migration), `defaultChecklist`, `visibleItems`, `groupBySection`, `ratingCounts`, `recommendedItems`, `approvedTotalPence`, `formatPounds`, `parsePriceInput`, `penceToInput`, `HEALTH_CHECK_LINK_TTL_DAYS` |
+| `src/lib/health-checks/forms.ts`, `decisions.ts` (client-safe) | `parseItemForm`, `parseNewItemForm`, `parseSummaryForm`; `parseDecisions`, `toDatabaseDecisions`, `undecidedItems`, `DECISION_MESSAGES` |
+| `src/lib/health-checks/view.ts` (client-safe) | Row → view mappers (`toHealthCheckSummary`, `toChecklistItem`, `toHealthCheckMedia`, `mediaByItem`), `healthCheckStatusLine` |
+| `src/lib/health-checks/token.ts` | `createHealthCheckToken` (16 random bytes, base64url, 22 chars), `hashHealthCheckToken`, `isHealthCheckToken`, `healthCheckLinkPath`, `redactHealthCheckLink`, `createHealthCheckSession` / `readHealthCheckSession` (`af_hc`, HMAC with `BOOKING_MANAGEMENT_SECRET` under its own context), `healthCheckCookieOptions` |
+| `src/lib/health-checks/server.ts` | `listHealthChecks`, `loadHealthCheck` (RLS), `loadCustomerHealthCheck` (service role, host garage), `loadBookingHealthCheck`, `loadRecentApprovals`, `HEALTH_CHECK_BUCKET` |
+| `src/lib/health-checks/send.ts` | `sendHealthCheck` (rate limit 20 / 10 min per member, claim, `getChannel()` on the customer's channel, record result, `booking_events` `notification_sent`), `composeHealthCheckMessage`, `canSendHealthCheck`, `SEND_ROLES` |
+| `src/lib/health-checks/link-route.ts` | `handleHealthCheckLinkRequest` (`/hc/<token>`) |
+| `src/components/health-checks/*` | `RatingChip`, `RatingSummary`, `RATING_TONES`, `MediaGallery`, `HealthCheckApprovalsPanel` |
+| `src/app/app/(protected)/health-checks/actions.ts` | `startHealthCheckAction`, `saveItemAction`, `addItemAction`, `deleteItemAction`, `saveSummaryAction`, `prepareUploadAction`, `finishUploadAction`, `deleteMediaAction`, `sendHealthCheckAction`, `addToInvoiceAction`. Each: `requireStaffWriter` (MFA), `featureProblem(admin, "health_checks")` before any write |
+| `src/app/%5Fsite/[garageId]/health-check/actions.ts` | `recordDecisionsAction` (host garage, `af_hc` session, feature check, rate limit 10 / 10 min per check + IP) |
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/health-checks` | All checks, newest first (plate, customer, reference, car and time, status line, status badge). Essentials: `ProLockedPage` with existing checks listed below. Nav: Grow → Health checks (`GROW_NAV_ITEMS`) |
+| `/app/health-checks/[id]` | Checklist by section as 52px+ disclosure rows (rating radios Red/Amber/Green/Not checked, note, recommended work, `£` price, Take photo / Record video with `capture="environment"`), Add a line, Summary (plate, ratings, note to the customer, mileage, whole-car media), Send to the customer / Send again with a new link, the customer's answer ("Customer approved £X", Add approved work to the invoice / Open the draft invoice). Refreshes every 15 s while sent. Read-only once answered, and for Essentials (with the Pro card) |
+| `/app/bookings/[id]` | New "Health check" panel: Start health check (Pro), or the status line ("Customer approved £X") and Open health check |
+| `/app` (Today) | "Approved on health checks" panel (phone and desktop) for checks answered today with work approved |
+| `GET /hc/<token>` (garage host) | Token → `af_hc` httpOnly cookie (path `/health-check`, 60 min) and 303 to `/health-check`; problems → `/health-check?link=invalid|expired|limited|unavailable`. `Referrer-Policy: no-referrer` (handler and `next.config.ts`), `Cache-Control: no-store`, `X-Robots-Tag: noindex`; 30 opens / 10 min per garage + IP |
+| `/health-check` (garage host) | Customer page in the Book/Manage language (garage header and accent): car card, ratings, note, each rated line with photos/video, recommended work and price; Approve / Decline per job, running total, 54px Confirm. After answering: their choices and "You approved £X". `noindex` |
+
+CSP on garage hosts gains `media-src 'self' blob: https:` (and the Supabase origin when it is plain http, i.e. the local stack, also in `img-src`), so signed video URLs play (`src/lib/booking-page/security-headers.ts`, `storageOrigin` from `src/proxy.ts`).
+
+No background jobs: sending is inline through `getChannel()` like staff replies.
