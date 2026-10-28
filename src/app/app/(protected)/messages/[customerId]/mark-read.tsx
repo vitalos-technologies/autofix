@@ -5,7 +5,8 @@ import { markThreadReadAction } from "../actions";
 
 /**
  * Marks the conversation's unread messages read once the thread is actually on screen (never on
- * a prefetch). The "New" marks stay until the next visit, so staff can see what was new.
+ * a prefetch). The "New" marks stay until the next visit (ThreadNewMarks keeps them through the refresh this
+ * action's revalidatePath causes), so staff can see what was new.
  */
 export function MarkThreadRead({ customerId, unread }: { customerId: string; unread: number }) {
   const done = useRef(false);
