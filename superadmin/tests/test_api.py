@@ -29,6 +29,9 @@ def test_garages_list_with_a_token(token, seeded):
         "slug",
         "name",
         "plan",
+        "plan_key",
+        "plan_name",
+        "trial_ends_at",
         "status",
         "timezone",
         "mot_enabled",
@@ -40,7 +43,8 @@ def test_garages_list_with_a_token(token, seeded):
 
 
 def test_filters(token, seeded):
-    assert api(token, "/api/v1/garages/?plan=growth").json()["count"] == 1
+    assert api(token, "/api/v1/garages/?plan=essentials").json()["count"] == 1
+    assert api(token, "/api/v1/garages/?plan=trial").json()["results"][0]["plan_name"] == "Pro (trial)"
     assert api(token, "/api/v1/domains/?status=failed").json()["count"] == 1
 
 

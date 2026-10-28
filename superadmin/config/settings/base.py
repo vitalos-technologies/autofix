@@ -246,7 +246,6 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "ENUM_NAME_OVERRIDES": {
         "GarageStatusEnum": "apps.autofix.models.GARAGE_STATUSES",
-        "GaragePlanEnum": "apps.autofix.models.GARAGE_PLANS",
         "DomainStatusEnum": "apps.autofix.models.DOMAIN_STATUSES",
         "JobStatusEnum": "apps.autofix.models.JOB_STATUSES",
     },

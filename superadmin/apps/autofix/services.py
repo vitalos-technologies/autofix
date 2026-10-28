@@ -17,7 +17,8 @@ from apps.accounts.roles import can_change_autofix, can_support
 from apps.audit.services import record
 
 from . import db
-from .models import GARAGE_PLANS, GARAGE_STATUSES, Garage, GarageDomain, Job
+from . import plans as plan_rules
+from .models import GARAGE_STATUSES, Garage, GarageDomain, Job
 from .redact import clean_reason
 
 REASON_HELP = "Give a reason of 5 to 500 characters. It is logged and shown to the garage's owners."
@@ -68,21 +69,32 @@ def _friendly(error: db.PlatformError) -> str:
     return FRIENDLY_ERRORS.get(error.code, "Autofix refused the change. Nothing was changed.")
 
 
-def change_plan_status(request, garage: Garage, *, plan: str, status: str, reason) -> Outcome:
+def _update_garage(garage: Garage, plan: str | None, status: str | None, reason: str, actor):
+    """``platform_update_garage`` with the D17 plan name, or its old name if the database predates D17."""
+    args = [str(garage.pk), plan, status, reason]
+    try:
+        return db.call_platform_function("platform_update_garage", args, actor_id=actor)
+    except db.PlatformError as error:
+        if error.code != "INVALID_PLAN" or plan not in plan_rules.LEGACY:
+            raise
+    args[1] = plan_rules.LEGACY[plan]
+    return db.call_platform_function("platform_update_garage", args, actor_id=actor)
+
+
+def change_plan_status(request, garage: Garage, *, plan: str | None, status: str, reason) -> Outcome:
     """Plan and/or status through ``platform_update_garage`` (one audit entry per change in Autofix)."""
     actor = _require_writer(request)
     reason = _reason(reason)
-    plans, statuses = dict(GARAGE_PLANS), dict(GARAGE_STATUSES)
-    if plan not in plans or status not in statuses:
+    statuses = dict(GARAGE_STATUSES)
+    # plan=None keeps the plan as it is (bulk status changes never touch plans or trials).
+    if (plan is not None and plan not in plan_rules.LABELS) or status not in statuses:
         raise ValidationError("Choose a plan and a status.")
-    new_plan = plan if plan != garage.plan else None
+    new_plan = None if plan is None or plan_rules.same_plan(garage.plan, plan) else plan
     new_status = status if status != garage.status else None
     if new_plan is None and new_status is None:
         raise ValidationError(FRIENDLY_ERRORS["NOTHING_TO_CHANGE"])
     try:
-        result = db.call_platform_function(
-            "platform_update_garage", [str(garage.pk), new_plan, new_status, reason], actor_id=actor
-        )
+        result = _update_garage(garage, new_plan, new_status, reason, actor)
     except db.PlatformError as error:
         record(
             "autofix.garage_update_refused",
@@ -95,7 +107,7 @@ def change_plan_status(request, garage: Garage, *, plan: str, status: str, reaso
         return Outcome(False, _friendly(error))
     changes = []
     if new_plan:
-        changes.append(f"plan {plans[garage.plan]} → {plans[new_plan]}")
+        changes.append(f"plan {garage.plan_label} → {plan_rules.LABELS[new_plan]}")
     if new_status:
         changes.append(f"status {statuses[garage.status]} → {statuses[new_status]}")
     record(

@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
-from apps.autofix import selectors
+from apps.autofix import plans, selectors
 from apps.autofix.db import AutofixUnavailable, reads
 from apps.autofix.models import Garage, GarageDomain, Job
 
@@ -47,12 +47,19 @@ def _filter_params(*names):
     return [OpenApiParameter(name, str, description=f"Filter by {name}.") for name in names]
 
 
-@extend_schema_view(list=extend_schema(parameters=_filter_params("plan", "status")))
+@extend_schema_view(
+    list=extend_schema(parameters=_filter_params("plan (essentials, pro or trial)", "status"))
+)
 class GarageViewSet(AutofixViewSet):
     queryset = Garage.objects.all()
     serializer_class = serializers.GarageSerializer
     ordering = ("name", "id")
-    filters = ("plan", "status")
+    filters = ("status",)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        plan_q = plans.filter_q(self.request.query_params.get("plan", ""))
+        return queryset.filter(plan_q) if plan_q is not None else queryset
 
 
 @extend_schema_view(list=extend_schema(parameters=_filter_params("status", "kind")))

@@ -247,3 +247,29 @@ def test_status_payload_from_real_data(live, settings):
 
     body = status.payload()
     assert body["product"] == "autofix" and body["tenants"]["total"] >= 1
+
+
+def test_garages_view_reads_trial_ends_at_before_and_after_the_plans_migration(admin_rows):
+    """D17 adds garages.trial_ends_at; the view reads it from the row as JSON, so both states work."""
+    with role() as conn:
+        assert conn.execute(
+            "select trial_ends_at from superadmin.garages where id = %s", [GARAGE]
+        ).fetchone() == (None,)
+    exists = admin_rows.execute(
+        "select 1 from information_schema.columns where table_schema = 'public' and table_name = 'garages' "
+        "and column_name = 'trial_ends_at'"
+    ).fetchone()
+    if exists:
+        pytest.skip("the plans migration already added trial_ends_at")
+    admin_rows.execute("alter table public.garages add column trial_ends_at timestamptz")
+    try:
+        admin_rows.execute(
+            "update public.garages set trial_ends_at = '2030-01-01T00:00:00Z' where id = %s", [GARAGE]
+        )
+        with role() as conn:
+            value = conn.execute(
+                "select trial_ends_at from superadmin.garages where id = %s", [GARAGE]
+            ).fetchone()[0]
+        assert value is not None and value.year == 2030
+    finally:
+        admin_rows.execute("alter table public.garages drop column trial_ends_at")

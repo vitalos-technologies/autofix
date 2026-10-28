@@ -21,7 +21,7 @@ from apps.core.htmx import close_modal_response
 from apps.core.templatetags.tables import Column, build_table, density
 from apps.core.templatetags.ui import badge_class
 
-from .. import selectors, services
+from .. import plans, selectors, services
 from ..db import AutofixUnavailable
 from ..forms import BulkStatusForm, PlanStatusForm, ViewAsSupportForm
 from .common import parse_uuid, render_unavailable, unavailable_message
@@ -87,7 +87,7 @@ def _row(garage):
             garage.name,
             garage.slug,
         ),
-        selectors.PLAN_LABELS.get(garage.plan, garage.plan),
+        garage.plan_label,
         format_html('<span class="{}">{}</span>{}', badge_class(garage.status), status, domain_flag),
         str(garage.member_count),
         str(garage.bookings_30d),
@@ -129,7 +129,7 @@ def garage_list(request):
     context = {
         "table": table,
         "filters": filters,
-        "plans": selectors.GARAGE_PLANS,
+        "plans": plans.FILTERS,
         "statuses": selectors.GARAGE_STATUSES,
         "sort": request.GET.get("sort", ""),
         "dir": request.GET.get("dir", ""),
@@ -228,7 +228,7 @@ def garage_bulk(request):
                 outcome = services.change_plan_status(
                     request,
                     garage,
-                    plan=garage.plan,
+                    plan=None,
                     status=form.cleaned_data["status"],
                     reason=form.cleaned_data["reason"],
                 )
@@ -294,7 +294,7 @@ def _tab_context(request, garage, tab: str) -> dict:
 
 
 def _plan_form(garage):
-    return PlanStatusForm(initial={"plan": garage.plan, "status": garage.status})
+    return PlanStatusForm(initial={"plan": plans.canonical(garage.plan), "status": garage.status})
 
 
 def _local_audit(garage):
@@ -335,7 +335,9 @@ def garage_plan(request, pk):
         garage = _garage_or_404(pk)
     except AutofixUnavailable as error:
         return render_unavailable(request, error, "Garage")
-    form = PlanStatusForm(request.POST or None, initial={"plan": garage.plan, "status": garage.status})
+    form = PlanStatusForm(
+        request.POST or None, initial={"plan": plans.canonical(garage.plan), "status": garage.status}
+    )
     if request.method == "POST" and form.is_valid():
         try:
             outcome = services.change_plan_status(request, garage, **form.cleaned_data)

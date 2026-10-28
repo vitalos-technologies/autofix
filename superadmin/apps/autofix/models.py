@@ -70,7 +70,6 @@ def _garage_fk(related_name: str, *, null: bool = False):
     )
 
 
-GARAGE_PLANS = [("trial", "Trial"), ("growth", "Growth"), ("front_desk", "Front desk")]
 GARAGE_STATUSES = [
     ("onboarding", "Onboarding"),
     ("active", "Active"),
@@ -84,14 +83,14 @@ DOMAIN_STATUSES = [
     ("failed", "Failed"),
 ]
 JOB_STATUSES = [("queued", "Queued"), ("running", "Running"), ("done", "Done"), ("failed", "Failed")]
-PAID_PLANS = ("growth", "front_desk")
 
 
 class Garage(AutofixModel):
     id = models.UUIDField(primary_key=True)
     slug = models.TextField()
     name = models.TextField()
-    plan = models.TextField(choices=GARAGE_PLANS)
+    # Old (trial, growth, front_desk) or D17 (essentials, pro) values: read them through ``plans``.
+    plan = models.TextField()
     status = models.TextField(choices=GARAGE_STATUSES)
     timezone = models.TextField(default="Europe/London")
     mot_enabled = models.BooleanField(default=False)
@@ -100,6 +99,8 @@ class Garage(AutofixModel):
     # The garage's own business contact details (not a customer's).
     phone = models.TextField(null=True, blank=True)
     email = models.TextField(null=True, blank=True)
+    # D17's 14-day Pro trial; null until the plans migration adds the column (the view reads it safely).
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
     onboarding_started_at = models.DateTimeField(null=True, blank=True)
     onboarding_completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
@@ -112,6 +113,18 @@ class Garage(AutofixModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def plan_key(self) -> str:
+        from .plans import TRIAL, canonical, on_trial
+
+        return TRIAL if on_trial(self) else canonical(self.plan)
+
+    @property
+    def plan_label(self) -> str:
+        from .plans import label
+
+        return label(self)
 
 
 class GarageMember(AutofixModel):

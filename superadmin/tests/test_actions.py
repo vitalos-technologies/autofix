@@ -28,24 +28,24 @@ def test_superadmin_changes_plan_through_the_platform_function(client_for, super
     garage = seeded["demo"]
     response = client_for(superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": garage.status, "reason": REASON},
+        {"plan": "essentials", "status": garage.status, "reason": REASON},
         **HX,
     )
     assert response.status_code == 204 and "vsa-close-modal" in response["HX-Trigger"]
     platform.assert_called_once_with(
-        "platform_update_garage", [str(garage.pk), "growth", None, REASON], actor_id=mock.ANY
+        "platform_update_garage", [str(garage.pk), "essentials", None, REASON], actor_id=mock.ANY
     )
     assert str(platform.call_args.kwargs["actor_id"]) == ADMIN_ID
     event = AuditEvent.objects.get(action="autofix.garage_updated")
     assert event.entity_id == str(garage.pk) and event.metadata["reason"] == REASON
-    assert "Trial → Growth" in event.summary
+    assert "Pro (trial) → Essentials" in event.summary
 
 
 def test_status_change_sends_only_what_changed(client_for, superadmin, seeded, platform):
     garage = seeded["hartley"]
     client_for(superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": garage.plan, "status": "suspended", "reason": "Unpaid for two months"},
+        {"plan": "essentials", "status": "suspended", "reason": "Unpaid for two months"},
         **HX,
     )
     assert platform.call_args.args[1] == [str(garage.pk), None, "suspended", "Unpaid for two months"]
@@ -55,7 +55,7 @@ def test_no_change_is_refused_without_a_call(client_for, superadmin, seeded, pla
     garage = seeded["hartley"]
     response = client_for(superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": garage.plan, "status": garage.status, "reason": REASON},
+        {"plan": "essentials", "status": garage.status, "reason": REASON},
         **HX,
     )
     assert response.status_code == 200 and b"Choose a different plan or status" in response.content
@@ -67,7 +67,7 @@ def test_reason_is_required(client_for, superadmin, seeded, platform, reason):
     garage = seeded["demo"]
     response = client_for(superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": "active", "reason": reason},
+        {"plan": "essentials", "status": "active", "reason": reason},
         **HX,
     )
     assert response.status_code == 200
@@ -78,7 +78,7 @@ def test_unlinked_superadmin_cannot_change_autofix(client_for, unlinked_superadm
     garage = seeded["demo"]
     response = client_for(unlinked_superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": "active", "reason": REASON},
+        {"plan": "essentials", "status": "active", "reason": REASON},
         **HX,
     )
     assert response.status_code == 200 and b"not linked to an Autofix platform admin" in response.content
@@ -89,7 +89,7 @@ def test_unverified_session_is_sent_to_the_second_factor(client_for, superadmin,
     garage = seeded["demo"]
     response = client_for(superadmin, verified=False).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": "active", "reason": REASON},
+        {"plan": "essentials", "status": "active", "reason": REASON},
     )
     assert response.status_code == 302 and "/account/2fa/" in response["Location"]
     platform.assert_not_called()
@@ -101,7 +101,7 @@ def test_only_superadmin_changes_plans(client_for, request, seeded, platform, wh
     garage = seeded["demo"]
     response = client_for(user).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": "active", "reason": REASON},
+        {"plan": "essentials", "status": "active", "reason": REASON},
     )
     assert response.status_code == 403
     platform.assert_not_called()
@@ -112,7 +112,7 @@ def test_refusal_from_autofix_is_shown_and_audited(client_for, superadmin, seede
     garage = seeded["demo"]
     response = client_for(superadmin).post(
         reverse("autofix:garage_plan", args=[garage.pk]),
-        {"plan": "growth", "status": "active", "reason": REASON},
+        {"plan": "essentials", "status": "active", "reason": REASON},
         **HX,
     )
     assert response.status_code == 200 and b"did not accept your linked platform admin" in response.content
@@ -294,3 +294,64 @@ def test_finance_cannot_see_customer_details(client_for, finance, seeded):
 def test_customer_details_are_post_only(client_for, support, seeded):
     garage = seeded["hartley"]
     assert client_for(support).get(reverse("autofix:booking_people", args=[garage.pk])).status_code == 405
+
+
+# --- D17 plans (Essentials and Pro) over a database that may predate them -------------------------
+
+
+def test_new_plan_name_falls_back_to_the_old_one_when_the_database_predates_d17(
+    client_for, superadmin, seeded
+):
+    garage = seeded["hartley"]  # growth = Essentials
+    calls = []
+
+    def fake(name, args, *, actor_id):
+        calls.append(list(args))
+        if args[1] == "pro":
+            raise db.PlatformError("INVALID_PLAN")
+        return {"plan": args[1]}
+
+    with mock.patch.object(db, "call_platform_function", side_effect=fake):
+        response = client_for(superadmin).post(
+            reverse("autofix:garage_plan", args=[garage.pk]),
+            {"plan": "pro", "status": garage.status, "reason": REASON},
+            **HX,
+        )
+    assert response.status_code == 204
+    assert [c[1] for c in calls] == ["pro", "front_desk"]
+    assert "Essentials → Pro" in AuditEvent.objects.get(action="autofix.garage_updated").summary
+
+
+def test_other_refusals_are_not_retried(client_for, superadmin, seeded, platform):
+    platform.side_effect = db.PlatformError("GARAGE_NOT_FOUND")
+    garage = seeded["hartley"]
+    client_for(superadmin).post(
+        reverse("autofix:garage_plan", args=[garage.pk]),
+        {"plan": "pro", "status": "active", "reason": REASON},
+        **HX,
+    )
+    assert platform.call_count == 1
+
+
+def test_choosing_the_plan_a_garage_already_has_under_its_old_name_changes_nothing(
+    client_for, superadmin, seeded, platform
+):
+    garage = seeded["hartley"]  # growth
+    response = client_for(superadmin).post(
+        reverse("autofix:garage_plan", args=[garage.pk]),
+        {"plan": "essentials", "status": garage.status, "reason": REASON},
+        **HX,
+    )
+    assert b"Choose a different plan or status" in response.content
+    platform.assert_not_called()
+
+
+def test_old_plan_names_are_no_longer_offered(client_for, superadmin, seeded, platform):
+    garage = seeded["hartley"]
+    response = client_for(superadmin).post(
+        reverse("autofix:garage_plan", args=[garage.pk]),
+        {"plan": "growth", "status": "active", "reason": REASON},
+        **HX,
+    )
+    assert response.status_code == 200
+    platform.assert_not_called()

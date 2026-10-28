@@ -12,7 +12,7 @@
         {% for row in rows %}
           <tr>
             <td><span class="font-medium">{{ row.user.get_full_name }}</span>{% if row.user.is_primary_owner %} <span class="{{ 'active'|badge_class }}">Primary owner</span>{% endif %}{% if row.user.full_name %}<br><span class="muted text-xs">{{ row.user.email }}</span>{% endif %}</td>
-            <td>{% if row.role %}<span class="{% if row.role == 'SuperAdmin' %}{{ 'warning'|badge_class }}{% elif row.role == 'Support' %}{{ 'growth'|badge_class }}{% else %}{{ 'slate'|badge_class }}{% endif %}">{{ row.role }}</span>{% else %}<span class="muted">No role</span>{% endif %}{% if row.user.is_superuser %} <span class="muted text-xs">(superuser)</span>{% endif %}</td>
+            <td>{% if row.role %}<span class="{% if row.role == 'SuperAdmin' %}{{ 'warning'|badge_class }}{% elif row.role == 'Support' %}{{ 'essentials'|badge_class }}{% else %}{{ 'slate'|badge_class }}{% endif %}">{{ row.role }}</span>{% else %}<span class="muted">No role</span>{% endif %}{% if row.user.is_superuser %} <span class="muted text-xs">(superuser)</span>{% endif %}</td>
             <td class="text-xs">{% if row.user.autofix_admin_id %}<span class="font-mono">{{ row.user.autofix_admin_id|stringformat:"s"|slice:":8" }}…</span>{% else %}<span class="muted">Read-only</span>{% endif %}</td>
             <td>{% if row.user.is_active %}Active{% else %}<span class="muted">Deactivated</span>{% endif %}</td>
             <td class="text-xs">{{ row.user.last_login|date:"j M Y H:i"|default:"Never" }}</td>

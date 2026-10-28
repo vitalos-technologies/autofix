@@ -72,7 +72,7 @@ def test_export_escapes_formula_cells(client_for, finance, af):
 
 
 def test_export_respects_filters(client_for, finance, seeded):
-    data = rows(client_for(finance).get(reverse("autofix:garages_export"), {"plan": "growth"}))
+    data = rows(client_for(finance).get(reverse("autofix:garages_export"), {"plan": "essentials"}))
     assert [row[2] for row in data[1:]] == ["hartley-road"]
 
 
@@ -121,6 +121,7 @@ def test_bulk_status_confirms_then_calls_once_per_garage(client_for, superadmin,
     assert done.status_code == 302
     assert call.call_count == 2
     assert {c.args[1][2] for c in call.call_args_list} == {"suspended"}
+    assert {c.args[1][1] for c in call.call_args_list} == {None}  # plans and trials untouched
     assert AuditEvent.objects.filter(action="autofix.garage_updated").count() == 2
 
 

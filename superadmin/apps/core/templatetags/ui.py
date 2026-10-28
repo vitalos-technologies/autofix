@@ -188,9 +188,9 @@ _TONES = {
     "suspended": "amber",
     "cancelled": "red",
     # plans
-    "trial": "slate",
-    "growth": "blue",
-    "front_desk": "violet",
+    "trial": "amber",
+    "essentials": "blue",
+    "pro": "violet",
     # domain verification
     "pending_dns": "amber",
     "verifying": "sky",
@@ -282,3 +282,13 @@ def pct_step(value) -> int:
     except (TypeError, ValueError):
         return 0
     return int(max(0, min(100, round(number / 5) * 5)))
+
+
+@register.filter
+def plan_name(value) -> str:
+    """A garages.plan value, old or D17, as the plan's name ("front_desk" -> "Pro")."""
+    from apps.autofix.plans import LABELS, TRIAL, canonical
+
+    if value == TRIAL:
+        return "Pro (trial)"
+    return LABELS.get(canonical(value), str(value or "").replace("_", " ").capitalize())

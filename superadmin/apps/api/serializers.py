@@ -7,6 +7,11 @@ from apps.autofix.redact import redact
 
 
 class GarageSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source="plan_label", read_only=True)
+    plan_key = serializers.CharField(
+        read_only=True, help_text="essentials, pro or trial (D17, old values mapped)"
+    )
+
     class Meta:
         model = Garage
         fields = [
@@ -14,6 +19,9 @@ class GarageSerializer(serializers.ModelSerializer):
             "slug",
             "name",
             "plan",
+            "plan_key",
+            "plan_name",
+            "trial_ends_at",
             "status",
             "timezone",
             "mot_enabled",

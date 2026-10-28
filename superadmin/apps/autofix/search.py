@@ -34,7 +34,7 @@ def palette_results(user, query: str) -> list[PaletteResult]:
             "Garages",
             garage.name,
             reverse("autofix:garage", args=[garage.pk]),
-            f"{selectors.PLAN_LABELS.get(garage.plan, garage.plan)} · {selectors.STATUS_LABELS.get(garage.status, garage.status)}",
+            f"{garage.plan_label} · {selectors.STATUS_LABELS.get(garage.status, garage.status)}",
             "wrench",
         )
         for garage in garages

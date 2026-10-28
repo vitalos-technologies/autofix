@@ -4,8 +4,9 @@
   <section class="card p-4" aria-labelledby="plan-heading">
     <h2 id="plan-heading" class="text-xl">Plan and status</h2>
     <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
-      <div class="flex justify-between py-2"><dt class="muted">Plan</dt><dd><span class="{{ garage.plan|badge_class }}">{{ garage.get_plan_display }}</span></dd></div>
+      <div class="flex justify-between py-2"><dt class="muted">Plan</dt><dd><span class="{{ garage.plan_key|badge_class }}">{{ garage.plan_label }}</span></dd></div>
       <div class="flex justify-between py-2"><dt class="muted">Status</dt><dd><span class="{{ garage.status|badge_class }}">{{ garage.get_status_display }}</span></dd></div>
+      <div class="flex justify-between py-2"><dt class="muted">Trial ends</dt><dd>{% if garage.trial_ends_at %}{{ garage.trial_ends_at|date:"j M Y H:i" }}{% elif garage.plan == "trial" %}On the trial (no end date recorded){% else %}—{% endif %}</dd></div>
       {% if garage.cancelled_at %}<div class="flex justify-between py-2"><dt class="muted">Cancelled</dt><dd>{{ garage.cancelled_at|date:"j M Y H:i" }}</dd></div>{% endif %}
     </dl>
     {% if can_change_autofix %}
@@ -27,7 +28,7 @@
     <p class="muted text-xs">From Autofix's platform log.</p>
     <ul class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
       {% for entry in history %}
-        <li class="py-2"><span class="font-medium">{% if entry.action == "platform.garage_plan_changed" %}Plan{% else %}Status{% endif %}: {{ entry.detail.from }} → {{ entry.detail.to }}</span><span class="muted block text-xs">{{ entry.created_at|date:"j M Y H:i" }} · {{ entry.actor_name }}</span>{% if entry.reason %}<span class="block text-xs break-words">{{ entry.reason }}</span>{% endif %}</li>
+        <li class="py-2"><span class="font-medium">{% if entry.action == "platform.garage_plan_changed" %}Plan: {{ entry.detail.from|plan_name }} → {{ entry.detail.to|plan_name }}{% else %}Status: {{ entry.detail.from }} → {{ entry.detail.to }}{% endif %}</span><span class="muted block text-xs">{{ entry.created_at|date:"j M Y H:i" }} · {{ entry.actor_name }}</span>{% if entry.reason %}<span class="block text-xs break-words">{{ entry.reason }}</span>{% endif %}</li>
       {% empty %}<li class="muted py-2">No plan or status changes yet.</li>{% endfor %}
     </ul>
   </section>

@@ -18,11 +18,10 @@ from django.utils import timezone
 
 from apps.core.kpi import Kpi
 
+from . import plans
 from .db import reads
 from .models import (
-    GARAGE_PLANS,
     GARAGE_STATUSES,
-    PAID_PLANS,
     Booking,
     Call,
     Customer,
@@ -48,7 +47,7 @@ QUIET_END = time(19, 0)
 ATTENTION_LIMIT = 12
 RECENT_FAILURES = 20
 SENT_STATUSES = ("sent", "delivered")
-PLAN_LABELS = dict(GARAGE_PLANS)
+PLAN_FILTERS = dict(plans.FILTERS)
 STATUS_LABELS = dict(GARAGE_STATUSES)
 
 
@@ -103,7 +102,7 @@ def garage_counts() -> dict[str, int]:
         Garage.objects.values_list("status").annotate(total=Count("id")).values_list("status", "total")
     )
     total = sum(rows.values())
-    trial = Garage.objects.filter(plan="trial", status__in=("onboarding", "active")).count()
+    trial = Garage.objects.filter(plans.trial_q(), status__in=("onboarding", "active")).count()
     return {
         "total": total,
         "onboarding": rows.get("onboarding", 0),
@@ -116,28 +115,27 @@ def garage_counts() -> dict[str, int]:
 
 @reads
 def plan_counts() -> dict[str, int]:
-    """Plans of garages that are not cancelled, keyed by plan."""
-    rows = dict(
-        Garage.objects.exclude(status="cancelled")
-        .values_list("plan")
-        .annotate(total=Count("id"))
-        .values_list("plan", "total")
-    )
-    return {key: rows.get(key, 0) for key, _ in GARAGE_PLANS}
+    """Garages that are not cancelled: Essentials, Pro (paid) and on the Pro trial (old or D17 values)."""
+    live = Garage.objects.exclude(status="cancelled")
+    return {
+        "essentials": live.filter(plans.paid_q(), plan__in=plans.DB_VALUES[plans.ESSENTIALS]).count(),
+        "pro": live.filter(plans.paid_q(), plan__in=plans.DB_VALUES[plans.PRO]).count(),
+        "trial": live.filter(plans.trial_q()).count(),
+    }
 
 
 @reads
 def subscription_counts() -> dict[str, int]:
-    """Plans mapped to the Product Pipeline's subscription states (ADR-044; DECISIONS A133).
+    """Plans mapped to the Product Pipeline's subscription states (ADR-044; DECISIONS A403).
 
-    active: a paid plan (growth, front_desk) on an active garage. trialing: the trial plan on an
-    onboarding or active garage. pastDue: a paid plan on a suspended garage (Autofix suspends for
-    non-payment; there is no billing system yet).
+    active: Essentials or Pro, not on trial, on an active garage. trialing: on the Pro trial (old
+    ``trial`` plan or ``trial_ends_at`` ahead), onboarding or active. pastDue: a paid plan on a
+    suspended garage (Autofix suspends for non-payment; there is no billing system yet).
     """
     return {
-        "active": Garage.objects.filter(plan__in=PAID_PLANS, status="active").count(),
-        "trialing": Garage.objects.filter(plan="trial", status__in=("onboarding", "active")).count(),
-        "pastDue": Garage.objects.filter(plan__in=PAID_PLANS, status="suspended").count(),
+        "active": Garage.objects.filter(plans.paid_q(), status="active").count(),
+        "trialing": Garage.objects.filter(plans.trial_q(), status__in=("onboarding", "active")).count(),
+        "pastDue": Garage.objects.filter(plans.paid_q(), status="suspended").count(),
     }
 
 
@@ -299,8 +297,9 @@ def _garage_filters(queryset, filters: dict):
     if filters.get("q"):
         needle = filters["q"]
         queryset = queryset.filter(Q(name__icontains=needle) | Q(slug__icontains=needle.lower()))
-    if filters.get("plan") in PLAN_LABELS:
-        queryset = queryset.filter(plan=filters["plan"])
+    plan_q = plans.filter_q(filters.get("plan", ""))
+    if plan_q is not None:
+        queryset = queryset.filter(plan_q)
     if filters.get("status") in STATUS_LABELS:
         queryset = queryset.filter(status=filters["status"])
     return queryset
@@ -308,7 +307,7 @@ def _garage_filters(queryset, filters: dict):
 
 def clean_garage_filters(params) -> dict[str, str]:
     filters = {key: (params.get(key) or "").strip()[:80] for key in ("q", "plan", "status")}
-    if filters["plan"] not in PLAN_LABELS:
+    if filters["plan"] not in PLAN_FILTERS:
         filters["plan"] = ""
     if filters["status"] not in STATUS_LABELS:
         filters["status"] = ""
@@ -374,7 +373,13 @@ def garage_overview(garage_obj: Garage, now: datetime | None = None) -> dict:
             Kpi("g_upcoming", "Upcoming", str(made["upcoming"]), "Booked from now on"),
         ],
         "facts": [
-            ("Plan", PLAN_LABELS.get(garage_obj.plan, garage_obj.plan)),
+            ("Plan", garage_obj.plan_label),
+            (
+                "Trial ends",
+                timezone.localtime(garage_obj.trial_ends_at).strftime("%d %b %Y")
+                if garage_obj.trial_ends_at
+                else "—",
+            ),
             ("Status", STATUS_LABELS.get(garage_obj.status, garage_obj.status)),
             ("Free address", f"{garage_obj.slug}.autofix.vitalos.co.uk"),
             ("Time zone", garage_obj.timezone),

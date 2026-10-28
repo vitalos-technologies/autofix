@@ -1,5 +1,5 @@
 -- Django super admin (P5.1): a least-privilege database role and read-only
--- views for superadmin/ (docs/autofix/DECISIONS.md D16, A130-A139).
+-- views for superadmin/ (docs/autofix/DECISIONS.md D18, A400-A410).
 --
 --   1. Schema superadmin: one view per table the super admin reads. The views
 --      are owned by the migration role, so they read past RLS, but they carry
@@ -111,6 +111,9 @@ create view superadmin.garages with (security_barrier = true) as
     garage.booking_prefix,
     garage.phone,
     garage.email,
+    -- D17's Pro trial. Read from the row as JSON so this view works before and after the plans
+    -- migration adds the column (null until then).
+    nullif(to_jsonb(garage) ->> 'trial_ends_at', '')::timestamptz as trial_ends_at,
     nullif(garage.settings #>> '{onboarding,started_at}', '')::timestamptz as onboarding_started_at,
     nullif(garage.settings #>> '{onboarding,completed_at}', '')::timestamptz as onboarding_completed_at,
     garage.cancelled_at,
