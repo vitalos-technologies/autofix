@@ -8,10 +8,9 @@ import { requireStaffWriter } from "@/lib/admin/staff";
 import { isMediaContentType, LIMITS, MEDIA_PROBLEM_MESSAGES, MEDIA_TYPES, mediaObjectPath, mediaProblem, type MediaContentType } from "@/lib/health-checks/checklist";
 import { parseItemForm, parseNewItemForm, parseSummaryForm } from "@/lib/health-checks/forms";
 import { canSendHealthCheck, sendHealthCheck } from "@/lib/health-checks/send";
-import { HEALTH_CHECK_BUCKET } from "@/lib/health-checks/server";
+import { confirmMediaUpload, createMediaUploadUrl, removeMediaObjects } from "@/lib/health-checks/storage";
 import { isPlanRequiredDatabaseError, planRequiredMessage } from "@/lib/plans/entitlements";
 import { featureProblem } from "@/lib/plans/server";
-import { createAdminClient } from "@/lib/supabase/server";
 
 // Health checks (P5.3, Pro `health_checks`): `/app/health-checks` and `/app/health-checks/[id]`.
 // The garage is always the member's selected garage and the member the signed-in user (MFA done
@@ -103,7 +102,7 @@ export async function deleteItemAction(formData: FormData): Promise<void> {
   if (!checkId.success || !itemId.success || featureProblem(admin, FEATURE)) redirect("/app/health-checks");
   const { data: media } = await admin.client.from("health_check_media").select("object_path").eq("check_id", checkId.data).eq("item_id", itemId.data);
   const { data } = await admin.client.from("health_check_items").delete().eq("check_id", checkId.data).eq("id", itemId.data).select("id");
-  if (data?.length && media?.length) await removeObjects(media.map((row) => (row as { object_path: string }).object_path));
+  if (data?.length && media?.length) await removeMediaObjects(admin.garage.id, media.map((row) => (row as { object_path: string }).object_path));
   revalidatePath(checkPath(checkId.data));
   redirect(`${checkPath(checkId.data)}?notice=${data?.length ? "item_removed" : "locked"}`);
 }
@@ -167,11 +166,9 @@ export async function prepareUploadAction(input: { checkId: string; itemId: stri
     kind: MEDIA_TYPES[contentType].kind,
   }).select("id").single();
   if (error || !row) return { ok: false, message: isPlanRequiredDatabaseError(error) ? planRequiredMessage(FEATURE) : LOCKED };
-  const service = createAdminClient();
-  if (!service) return { ok: false, message: "Uploads aren't available right now." };
-  const signed = await service.storage.from(HEALTH_CHECK_BUCKET).createSignedUploadUrl(path);
-  if (signed.error || !signed.data) return { ok: false, message: "Uploads aren't available right now." };
-  return { ok: true, mediaId: (row as { id: string }).id, path: signed.data.path, token: signed.data.token };
+  const signed = await createMediaUploadUrl(admin.garage.id, path);
+  if (!signed) return { ok: false, message: "Uploads aren't available right now." };
+  return { ok: true, mediaId: (row as { id: string }).id, path: signed.path, token: signed.token };
 }
 
 /** After the upload: checks the object is there, of the declared type and within the size limit. */
@@ -185,29 +182,11 @@ export async function finishUploadAction(input: { checkId: string; mediaId: stri
     .eq("check_id", parsed.data.checkId)
     .eq("id", parsed.data.mediaId)
     .maybeSingle();
-  const service = createAdminClient();
-  if (!data || !service) return { ok: false, message: "That file couldn't be added." };
-  const row = data as { id: string; object_path: string; content_type: string };
-  const folder = row.object_path.slice(0, row.object_path.lastIndexOf("/"));
-  const name = row.object_path.slice(row.object_path.lastIndexOf("/") + 1);
-  const { data: files } = await service.storage.from(HEALTH_CHECK_BUCKET).list(folder, { search: name, limit: 1 });
-  const file = files?.find((entry) => entry.name === name);
-  const size = Number((file?.metadata as { size?: number } | undefined)?.size ?? 0);
-  const mimetype = String((file?.metadata as { mimetype?: string } | undefined)?.mimetype ?? "");
-  const declared = isMediaContentType(row.content_type) ? MEDIA_TYPES[row.content_type] : null;
-  if (!file || !declared || size <= 0 || size > declared.maxBytes || (mimetype && mimetype !== row.content_type)) {
-    await service.storage.from(HEALTH_CHECK_BUCKET).remove([row.object_path]);
-    await service.from("health_check_media").delete().eq("garage_id", admin.garage.id).eq("id", row.id);
-    return { ok: false, message: MEDIA_PROBLEM_MESSAGES[size > (declared?.maxBytes ?? 0) ? "size" : "type"] };
-  }
-  await service.from("health_check_media").update({ uploaded: true, size_bytes: size }).eq("garage_id", admin.garage.id).eq("id", row.id);
+  if (!data) return { ok: false, message: "That file couldn't be added." };
+  const problem = await confirmMediaUpload(admin.garage.id, data as { id: string; object_path: string; content_type: string });
+  if (problem) return { ok: false, message: problem === "unavailable" ? "Uploads aren't available right now." : MEDIA_PROBLEM_MESSAGES[problem] };
   revalidatePath(checkPath(parsed.data.checkId));
   return { ok: true };
-}
-
-async function removeObjects(paths: string[]) {
-  const service = createAdminClient();
-  if (service && paths.length) await service.storage.from(HEALTH_CHECK_BUCKET).remove(paths);
 }
 
 /** Removes a photo or video (before the customer decides). */
@@ -217,7 +196,7 @@ export async function deleteMediaAction(formData: FormData): Promise<void> {
   const admin = await requireStaffWriter(checkId.success ? checkPath(checkId.data) : "/app/health-checks");
   if (!checkId.success || !mediaId.success || featureProblem(admin, FEATURE)) redirect("/app/health-checks");
   const { data } = await admin.client.from("health_check_media").delete().eq("check_id", checkId.data).eq("id", mediaId.data).select("object_path");
-  if (data?.length) await removeObjects(data.map((row) => (row as { object_path: string }).object_path));
+  if (data?.length) await removeMediaObjects(admin.garage.id, data.map((row) => (row as { object_path: string }).object_path));
   revalidatePath(checkPath(checkId.data));
   redirect(`${checkPath(checkId.data)}?notice=${data?.length ? "media_removed" : "locked"}`);
 }
