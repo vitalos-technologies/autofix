@@ -177,8 +177,13 @@ test("a customer joins on the garage host and sets up the (test) Direct Debit", 
 
 test("an online booking for the car uses the included service, and staff see the plan", async () => {
   await site.goto(`${siteOrigin}/`);
+  // Open manual entry first, retrying until the page has hydrated (a plate typed before hydration is reset).
+  await expect(async () => {
+    await site.getByRole("button", { name: "Enter details manually" }).click({ timeout: 2_000 });
+    await expect(site.getByLabel("Make")).toBeVisible({ timeout: 2_000 });
+  }).toPass();
   await site.getByLabel("Registration").fill(REGISTRATION);
-  await site.getByRole("button", { name: "Enter details manually" }).click();
+  await expect(site.getByLabel("Registration")).not.toHaveValue("");
   await site.getByLabel("Make").fill("Ford");
   await site.getByLabel("Model").fill("Fiesta");
   await site.getByRole("button", { name: "Continue" }).click();

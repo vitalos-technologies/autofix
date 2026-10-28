@@ -83,8 +83,14 @@ async function check(page: Page, shot?: string) {
 /** Steps 1 to 4 for a Full service on the n-th open day; stops on the details step. */
 async function bookToDetails(page: Page, registration: string, name: string, phone: string, dayIndex: number) {
   await page.goto(`${siteOrigin}/`);
+  // Open manual entry first, retrying until the page has hydrated: a plate typed before hydration is
+  // reset to empty by the next render, and Continue then stays on step 1.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Enter details manually" }).click({ timeout: 2_000 });
+    await expect(page.getByLabel("Make")).toBeVisible({ timeout: 2_000 });
+  }).toPass();
   await page.getByLabel("Registration").fill(registration);
-  await page.getByRole("button", { name: "Enter details manually" }).click();
+  await expect(page.getByLabel("Registration")).not.toHaveValue("");
   await page.getByLabel("Make").fill("Ford");
   await page.getByLabel("Model").fill("Focus");
   await page.getByRole("button", { name: "Continue" }).click();
