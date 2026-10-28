@@ -4,6 +4,7 @@ import {
   Clock,
   FileText,
   Globe,
+  Headset,
   Inbox,
   CreditCard,
   LayoutDashboard,
@@ -48,7 +49,9 @@ export type AdminNavOptions = {
 export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
 
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
-export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
+  { feature: "ai_front_desk", label: "AI front desk", href: "/app/settings/ai-front-desk", icon: Headset },
+];
 
 function proItems(items: typeof GROW_NAV_ITEMS, locked: ReadonlySet<string> | undefined): AdminNavItem[] {
   return items.map(({ feature, ...item }) => ({ ...item, proLocked: locked?.has(feature) ?? false }));

@@ -16,10 +16,11 @@ export const DIAL_TIMEOUT_SECONDS = 20;
 /** Dial outcomes after which the caller was not put through: the call is missed. */
 export const MISSED_DIAL_STATUSES = new Set(["busy", "no-answer", "failed", "canceled"]);
 
-export type VoiceStep = "dial" | "recorded" | "recording";
+/** `agent` (P5.12): how the hand-off to the Workforce voice agent went. */
+export type VoiceStep = "dial" | "recorded" | "recording" | "agent";
 
 export function isVoiceStep(value: string | null): value is VoiceStep {
-  return value === "dial" || value === "recorded" || value === "recording";
+  return value === "dial" || value === "recorded" || value === "recording" || value === "agent";
 }
 
 export function escapeXml(value: string) {
@@ -56,6 +57,15 @@ export function voicemailTwiml(input: { garageName: string; recordedUrl: string;
     say("We didn't get a message. Goodbye."),
     "<Hangup/>",
   ].join("");
+}
+
+/**
+ * P5.12 hand-off: put the caller through to the Workforce voice agent over SIP; Twilio then asks
+ * `actionUrl` (?step=agent) with DialCallStatus, and an unanswered leg falls back to the voicemail.
+ */
+export function agentDialTwiml(input: { sipUri: string; actionUrl: string; timeoutSeconds?: number }) {
+  const timeout = Math.max(5, Math.min(60, Math.trunc(input.timeoutSeconds ?? DIAL_TIMEOUT_SECONDS)));
+  return `<Dial timeout="${timeout}" answerOnBridge="true" action="${escapeXml(input.actionUrl)}" method="POST"><Sip>${escapeXml(input.sipUri)}</Sip></Dial>`;
 }
 
 export function afterRecordingTwiml() {
