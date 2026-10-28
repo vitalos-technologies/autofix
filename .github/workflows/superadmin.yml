@@ -150,9 +150,17 @@ jobs:
       - name: Run the release job twice and start the production image
         run: |
           [[ "${RUNNER_NAME:-}" =~ ([0-9]+)$ ]] && slot=$((10#${BASH_REMATCH[1]})) || slot=0
-          pg_port=$((55500 + slot)); app_port=$((3400 + slot * 10 + 5))
-          docker rm -f "superadmin-ci-pg-${slot}" "superadmin-ci-web-${slot}" >/dev/null 2>&1 || true
-          docker run -d --name "superadmin-ci-pg-${slot}" -p "127.0.0.1:${pg_port}:5432" -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=superadmin postgres:17
+          app_port=$((3400 + slot * 10 + 5))
+          image="autofix-superadmin:ci-${{ github.run_id }}"
+          net="supabase_network_${SUPABASE_PROJECT_ID}"
+          relay="superadmin-ci-relay-${slot}"
+          docker rm -f "superadmin-ci-pg-${slot}" "superadmin-ci-web-${slot}" "$relay" >/dev/null 2>&1 || true
+          # Rootless Docker: --network host would be Docker's own namespace, out of the runner's reach. The app
+          # shares the relay's namespace instead: its port is published to the runner, and Autofix's database
+          # is at 127.0.0.1:55432 (the production image allows plain text only on localhost).
+          docker run -d --name "superadmin-ci-pg-${slot}" --network "$net" -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=superadmin postgres:17
+          docker run -d --name "$relay" --network "$net" -p "127.0.0.1:${app_port}:${app_port}" \
+            -v "$PWD/e2e/tcp_relay.py:/relay.py:ro" "$image" python /relay.py 55432 "supabase_db_${SUPABASE_PROJECT_ID}:5432"
           for _ in $(seq 1 30); do docker exec "superadmin-ci-pg-${slot}" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
           umask 077
           status_token="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
@@ -163,8 +171,8 @@ jobs:
           echo "::add-mask::$proxy_secret"
           {
             echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
-            echo "DATABASE_URL=postgres://postgres:postgres@127.0.0.1:${pg_port}/superadmin"
-            echo "AUTOFIX_DATABASE_URL=${AUTOFIX_LIVE_DATABASE_URL}?sslmode=disable"
+            echo "DATABASE_URL=postgres://postgres:postgres@superadmin-ci-pg-${slot}:5432/superadmin"
+            echo "AUTOFIX_DATABASE_URL=${AUTOFIX_LIVE_DATABASE_URL/:${SUPABASE_DB_PORT}\//:55432/}?sslmode=disable"
             echo "AUTOFIX_STATUS_TOKEN=${status_token}"
             # Path mode, as in production behind the Autofix proxy (DECISIONS D18).
             echo "SUPERADMIN_PATH_PREFIX=/superadmin"
@@ -177,10 +185,9 @@ jobs:
             echo "BOOTSTRAP_ADMIN_EMAIL=ci-admin@example.test"
             echo "BOOTSTRAP_ADMIN_PASSWORD=${admin_password}"
           } > "$RUNNER_TEMP/app.env"
-          image="autofix-superadmin:ci-${{ github.run_id }}"
-          docker run --rm --network host --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
-          docker run --rm --network host --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
-          docker run -d --name "superadmin-ci-web-${slot}" --network host --env-file "$RUNNER_TEMP/app.env" "$image"
+          docker run --rm --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
+          docker run --rm --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
+          docker run -d --name "superadmin-ci-web-${slot}" --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image"
           for _ in $(seq 1 30); do curl -fsS "http://127.0.0.1:${app_port}/healthz/" && break; sleep 1; done
           # The proxy gate: without the secret, even the sign-in page is a bare 404.
           test "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${app_port}/superadmin/login/")" = 404
@@ -235,6 +242,6 @@ jobs:
         if: always()
         working-directory: .
         run: |
-          docker rm -f "superadmin-ci-web-${SLOT:-0}" "superadmin-ci-pg-${SLOT:-0}" >/dev/null 2>&1 || true
+          docker rm -f "superadmin-ci-web-${SLOT:-0}" "superadmin-ci-relay-${SLOT:-0}" "superadmin-ci-pg-${SLOT:-0}" >/dev/null 2>&1 || true
           docker image rm "autofix-superadmin:ci-${{ github.run_id }}" >/dev/null 2>&1 || true
           supabase stop --no-backup || true

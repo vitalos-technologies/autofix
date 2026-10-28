@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -81,6 +82,11 @@ def _prod_env(**overrides):
         "SUPERADMIN_PATH_PREFIX": "",
         "SUPERADMIN_PROXY_SECRET": "",
     }
+    # The interpreter's own runtime only: setup-python's Python finds its libpython through
+    # LD_LIBRARY_PATH, and without it loads the system one and crashes (CI runners).
+    for name in ("LD_LIBRARY_PATH", "HOME"):
+        if name in os.environ:
+            env.setdefault(name, os.environ[name])
     env.update(overrides)
     return env
 
