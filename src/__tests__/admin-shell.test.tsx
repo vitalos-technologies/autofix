@@ -96,6 +96,7 @@ describe("shell navigation", () => {
       "/app/messages",
       "/app/campaigns",
       "/app/health-checks",
+      "/app/reports",
       "/app/settings/services",
       "/app/settings/hours",
       "/app/settings/resources",

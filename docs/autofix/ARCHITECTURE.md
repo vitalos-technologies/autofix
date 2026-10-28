@@ -645,3 +645,51 @@ No existing function or migration was changed (`create_booking`, `available_slot
 CSP on garage hosts gains `media-src 'self' blob: https:` (and the Supabase origin when it is plain http, i.e. the local stack, also in `img-src`), so signed video URLs play (`src/lib/booking-page/security-headers.ts`, `storageOrigin` from `src/proxy.ts`).
 
 No background jobs: sending is inline through `getChannel()` like staff replies.
+
+## Advanced reports and exports (Phase 5, P5.6; DECISIONS A334–A341)
+
+### Schema (`supabase/migrations/20261029000600_reports.sql`; pgTAP `032_reports`)
+
+| Object | Notes |
+| --- | --- |
+| `booking_assignments` (tenant) | `garage_id` (default `current_garage_id()`), `booking_id` (composite FK → `bookings (garage_id, id)` on delete cascade, unique per garage), `technician_id → auth.users` (on delete set null), `technician_name` (snapshot, 1–120 chars, kept when the member leaves), `assigned_by`, `assigned_at`. RLS: members of the selected garage read (not plan checked, so readable after a downgrade); no staff write grants: written only by `assign_booking_technician()`. In `FIXTURES` of `tests/integration/tenancy.test.ts` |
+
+No existing table, function or migration is changed. `create_booking*`, `available_slots*` and `staff_available_slots*` are not touched.
+
+### SQL
+
+All `security definer`, `search_path = ''`. Report dates are garage-local and inclusive; the window is `[from 00:00, to + 1 00:00)` in `garages.timezone`, so a clock-change day is 23 or 25 hours long. Errors: `42501 NOT_ALLOWED`, `P0001 PLAN_REQUIRED: advanced_reports`, `22023 INVALID_RANGE` (from > to, or more than 366 days).
+
+| Function | Who | What |
+| --- | --- | --- |
+| `assign_booking_technician(booking uuid, technician uuid) → jsonb` | owners/managers of the selected garage (`garage_actor_allowed()`: AAL2 when enrolled), Pro | Sets (null: clears) who did the job. Technician must be a member of the garage (`22023 NOT_A_MEMBER`); booking must be the garage's and not trashed (`P0001 BOOKING_NOT_FOUND`). Name snapshot = profile display name, else account display name, else email local part. Audited `booking.technician_assigned` |
+| `report_revenue_by_service(from date, to date)` → `(service_id, service_name, bookings, invoiced_pence, estimated_pence, total_pence)` | owners/managers (or service role with `x-garage-id`), Pro | See A334 |
+| `report_revenue_by_technician(from, to)` → `(technician_id, technician_name, bookings, invoiced_pence, estimated_pence, total_pence)` | same | Same jobs grouped by `booking_assignments`; `technician_name` null = Unassigned (A335) |
+| `report_bay_utilisation(from, to)` → `(resource_id, resource_name, resource_kind, day, open_minutes, booked_minutes)` | same | One row per resource per local day (A336) |
+| `report_hours(from, to)` → `(technician_id, technician_name, jobs, measured_jobs, sold_minutes, worked_minutes)` | same | A337 |
+| `report_reminder_roi(from, to)` → `(kind, sent, booked, pence, sms_segments)` | same | A338, A339 |
+| `report_campaign_roi(from, to)` → `(available, sent, booked, pence)` | same | Feature-detected (A340) |
+| `report_window(from, to)`, `report_jobs(garage, from_at, to_at)`, `report_minutes(tstzmultirange)` | no API role (internals) | Caller check + window; the jobs the revenue/hours reports count; minutes in a multirange |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/reports/range.ts` (client-safe) | `REPORT_PRESETS` (`this_month`, `last_month`, `last_90_days`, `custom`), `PRESET_LABELS`, `MAX_REPORT_DAYS`, `ReportRange`, `RANGE_PROBLEMS`, `presetRange`, `resolveReportRange({range, from, to}, today)`, `rangeQuery`, `dayCount`, `rangeLabel` |
+| `src/lib/reports/csv.ts` (client-safe) | `safeCsvText` (prefixes `= + - @`, tab and CR with `'`), `csvCell`, `toCsv` (UTF-8 BOM, CRLF), `poundsCell` |
+| `src/lib/reports/shape.ts` (client-safe) | `REPORT_KINDS` (`revenue-by-service`, `revenue-by-technician`, `bay-utilisation`, `hours`, `reminder-roi`), `isReportKind`, row types and mappers, `revenueTotals`, `utilisationByResource`, `utilisationByWeek`, `hoursTotals`, `efficiency`, `roiTotals`, `smsCost`, `formatMinutes`, `formatPounds`, `formatShare`, CSV builders (`revenueCsv`, `utilisationCsv`, `hoursCsv`, `reminderRoiCsv`), `reportFileName` |
+| `src/lib/reports/config.ts` (client-safe) | `smsSegmentCostPence(env)` (`SMS_SEGMENT_COST_PENCE`, placeholder, null until set) |
+| `src/lib/reports/server.ts` | `loadRevenueByService`, `loadRevenueByTechnician`, `loadUtilisation`, `loadHours`, `loadReminderRoi`, `loadCampaignRoi`, `loadAllReports`, `ReportLoadError` (`plan_required` / `not_allowed` / `invalid_range` / `failed`). All through the admin's RLS client; nothing takes a garage id |
+| `src/lib/reports/export.ts` | `buildReportCsv(client, kind, range, costPerSegment)` |
+| `src/lib/reports/assignments.ts` | `loadBookingAssignment`, `loadTeamOptions` (`list_garage_team()`), `assignTechnician`, `ASSIGN_MESSAGES` |
+| `src/components/admin-ui/admin-nav.tsx` | `GROW_NAV_ITEMS` gains `{feature: "advanced_reports", label: "Reports", href: "/app/reports", icon: ChartColumn}` |
+
+### Routes
+
+| Route | Who | Notes |
+| --- | --- | --- |
+| `/app/reports?range=this_month\|last_month\|last_90_days` or `?range=custom&from=YYYY-MM-DD&to=YYYY-MM-DD` | owners/managers on Pro | Essentials: `ProLockedPage` (owner gets "See Pro and upgrade"). Technicians / front desk on Pro: "Reports are for owners and managers", ask the owner. Range picker (preset chips + custom dates), four summary figures, five report panels (tables at 390 first, simple CSS bars with the figure as text), a CSV link on each. Only dates in the query string |
+| `GET /api/admin/reports/<kind>?range=…` | owners/managers on Pro | `text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="autofix-<kind>-<from>-to-<to>.csv"`, `Cache-Control: private, no-store`. 401 signed out, 404 unknown kind, 403 `PLAN_REQUIRED` (Essentials, also when the database says so mid-session), 403 `NOT_ALLOWED` (other roles), 400 `INVALID_RANGE`. Audited `report.exported` (kind, dates, row count). No registrations in any report or file name |
+| `/app/bookings/[id]` "Technician" panel | owners/managers on Pro: a select of the team + Save (`assignTechnicianAction` in `bookings/technician-actions.ts`, `requireStaffWriter`, `featureProblem`); others / Essentials: the assigned name read-only, if any | |
+
+No jobs, no customer-facing pages, no messages.
