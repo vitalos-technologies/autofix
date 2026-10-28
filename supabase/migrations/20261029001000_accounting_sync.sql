@@ -340,19 +340,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  connection_id uuid;
+  active_connection uuid;
 begin
   if public.garage_effective_plan(p_garage_id) <> 'pro' and public.plan_feature_plan('accounting_sync') = 'pro' then
     return false;
   end if;
-  select connection.id into connection_id
+  select connection.id into active_connection
   from public.accounting_connections connection
   where connection.garage_id = p_garage_id and connection.status in ('pending', 'connected', 'needs_reconnect');
-  if connection_id is null then
+  if active_connection is null then
     return false;
   end if;
   insert into public.accounting_sync_items (garage_id, connection_id, entity, local_id)
-  values (p_garage_id, connection_id, p_entity, p_local_id)
+  values (p_garage_id, active_connection, p_entity, p_local_id)
   on conflict (connection_id, entity, local_id) do nothing;
   perform public.enqueue_accounting_sync(p_garage_id, null);
   return true;
