@@ -221,6 +221,7 @@ export default async function GroupPage({ searchParams }: { searchParams: Promis
               columns={reportColumns}
               rows={[...report, { garageId: "total", name: "All sites", isHome: false, total: true, ...reportTotal }]}
               getRowKey={(row) => row.garageId}
+              minWidth={300}
             />
             <p className="m-0 text-[13px] text-grey-600">
               Bookings that started in the range (not cancelled or no-shows). Revenue is invoices issued in the range, issued or paid.
