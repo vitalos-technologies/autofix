@@ -44,8 +44,8 @@ describe("marketing page (/ on the admin host)", () => {
       expect(item).toHaveTextContent(feature.label);
       expect(within(item).queryByText("Coming soon") !== null).toBe(!feature.shipped);
     });
-    // Only Pro features that have shipped are claimed as available (P5.3, P5.4, P5.5, P5.6, P5.8, P5.12).
-    expect(marketing.plans.pro.features.filter((feature) => feature.shipped).length).toBe(6);
+    // Only Pro features that have shipped are claimed as available (P5.3, P5.4, P5.5, P5.6, P5.8, P5.9, P5.12).
+    expect(marketing.plans.pro.features.filter((feature) => feature.shipped).length).toBe(7);
     expect(within(essentials).getByRole("link", { name: "Start with Essentials" })).toHaveAttribute("href", "/signup");
     expect(screen.getByRole("region", { name: marketing.plans.heading }).textContent).not.toMatch(/£\s?\d/);
   });

@@ -133,7 +133,7 @@ export const marketing = {
         { label: "Advanced reports and exports", shipped: true },
         { label: "Fleet and trade accounts", shipped: false },
         { label: "Courtesy cars, collection and delivery", shipped: true },
-        { label: "Several sites under one login", shipped: false },
+        { label: "Several sites under one login", shipped: true },
       ],
       note: "Features marked coming soon are being built now. Each one switches on as soon as it's ready.",
     },

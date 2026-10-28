@@ -5,6 +5,7 @@ import { Bell, ExternalLink, LogOut, Trash2 } from "lucide-react";
 import { signOut } from "@/app/app/login/actions";
 import { AdminNavGroups, buttonClass, defaultAdminNav, GarageSwitcher, PageHeader, SubmitButton, type AdminGarage } from "@/components/admin-ui";
 import { countOpenRequests } from "@/lib/admin/data";
+import { selectedGarageInGroup } from "@/lib/group/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { switchGarage } from "@/lib/tenancy/switch-garage";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
@@ -20,7 +21,8 @@ const rowClass = buttonClass("secondary", "md", "w-full justify-start gap-2.5 bo
 export default async function MorePage() {
   const admin = await getAdminContext({ allowTrustedDevice: true });
   if (!admin) redirect("/app/login");
-  const requests = await countOpenRequests(admin.client);
+  const groupMember = admin.role === "owner" || admin.role === "manager";
+  const [requests, inGroup] = await Promise.all([countOpenRequests(admin.client), groupMember ? selectedGarageInGroup(admin.client) : Promise.resolve(false)]);
   const garages: AdminGarage[] = admin.memberships.map((membership) => ({
     id: membership.garageId,
     name: membership.name,
@@ -34,7 +36,7 @@ export default async function MorePage() {
         <h2 id="more-garage" className="m-0 px-2.5 font-sans text-[11px] font-bold tracking-[0.1em] text-grey-600 uppercase">
           Garage
         </h2>
-        <GarageSwitcher garages={garages} currentGarageId={admin.garage.id} switchGarageAction={switchGarage} tone="light" />
+        <GarageSwitcher garages={garages} currentGarageId={admin.garage.id} switchGarageAction={switchGarage} tone="light" groupHref={inGroup ? "/app/group" : undefined} />
         <a href={garageBaseUrl(admin.garage)} target="_blank" rel="noopener noreferrer" className={rowClass}>
           <ExternalLink size={18} strokeWidth={2} aria-hidden="true" />
           View booking page

@@ -834,3 +834,56 @@ If the deposit cannot be added after the booking was made, the booking stands an
 methods next to the existing ones (e.g. `startMandate`, `createSubscription`) and new `PaymentsEvent` kinds, keep
 `parseWebhook` + `payment_webhook_events` for idempotency, and keep `getPaymentsProvider()` as the single test-mode/live
 gate. Stripe Direct Debit (Bacs) would use the same connected account (`Stripe-Account`).
+
+## Multi-site (Phase 5, P5.9; DECISIONS A358–A365)
+
+### Model
+
+A group belongs to a **home garage**. The home garage holds the group's plan and its subscription (and so the extra-site charge). Every garage in a group, the home garage included, has one row in `garage_group_sites`; a garage is in at most one group. A garage in no group is treated as a "group of one" by the read functions, so `/app/group` works before the first site is added.
+
+Tenancy is unchanged: every garage-scoped read or write still uses the member's **selected** garage (`af_garage` → `getAdminContext` → `x-garage-id` → `current_garage_id()`). The group functions start from the selected garage, find its group in SQL, and aggregate **only** sites of that group where the caller is owner or manager (`garage_role()` per site). No group read takes a garage id from the request. The only id a form sends is the site to remove, and `group_remove_site()` refuses it unless it is a non-home site of the selected garage's own group and the caller owns the selected garage, that site and the home garage.
+
+### Tables (`supabase/migrations/20261029000900_multi_site.sql`; pgTAP `035_multi_site`)
+
+| Table | Notes |
+| --- | --- |
+| `garage_groups` (tenant) | `garage_id` = the **home** garage (unique: one group per home), `name` (home garage's name at creation), `created_by`, `created_at`; unique (`id`, `garage_id`) for the child FK. RLS select: owners/managers of the selected garage when it is the home. No write policies, no staff write grants: written only by `group_add_site()` |
+| `garage_group_sites` (tenant) | `garage_id` = the **site** (unique), `group_id`, `home_garage_id` (composite FK (`group_id`, `home_garage_id`) → `garage_groups (id, garage_id)` on delete cascade), `added_by`, `added_at`. RLS select: owners/managers of the selected garage, its own row only. Written only by `group_add_site()` / `group_remove_site()` |
+
+Both are ordinary tenant tables (`garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS, anon revoked), in the tenancy suite `FIXTURES` and `ROLE_LIMITED_READS` (owner, manager). Select policies don't check the plan.
+
+### SQL functions (all `security definer`, `search_path = ''`)
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `garage_group_home(garage) → uuid` | internal (service role) | the home garage of the garage's group, or null |
+| `group_visible_sites() → table(garage_id, home_garage_id, is_home)` | internal | sites of the selected garage's group (or the selected garage alone) where the caller is owner/manager; 42501 unless owner/manager of the selected garage |
+| `group_summary() → table(group_id, group_name, home_garage_id, is_home, site_count, visible_sites, can_add_sites, multi_site)` | owners/managers of the selected garage | no plan check (the page needs it for the locked state) |
+| `group_overview(now) → table(garage_id, name, slug, accent, is_home, is_selected, today_bookings, open_requests, revenue_month_pence, won_back_bookings, won_back_pence)` | owners/managers of the selected garage | per site, in **each site's own time zone**: bookings starting today (not requested/cancelled/no-show/trashed), open requests (`requested`, not ended, as the Bookings badge), revenue this month (issued or paid invoices issued this month, not trashed), reminder work won back this month (`reminder_won_back()`). `PLAN_REQUIRED: multi_site` (P0001) unless the home garage's effective plan is Pro |
+| `group_report(from, to) → table(garage_id, name, is_home, bookings, revenue_pence)` | owners/managers of the selected garage | same definitions over local dates `from..to` (≤ 366 days, else 22023); `PLAN_REQUIRED` as above |
+| `group_add_site(p_garage jsonb) → jsonb` | owner of the selected garage **and** of the home garage, MFA rules of `garage_actor_allowed()` | creates the group on first use (home = selected garage), calls `create_garage(auth.uid(), p_garage)` (wrapped, not replaced: defaults seeded, caller is owner, 3 per 24 h), copies the home garage's `plan`/`trial_ends_at`/`plan_chosen` to the new garage, adds the site; returns `{garage_id, slug, group_id, home_garage_id, site_count, extra_sites}`. `PLAN_REQUIRED: multi_site`, `GROUP_FORBIDDEN` (42501), `GROUP_FULL` (101 sites), and `create_garage()`'s codes. Audited `group.created`, `group.site_added` (home), `group.joined` (new site) |
+| `group_remove_site(site) → jsonb` | owner of the selected garage, of that site and of the home garage | never the home garage (`GROUP_HOME_SITE`); deletes the site row only (garage and data stay), the site drops to Essentials (keeps a running group trial); returns `{home_garage_id, site_count, extra_sites}`. Allowed without Pro (it only lowers the charge). Audited `group.site_removed` / `group.left` |
+| `record_group_extra_sites(home, provider) → integer` | service role | sets `garage_subscriptions.extra_sites` on the home garage to sites − 1 (upserts the row with the provider kind) |
+| trigger `garages_group_plan_sync` → `garage_groups_sync_plan()` | — | after a change of `plan`, `trial_ends_at` or `plan_chosen` on a **home** garage, every other site of its group gets the same values. So trial expiry, billing webhooks, `choose_essentials()` and Vitalos plan changes on the home garage reach the whole group, and the app's checks (`garageHasFeature(admin.garage)`, which read the selected garage's own columns) agree with SQL |
+
+Not touched: `create_booking*`, `available_slots*`, `staff_available_slots*`, `create_garage()`, any earlier migration.
+
+### Modules
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/group/report.ts` (client-safe, pure) | `GroupSummary`, `GroupOverviewSite`, `GroupReportSite`, `toGroupSummary`, `toOverviewSite`, `toReportSite`, `overviewTotals`, `reportTotals`, `parseReportRange` (default this month to date, swapped when back to front, cut to 366 days), `GROUP_REPORT_MAX_DAYS`, `extraSites`, `extraSitesLabel`, `extraSitePriceLine` (placeholder "Price to be confirmed" until `PLAN_EXTRA_SITE_PRICE_PENCE`), `groupReportCsv` (BOM, CRLF, total row, formula-injection guard), `groupReportFileName` |
+| `src/lib/group/server.ts` | `loadGroupSummary`, `selectedGarageInGroup` (RLS read of the selected garage's site row), `loadGroupOverview`, `loadGroupReport`, `GroupDataError` (`PLAN_REQUIRED`/`FORBIDDEN`/`UNAVAILABLE`), `syncExtraSites({homeGarageId, extraSites, actorId}, provider?)`: `getBillingProvider().setExtraSites({garageId, subscriptionRef, count})`, then `record_group_extra_sites()` with the service role; a provider failure is audited `group.billing_failed` and nothing is recorded |
+| `src/lib/group/actions.ts` (server actions) | `addSiteAction` (form state; zod/wizard parsing from `src/lib/signup/schema.ts`, owner + MFA verified + `featureProblem(admin, "multi_site")`), `removeSiteAction` (confirm step, `?done=` / `?error=` codes) |
+| `src/components/group/add-site-form.tsx` | `AddSiteForm` (client, `useActionState`) |
+| `src/components/admin-ui/garage-switcher.tsx` | new prop `groupHref`: "Group overview" link under the garages; `AdminShell` passes `groupOverviewHref`; the protected layout and `/app/more` set it when the selected garage is in a group and the member is owner/manager |
+| `src/components/admin-ui/admin-nav.tsx` | one `GROW_NAV_ITEMS` line: `{ feature: "multi_site", label: "Group overview", href: "/app/group", icon: Building2 }` |
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/group` | Owners and managers. Essentials (selected garage or home garage) → `ProLockedPage` (`canUpgrade` for owners, `hasExistingData` when a group exists). Pro: totals (cars in today, waiting for OK, revenue this month, won back), a card per site (Open = switch garage, Remove for owners), "N more sites not shown" when the member doesn't manage every site, the report (date range GET form, table with total, Download CSV), Add a site (owners of the home garage, MFA verified; shows the extra-site price placeholder and current extra sites), the remove confirmation (`?confirm=<site>`). Technicians and front desk get a notice |
+| `GET /api/admin/group/report?from&to` | CSV of `group_report()` through the RLS client; 401 signed out, 403 for other roles, 403 `PLAN_REQUIRED` (`featureGuard`, and the SQL error if the home garage is on Essentials); `Cache-Control: private, no-store`; audited `group.report_exported` |
+
+No jobs, no customer-facing pages, no messages.

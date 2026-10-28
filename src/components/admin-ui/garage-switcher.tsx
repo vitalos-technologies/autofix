@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRef } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Building2, Check, ChevronsUpDown } from "lucide-react";
 import { accentForWhiteText, DEFAULT_ACCENT } from "@/lib/branding/accent";
 import { garageInitials } from "@/components/book/format";
 import { cn } from "@/lib/utils";
@@ -47,11 +48,13 @@ export type GarageSwitcherProps = {
   switchGarageAction?: FormAction;
   /** `navy` in the sidebar, `light` on the phone "More" page. */
   tone?: "navy" | "light";
+  /** P5.9: when the member's garage is in a group, a "Group overview" link (`/app/group`) under the garages. */
+  groupHref?: string;
   className?: string;
 };
 
 /** The garage name at the top of the sidebar; opens a menu of the member's other garages. */
-export function GarageSwitcher({ garages, currentGarageId, switchGarageAction, tone = "navy", className }: GarageSwitcherProps) {
+export function GarageSwitcher({ garages, currentGarageId, switchGarageAction, tone = "navy", groupHref, className }: GarageSwitcherProps) {
   const details = useRef<HTMLDetailsElement>(null);
   useDetailsDismiss(details);
   const current = garages.find((garage) => garage.id === currentGarageId) ?? garages[0];
@@ -74,11 +77,36 @@ export function GarageSwitcher({ garages, currentGarageId, switchGarageAction, t
     navy ? "border border-[#1f365c] bg-[#0f2140]" : "border border-grey-200 bg-white",
   );
 
+  const groupLink = groupHref ? (
+    <Link
+      href={groupHref}
+      className={cn(
+        "flex min-h-11 w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-[13.5px] font-semibold no-underline",
+        navy ? "text-white hover:bg-[#15294d]" : "text-navy-950 hover:bg-grey-100",
+        navy ? focusRingOnDark : focusRing,
+      )}
+    >
+      <Building2 size={18} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+      Group overview
+    </Link>
+  ) : null;
+
   if (!canSwitch) {
+    if (!groupLink) {
+      return (
+        <div className={cn(boxClass, className)}>
+          <span className="sr-only">Garage: </span>
+          {face}
+        </div>
+      );
+    }
     return (
-      <div className={cn(boxClass, className)}>
-        <span className="sr-only">Garage: </span>
-        {face}
+      <div className={cn("flex flex-col gap-1", className)}>
+        <div className={boxClass}>
+          <span className="sr-only">Garage: </span>
+          {face}
+        </div>
+        {groupLink}
       </div>
     );
   }
@@ -135,6 +163,7 @@ export function GarageSwitcher({ garages, currentGarageId, switchGarageAction, t
             </SubmitButton>
           );
         })}
+        {groupLink ? <div className={cn("mt-1 border-t pt-1", navy ? "border-navy-line" : "border-grey-200")}>{groupLink}</div> : null}
       </form>
     </details>
   );

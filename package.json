@@ -33,6 +33,7 @@
     "test:e2e:p5-reports": "playwright test --config playwright.garage.config.ts --project=p5-reports",
     "test:e2e:p5-courtesy-cars": "playwright test --config playwright.garage.config.ts --project=p5-courtesy-cars",
     "test:e2e:p5-payments": "playwright test --config playwright.garage.config.ts --project=p5-payments",
+    "test:e2e:p5-multi-site": "playwright test --config playwright.garage.config.ts --project=p5-multi-site",
     "test:lighthouse": "lhci autorun",
     "test:lighthouse:askbridge": "node scripts/lighthouse-askbridge.mjs",
     "test:load": "node scripts/load/slots-load.mjs",

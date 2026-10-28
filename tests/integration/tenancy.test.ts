@@ -175,6 +175,8 @@ const ACTOR_ROLES: Partial<Record<ActorKey, "owner" | "manager" | "technician">>
  */
 const ROLE_LIMITED_READS: Record<string, ReadonlyArray<"owner" | "manager" | "technician">> = {
   billing_usage_reports: ["owner"],
+  garage_group_sites: ["owner", "manager"],
+  garage_groups: ["owner", "manager"],
   garage_subscriptions: ["owner"],
   plan_requests: ["owner"],
   usage_events: ["owner", "manager"],
@@ -225,6 +227,9 @@ class GarageRows {
   private tag(name: string) {
     return `${name}-${this.key.toLowerCase()}-${localRunId}`;
   }
+
+  /** P5.9: the group this garage is the home of. */
+  homeGroup = () => this.once("homeGroup", async () => String((await this.insert("garage_groups", { name: `Tenancy group ${this.key}` }, "id")).id));
 
   customer = () => this.once("customer", async () => String((await this.insert("customers", {
     name: `Tenancy Customer ${this.key}`,
@@ -554,6 +559,13 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { role: "manager" },
   },
   // Rows come from provisioning (owner, manager, technician, shared manager).
+  // P5.9 groups: garage_id is the group's home garage. Each test garage is the home of its own group.
+  garage_groups: { create: (rows) => rows.homeGroup(), patch: { name: "Tampered" } },
+  // P5.9: garage_id is the site (here the home garage's own site row).
+  garage_group_sites: {
+    create: async (rows) => rows.insert("garage_group_sites", { group_id: await rows.homeGroup(), home_garage_id: rows.garage.id }),
+    patch: { added_at: "2096-04-01T00:00:00.000Z" },
+  },
   garage_members: { create: async () => undefined, patch: { role: "manager" } },
   garage_subscriptions: {
     create: (rows) => rows.insert("garage_subscriptions", { provider: "mock", status: "none", plan: "essentials" }),
