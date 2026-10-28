@@ -1,0 +1,187 @@
+name: Super Admin deploy
+
+# Deploys the Django super admin (superadmin/, DECISIONS D18, A415-A417) to Azure Container Apps and points
+# https://autofix.vitalos.co.uk/superadmin at it. Run by hand: Actions > Super Admin deploy > Run workflow,
+# type DEPLOY. Approved by Temitope on 28 Oct 2026; cost £0 (Container Apps free grant with scale to zero,
+# a private GitHub package, Autofix's existing Supabase project). Safe to re-run: kept secrets and
+# passwords are reused. Logs show names and states only; every secret is masked.
+#
+# Repository secrets it needs (superadmin/README.md "Deploy"): AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+# AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (deploy identity, Contributor on rg-autofix-superadmin only),
+# GHCR_PULL_TOKEN (classic token, read:packages only) and VERCEL_API_TOKEN. For the database, either
+# SUPABASE_ACCESS_TOKEN (the deploy prepares the roles itself) or SUPERADMIN_DATABASE_URL and
+# SUPERADMIN_AUTOFIX_DATABASE_URL from superadmin/deploy/supabase_roles.sql (A418).
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DEPLOY to deploy to production
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: superadmin-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    if: inputs.confirm == 'DEPLOY'
+    timeout-minutes: 60
+    env:
+      IMAGE: ghcr.io/vitalos-technologies/autofix-superadmin:${{ github.sha }}
+      GHCR_PULL_USERNAME: ${{ vars.GHCR_PULL_USERNAME || 'Isaacpyo' }}
+      PRIMARY_OWNER_EMAIL: ${{ vars.SUPERADMIN_OWNER_EMAIL || 'temitope.agbola@vitalos.co.uk' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets are set (names only)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPERADMIN_DATABASE_URL: ${{ secrets.SUPERADMIN_DATABASE_URL }}
+          SUPERADMIN_AUTOFIX_DATABASE_URL: ${{ secrets.SUPERADMIN_AUTOFIX_DATABASE_URL }}
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: |
+          missing=0
+          for name in AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID GHCR_PULL_TOKEN \
+                      VERCEL_API_TOKEN NEXT_PUBLIC_SUPABASE_URL VERCEL_PROJECT_ID VERCEL_TEAM_ID; do
+            if [[ -z "${!name}" ]]; then echo "::error::$name is not set (superadmin/README.md, Deploy)"; missing=1; else echo "$name is set"; fi
+          done
+          for name in SUPABASE_ACCESS_TOKEN SUPERADMIN_DATABASE_URL SUPERADMIN_AUTOFIX_DATABASE_URL; do
+            [[ -n "${!name}" ]] && echo "$name is set" || echo "$name is not set"
+          done
+          exit "$missing"
+
+      - name: Build and push the image (private GitHub package)
+        working-directory: superadmin
+        run: |
+          # The runners' Docker CLI has no buildx plugin; a pinned, checksum-verified one, for this job only.
+          version=v0.37.2
+          sha256=982ca20490b45ed1ec8d99795974d3d874a358f75938c9c237305010e6b7e548
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG/cli-plugins"
+          curl -fsSL -o "$DOCKER_CONFIG/cli-plugins/docker-buildx" \
+            "https://github.com/docker/buildx/releases/download/${version}/buildx-${version}.linux-amd64"
+          echo "${sha256}  $DOCKER_CONFIG/cli-plugins/docker-buildx" | sha256sum -c -
+          chmod +x "$DOCKER_CONFIG/cli-plugins/docker-buildx"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx build --push -t "$IMAGE" \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.description="Autofix Super Admin" .
+          docker logout ghcr.io
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the Azure CLI (pinned)
+        run: |
+          python -m venv "$RUNNER_TEMP/az"
+          "$RUNNER_TEMP/az/bin/pip" install -q azure-cli==2.91.0
+          echo "$RUNNER_TEMP/az/bin" >> "$GITHUB_PATH"
+          echo "AZURE_CONFIG_DIR=$RUNNER_TEMP/azure-config" >> "$GITHUB_ENV"
+      - name: Sign in to Azure (deploy identity)
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" -o none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          az group show -n rg-autofix-superadmin --query "{name:name,location:location}" -o tsv
+
+      - name: Database connection strings
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPERADMIN_DATABASE_URL: ${{ secrets.SUPERADMIN_DATABASE_URL }}
+          SUPERADMIN_AUTOFIX_DATABASE_URL: ${{ secrets.SUPERADMIN_AUTOFIX_DATABASE_URL }}
+        run: |
+          umask 077
+          superadmin/deploy/azure/deploy.sh existing-secrets "$RUNNER_TEMP/existing.env"
+          # shellcheck disable=SC1091
+          set -a; . "$RUNNER_TEMP/existing.env"; set +a
+          if [[ -n "$SUPERADMIN_DATABASE_URL" && -n "$SUPERADMIN_AUTOFIX_DATABASE_URL" ]]; then
+            # From superadmin/deploy/supabase_roles.sql, run in the SQL editor (A418).
+            printf 'DATABASE_URL=%s\nAUTOFIX_DATABASE_URL=%s\n' "$SUPERADMIN_DATABASE_URL" "$SUPERADMIN_AUTOFIX_DATABASE_URL" > "$RUNNER_TEMP/db.env"
+            echo "database: connection strings from the repository secrets"
+          elif [[ -n "$SUPABASE_ACCESS_TOKEN" ]]; then
+            # Roles and schema over the Management API; passwords only as SCRAM verifiers.
+            OUT_FILE="$RUNNER_TEMP/db.env" python superadmin/deploy/supabase_setup.py
+          elif [[ -n "${EXISTING_DATABASE_URL:-}" && -n "${EXISTING_AUTOFIX_DATABASE_URL:-}" ]]; then
+            printf 'DATABASE_URL=%s\nAUTOFIX_DATABASE_URL=%s\n' "$EXISTING_DATABASE_URL" "$EXISTING_AUTOFIX_DATABASE_URL" > "$RUNNER_TEMP/db.env"
+            echo "database: the container's current connection strings, unchanged"
+          else
+            echo "::error::No database logins yet: run superadmin/deploy/supabase_roles.sql in the Supabase SQL editor and add SUPERADMIN_DATABASE_URL and SUPERADMIN_AUTOFIX_DATABASE_URL as repository secrets (or add SUPABASE_ACCESS_TOKEN). superadmin/README.md, Deploy."
+            exit 1
+          fi
+
+      - name: Deploy to Azure Container Apps
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SUPERADMIN_SENTRY_DSN }}
+          DB_ENV_FILE: ${{ runner.temp }}/db.env
+          DEPLOY_OUT_FILE: ${{ runner.temp }}/deploy.env
+        run: superadmin/deploy/azure/deploy.sh apply
+
+      - name: The origin answers only the proxy
+        run: |
+          origin="$(grep '^SUPERADMIN_ORIGIN=' "$RUNNER_TEMP/deploy.env" | cut -d= -f2-)"
+          secret="$(grep '^SUPERADMIN_PROXY_SECRET=' "$RUNNER_TEMP/deploy.env" | cut -d= -f2-)"
+          echo "::add-mask::$secret"
+          # Wake it from zero replicas.
+          for _ in $(seq 1 30); do curl -fsS -o /dev/null "$origin/healthz/" && break; sleep 5; done
+          curl -fsS -o /dev/null "$origin/healthz/"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$origin/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: wrong" "$origin/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: $secret" \
+            -H "x-autofix-superadmin-host: autofix.vitalos.co.uk" "$origin/superadmin/login/")" = 200
+          echo "origin: 404 without the secret, 200 with it"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Point autofix.vitalos.co.uk/superadmin at it (Vercel env, production redeploy)
+        env:
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: |
+          set -a; . "$RUNNER_TEMP/deploy.env"; set +a
+          echo "::add-mask::$SUPERADMIN_PROXY_SECRET"
+          node scripts/ci/superadmin-vercel.mjs
+
+      - name: Live check
+        run: |
+          url=https://autofix.vitalos.co.uk/superadmin/login/
+          for _ in $(seq 1 30); do
+            code="$(curl -s -o "$RUNNER_TEMP/login.html" -w '%{http_code}' "$url")"
+            [[ "$code" == 200 ]] && break
+            sleep 10
+          done
+          echo "$url: $code"
+          test "$code" = 200
+          grep -q 'action="/superadmin/login/' "$RUNNER_TEMP/login.html"
+          headers="$(curl -sI "$url")"
+          grep -qi '^x-robots-tag: noindex' <<< "$headers"
+          grep -qi '^content-security-policy:.*frame-ancestors .none.' <<< "$headers"
+          echo "live: sign-in page served through the proxy with the super admin's own headers"
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/existing.env" "$RUNNER_TEMP/db.env" "$RUNNER_TEMP/deploy.env" "$RUNNER_TEMP/login.html"
+          az logout 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/azure-config" "$RUNNER_TEMP/docker-config"
