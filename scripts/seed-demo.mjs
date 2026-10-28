@@ -72,7 +72,10 @@ const GARAGES = [
     address: { line1: "14 Hartley Road", line2: "Balby", town: "Doncaster", postcode: "DN4 8AB" },
     service_area: ["DN1", "DN2", "DN3", "DN4", "DN5", "DN6", "DN11", "DN12"],
     sms_sender: "HartleyRd",
-    plan: "growth",
+    // P5.2: paid Pro (chosen, no trial), so every Pro feature can be demonstrated.
+    plan: "pro",
+    plan_chosen: "pro",
+    trial_ends_at: null,
     settings: { tagline: "Independent garage, Doncaster" },
   },
   {
@@ -89,7 +92,10 @@ const GARAGES = [
     address: { line1: "2 Example Street", line2: null, town: "Rotherham", postcode: "S60 1AA" },
     service_area: ["S60", "S61", "S65", "S66"],
     sms_sender: "DemoGarageB",
-    plan: "trial",
+    // P5.2: Essentials, for the locked Pro states.
+    plan: "essentials",
+    plan_chosen: "essentials",
+    trial_ends_at: null,
     settings: { tagline: "Demo data for tenancy checks" },
   },
 ];

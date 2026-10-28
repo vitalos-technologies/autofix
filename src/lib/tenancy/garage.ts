@@ -27,7 +27,12 @@ export type Garage = {
   timezone: string;
   logoUrl: string | null;
   accent: string;
+  /** `garages.plan`: `essentials` or `pro` (P5.2). Check features with `hasFeature()` (src/lib/plans), not this. */
   plan: string;
+  /** End of the Pro trial, or null (P5.2). */
+  trialEndsAt?: string | null;
+  /** What the garage chose or pays for (`essentials`/`pro`), or null (P5.2). */
+  planChosen?: string | null;
   motEnabled: boolean;
   bookingPrefix: string;
   slotStepMin: number;
@@ -62,6 +67,8 @@ export type GarageRow = {
   logo_url?: string | null;
   accent?: string | null;
   plan?: string | null;
+  trial_ends_at?: string | null;
+  plan_chosen?: string | null;
   mot_enabled?: boolean | null;
   booking_prefix?: string | null;
   slot_step_min?: number | null;
@@ -113,7 +120,9 @@ export function garageFromRow(row: GarageRow): Garage {
     timezone: row.timezone || "Europe/London",
     logoUrl: row.logo_url ?? null,
     accent: row.accent || "#155fba",
-    plan: row.plan || "trial",
+    plan: row.plan || "essentials",
+    trialEndsAt: row.trial_ends_at ?? null,
+    planChosen: row.plan_chosen ?? null,
     motEnabled: row.mot_enabled ?? false,
     bookingPrefix: row.booking_prefix || "AF",
     slotStepMin: row.slot_step_min ?? 15,

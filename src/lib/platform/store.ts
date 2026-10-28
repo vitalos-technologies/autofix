@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { GARAGES_PAGE_SIZE, redactJobError, toImpersonation, type GaragePlan, type GarageStatus, type ImpersonationRow } from "@/lib/platform/policy";
+import { GARAGES_PAGE_SIZE, redactJobError, toImpersonation, type GaragePlan, type GaragePlanFilter, type GarageStatus, type ImpersonationRow } from "@/lib/platform/policy";
 
 // Typed wrappers over the platform_* RPCs (20261028000500_platform_admin.sql).
 // Each RPC checks platform_admins and AAL2 in the database; callers pass the
@@ -19,7 +19,7 @@ function fail(error: { message?: string; code?: string } | null, fallback: strin
   throw new PlatformError(code, message);
 }
 
-export type GarageListFilters = { search?: string; status?: GarageStatus; plan?: GaragePlan; page?: number };
+export type GarageListFilters = { search?: string; status?: GarageStatus; plan?: GaragePlanFilter; page?: number };
 
 export type GarageListItem = {
   id: string;
@@ -79,6 +79,12 @@ export type GarageDetail = {
   slug: string;
   name: string;
   plan: GaragePlan;
+  /** P5.2: what the garage may use now (an expired, unconverted trial is essentials). */
+  effective_plan: GaragePlan;
+  trial_ends_at: string | null;
+  plan_chosen: GaragePlan | null;
+  plan_request: { id: string; plan: GaragePlan; note: string | null; created_at: string; requested_by: string } | null;
+  subscription: { provider: string; status: string; plan: GaragePlan | null; extra_sites: number; current_period_end: string | null } | null;
   status: GarageStatus;
   timezone: string;
   mot_enabled: boolean;
@@ -198,4 +204,22 @@ export async function retryJob(client: SupabaseClient, jobId: string, reason: st
   const { data, error } = await client.rpc("platform_retry_job", { p_job_id: jobId, p_reason: reason });
   if (error) fail(error, "RETRY_FAILED");
   return data === true;
+}
+
+export type PlanRequestRow = {
+  id: string;
+  garage_id: string;
+  garage_name: string;
+  garage_slug: string;
+  requested_plan: GaragePlan;
+  note: string | null;
+  requested_by: string;
+  created_at: string;
+};
+
+/** P5.2: open "Request Pro" (and "Essentials") requests from garage owners, oldest first. */
+export async function listPlanRequests(client: SupabaseClient, limit = 50): Promise<PlanRequestRow[]> {
+  const { data, error } = await client.rpc("platform_plan_requests", { p_limit: limit });
+  if (error) fail(error, "PLAN_REQUESTS_UNAVAILABLE");
+  return (data ?? []) as PlanRequestRow[];
 }

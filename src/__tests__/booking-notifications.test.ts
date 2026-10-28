@@ -136,7 +136,7 @@ function garageRow() {
   return {
     id: garage.id, slug: garage.slug, name: garage.name, legal_name: garage.legalName, company_number: garage.companyNumber,
     phone: garage.phone, whatsapp: garage.whatsapp, email: garage.email, address: garage.address, timezone: "Europe/London",
-    logo_url: null, accent: garage.accent, plan: "growth", mot_enabled: false, booking_prefix: "HRM", status: "active", settings: {}, garage_domains: [],
+    logo_url: null, accent: garage.accent, plan: "essentials", mot_enabled: false, booking_prefix: "HRM", status: "active", settings: {}, garage_domains: [],
   };
 }
 

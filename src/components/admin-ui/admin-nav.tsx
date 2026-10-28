@@ -5,8 +5,10 @@ import {
   FileText,
   Globe,
   Inbox,
+  CreditCard,
   LayoutDashboard,
   List,
+  Lock,
   MessageSquare,
   Palette,
   ScrollText,
@@ -22,7 +24,7 @@ import { resolveActiveHref } from "./active-href";
 import { formatCount } from "./format";
 import { NavLink } from "./nav-link";
 import { focusRing, focusRingOnDark } from "./styles";
-import type { AdminNavGroup } from "./types";
+import type { AdminNavGroup, AdminNavItem } from "./types";
 
 export { resolveActiveHref };
 
@@ -31,14 +33,34 @@ export type AdminNavOptions = {
   newBookings?: number;
   /** Screen reader text for that badge; default "{n} new". */
   newBookingsLabel?: string;
+  /**
+   * P5.2: Pro features the garage's plan doesn't include (`hasFeature()` from src/lib/plans), keyed by
+   * feature. Their links stay in the nav with a "Pro" badge and open the locked upgrade card.
+   */
+  lockedFeatures?: ReadonlySet<string>;
 };
+
+/**
+ * P5.2: the Grow group, one entry per shipped Pro feature with its own admin section (feature key,
+ * label, route, icon). A Pro feature adds its line here when its route exists, so the shell never links
+ * to a page that isn't built (tests/e2e/admin-pages.spec.ts visits every link).
+ */
+export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+
+/** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
+export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [];
+
+function proItems(items: typeof GROW_NAV_ITEMS, locked: ReadonlySet<string> | undefined): AdminNavItem[] {
+  return items.map(({ feature, ...item }) => ({ ...item, proLocked: locked?.has(feature) ?? false }));
+}
 
 /**
  * The admin sidebar: Workshop / Customers / Setup (design/screens/Admin-Dashboard.dc.html), with
  * every admin section from docs/autofix/ARCHITECTURE.md ("Admin pages on the admin host under
  * /app"). Setup pages land with P3.4/P4.3; their links are here already.
  */
-export function defaultAdminNav({ newBookings = 0, newBookingsLabel }: AdminNavOptions = {}): AdminNavGroup[] {
+export function defaultAdminNav({ newBookings = 0, newBookingsLabel, lockedFeatures }: AdminNavOptions = {}): AdminNavGroup[] {
+  const grow = proItems(GROW_NAV_ITEMS, lockedFeatures);
   return [
     {
       label: "Workshop",
@@ -58,6 +80,7 @@ export function defaultAdminNav({ newBookings = 0, newBookingsLabel }: AdminNavO
         { label: "Messages & calls", href: "/app/messages", icon: MessageSquare },
       ],
     },
+    ...(grow.length ? [{ label: "Grow", items: grow }] : []),
     {
       label: "Setup",
       items: [
@@ -67,6 +90,8 @@ export function defaultAdminNav({ newBookings = 0, newBookingsLabel }: AdminNavO
         { label: "Branding & MOT", href: "/app/settings/branding", icon: Palette },
         { label: "Booking page", href: "/app/settings/booking-page", icon: Globe },
         { label: "Team", href: "/app/settings/team", icon: UserCog },
+        ...proItems(PRO_SETUP_NAV_ITEMS, lockedFeatures),
+        { label: "Plan", href: "/app/settings/plan", icon: CreditCard },
         { label: "Agreements", href: "/app/settings/agreements", icon: ScrollText },
         { label: "Settings", href: "/app/settings", icon: Settings },
         { label: "Security", href: "/app/configuration/security", icon: ShieldCheck },
@@ -127,6 +152,18 @@ export function AdminNavGroups({ groups, activeHref, tone = "navy", className }:
                     >
                       <Icon size={18} strokeWidth={2} aria-hidden="true" className="shrink-0" />
                       <span className="min-w-0 grow truncate">{item.label}</span>
+                      {item.proLocked ? (
+                        <span
+                          className={cn(
+                            "ml-auto inline-flex items-center gap-1 rounded-full px-[7px] py-[2px] text-[11px] font-bold",
+                            navy ? "bg-navy-900 text-[#c9d4e2]" : "bg-grey-100 text-navy-950",
+                          )}
+                        >
+                          <Lock size={11} strokeWidth={2.4} aria-hidden="true" />
+                          Pro
+                          <span className="sr-only">, not on your plan</span>
+                        </span>
+                      ) : null}
                       {badge ? (
                         <span className="ml-auto rounded-full bg-accent px-[7px] py-[2px] text-[11px] font-bold text-accent-ink">
                           <span aria-hidden="true">{formatCount(badge)}</span>

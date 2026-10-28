@@ -15,6 +15,8 @@ export const JOB_KINDS = [
   "domains.check",
   "retention",
   "platform.close_impersonations",
+  "plans.expire_trials",
+  "billing.close_usage",
   "customers.enrich",
   "mot.refresh",
 ] as const;
