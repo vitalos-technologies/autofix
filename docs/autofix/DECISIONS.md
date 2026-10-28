@@ -268,6 +268,14 @@
 | A363 | Figures: "cars in today" = bookings starting today not requested/cancelled/no-show (as Today); "open requests" = `requested` and not ended (as the Bookings badge); revenue = issued or paid invoices by `issued_at` (void and trashed left out; VAT is 0 in this codebase); won back = `reminder_won_back()`. Each site uses its own time zone. Report ranges are at most 366 days | Low |
 | A364 | The extra-site count is sites − 1 and is sent with `setExtraSites()` after each add/remove, then recorded on the home garage's `garage_subscriptions.extra_sites` (service role). With the mock provider this only records. If the provider refuses, nothing is recorded and `group.billing_failed` is audited for Vitalos. A later Stripe webhook (`apply_billing_subscription`) overwrites `extra_sites` with the provider's quantity | Medium until Stripe test keys exist |
 | A365 | The extra-site price is the placeholder `PLAN_EXTRA_SITE_PRICE_PENCE` ("Price to be confirmed"); a group may have at most 101 sites (`extra_sites` check 0–100) | Low |
+| A342 | Accounts, cars and drivers live in link tables (`business_account_*`), not new columns on `vehicles`/`customers`/`bookings`/`invoices`, so no shared table or existing function changes and parallel migrations merge cleanly | Low |
+| A343 | Any member who can make a staff booking may charge it to an account (`set_booking_account`); only owners/managers change accounts and statements | Low |
+| A344 | An invoice's own customer stays the driver (`save_invoice_draft` snapshots the booking's customer); the bill-to is the account, snapshotted on `business_account_invoices` when linked and shown on the invoice page and PDF | Medium: bill-to snapshot isn't refreshed if the account's address changes before issue |
+| A345 | The job makes **draft** statements; staff issue and email them (no automatic emailing to businesses). Statements include every issued/paid account invoice up to the month end not already on a statement (late or back-dated invoices roll into the next one) | Low |
+| A346 | Statement PDF/CSV downloads and all pages are reads, so a garage back on Essentials can still open and download them; only writes return PLAN_REQUIRED | Low |
+| A347 | The account discount % is not applied automatically: it is noted on the invoice draft ("Account discount 10%") for staff to apply. Credit limit is a warning on the account (owed vs limit), never a block | Medium |
+| A348 | Marking a statement paid records one payment per unpaid invoice for its balance (through `record_invoice_payment`), with the statement reference as the payment reference unless one is given | Low |
+| A349 | Statements are business documents asked for by the account (like invoices): no marketing consent or quiet hours; sent only when a member presses "Email statement", through the existing email channel (mock unless `MESSAGING_MODE=live`) | Low |
 
 ## Waiting on Temitope
 
@@ -312,3 +320,4 @@ Agents: add items here instead of doing them. Each needs his explicit OK.
 - [ ] Payments:: Solicitor review of the deposit and no-show wording (customer-facing: details step, `/pay`, link texts).
 - [ ] Multi-site: The price of each extra site (`PLAN_EXTRA_SITE_PRICE_PENCE`, already on the D17 list) and a Stripe test price for it (`STRIPE_PRICE_EXTRA_SITE`) so `setExtraSites()` can be exercised against Stripe test mode.
 - [ ] Multi-site: Decide what a removed site keeps (A361: today it drops to Essentials at once) and whether owners may link garages they already own into a group (A362).
+- [ ] Fleet: Nothing blocking. Confirm A347 (should the account discount apply automatically to invoices?) and whether statements should be emailed automatically on the 1st instead of being drafts for staff to issue (A345).

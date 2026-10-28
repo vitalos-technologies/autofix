@@ -14,6 +14,7 @@ import { retentionHandler } from "./handlers/retention";
 import { platformCloseImpersonationsHandler } from "@/lib/platform/jobs";
 import { billingCloseUsageHandler, plansExpireTrialsHandler } from "@/lib/plans/jobs";
 import { paymentsExpireDepositsHandler } from "@/lib/payments/jobs";
+import { accountsStatementsHandler } from "@/lib/accounts/jobs";
 import { JOB_KINDS, type JobDefinition, type JobHandler, type JobKind } from "./types";
 
 // The typed handler registry. Order is JOB_KINDS: time-critical sends before
@@ -34,6 +35,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "plans.expire_trials": { handler: plansExpireTrialsHandler, timeoutMs: 10_000 },
   "billing.close_usage": { handler: billingCloseUsageHandler, timeoutMs: 18_000 },
   "payments.expire_deposits": { handler: paymentsExpireDepositsHandler, timeoutMs: 15_000 },
+  "accounts.statements": { handler: accountsStatementsHandler, timeoutMs: 18_000 },
   "customers.enrich": { handler: customersEnrichHandler, timeoutMs: 18_000 },
   "mot.refresh": { handler: motRefreshHandler, timeoutMs: 18_000 },
 };

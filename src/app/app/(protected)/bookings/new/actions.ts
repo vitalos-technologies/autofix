@@ -6,6 +6,7 @@ import { z } from "zod";
 import { formatSlotLabel } from "@/components/book/format";
 import type { TimeSlot } from "@/components/book/slot-grid";
 import { parseDateKey } from "@/lib/admin/dates";
+import { chargeBookingToAccount, checkBookingAccount } from "@/lib/accounts/bookings";
 import { requireStaffWriter } from "@/lib/admin/staff";
 import { createStaffBooking, staffBookingSchema } from "@/lib/admin/staff-booking";
 import { getBookingEngine } from "@/lib/booking-engine";
@@ -78,6 +79,10 @@ export async function createStaffBookingAction(_previous: StaffBookingState, for
     return { status: "error", message: "Check the highlighted details.", fieldErrors };
   }
 
+  // P5.7: an optional fleet or trade account (Pro), checked before the booking is made.
+  const account = await checkBookingAccount(admin, { accountId: formData.get("accountId"), poNumber: formData.get("poNumber"), registration: parsed.data.registration });
+  if (!account.ok) return { status: "error", message: account.message, fieldErrors: account.fieldErrors };
+
   const result = await createStaffBooking(admin.garage.id, admin.user.id, parsed.data);
   if (!result.ok) {
     if (result.code === "SLOT_UNAVAILABLE") {
@@ -92,6 +97,8 @@ export async function createStaffBookingAction(_previous: StaffBookingState, for
     return { status: "error", message: result.message || bookingErrorMessages[result.code] };
   }
 
+  // P5.7: charge it to the account after create_booking() (set_booking_account()); the booking stands either way.
+  const charged = account.value ? await chargeBookingToAccount(admin, result.booking.id, account.value) : true;
   revalidatePath("/app", "layout");
-  redirect(`/app/bookings/${result.booking.id}?notice=created`);
+  redirect(`/app/bookings/${result.booking.id}?notice=${charged ? "created" : "account_not_set"}`);
 }

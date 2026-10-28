@@ -131,7 +131,7 @@ export const marketing = {
         { label: "AI front desk for calls", shipped: true },
         { label: "Xero, QuickBooks and Sage sync", shipped: false },
         { label: "Advanced reports and exports", shipped: true },
-        { label: "Fleet and trade accounts", shipped: false },
+        { label: "Fleet and trade accounts", shipped: true },
         { label: "Courtesy cars, collection and delivery", shipped: true },
         { label: "Several sites under one login", shipped: true },
       ],

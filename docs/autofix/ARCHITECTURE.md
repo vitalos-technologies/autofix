@@ -887,3 +887,48 @@ Not touched: `create_booking*`, `available_slots*`, `staff_available_slots*`, `c
 | `GET /api/admin/group/report?from&to` | CSV of `group_report()` through the RLS client; 401 signed out, 403 for other roles, 403 `PLAN_REQUIRED` (`featureGuard`, and the SQL error if the home garage is on Essentials); `Cache-Control: private, no-store`; audited `group.report_exported` |
 
 No jobs, no customer-facing pages, no messages.
+
+## Fleet and trade accounts (Phase 5, P5.7; DECISIONS A342–A349)
+
+### Schema (`supabase/migrations/20261029000700_fleet_accounts.sql`; pgTAP `033_fleet_accounts`)
+
+Every table: `garage_id uuid not null default current_garage_id() references garages on delete cascade`, RLS on, composite FKs to its parents, anon has no grants. Select policies do **not** check the plan (a downgraded garage keeps reading); write policies and functions check `garage_has_feature(garage_id, 'fleet_accounts')`.
+
+| Table | Columns | Who |
+| --- | --- | --- |
+| `business_accounts` | `name` (2–120, unique among active per garage, case-insensitive), `kind` (`fleet`/`trade`), `company_number` (`^[A-Z0-9]{8}$`), `billing_email`, `billing_address` (≤ 500), `contact_name`, `contact_phone` (E.164), `contact_email`, `payment_terms_days` (0–120, default 30), `po_required`, `discount_percent` (0–100], `credit_limit_pence`, `billing` (`monthly`/`per_invoice`), `notes`, `archived_at`, `created_by` | all members read; owners/managers insert and update (column grants; archive = `archived_at`); no delete |
+| `business_account_vehicles` | `account_id`, `vehicle_id` (unique per garage: a car is on one account), `added_by` | all read; owners/managers insert/delete |
+| `business_account_customers` | `account_id`, `customer_id`, `role` (`driver`/`contact`), unique per account | all read; owners/managers insert/update role/delete |
+| `business_account_bookings` | `booking_id` (unique), `account_id`, `po_number` (≤ 40), `set_by` | all read; written by `set_booking_account()` only |
+| `business_account_invoices` | `invoice_id` (unique), `account_id`, `po_number`, `bill_to_name/email/address` (snapshot at link time), `statement_id` | all read; written by the invoice link trigger and account functions only |
+| `account_statements` | `reference` (`<prefix>-ST-YYYYMM-NNN`), `period_start`/`period_end` (a calendar month), `status` (`draft`/`issued`/`paid`), `invoice_count`, `total_pence`, `issue_date`, `due_date` (issue + terms), `issued_at/by`, `paid_at`, `payment_method`, `payment_reference`, `emailed_at`, `emailed_to`, `email_status`, `email_provider_id`, `email_count`; unique (garage, account, period_start) | all read; written by the statement functions only |
+
+| SQL (all `security definer`, `search_path = ''`) | Who | What |
+| --- | --- | --- |
+| `add_business_account_vehicle(account, registration, make, model) → jsonb {vehicle_id, created, linked}` | owners/managers, Pro (`require_account_manager()`: `garage_actor_allowed()` + role + `require_garage_feature`) | the garage's car by normalised reg, or a new one; `VEHICLE_ON_OTHER_ACCOUNT`, `ACCOUNT_NOT_FOUND`, `INVALID_REGISTRATION`; audited |
+| `set_booking_account(booking, account \| null, po) → business_account_bookings` | any member (`garage_actor_allowed()`), Pro | charges a booking (made by `create_booking()`) to an account after the fact: `PO_REQUIRED`, `VEHICLE_ON_OTHER_ACCOUNT`, `BOOKING_NOT_FOUND`; adds the car to the account when on none, the customer as driver, links the booking's invoices not yet on a statement; null clears; audited. **Never redefines `create_booking`** |
+| trigger `invoices_link_account` (`link_account_invoice()`, after insert / update of `booking_id` on `invoices`) | — | an invoice for an account booking gets a `business_account_invoices` row (bill-to + PO). Skipped when the garage isn't on Pro. Never changes the invoice row |
+| `generate_account_statement(account, month_start) → account_statements` | owners/managers, Pro | make or refresh the draft for that month: issued/paid, not deleted account invoices with `issue_date <= month end` on no statement; `NOTHING_TO_BILL`, `INVALID_PERIOD`; issued statements come back unchanged |
+| `issue_account_statement(statement)` | owners/managers, Pro | refresh, then issue: `issue_date` = garage-local today, `due_date` = + `payment_terms_days`; `STATEMENT_NOT_DRAFT` |
+| `mark_account_statement_paid(statement, paid_at, method, reference)` | owners/managers, Pro | `record_invoice_payment()` for each unpaid invoice's balance, then `paid` |
+| `record_account_statement_email(statement, recipient, outcome, provider_id)` | owners/managers, Pro | records a send (`sent`/`failed`) |
+| `generate_monthly_account_statements(garage, month_start) → int` | service role | job: drafts for active monthly accounts; 0 for a garage not on Pro; idempotent per account and month |
+| `build_account_statement(...)`, `link_invoice_to_account(...)`, `require_account_manager()` | internal (no grants) | |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/accounts/view.ts` (client-safe) | `parseAccountForm`, `accountFormValues`, `EMPTY_ACCOUNT_FORM`, `normaliseCompanyNumber`, `cleanPoNumber`, `previousStatementMonth`/`currentStatementMonth`/`recentStatementMonths` (Europe/London), `periodLabel`, `longDate`, `formatPounds`, `lineBalance`, `statementTotals`, `creditPosition`, `statementCsv` (formula-safe), `statementFileName`, `accountInvoiceTerms`, `accountErrorMessage`, labels |
+| `src/lib/accounts/queries.ts` (server, RLS client + explicit garage) | `listAccounts`, `getAccountDetail`, `getStatementDetail`, `getBookingAccount`, `getInvoiceAccount` (both null on any error), `listBookingFormAccounts`, `searchVehicles`, `searchCustomers` |
+| `src/lib/accounts/bookings.ts` | `checkBookingAccount` (before the booking), `chargeBookingToAccount` (`set_booking_account` after it) |
+| `src/lib/accounts/statement-email.ts` | `renderStatementEmail`, `sendStatementEmail` (`getChannel("email")`, key `account_statement:<id>:<n>`) |
+| `src/lib/accounts/statement-pdf.tsx` | `StatementDocument`, `renderStatementPdf` (@react-pdf, invoice style) |
+| `src/lib/accounts/jobs.ts` | `accountsStatementsHandler` (job `accounts.statements`) |
+| `src/app/app/(protected)/accounts/actions.ts` | `saveAccountAction`, `archiveAccountAction`, `searchAccountVehiclesAction`, `addAccountVehicleAction`, `removeAccountVehicleAction`, `searchAccountPeopleAction`, `addAccountPersonAction`, `removeAccountPersonAction`, `generateStatementAction`, `issueStatementAction`, `markStatementPaidAction`, `emailStatementAction`. All `requireSetupContext` (AAL2) + owner/manager + `featureProblem(admin, "fleet_accounts")` |
+
+Routes: `/app/accounts` (list; locked card + read-only list on Essentials), `/app/accounts/new`, `/app/accounts/[id]` (money, cars with MOT due when `mot_enabled`, add car by search or registration, drivers/contacts, not yet billed, recent bookings, statements + "Make or refresh"), `/app/accounts/[id]/edit`, `/app/accounts/statements/[id]` (issue, email, mark paid, print), `GET /api/admin/accounts/statements/[id]/pdf`, `GET /api/admin/accounts/statements/[id]/csv`. Nav: one line in `GROW_NAV_ITEMS` ("Fleet accounts").
+
+Changes to shared code (additive): `/app/bookings/new` gets an optional Account step (`account-chooser.tsx`; `?account=<id>` preselects) and the action checks the account before and calls `set_booking_account` after `createStaffBooking`; booking detail shows Account + PO (`?notice=account_not_set` if the link failed); invoice detail shows "Charged to account" and, for monthly accounts, "On the monthly statement" instead of the send panel; `sendInvoiceAction` refuses monthly-account invoices (`?notice=on_statement`); `renderInvoicePdf(invoice, garage, billTo?)` bills the account (invoice PDF route and email attachment); invoice-from-booking prefills payment terms / PO note.
+
+Job: `accounts.statements` in `JOB_KINDS`, registry (18 s), `daily` cron and its own cron name. Platform job, no payload: for each non-cancelled garage with an active monthly account, `generate_monthly_account_statements(garage, previous month in the garage's time zone)`. Run daily, so the 1st makes last month's drafts and a missed day catches up. It never emails.

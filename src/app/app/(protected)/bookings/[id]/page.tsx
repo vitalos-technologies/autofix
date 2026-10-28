@@ -11,6 +11,7 @@ import { BookingPaymentsPanel } from "@/components/payments/panels";
 import { formatServicePrice, formatSlotLabel, formatTime } from "@/components/book/format";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CHANGE_MESSAGES } from "@/lib/admin/booking-changes";
+import { getBookingAccount } from "@/lib/accounts/queries";
 import { formatUkPhone, telLink, vehicleName } from "@/lib/admin/bookings";
 import { AdminDataError, loadBookingDetail, loadOpeningHours } from "@/lib/admin/data";
 import { addDays, isoWeekday, localDateKey } from "@/lib/admin/dates";
@@ -35,6 +36,7 @@ export const metadata: Metadata = { title: "Booking" };
 
 const NOTICES: Record<string, { tone: "error" | "success"; text: string }> = {
   created: { tone: "success", text: "Booking made. The customer gets their confirmation now." },
+  account_not_set: { tone: "error", text: "Booking made, but it could not be charged to the account. Check the account and PO number." },
   ...Object.fromEntries(Object.entries(CHANGE_MESSAGES).map(([code, text]) => [code, { tone: "error" as const, text }])),
 };
 
@@ -120,6 +122,8 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
     );
   }
 
+  // P5.7: the fleet or trade account (and PO) the booking is charged to, if any.
+  const account = await getBookingAccount(admin.client, admin.garage.id, booking.id);
   const tel = telLink(booking.customerPhone);
   const car = vehicleName(booking);
   const today = localDateKey(new Date(), timeZone);
@@ -194,6 +198,12 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
                 {SOURCE_LABELS[booking.source]}, {formatSlotLabel(booking.createdAt, timeZone)}
               </Fact>
               {booking.status === "cancelled" && booking.cancellationReason ? <Fact label="Cancelled">{booking.cancellationReason}</Fact> : null}
+              {account ? (
+                <Fact label="Account">
+                  <Link href={`/app/accounts/${account.accountId}`} className={textLinkClass}>{account.name}</Link>
+                  <span className="block text-grey-600">{account.poNumber ? `PO ${account.poNumber}` : "No PO number"}</span>
+                </Fact>
+              ) : null}
             </dl>
             {booking.symptoms.length > 0 ? (
               <div className="flex flex-col gap-1.5">

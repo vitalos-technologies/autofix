@@ -5,6 +5,8 @@ import { InvoiceForm, type ExistingSourceInvoice, type InvoiceFormInitial } from
 import { InvoiceDraftsWorkspace, type InvoiceDraftSummary } from "@/components/admin/invoice-drafts-workspace";
 import { BackLink } from "@/components/ui/back-link";
 import { getAdminContext } from "@/lib/tenancy/admin";
+import { accountInvoiceTerms } from "@/lib/accounts/view";
+import { getBookingAccount } from "@/lib/accounts/queries";
 import { listServiceCatalogue } from "@/lib/service-catalogue/repository";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
 
@@ -37,6 +39,9 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
       if (bookingError || existingError) throw new Error("Invoice source history could not be loaded safely.");
       if (!booking) notFound();
       selected = fromBooking(booking as unknown as Booking);
+      // P5.7: a booking charged to a fleet or trade account: say so in the terms and notes (bill-to is the account).
+      const account = await getBookingAccount(client, admin!.garage.id, params.bookingId);
+      if (account) selected = { ...selected, ...accountInvoiceTerms(account) };
       existingSourceInvoices = (existing || []).map((invoice) => ({ id: invoice.id, reference: invoice.invoice_number || "Draft invoice", status: invoice.status }));
     } else {
       const [{ data, error: bookingError }, { data: existing, error: existingError }, { data: drafts, error: draftsError }] = await Promise.all([

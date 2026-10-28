@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { Tag } from "lucide-react";
 import { buttonClass, EmptyState, PageHeader } from "@/components/admin-ui";
 import { loadOpeningHours } from "@/lib/admin/data";
+import { listBookingFormAccounts } from "@/lib/accounts/queries";
+import { garageHasFeature } from "@/lib/plans/server";
 import { addDays, isoWeekday, localDateKey } from "@/lib/admin/dates";
 import type { PriceMode, ServiceLocationMode } from "@/lib/booking-engine/types";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -29,7 +31,7 @@ type ServiceRow = {
  * garage's RLS client: every service that isn't deleted, offered online or not (A182), and MOT
  * services only when the garage does MOTs.
  */
-export default async function NewBookingPage() {
+export default async function NewBookingPage({ searchParams }: { searchParams?: Promise<{ account?: string }> } = {}) {
   const admin = await getAdminContext({ allowTrustedDevice: true });
   if (!admin) redirect("/app/login");
   const timeZone = admin.garage.timezone || "Europe/London";
@@ -43,6 +45,9 @@ export default async function NewBookingPage() {
       .order("name", { ascending: true }),
     loadOpeningHours(admin.client),
   ]);
+  // P5.7: fleet and trade accounts (Pro only); `?account=<id>` preselects one (an id, never a registration).
+  const accounts = garageHasFeature(admin.garage, "fleet_accounts") ? await listBookingFormAccounts(admin.client, admin.garage.id) : [];
+  const initialAccountId = (await searchParams)?.account ?? null;
   const services: StaffService[] = ((data ?? []) as ServiceRow[])
     // MOT services exist only for garages with MOT switched on.
     .filter((row) => admin.garage.motEnabled || !row.is_mot)
@@ -76,7 +81,7 @@ export default async function NewBookingPage() {
           }
         />
       ) : (
-        <NewBookingForm services={services} days={days} closedDays={closedDays} timeZone={timeZone} today={today} idempotencyKey={randomUUID()} />
+        <NewBookingForm services={services} days={days} closedDays={closedDays} timeZone={timeZone} today={today} idempotencyKey={randomUUID()} accounts={accounts} initialAccountId={initialAccountId} />
       )}
     </div>
   );

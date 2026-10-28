@@ -140,6 +140,7 @@ export default defineConfig({
     // P5.4 payments (mock provider): its own garage, owner and customers; axe at 390 and 1440, screenshots.
     { name: "p5-payments", testMatch: "p5-payments.spec.ts", expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "p5-multi-site", testMatch: "p5-multi-site.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-fleet-accounts", testMatch: "p5-fleet-accounts.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
     // P5.3 health checks: its own garage, owner and booking; the spec checks 390 and 1440 itself.
     { name: "p5-health-checks", testMatch: "p5-health-checks.spec.ts", expect: { timeout: 20_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },

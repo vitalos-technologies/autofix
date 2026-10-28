@@ -6,6 +6,8 @@ import { z } from "zod";
 import { invoiceDraftSchema, invoicePaymentSchema, sendInvoiceSchema, friendlyInvoiceError, priceInputToPence } from "@/lib/invoices/schema";
 import { createInvoiceCorrection, deleteDraftInvoice, duplicateInvoice, issueInvoice, recordInvoicePayment, saveInvoiceDraft, sendInvoiceEmail, voidInvoice } from "@/lib/invoices/repository";
 import { requireFreshAdminSession } from "@/lib/auth/trusted-device-server";
+import { getInvoiceAccount } from "@/lib/accounts/queries";
+import { requireInvoiceAdmin } from "@/lib/invoices/repository";
 
 export type InvoiceFormState = { error: string };
 export async function saveInvoiceDraftAction(_previous: InvoiceFormState, formData: FormData): Promise<InvoiceFormState> {
@@ -36,6 +38,9 @@ export async function recordInvoicePaymentAction(formData: FormData) {
 export async function sendInvoiceAction(formData: FormData) {
   await requireFreshAdminSession("/app/invoices");
   const parsed = sendInvoiceSchema.parse({ invoiceId: formData.get("invoiceId"), recipient: formData.get("recipient"), intent: formData.get("intent") || "new", logicalSendId: formData.get("logicalSendId") });
+  // P5.7: an invoice charged to a monthly-billed account goes on the account's statement, not out on its own.
+  const { auth } = await requireInvoiceAdmin();
+  if ((await getInvoiceAccount(auth.client, auth.garage.id, parsed.invoiceId))?.billing === "monthly") redirect(`/app/invoices/${parsed.invoiceId}?notice=on_statement`);
   const result = await sendInvoiceEmail(parsed.invoiceId, parsed.recipient, parsed.logicalSendId);
   refresh(parsed.invoiceId);
   if (result.outcome === "sent" || result.outcome === "already_sent") redirect(`/app/invoices/${parsed.invoiceId}?notice=sent`);

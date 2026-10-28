@@ -98,7 +98,7 @@ describe("garage invoicing", () => {
     const repository = read("src", "lib", "invoices", "repository.ts");
     expect(repository).toContain('rpc("claim_invoice_email_send"');
     expect(repository).toContain('rpc("finalize_invoice_email_send"');
-    expect(repository).toContain("renderInvoicePdf(invoice, garage)");
+    expect(repository).toContain("renderInvoicePdf(invoice, garage, billTo)");
     expect(repository).toContain('rpc("finalize_invoice_email_send", { p_garage_id: garage.id');
     expect(repository).toContain('rpc("fail_invoice_email_send", { p_garage_id: garage.id');
     expect(repository).not.toContain('.from("invoice_email_attempts").insert');
