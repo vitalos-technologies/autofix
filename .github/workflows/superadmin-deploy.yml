@@ -8,8 +8,9 @@ name: Super Admin deploy
 #
 # Repository secrets it needs (superadmin/README.md "Deploy"): AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
 # AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (deploy identity, Contributor on rg-autofix-superadmin only),
-# GHCR_PULL_TOKEN (classic token, read:packages only), and the existing SUPABASE_ACCESS_TOKEN and
-# VERCEL_API_TOKEN.
+# GHCR_PULL_TOKEN (classic token, read:packages only) and VERCEL_API_TOKEN. For the database, either
+# SUPABASE_ACCESS_TOKEN (the deploy prepares the roles itself) or SUPERADMIN_DATABASE_URL and
+# SUPERADMIN_AUTOFIX_DATABASE_URL from superadmin/deploy/supabase_roles.sql (A418).
 on:
   workflow_dispatch:
     inputs:
@@ -45,6 +46,8 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPERADMIN_DATABASE_URL: ${{ secrets.SUPERADMIN_DATABASE_URL }}
+          SUPERADMIN_AUTOFIX_DATABASE_URL: ${{ secrets.SUPERADMIN_AUTOFIX_DATABASE_URL }}
           VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -52,8 +55,11 @@ jobs:
         run: |
           missing=0
           for name in AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID GHCR_PULL_TOKEN \
-                      SUPABASE_ACCESS_TOKEN VERCEL_API_TOKEN NEXT_PUBLIC_SUPABASE_URL VERCEL_PROJECT_ID VERCEL_TEAM_ID; do
+                      VERCEL_API_TOKEN NEXT_PUBLIC_SUPABASE_URL VERCEL_PROJECT_ID VERCEL_TEAM_ID; do
             if [[ -z "${!name}" ]]; then echo "::error::$name is not set (superadmin/README.md, Deploy)"; missing=1; else echo "$name is set"; fi
+          done
+          for name in SUPABASE_ACCESS_TOKEN SUPERADMIN_DATABASE_URL SUPERADMIN_AUTOFIX_DATABASE_URL; do
+            [[ -n "${!name}" ]] && echo "$name is set" || echo "$name is not set"
           done
           exit "$missing"
 
@@ -95,15 +101,31 @@ jobs:
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           az group show -n rg-autofix-superadmin --query "{name:name,location:location}" -o tsv
 
-      - name: Prepare Autofix's Supabase project (roles and schema; passwords only as SCRAM verifiers)
+      - name: Database connection strings
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPERADMIN_DATABASE_URL: ${{ secrets.SUPERADMIN_DATABASE_URL }}
+          SUPERADMIN_AUTOFIX_DATABASE_URL: ${{ secrets.SUPERADMIN_AUTOFIX_DATABASE_URL }}
         run: |
           umask 077
           superadmin/deploy/azure/deploy.sh existing-secrets "$RUNNER_TEMP/existing.env"
+          # shellcheck disable=SC1091
           set -a; . "$RUNNER_TEMP/existing.env"; set +a
-          OUT_FILE="$RUNNER_TEMP/db.env" python superadmin/deploy/supabase_setup.py
+          if [[ -n "$SUPERADMIN_DATABASE_URL" && -n "$SUPERADMIN_AUTOFIX_DATABASE_URL" ]]; then
+            # From superadmin/deploy/supabase_roles.sql, run in the SQL editor (A418).
+            printf 'DATABASE_URL=%s\nAUTOFIX_DATABASE_URL=%s\n' "$SUPERADMIN_DATABASE_URL" "$SUPERADMIN_AUTOFIX_DATABASE_URL" > "$RUNNER_TEMP/db.env"
+            echo "database: connection strings from the repository secrets"
+          elif [[ -n "$SUPABASE_ACCESS_TOKEN" ]]; then
+            # Roles and schema over the Management API; passwords only as SCRAM verifiers.
+            OUT_FILE="$RUNNER_TEMP/db.env" python superadmin/deploy/supabase_setup.py
+          elif [[ -n "${EXISTING_DATABASE_URL:-}" && -n "${EXISTING_AUTOFIX_DATABASE_URL:-}" ]]; then
+            printf 'DATABASE_URL=%s\nAUTOFIX_DATABASE_URL=%s\n' "$EXISTING_DATABASE_URL" "$EXISTING_AUTOFIX_DATABASE_URL" > "$RUNNER_TEMP/db.env"
+            echo "database: the container's current connection strings, unchanged"
+          else
+            echo "::error::No database logins yet: run superadmin/deploy/supabase_roles.sql in the Supabase SQL editor and add SUPERADMIN_DATABASE_URL and SUPERADMIN_AUTOFIX_DATABASE_URL as repository secrets (or add SUPABASE_ACCESS_TOKEN). superadmin/README.md, Deploy."
+            exit 1
+          fi
 
       - name: Deploy to Azure Container Apps
         env:
