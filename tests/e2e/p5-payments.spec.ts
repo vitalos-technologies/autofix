@@ -132,10 +132,11 @@ async function confirmationJob(bookingId: string) {
 /** The pay link in the newest text to the customer. */
 async function linkFromMessages() {
   const { data } = await service.from("messages").select("body").eq("garage_id", garage.id).eq("direction", "outbound").order("created_at", { ascending: false }).limit(1).single();
-  const found = new RegExp(`(http://${garage.slug.replace(/[-.]/g, "\\$&")}\\.localhost:${port}/pay/([A-Za-z0-9_-]{43}))`).exec(String(data?.body ?? ""));
+  // The production build links to the garage's public host; the token is opened on its local host here.
+  const found = new RegExp(`https?://${garage.slug.replace(/[-.]/g, "\\$&")}\\.[^/\\s]+/pay/([A-Za-z0-9_-]{43})(?=\\s)`).exec(String(data?.body ?? ""));
   expect(found, `a pay link in "${data?.body}"`).not.toBeNull();
-  tokens.push(found![2]!);
-  return found![1]!;
+  tokens.push(found![1]!);
+  return `${siteOrigin}/pay/${found![1]!}`;
 }
 
 test.beforeAll(async ({ browser }) => {
