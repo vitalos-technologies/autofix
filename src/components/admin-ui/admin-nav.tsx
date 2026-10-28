@@ -2,6 +2,7 @@ import {
   Banknote,
   Bell,
   Building2,
+  Calculator,
   CalendarDays,
   ClipboardCheck,
   ChartColumn,
@@ -65,6 +66,7 @@ export const GROW_NAV_ITEMS: { feature: string; label: string; href: string; ico
 /** P5.2: Pro settings pages that live in Setup (feature key, label, route, icon). */
 export const PRO_SETUP_NAV_ITEMS: { feature: string; label: string; href: string; icon: AdminNavItem["icon"] }[] = [
   { feature: "ai_front_desk", label: "AI front desk", href: "/app/settings/ai-front-desk", icon: Headset },
+  { feature: "accounting_sync", label: "Accounting", href: "/app/settings/accounting", icon: Calculator },
 ];
 
 function proItems(items: typeof GROW_NAV_ITEMS, locked: ReadonlySet<string> | undefined): AdminNavItem[] {

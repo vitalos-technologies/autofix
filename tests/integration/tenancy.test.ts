@@ -174,6 +174,8 @@ const ACTOR_ROLES: Partial<Record<ActorKey, "owner" | "manager" | "technician">>
  * roles read zero rows of their own garage; everyone else's positive control reads them all.
  */
 const ROLE_LIMITED_READS: Record<string, ReadonlyArray<"owner" | "manager" | "technician">> = {
+  accounting_connections: ["owner", "manager"],
+  accounting_sync_items: ["owner", "manager"],
   billing_usage_reports: ["owner"],
   garage_group_sites: ["owner", "manager"],
   garage_groups: ["owner", "manager"],
@@ -374,6 +376,24 @@ class GarageRows {
   });
 
   /** Claims an email send (invoice_email_sends + invoice_email_attempts); after the payment, which a pending send would block. */
+  /** P5.10: an accounting connection (and its encrypted-token row) through the service-role function. */
+  accountingConnection = () => this.once("accountingConnection", async () => {
+    const sealed = `v1.${"a".repeat(16)}.${"b".repeat(22)}.${this.key.toLowerCase()}${localRunId}`;
+    const { data, error } = await service.rpc("accounting_save_connection", {
+      p_garage_id: this.garage.id,
+      p_provider: "xero",
+      p_tenant_id: `tenancy-org-${this.key}`,
+      p_tenant_name: `Tenancy Org ${this.key}`,
+      p_scopes: ["accounting.transactions"],
+      p_connected_by: this.ownerId,
+      p_access_token_ct: sealed,
+      p_refresh_token_ct: sealed,
+      p_expires_at: "2096-04-01T00:30:00.000Z",
+    });
+    if (error || !data) throw new Error(`fixture accounting connection (garage ${this.key}): ${error?.message ?? "no row returned"}`);
+    return String((data as { id: string }).id);
+  });
+
   invoiceEmail = () => this.once("invoiceEmail", async () => {
     const invoice = await this.issuedInvoice();
     await this.invoicePayment();
@@ -409,6 +429,12 @@ const FIXTURES: Record<string, Fixture> = {
   },
   agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
   ai_front_desk_settings: { create: (rows) => rows.insert("ai_front_desk_settings", { enabled: false }), patch: { enabled: true } },
+  accounting_connections: { create: (rows) => rows.accountingConnection(), patch: { tenant_name: "Tampered" } },
+  accounting_connection_secrets: { create: (rows) => rows.accountingConnection(), patch: { expires_at: "2096-04-02T00:00:00.000Z" } },
+  accounting_sync_items: {
+    create: async (rows) => rows.insert("accounting_sync_items", { connection_id: await rows.accountingConnection(), entity: "invoice", local_id: randomUUID() }),
+    patch: { status: "failed", last_error_code: "TAMPERED" },
+  },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },

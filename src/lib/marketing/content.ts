@@ -129,7 +129,7 @@ export const marketing = {
         { label: "Service plans paid by monthly Direct Debit", shipped: false },
         { label: "Campaigns to customers who opted in", shipped: true },
         { label: "AI front desk for calls", shipped: true },
-        { label: "Xero, QuickBooks and Sage sync", shipped: false },
+        { label: "Xero, QuickBooks and Sage sync", shipped: true },
         { label: "Advanced reports and exports", shipped: true },
         { label: "Fleet and trade accounts", shipped: true },
         { label: "Courtesy cars, collection and delivery", shipped: true },

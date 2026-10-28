@@ -1,0 +1,114 @@
+{
+  "_source": "Hand-written from developer.xero.com examples (OAuth 2 token, Connections, Accounting API Contacts/Invoices/Payments, rate limits). Ids are illustrative.",
+  "responses": {
+    "token": {
+      "status": 200,
+      "body": {
+        "id_token": "xero-id-token",
+        "access_token": "xero-access-token",
+        "expires_in": 1800,
+        "token_type": "Bearer",
+        "refresh_token": "xero-refresh-token",
+        "scope": "offline_access accounting.transactions accounting.contacts"
+      }
+    },
+    "tokenInvalidGrant": { "status": 400, "body": { "error": "invalid_grant" } },
+    "connections": {
+      "status": 200,
+      "body": [
+        {
+          "id": "e1eede29-f875-4a5d-8470-17f6a29a88b1",
+          "authEventId": "d99ecdfe-391d-43d2-b834-17636ba90e8d",
+          "tenantId": "70784a63-d24b-46a9-a4db-0e70a274b056",
+          "tenantType": "ORGANISATION",
+          "tenantName": "Demo Company (UK)",
+          "createdDateUtc": "2019-07-09T23:40:30.1833130",
+          "updatedDateUtc": "2020-05-15T01:35:13.8491980"
+        }
+      ]
+    },
+    "contactsEmpty": { "status": 200, "body": { "Id": "5a8b2a0a-1b1b-4c4c-9d9d-0e0e0e0e0e0e", "Status": "OK", "Contacts": [] } },
+    "contactCreated": {
+      "status": 200,
+      "body": {
+        "Id": "e997d6d7-6dad-4458-beb8-d9c1bf7f2edf",
+        "Status": "OK",
+        "ProviderName": "Autofix",
+        "Contacts": [
+          { "ContactID": "3ff6d40c-af9a-40a3-89ce-3c1556a25591", "ContactNumber": "AF-11111111-1111-4111-8111-111111111111", "ContactStatus": "ACTIVE", "Name": "Jo Bloggs", "EmailAddress": "jo@example.test" }
+        ]
+      }
+    },
+    "invoiceCreated": {
+      "status": 200,
+      "body": {
+        "Id": "f8d5c4a1-0000-4000-8000-000000000001",
+        "Status": "OK",
+        "Invoices": [
+          { "Type": "ACCREC", "InvoiceID": "243216c5-369e-4056-ac67-05388f86dc81", "InvoiceNumber": "ACP-2096-000001", "Status": "AUTHORISED", "SubTotal": 170.0, "TotalTax": 0.0, "Total": 170.0, "AmountDue": 170.0 }
+        ]
+      }
+    },
+    "paymentCreated": {
+      "status": 200,
+      "body": {
+        "Id": "f8d5c4a1-0000-4000-8000-000000000002",
+        "Status": "OK",
+        "Payments": [
+          { "PaymentID": "b26fd49a-cbae-470a-a8f8-bcbc119e0379", "Date": "/Date(4001961600000+0000)/", "Amount": 50.0, "Status": "AUTHORISED", "PaymentType": "ACCRECPAYMENT" }
+        ]
+      }
+    },
+    "validation": {
+      "status": 400,
+      "body": {
+        "ErrorNumber": 10,
+        "Type": "ValidationException",
+        "Message": "A validation exception occurred",
+        "Elements": [{ "ValidationErrors": [{ "Message": "Account code '200' is not a valid code for this document." }] }]
+      }
+    },
+    "rateLimited": { "status": 429, "headers": { "Retry-After": "7", "X-Rate-Limit-Problem": "minute" }, "body": null },
+    "unauthorised": {
+      "status": 401,
+      "body": { "Type": null, "Title": "Unauthorized", "Status": 401, "Detail": "TokenExpired: token expired at 01/01/2096 00:00:00" }
+    }
+  },
+  "requests": {
+    "invoice": {
+      "method": "POST",
+      "url": "https://api.xero.com/api.xro/2.0/Invoices",
+      "headers": { "Authorization": "Bearer xero-access-token", "xero-tenant-id": "70784a63-d24b-46a9-a4db-0e70a274b056", "Idempotency-Key": "af-invoice-test" },
+      "body": {
+        "Invoices": [
+          {
+            "Type": "ACCREC",
+            "Contact": { "ContactID": "3ff6d40c-af9a-40a3-89ce-3c1556a25591" },
+            "InvoiceNumber": "ACP-2096-000001",
+            "Reference": "Booking ACP-1234",
+            "Date": "2096-05-01",
+            "DueDate": "2096-05-08",
+            "CurrencyCode": "GBP",
+            "LineAmountTypes": "NoTax",
+            "Status": "AUTHORISED",
+            "LineItems": [
+              { "Description": "Brake pads", "Quantity": 1, "UnitAmount": 120, "LineAmount": 120, "AccountCode": "200", "TaxType": "NONE" },
+              { "Description": "Labour", "Quantity": 1.5, "UnitAmount": 40, "LineAmount": 60, "AccountCode": "200", "TaxType": "NONE" },
+              { "Description": "Discount", "Quantity": 1, "UnitAmount": -10, "LineAmount": -10, "AccountCode": "200", "TaxType": "NONE" }
+            ]
+          }
+        ]
+      }
+    },
+    "payment": {
+      "method": "PUT",
+      "url": "https://api.xero.com/api.xro/2.0/Payments",
+      "headers": { "Authorization": "Bearer xero-access-token", "xero-tenant-id": "70784a63-d24b-46a9-a4db-0e70a274b056", "Idempotency-Key": "af-payment-test" },
+      "body": {
+        "Payments": [
+          { "Invoice": { "InvoiceID": "243216c5-369e-4056-ac67-05388f86dc81" }, "Account": { "Code": "090" }, "Date": "2096-05-02", "Amount": 50, "Reference": "Card ending 4242" }
+        ]
+      }
+    }
+  }
+}

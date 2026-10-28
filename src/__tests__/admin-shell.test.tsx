@@ -9,7 +9,7 @@ const pathname = vi.hoisted(() => ({ value: "/app" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value, useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { AdminNavGroups, AdminShell, AdminTabBar, defaultAdminNav, GarageSwitcher } from "@/components/admin-ui";
-import { GROW_NAV_ITEMS } from "@/components/admin-ui/admin-nav";
+import { GROW_NAV_ITEMS, PRO_SETUP_NAV_ITEMS } from "@/components/admin-ui/admin-nav";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
@@ -95,7 +95,7 @@ describe("shell navigation", () => {
       "/app/customers",
       "/app/reminders",
       "/app/messages",
-      // The Grow group: one link per shipped Pro section (P5.2), in GROW_NAV_ITEMS order.
+      // Pro pages (P5.x) come from the shared arrays, so each feature adds its line there only.
       ...GROW_NAV_ITEMS.map((item) => item.href),
       "/app/settings/services",
       "/app/settings/hours",
@@ -103,7 +103,7 @@ describe("shell navigation", () => {
       "/app/settings/branding",
       "/app/settings/booking-page",
       "/app/settings/team",
-      "/app/settings/ai-front-desk",
+      ...PRO_SETUP_NAV_ITEMS.map((item) => item.href),
       "/app/settings/plan",
       "/app/settings/agreements",
       "/app/settings",

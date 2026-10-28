@@ -25,6 +25,7 @@ vi.mock("@/lib/bookings/notifications", () => ({ sendBookingNotifications: harne
 
 const { handleCronRequest, handleDrainRequest, CRON_DRAIN_BUDGET_MS } = await import("@/lib/jobs/http");
 const { bookingNoticeDedupeKey, notifyBooking } = await import("@/lib/booking-engine/notify");
+const { CRON_JOBS, cronDedupeKey } = await import("@/lib/jobs/cron");
 
 const SECRET = "cron-secret-value-0123456789";
 const ENV = { CRON_SECRET: SECRET };
@@ -65,24 +66,20 @@ describe("GET /api/cron/[job]", () => {
     const drain = vi.fn(async (options: DrainOptions) => summary({ elapsedMs: options.budgetMs > 0 ? 120 : 0 }));
     const response = await handleCronRequest(cron(`Bearer ${SECRET}`), "daily", { db, queue, drain, env: ENV, now: () => NOW });
     expect(response.status).toBe(200);
-    expect(enqueued.map((entry) => [entry.kind, entry.payload, entry.options.dedupeKey, entry.options.garageId])).toEqual([
-      ["reminders.schedule", {}, "cron:reminders.schedule:2026-10-27", undefined],
-      ["reminders.send", {}, "cron:reminders.send:2026-10-27T11:00Z", undefined],
-      ["campaigns.send", {}, "cron:campaigns.send:2026-10-27T11:00Z", undefined],
-      ["domains.check", {}, "cron:domains.check:2026-10-27T11:05Z", undefined],
-      ["retention", {}, "cron:retention:2026-10-27", undefined],
-      ["platform.close_impersonations", {}, "cron:platform.close_impersonations:2026-10-27T11:00Z", undefined],
-      ["plans.expire_trials", {}, "cron:plans.expire_trials:2026-10-27", undefined],
-      ["billing.close_usage", {}, "cron:billing.close_usage:2026-10-27", undefined],
-      ["payments.expire_deposits", {}, "cron:payments.expire_deposits:2026-10-27T11:05Z", undefined],
-      ["accounts.statements", {}, "cron:accounts.statements:2026-10-27", undefined],
-      ["customers.enrich", {}, "cron:customers.enrich:2026-10-27", undefined],
-      ["mot.refresh", {}, "cron:mot.refresh:2026-10-27", undefined],
-    ]);
+    // Derived from CRON_JOBS.daily (so a new daily kind needs no edit here); the period keys are pinned below.
+    expect(enqueued.map((entry) => [entry.kind, entry.payload, entry.options.dedupeKey, entry.options.garageId])).toEqual(
+      CRON_JOBS.daily.map((kind) => [kind, {}, cronDedupeKey(kind, NOW), undefined]),
+    );
+    expect(enqueued[0]?.kind).toBe("reminders.schedule");
+    expect(cronDedupeKey("reminders.schedule", NOW)).toBe("cron:reminders.schedule:2026-10-27");
+    expect(cronDedupeKey("reminders.send", NOW)).toBe("cron:reminders.send:2026-10-27T11:00Z");
+    expect(cronDedupeKey("domains.check", NOW)).toBe("cron:domains.check:2026-10-27T11:05Z");
+    expect(cronDedupeKey("platform.close_impersonations", NOW)).toBe("cron:platform.close_impersonations:2026-10-27T11:00Z");
+    expect(cronDedupeKey("accounting.sync", NOW)).toBe("cron:accounting.sync:2026-10-27");
     expect(drain).toHaveBeenCalledWith(expect.objectContaining({ db, queue, budgetMs: CRON_DRAIN_BUDGET_MS }));
     expect(CRON_DRAIN_BUDGET_MS).toBe(20_000);
     const body = await response.json();
-    expect(body).toEqual({ job: "daily", queued: 12, drain: summary() });
+    expect(body).toEqual({ job: "daily", queued: CRON_JOBS.daily.length, drain: summary() });
   });
 
   it("queues just one kind for a per-kind cron, and 404s unknown names", async () => {

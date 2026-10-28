@@ -79,6 +79,8 @@ export default defineConfig({
       BOOKING_MANAGEMENT_SECRET: process.env.BOOKING_MANAGEMENT_SECRET || "playwright-local-booking-manage-key-not-a-secret",
       // P5.12: agent tokens are hashed with this pepper (production refuses to issue without one). Local only, not a secret.
       AGENT_TOKEN_PEPPER: process.env.AGENT_TOKEN_PEPPER || "playwright-local-agent-token-pepper-not-a-secret",
+      // P5.10: encrypts accounting OAuth tokens; a local-only 32-byte value (hex), not a secret.
+      ACCOUNTING_TOKEN_KEY: process.env.ACCOUNTING_TOKEN_KEY || "706c61797772696768742d6c6f63616c2d6163636f756e74696e672d6b657921",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
       // Mock channels only (no real texts or emails), whatever the shell exports.
@@ -141,6 +143,7 @@ export default defineConfig({
     { name: "p5-payments", testMatch: "p5-payments.spec.ts", expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "p5-multi-site", testMatch: "p5-multi-site.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "p5-fleet-accounts", testMatch: "p5-fleet-accounts.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
+    { name: "p5-accounting", testMatch: "p5-accounting.spec.ts", timeout: 180_000, expect: { timeout: 15_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
     { name: "legal-mobile", testMatch: "legal.spec.ts", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, baseURL: bookingOrigin } },
     // P5.3 health checks: its own garage, owner and booking; the spec checks 390 and 1440 itself.
     { name: "p5-health-checks", testMatch: "p5-health-checks.spec.ts", expect: { timeout: 20_000 }, use: { ...devices["Desktop Chrome"], baseURL: adminOrigin } },
