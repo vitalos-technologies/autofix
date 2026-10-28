@@ -10,6 +10,7 @@ import { notificationsBookingHandler } from "./handlers/notifications-booking";
 import { remindersScheduleHandler } from "./handlers/reminders-schedule";
 import { remindersSendHandler } from "./handlers/reminders-send";
 import { retentionHandler } from "./handlers/retention";
+import { accountingSyncHandler } from "@/lib/accounting/jobs";
 import { platformCloseImpersonationsHandler } from "@/lib/platform/jobs";
 import { billingCloseUsageHandler, plansExpireTrialsHandler } from "@/lib/plans/jobs";
 import { JOB_KINDS, type JobDefinition, type JobHandler, type JobKind } from "./types";
@@ -30,6 +31,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "platform.close_impersonations": { handler: platformCloseImpersonationsHandler, timeoutMs: 10_000 },
   "plans.expire_trials": { handler: plansExpireTrialsHandler, timeoutMs: 10_000 },
   "billing.close_usage": { handler: billingCloseUsageHandler, timeoutMs: 18_000 },
+  "accounting.sync": { handler: accountingSyncHandler, timeoutMs: 18_000 },
   "customers.enrich": { handler: customersEnrichHandler, timeoutMs: 18_000 },
   "mot.refresh": { handler: motRefreshHandler, timeoutMs: 18_000 },
 };

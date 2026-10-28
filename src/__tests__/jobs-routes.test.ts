@@ -73,6 +73,7 @@ describe("GET /api/cron/[job]", () => {
       ["platform.close_impersonations", {}, "cron:platform.close_impersonations:2026-10-27T11:00Z", undefined],
       ["plans.expire_trials", {}, "cron:plans.expire_trials:2026-10-27", undefined],
       ["billing.close_usage", {}, "cron:billing.close_usage:2026-10-27", undefined],
+      ["accounting.sync", {}, "cron:accounting.sync:2026-10-27", undefined],
       ["customers.enrich", {}, "cron:customers.enrich:2026-10-27", undefined],
       ["mot.refresh", {}, "cron:mot.refresh:2026-10-27", undefined],
     ]);

@@ -34,6 +34,7 @@ export const CRON_JOBS = {
     "platform.close_impersonations",
     "plans.expire_trials",
     "billing.close_usage",
+    "accounting.sync",
     "customers.enrich",
     "mot.refresh",
   ],
@@ -46,6 +47,7 @@ export const CRON_JOBS = {
   "customers.enrich": ["customers.enrich"],
   "plans.expire_trials": ["plans.expire_trials"],
   "billing.close_usage": ["billing.close_usage"],
+  "accounting.sync": ["accounting.sync"],
 } as const satisfies Record<string, readonly JobKind[]>;
 
 export type CronJobName = keyof typeof CRON_JOBS;
