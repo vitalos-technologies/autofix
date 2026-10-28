@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Settings · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Settings</h1>
+  <div id="settings-region" class="mt-4" hx-get="{{ request.path }}" hx-trigger="vsa-changed from:body" hx-select="#settings-region" hx-target="this" hx-swap="outerHTML">
+    <nav aria-label="Settings sections" class="flex gap-1 overflow-x-auto border-b border-slate-200 pb-2 dark:border-slate-800">
+      {% if is_superadmin %}
+        <a class="tab" href="{% url 'accounts:settings_users' %}" {% if tab == 'users' %}aria-current="page"{% endif %}>Users &amp; roles</a>
+      {% endif %}
+      <a class="tab" href="{% url 'accounts:settings_tokens' %}" {% if tab == 'tokens' %}aria-current="page"{% endif %}>API tokens</a>
+      <a class="tab" href="{% url 'notifications:preferences' %}" {% if tab == 'notifications' %}aria-current="page"{% endif %}>Notifications</a>
+      <a class="tab" href="{% url 'accounts:account' %}">Account &amp; security</a>
+    </nav>
+    <div class="mt-6">
+      {% block settings_panel %}{% endblock %}
+    </div>
+  </div>
+{% endblock %}

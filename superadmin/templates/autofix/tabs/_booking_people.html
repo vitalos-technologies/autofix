@@ -1,0 +1,15 @@
+<section aria-labelledby="people-heading" data-testid="booking-people">
+  <h3 id="people-heading" class="font-display text-lg font-bold">Customer details</h3>
+  <p class="muted text-xs">This view was recorded in the audit trail. Contact details and registrations are masked by the database.</p>
+  <div class="mt-2 overflow-x-auto" tabindex="0" role="region" aria-label="Customer details table">
+    <table class="table-base">
+      <caption class="sr-only">Customers on recent bookings, masked</caption>
+      <thead><tr><th scope="col">Reference</th><th scope="col">When</th><th scope="col">Customer</th><th scope="col">Phone</th><th scope="col">Email</th><th scope="col">Vehicle</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in people %}
+          <tr><td class="font-mono text-xs">{{ row.reference }}</td><td class="whitespace-nowrap text-xs">{{ row.starts_at|date:"j M H:i" }}</td><td>{{ row.customer }}</td><td class="font-mono text-xs">{{ row.phone }}</td><td class="font-mono text-xs">{{ row.email }}</td><td class="text-xs">{{ row.vehicle|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="muted py-6 text-center">No bookings.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

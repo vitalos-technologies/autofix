@@ -1,0 +1,27 @@
+{% if form.non_field_errors %}
+  <div class="mb-4 rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-200" role="alert">
+    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+  </div>
+{% endif %}
+{% for field in form.hidden_fields %}{{ field }}{% endfor %}
+<div class="grid gap-4">
+  {% for field in form.visible_fields %}
+    <div>
+      {% if field.widget_type == "checkbox" %}
+        <label class="flex items-center gap-2 text-sm font-medium">{{ field }} <span>{{ field.label }}</span></label>
+      {% elif field.widget_type == "checkboxselectmultiple" %}
+        <fieldset>
+          <legend class="field-label">{{ field.label }}</legend>
+          <div class="flex flex-wrap gap-x-4 gap-y-2">
+            {% for choice in field %}<label class="flex items-center gap-2 text-sm">{{ choice.tag }} {{ choice.choice_label }}</label>{% endfor %}
+          </div>
+        </fieldset>
+      {% else %}
+        <label for="{{ field.id_for_label }}" class="field-label">{{ field.label }}{% if field.field.required %} <span class="text-rose-600" aria-hidden="true">*</span>{% endif %}</label>
+        {{ field }}
+      {% endif %}
+      {% if field.help_text %}<p class="field-help">{{ field.help_text }}</p>{% endif %}
+      {% for error in field.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+</div>

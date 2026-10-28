@@ -1,0 +1,20 @@
+{% extends "accounts/auth_base.html" %}
+{% load static %}
+{% block title %}Set up two-factor authentication · Autofix Super Admin{% endblock %}
+{% block auth_body %}
+  <h1 class="mb-2 text-xl font-semibold">Set up two-factor authentication</h1>
+  <p class="muted mb-4 text-sm">{% if required %}Your role requires a second factor.{% endif %} Scan this QR code with Microsoft Authenticator, 1Password or any TOTP app, then enter the 6-digit code it shows.</p>
+  <div class="mx-auto mb-4 w-48 rounded-lg bg-white p-2 [&_svg]:h-auto [&_svg]:w-full">{{ qr_svg }}</div>
+  <p class="text-xs font-medium text-slate-600 dark:text-slate-300">Can't scan? Enter this key manually:</p>
+  <p class="mb-6 break-all rounded-md bg-slate-100 p-2 font-mono text-sm tracking-wider dark:bg-slate-800" id="totp-secret" data-testid="totp-secret">{{ secret }}</p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    {% include "partials/form_fields.html" %}
+    <button type="submit" class="btn btn-primary mt-6 w-full">Turn on two-factor authentication</button>
+  </form>
+  <form method="post" action="{% url 'accounts:logout' %}" class="mt-4 text-center">
+    {% csrf_token %}<button type="submit" class="text-sm text-slate-500 underline hover:text-slate-700">Sign out</button>
+  </form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/otp.js' %}" nonce="{{ csp_nonce }}" defer></script>{% endblock %}

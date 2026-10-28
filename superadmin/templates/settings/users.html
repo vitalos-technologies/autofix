@@ -1,0 +1,25 @@
+{% extends "settings/_shell.html" %}
+{% load ui %}
+{% block settings_panel %}
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <p class="muted text-sm">SuperAdmin: everything. Support: read-only plus audited customer details and View as support. Finance: plans, statuses and sign-ups, read-only. Changing anything in Autofix also needs a linked Autofix platform admin.</p>
+    <button type="button" class="btn btn-primary" hx-get="{% url 'accounts:user_create' %}" hx-target="#modal">{% icon "plus" "h-4 w-4" %} Add user</button>
+  </div>
+  <div class="card mt-4 overflow-x-auto" tabindex="0" role="region" aria-label="Users and roles">
+    <table class="table-base" data-testid="users-table">
+      <thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Autofix link</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in rows %}
+          <tr>
+            <td><span class="font-medium">{{ row.user.get_full_name }}</span>{% if row.user.is_primary_owner %} <span class="{{ 'active'|badge_class }}">Primary owner</span>{% endif %}{% if row.user.full_name %}<br><span class="muted text-xs">{{ row.user.email }}</span>{% endif %}</td>
+            <td>{% if row.role %}<span class="{% if row.role == 'SuperAdmin' %}{{ 'warning'|badge_class }}{% elif row.role == 'Support' %}{{ 'growth'|badge_class }}{% else %}{{ 'slate'|badge_class }}{% endif %}">{{ row.role }}</span>{% else %}<span class="muted">No role</span>{% endif %}{% if row.user.is_superuser %} <span class="muted text-xs">(superuser)</span>{% endif %}</td>
+            <td class="text-xs">{% if row.user.autofix_admin_id %}<span class="font-mono">{{ row.user.autofix_admin_id|stringformat:"s"|slice:":8" }}…</span>{% else %}<span class="muted">Read-only</span>{% endif %}</td>
+            <td>{% if row.user.is_active %}Active{% else %}<span class="muted">Deactivated</span>{% endif %}</td>
+            <td class="text-xs">{{ row.user.last_login|date:"j M Y H:i"|default:"Never" }}</td>
+            <td class="text-right"><button type="button" class="btn btn-ghost btn-sm" hx-get="{% url 'accounts:user_edit' row.user.pk %}" hx-target="#modal" aria-label="Edit {{ row.user.email }}">{% icon "edit" "h-4 w-4" %} Edit</button></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% load ui %}
+{# Reusable data table. Context: table (see apps.core.templatetags.tables.build_table). #}
+<div id="{{ table.target_id }}" class="dt" data-testid="data-table">
+  <div class="dt-toolbar">
+    <p class="muted text-sm" aria-live="polite" data-testid="dt-count">
+      {% if table.total %}Showing {{ table.first }}–{{ table.last }} of {{ table.total }}{% else %}Showing 0 of 0{% endif %}
+    </p>
+    <div class="flex items-center gap-1" role="group" aria-label="Row density">
+      {% for name, link, active in table.density_urls %}
+        <a href="{{ link }}" class="dt-chip" {% if active %}aria-current="true"{% endif %}
+           hx-get="{{ link }}" hx-target="#{{ table.target_id }}" hx-swap="outerHTML" hx-push-url="true">{{ name|capfirst }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if table.error %}
+    <div class="dt-state" role="alert" data-testid="dt-error">{% icon "alert" "h-5 w-5 shrink-0" %}<p>{{ table.error }}</p></div>
+  {% else %}
+    <div class="overflow-x-auto" tabindex="0" role="region" aria-label="{{ table.caption }}">
+      <table class="table-base dt-table {% if table.density == 'compact' %}dt-compact{% endif %}">
+        <caption class="sr-only">{{ table.caption }}</caption>
+        <thead>
+          <tr>
+            {% for header in table.headers %}
+              <th scope="col" {% if header.column.numeric %}class="text-right"{% endif %}
+                  {% if header.aria_sort %}aria-sort="{{ header.aria_sort }}"{% elif header.url %}aria-sort="none"{% endif %}>
+                {% if header.url %}
+                  <a href="{{ header.url }}" class="dt-sort" hx-get="{{ header.url }}" hx-target="#{{ table.target_id }}" hx-swap="outerHTML" hx-push-url="true">
+                    {{ header.column.label }}
+                    {% if header.aria_sort == "ascending" %}{% icon "up" "h-3.5 w-3.5" %}<span class="sr-only">(sorted ascending)</span>
+                    {% elif header.aria_sort == "descending" %}{% icon "down" "h-3.5 w-3.5" %}<span class="sr-only">(sorted descending)</span>{% endif %}
+                  </a>
+                {% else %}{{ header.column.label }}{% endif %}
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for cells in table.rows %}
+            <tr>
+              {% for column, value in cells %}
+                <td class="{% if column.numeric %}text-right tabular-nums{% endif %} {% if column.mono %}font-mono text-xs{% endif %} {% if column.nowrap %}whitespace-nowrap{% endif %}">{{ value }}</td>
+              {% endfor %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="{{ table.headers|length }}" class="muted py-10 text-center" data-testid="dt-empty">{{ table.empty_message }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if table.page.paginator.num_pages > 1 %}
+    <nav class="dt-toolbar" aria-label="Pagination">
+      <p class="muted text-sm">Page {{ table.page.number }} of {{ table.page.paginator.num_pages }}</p>
+      <div class="flex gap-2">
+        {% if table.prev_url %}<a href="{{ table.prev_url }}" class="btn btn-secondary btn-sm" rel="prev" hx-get="{{ table.prev_url }}" hx-target="#{{ table.target_id }}" hx-swap="outerHTML" hx-push-url="true">Previous</a>{% endif %}
+        {% if table.next_url %}<a href="{{ table.next_url }}" class="btn btn-secondary btn-sm" rel="next" hx-get="{{ table.next_url }}" hx-target="#{{ table.target_id }}" hx-swap="outerHTML" hx-push-url="true">Next</a>{% endif %}
+      </div>
+    </nav>
+  {% endif %}
+</div>

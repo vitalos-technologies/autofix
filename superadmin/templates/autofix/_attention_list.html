@@ -1,0 +1,20 @@
+{% load ui %}
+<ul class="divide-y divide-slate-100 dark:divide-slate-800" data-testid="attention-list">
+  {% for item in items %}
+    <li>
+      <a href="{{ item.url }}" class="flex min-h-11 items-start gap-3 px-4 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+        <span class="mt-0.5 {% if item.severity == 'critical' %}text-rose-700 dark:text-rose-300{% else %}text-amber-800 dark:text-amber-300{% endif %}">{% icon "alert" "h-4 w-4" %}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-medium">{{ item.title }}</span>
+          <span class="muted block break-words text-xs">{{ item.detail }}</span>
+        </span>
+        <span class="shrink-0 text-right">
+          <span class="{{ item.severity|badge_class }}">{% if item.severity == 'critical' %}Critical{% else %}Warning{% endif %}</span>
+          {% if item.when %}<span class="muted mt-1 block text-xs">{{ item.when|date:"j M H:i" }}</span>{% endif %}
+        </span>
+      </a>
+    </li>
+  {% empty %}
+    <li class="flex items-center gap-2 px-4 py-6 text-sm">{% icon "check" "h-4 w-4 text-mineral-700 dark:text-mineral-300" %} Nothing needs attention.</li>
+  {% endfor %}
+</ul>

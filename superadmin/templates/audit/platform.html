@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Autofix platform log · Autofix Super Admin{% endblock %}
+{% block breadcrumbs %}<li class="truncate font-medium" aria-current="page">Audit</li>{% endblock %}
+{% block content %}
+  <div>
+    <h1>Audit</h1>
+    <p class="muted mt-1 text-sm">Autofix's own append-only platform log: every plan and status change, retry, re-check and support session, from here or Autofix's /admin.</p>
+  </div>
+  {% include "audit/_tabs.html" with active="autofix" %}
+  <form method="get" action="{% url 'autofix:platform_audit' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5"
+        hx-get="{% url 'autofix:platform_audit' %}" hx-trigger="change, keyup changed delay:300ms from:#p-garage" hx-target="#platform-audit-results" hx-swap="outerHTML" hx-push-url="true">
+    <div>
+      <label class="field-label" for="p-action">Action</label>
+      <select id="p-action" name="action" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All actions</option>
+        {% for action in actions %}<option value="{{ action }}" {% if action == filters.action %}selected{% endif %}>{{ action }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="p-garage">Garage</label>
+      <input id="p-garage" name="garage" type="search" value="{{ filters.garage }}" autocomplete="off" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <div>
+      <label class="field-label" for="p-from">From</label>
+      <input id="p-from" name="date_from" type="date" value="{{ filters.date_from|date:'Y-m-d' }}" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <div>
+      <label class="field-label" for="p-to">To</label>
+      <input id="p-to" name="date_to" type="date" value="{{ filters.date_to|date:'Y-m-d' }}" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+    </div>
+    <input type="hidden" name="density" value="{{ density }}">
+    <div class="flex flex-wrap gap-2">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <button type="submit" formaction="{% url 'autofix:platform_audit_export' %}" class="btn btn-secondary" data-testid="platform-export">Export CSV</button>
+    </div>
+  </form>
+  <div class="mt-4">{% include "partials/data_table.html" %}</div>
+{% endblock %}

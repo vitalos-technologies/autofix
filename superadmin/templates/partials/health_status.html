@@ -1,0 +1,5 @@
+{% load ui %}{# Status pill: icon + text, never colour alone. Context: status. #}
+{% if status == "ok" %}<span class="inline-flex items-center gap-1 font-medium text-mineral-700 dark:text-mineral-300">{% icon "check" "h-4 w-4" %} Healthy</span>
+{% elif status == "warn" %}<span class="inline-flex items-center gap-1 font-medium text-amber-800 dark:text-amber-300">{% icon "alert" "h-4 w-4" %} Needs a look</span>
+{% elif status == "fail" %}<span class="inline-flex items-center gap-1 font-medium text-rose-700 dark:text-rose-300">{% icon "alert" "h-4 w-4" %} Not working</span>
+{% else %}<span class="muted inline-flex items-center gap-1 font-medium">{% icon "info" "h-4 w-4" %} For information</span>{% endif %}

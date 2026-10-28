@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Overview · Autofix Super Admin{% endblock %}
+{% block content %}
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="plate-mark">Autofix</p>
+      <h1 class="mt-2">Overview</h1>
+      <p class="muted mt-1 text-sm">Every garage on Autofix: health, bookings and what needs a look. Times in Europe/London.</p>
+    </div>
+    <a href="{% url 'autofix:garages' %}" class="btn btn-secondary">{% icon "wrench" "h-4 w-4" %} All garages</a>
+  </div>
+
+  {% if error %}
+    <div class="card mt-6 flex items-start gap-3 p-4" role="alert" data-testid="autofix-unavailable">{% icon "alert" "h-5 w-5 shrink-0 text-rose-700 dark:text-rose-300" %}<p class="text-sm">{{ error }}</p></div>
+  {% endif %}
+
+  {% if kpis %}
+    <section class="mt-6" aria-labelledby="kpi-garages">
+      <h2 id="kpi-garages" class="text-xl">Garages</h2>
+      <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {% for kpi in kpis.garages %}{% include "partials/kpi_card.html" %}{% endfor %}
+      </div>
+    </section>
+    <section class="mt-6" aria-labelledby="kpi-activity">
+      <h2 id="kpi-activity" class="text-xl">Bookings, reminders and messages</h2>
+      <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {% for kpi in kpis.activity %}{% include "partials/kpi_card.html" %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="mt-6 grid gap-6 lg:grid-cols-3">
+    <section class="card lg:col-span-2" aria-labelledby="attention-heading" data-testid="attention">
+      <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+        <h2 id="attention-heading" class="text-xl">Needs attention</h2>
+        {% if can_operate %}<a class="text-link text-sm underline" href="{% url 'autofix:jobs' %}">Jobs</a>{% endif %}
+      </div>
+      {% if attention is None %}
+        <p class="muted p-4 text-sm">Not available until Autofix data is connected.</p>
+      {% else %}
+        {% include "autofix/_attention_list.html" with items=attention %}
+      {% endif %}
+    </section>
+    <div class="space-y-6">
+      <section class="card p-4" aria-labelledby="status-heading" data-testid="system-status">
+        <div class="flex items-center justify-between gap-2">
+          <h2 id="status-heading" class="text-xl">System status</h2>
+          {% include "partials/health_status.html" with status=overall.status %}
+        </div>
+        <ul class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          {% for check in checks %}
+            <li class="flex items-center justify-between gap-3 py-2"><span>{{ check.label }}</span><span class="muted text-right text-xs">{{ check.summary }}</span></li>
+          {% endfor %}
+        </ul>
+        <a class="text-link mt-2 inline-flex min-h-11 items-center text-sm underline" href="{% url 'core:health' %}">System health</a>
+      </section>
+      {% if plans %}
+        <section class="card p-4" aria-labelledby="plans-heading">
+          <h2 id="plans-heading" class="text-xl">Plans</h2>
+          <p class="muted text-xs">Garages that are not cancelled.</p>
+          <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            <div class="flex justify-between py-2"><dt>Trial</dt><dd class="tabular-nums font-semibold">{{ plans.trial }}</dd></div>
+            <div class="flex justify-between py-2"><dt>Growth</dt><dd class="tabular-nums font-semibold">{{ plans.growth }}</dd></div>
+            <div class="flex justify-between py-2"><dt>Front desk</dt><dd class="tabular-nums font-semibold">{{ plans.front_desk }}</dd></div>
+          </dl>
+        </section>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

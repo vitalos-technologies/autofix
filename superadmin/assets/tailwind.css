@@ -1,0 +1,385 @@
+@import "tailwindcss";
+
+/* Scan templates and Python (form widgets, badge helpers) for class names. */
+@source "../templates";
+@source "../apps";
+@source "../static/js";
+
+/*
+ * Theme: <html data-theme="light|dark|system"> is rendered server-side from the `theme` cookie, so
+ * there is no flash. "system" follows prefers-color-scheme. Sidebar collapse works the same way
+ * with <html data-sidebar="expanded|collapsed"> from the `sidebar_state` cookie.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where([data-theme="system"], [data-theme="system"] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant collapsed (&:where([data-sidebar="collapsed"], [data-sidebar="collapsed"] *));
+
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/barlow-condensed-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/barlow-condensed-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/inter.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono.woff2") format("woff2");
+}
+
+/*
+ * Autofix tokens (design/tokens.css): navy #071127 ground, number-plate yellow #f6c700 for the primary
+ * action and the active marker, blue #1446a5 for links and focus. Flat colour only. The token names
+ * (midnight, cobalt, mineral) match the Vitalos Super Admin templates so its components carry over.
+ */
+@theme {
+  --color-midnight: #071127;
+  --color-midnight-900: #0c1d3d;
+  --color-midnight-800: #22385f;
+  --color-plate: #f6c700;
+  --color-plate-600: #dcb200;
+  --color-plate-ink: #111111;
+  --color-cobalt: #1446a5;
+  --color-cobalt-300: #9dbcf5;
+  --color-cobalt-600: #1446a5;
+  --color-cobalt-700: #0d3b7a;
+  --color-mineral: #16a34a;
+  --color-mineral-300: #4ade80;
+  --color-mineral-700: #166534;
+  --color-offwhite: #f4f7fa;
+  --color-line: #e4eaf0;
+  --color-line-strong: #cfd8e3;
+
+  /* Neutrals re-tinted towards navy (Autofix greys) so dark surfaces share the brand ground. */
+  --color-slate-50: #f4f7fa;
+  --color-slate-100: #eef1f5;
+  --color-slate-200: #e4eaf0;
+  --color-slate-300: #cfd8e3;
+  /* Muted text: 5.9:1 on white and 5.5:1 on off-white. */
+  --color-slate-500: #586575;
+  --color-slate-600: #4b5868;
+  --color-slate-700: #3d4a5a;
+  --color-slate-800: #17284a;
+  --color-slate-900: #0c1d3d;
+  --color-slate-950: #071127;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", Inter, ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-md: 10px;
+}
+
+@layer base {
+  :root {
+    --focus: var(--color-cobalt-600);
+    color-scheme: light;
+    scroll-padding-top: 4.5rem; /* WCAG 2.4.11: focused items never sit under the sticky header. */
+  }
+  :root[data-theme="dark"] {
+    --focus: var(--color-cobalt-300);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="system"] {
+      --focus: var(--color-cobalt-300);
+      color-scheme: dark;
+    }
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .sidebar :focus-visible {
+    outline-color: var(--color-plate);
+  }
+  h1,
+  h2,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.005em;
+  }
+  h1 {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 2.5rem;
+    }
+  }
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  [x-cloak],
+  [hidden] {
+    display: none !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold
+      transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-plate text-plate-ink shadow-sm hover:bg-plate-600;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-800 ring-1 ring-slate-300 ring-inset hover:bg-slate-50 dark:bg-slate-800
+      dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-700;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800
+      dark:hover:text-white;
+  }
+  .btn-danger {
+    @apply text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950;
+  }
+  .btn-sm {
+    @apply min-h-11 px-2.5 py-1 text-xs md:min-h-9;
+  }
+  .text-link {
+    @apply text-cobalt-600 underline-offset-2 dark:text-cobalt-300;
+  }
+  .input-sm {
+    @apply block min-h-11 w-40 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs md:min-h-9
+      dark:border-slate-600 dark:bg-slate-900;
+  }
+  .card {
+    @apply rounded-md border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900;
+  }
+  .muted {
+    @apply text-slate-500 dark:text-slate-400;
+  }
+  .table-base {
+    @apply min-w-full divide-y divide-slate-200 text-[13px] dark:divide-slate-800;
+  }
+  /* Sticky within the table's own scroll container (tables sit in overflow-x-auto wrappers). */
+  .table-base thead th {
+    @apply sticky top-0 z-10 bg-white dark:bg-slate-900;
+  }
+  .table-base th {
+    @apply px-3 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400;
+  }
+  .table-base td {
+    @apply h-10 px-3 py-2 align-top;
+  }
+  .tab {
+    @apply inline-flex min-h-11 items-center rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-600 hover:bg-slate-100
+      hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white;
+  }
+  .tab[aria-selected="true"],
+  .tab[aria-pressed="true"] {
+    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+  }
+  .mono-label {
+    @apply font-mono text-[11px] tracking-wider uppercase;
+  }
+  .htmx-indicator {
+    @apply opacity-0 transition-opacity;
+  }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    @apply opacity-100;
+  }
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200;
+  }
+  .field-help {
+    @apply mt-1 text-xs text-slate-500 dark:text-slate-400;
+  }
+  .field-error {
+    @apply mt-1 text-xs font-medium text-rose-600 dark:text-rose-400;
+  }
+
+  /* Sidebar: Midnight in both themes. 16rem expanded, 3rem icon rail, off-canvas sheet below md. */
+  .sidebar {
+    @apply fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col bg-midnight text-slate-300
+      transition-[width,translate] duration-200 md:translate-x-0 md:collapsed:w-12;
+  }
+  [data-sidebar-open] .sidebar {
+    @apply translate-x-0;
+  }
+  .sidebar-group-label {
+    @apply px-3 pt-4 pb-1 text-[10px] font-semibold tracking-[0.12em] text-slate-300 uppercase md:collapsed:sr-only;
+  }
+  .nav-item {
+    @apply relative flex min-h-11 items-center gap-3 rounded-md px-3 py-1.5 text-[13px] font-medium text-slate-300
+      md:min-h-9
+      hover:bg-white/6 hover:text-white md:collapsed:justify-center md:collapsed:px-0;
+  }
+  .nav-item[aria-current="page"] {
+    @apply bg-white/10 text-white before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full
+      before:bg-plate;
+  }
+  .nav-label {
+    @apply truncate md:collapsed:sr-only;
+  }
+  .nav-tip {
+    @apply pointer-events-none absolute left-full z-50 ml-3 hidden rounded-md bg-slate-900 px-2 py-1 text-xs
+      whitespace-nowrap text-white shadow-lg ring-1 ring-white/10;
+  }
+  .nav-item:hover .nav-tip,
+  .nav-item:focus-visible .nav-tip {
+    @apply md:collapsed:block;
+  }
+  /* Sidebar dropdown (Mail): children are indented; the collapsed rail always shows them as icons. */
+  .nav-child {
+    @apply pl-9 md:collapsed:pl-0;
+  }
+  .nav-sub[hidden] {
+    @apply md:collapsed:!block;
+  }
+  [data-nav-toggle][aria-expanded="false"] .nav-chevron {
+    @apply -rotate-90;
+  }
+  .nav-badge {
+    @apply ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-plate px-1.5 text-[11px]
+      font-semibold text-plate-ink md:collapsed:absolute md:collapsed:-top-1 md:collapsed:-right-1 md:collapsed:h-4
+      md:collapsed:min-w-4 md:collapsed:px-1 md:collapsed:text-[10px];
+  }
+  .nav-badge-mineral {
+    @apply bg-mineral text-midnight;
+  }
+  .content {
+    /* A column the full height of the viewport, so the status footer sits at the bottom on short pages. */
+    @apply flex min-h-screen min-w-0 flex-1 flex-col transition-[padding] duration-200 md:pl-64 md:collapsed:pl-12;
+  }
+  .env-badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-wider uppercase;
+  }
+}
+
+/* ---- Data table / KPI ---------------------------------------------------------------------- */
+@layer components {
+  .kpi {
+    @apply flex flex-col gap-1 rounded-md border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800
+      dark:bg-slate-900;
+  }
+  .kpi-label {
+    @apply text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-300;
+  }
+  .kpi-value {
+    @apply font-display text-3xl font-semibold text-slate-900 tabular-nums dark:text-white;
+  }
+  .kpi-value-text {
+    @apply text-xl leading-9;
+  }
+  .kpi-delta {
+    @apply flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300;
+  }
+  .kpi-better {
+    @apply font-medium text-mineral-700 dark:text-mineral-300;
+  }
+  .kpi-time {
+    @apply text-xs text-slate-500 dark:text-slate-400;
+  }
+  .tab[aria-current="page"] {
+    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+  }
+  .dt {
+    @apply rounded-md border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900;
+  }
+  .dt-toolbar {
+    @apply flex flex-wrap items-center justify-between gap-2 px-3 py-2;
+  }
+  .dt-chip {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-xs font-medium md:min-h-8
+      text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+  .dt-chip[aria-current="true"] {
+    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+  }
+  .dt-sort {
+    @apply -mx-1 inline-flex min-h-8 items-center gap-1 rounded px-1 uppercase hover:text-slate-900
+      dark:hover:text-white;
+  }
+  .dt-table td {
+    @apply text-slate-800 dark:text-slate-200;
+  }
+  .dt-compact td {
+    @apply h-8 py-1;
+  }
+  .dt-state {
+    @apply flex items-center gap-3 px-4 py-8 text-sm text-slate-700 dark:text-slate-200;
+  }
+}
+
+/* Sign-out confirmation dialog: dimmed, blurred backdrop. */
+.logout-dialog {
+  margin: auto;
+}
+.logout-dialog::backdrop {
+  background: rgb(15 23 42 / 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* ---- Autofix ------------------------------------------------------------------------------- */
+@layer components {
+  /* Funnel and bar charts: widths come from a fixed scale class (no inline styles under the CSP). */
+  .bar-track {
+    @apply h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800;
+  }
+  .bar-fill {
+    @apply block h-full rounded-full bg-cobalt-600 dark:bg-cobalt-300;
+  }
+  .plate-mark {
+    @apply inline-flex items-center rounded-[6px] bg-plate px-1.5 py-0.5 font-display text-sm font-bold
+      tracking-wide text-plate-ink uppercase;
+  }
+}
+.w-pct-0 { width: 0%; }
+.w-pct-5 { width: 5%; }
+.w-pct-10 { width: 10%; }
+.w-pct-15 { width: 15%; }
+.w-pct-20 { width: 20%; }
+.w-pct-25 { width: 25%; }
+.w-pct-30 { width: 30%; }
+.w-pct-35 { width: 35%; }
+.w-pct-40 { width: 40%; }
+.w-pct-45 { width: 45%; }
+.w-pct-50 { width: 50%; }
+.w-pct-55 { width: 55%; }
+.w-pct-60 { width: 60%; }
+.w-pct-65 { width: 65%; }
+.w-pct-70 { width: 70%; }
+.w-pct-75 { width: 75%; }
+.w-pct-80 { width: 80%; }
+.w-pct-85 { width: 85%; }
+.w-pct-90 { width: 90%; }
+.w-pct-95 { width: 95%; }
+.w-pct-100 { width: 100%; }

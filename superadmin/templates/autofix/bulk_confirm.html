@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Change status · Autofix Super Admin{% endblock %}
+{% block breadcrumb_title %}Garages{% endblock %}
+{% block content %}
+  <div class="card mx-auto max-w-2xl p-6">
+    <h1 class="text-3xl">Change status of {{ garages|length }} garage{{ garages|length|pluralize }}</h1>
+    <p class="muted mt-2 text-sm">Each change goes through Autofix's platform function on its own, with this reason, and appears in that garage's audit log. Garages already in the chosen status are left alone.</p>
+    <ul class="mt-4 list-disc space-y-1 pl-5 text-sm">
+      {% for garage in garages %}<li>{{ garage.name }} <span class="muted">({{ garage.get_status_display }})</span></li>{% endfor %}
+    </ul>
+    <form method="post" action="{% url 'autofix:garages_bulk' %}" class="mt-6" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="status">
+      <input type="hidden" name="confirm" value="1">
+      <input type="hidden" name="qs" value="{{ qs }}">
+      {% for id in ids %}<input type="hidden" name="ids" value="{{ id }}">{% endfor %}
+      {% include "partials/form_fields.html" %}
+      <div class="mt-6 flex justify-end gap-2">
+        <a class="btn btn-secondary" href="{% url 'autofix:garages' %}?{{ qs }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">Change status</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Search · Autofix Super Admin{% endblock %}
+{% block breadcrumb_title %}Search{% endblock %}
+{% block content %}
+  <h1>Search</h1>
+  <form method="get" action="{% url 'core:search' %}" role="search" class="mt-4 flex max-w-xl gap-2">
+    <label for="search-page" class="sr-only">Search garages, domains and pages</label>
+    <input id="search-page" type="search" name="q" value="{{ query }}" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+  <div class="card mt-6 p-2">{% include "partials/search_results.html" %}</div>
+{% endblock %}
