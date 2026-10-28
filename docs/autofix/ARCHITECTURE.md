@@ -426,7 +426,7 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 
 ## Django super admin (Phase 5, P5.1)
 
-`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D16; assumptions A130–A139; full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
+`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D18; assumptions A400–A410; full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
 
 | Piece | Where | What |
 | --- | --- | --- |

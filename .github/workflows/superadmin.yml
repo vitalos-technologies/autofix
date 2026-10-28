@@ -1,6 +1,6 @@
 name: Super Admin
 
-# The Django super admin in superadmin/ (P5.1, DECISIONS D16). Mirrors vitalos-platform's
+# The Django super admin in superadmin/ (P5.1, DECISIONS D18). Mirrors vitalos-platform's
 # .github/workflows/superadmin.yml: lint, tests on PostgreSQL 17, deploy checks, pip-audit and bandit,
 # then the integration tests against a local Supabase as autofix_superadmin, the production image,
 # its release job (twice), and the Playwright smoke test against the running container.

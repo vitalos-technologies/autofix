@@ -2,7 +2,7 @@
 
 The Vitalos staff console over every garage on Autofix: health, plans, bookings, messaging, domains, jobs and onboarding, with an append-only audit trail. It replicates the [Vitalos platform Super Admin](https://github.com/vitalos-technologies/vitalos-platform/tree/main/superadmin) (ADR-026) with the Autofix by Vitalos look (navy `#071127`, number-plate yellow `#f6c700`, Barlow Condensed and Inter). Planned address: `https://superadmin.autofix.vitalos.co.uk` (not deployed yet; [DECISIONS](../docs/autofix/DECISIONS.md) "Waiting on Temitope").
 
-Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (standalone CLI, no Node), PostgreSQL 17, django-simple-history, django-axes, django-otp, django-csp, Django REST Framework with drf-spectacular, WhiteNoise and gunicorn. Decision record: [DECISIONS D16](../docs/autofix/DECISIONS.md) (assumptions A130–A139).
+Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (standalone CLI, no Node), PostgreSQL 17, django-simple-history, django-axes, django-otp, django-csp, Django REST Framework with drf-spectacular, WhiteNoise and gunicorn. Decision record: [DECISIONS D18](../docs/autofix/DECISIONS.md) (assumptions A400–A410).
 
 ## How it reaches Autofix
 
