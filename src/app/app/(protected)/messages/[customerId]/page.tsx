@@ -14,6 +14,7 @@ import { getAdminContext } from "@/lib/tenancy/admin";
 import { cn } from "@/lib/utils";
 import { MessagesTabs } from "../_components/messages-tabs";
 import { MarkThreadRead } from "./mark-read";
+import { NewMark, ThreadNewMarks } from "./new-marks";
 import { ReplyForm } from "./reply-form";
 
 export const metadata: Metadata = { title: "Conversation" };
@@ -70,11 +71,7 @@ function Item({ item, name, timeZone }: { item: ThreadItem; name: string; timeZo
           ) : null}
         </span>
       </div>
-      {item.unread ? (
-        <Badge tone="accent" size="xs" className="font-bold">
-          New
-        </Badge>
-      ) : null}
+      <NewMark itemKey={item.key} />
     </li>
   );
 }
@@ -101,6 +98,7 @@ export default async function ConversationPage({ params }: PageProps) {
   const channel = customer.channel === "email" || customer.channel === "whatsapp" ? customer.channel : "sms";
   const items = threadItems(rows, { timeZone, today });
   const unread = rows.filter((row) => row.direction === "inbound" && !row.read_at).length;
+  const unreadKeys = items.flatMap((item) => (item.type === "message" && item.unread ? [item.key] : []));
   const blocked = replyBlock({ customer, canReply: canReply(admin.role), hasMessagingNumber: numberReady || channel === "email" });
   const address = maskedAddress(customer);
   const tel = customer.phone ? telHref(customer.phone) : null;
@@ -147,11 +145,13 @@ export default async function ConversationPage({ params }: PageProps) {
         <Panel title="Conversation" className="gap-3">
           {thread.truncated ? <p className="m-0 text-[13px] text-grey-600">Showing the latest {THREAD_LIMIT} messages.</p> : null}
           {items.length > 0 ? (
-            <ol aria-label="Messages, oldest first" className="m-0 flex list-none flex-col gap-2.5 p-0">
-              {items.map((item) => (
-                <Item key={item.key} item={item} name={firstName} timeZone={timeZone} />
-              ))}
-            </ol>
+            <ThreadNewMarks unreadKeys={unreadKeys}>
+              <ol aria-label="Messages, oldest first" className="m-0 flex list-none flex-col gap-2.5 p-0">
+                {items.map((item) => (
+                  <Item key={item.key} item={item} name={firstName} timeZone={timeZone} />
+                ))}
+              </ol>
+            </ThreadNewMarks>
           ) : (
             <p className="m-0 text-[14px] text-grey-600">No messages with {firstName} yet.</p>
           )}
