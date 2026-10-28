@@ -12,6 +12,8 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 /** No garage: fan out to every garage it applies to. With a garage: do that garage's work. */
 export const remindersSchedulePayload = z.object({ garageId: uuid.optional(), today: isoDate.optional() }).strict();
 export const remindersSendPayload = z.object({ garageId: uuid.optional() }).strict();
+/** P5.5: no garage = queue one job per garage with due campaign sends; with a garage, send them. */
+export const campaignsSendPayload = z.object({ garageId: uuid.optional() }).strict();
 /** `after`: continue after this vehicle id (batches respect DVSA's rate limit). */
 export const motRefreshPayload = z.object({ garageId: uuid.optional(), after: uuid.optional() }).strict();
 export const domainsCheckPayload = z.object({}).strict();

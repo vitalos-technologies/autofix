@@ -1,6 +1,7 @@
 import "server-only";
 
 import { callsTextBackHandler } from "./handlers/calls-text-back";
+import { campaignsSendHandler } from "./handlers/campaigns-send";
 import { askbridgeSyncHandler } from "./handlers/askbridge-sync";
 import { customersEnrichHandler } from "./handlers/customers-enrich";
 import { domainsCheckHandler } from "./handlers/domains-check";
@@ -21,6 +22,7 @@ import { JOB_KINDS, type JobDefinition, type JobHandler, type JobKind } from "./
 const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "reminders.schedule": { handler: remindersScheduleHandler, timeoutMs: 15_000 },
   "reminders.send": { handler: remindersSendHandler, timeoutMs: 18_000 },
+  "campaigns.send": { handler: campaignsSendHandler, timeoutMs: 18_000 },
   "notifications.booking": { handler: notificationsBookingHandler, timeoutMs: 15_000 },
   "calls.text_back": { handler: callsTextBackHandler, timeoutMs: 12_000 },
   "messages.reply": { handler: messagesReplyHandler, timeoutMs: 12_000 },

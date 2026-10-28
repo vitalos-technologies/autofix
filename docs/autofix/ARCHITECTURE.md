@@ -540,3 +540,56 @@ No agent-token UI existed before (tokens were issued only by Vitalos with the se
 Jobs: none new (the existing `calls.text_back` is reused; `billing.close_usage` closes AI minutes as before).
 
 Env: `WORKFORCE_VOICE_SIP_URI` (server only, `.env.example` under `# P5.12`). `playwright.garage.config.ts` passes a local-only `AGENT_TOKEN_PEPPER` to the production server so the e2e can issue tokens.
+
+## Campaigns (Phase 5, P5.5; DECISIONS A326–A333)
+
+### Schema (`supabase/migrations/20261029000500_campaigns.sql`; pgTAP `031_campaigns`)
+
+| Object | Notes |
+| --- | --- |
+| `campaigns` (tenant, Pro) | `name` (1-80), `starter` (`winter_check`/`summer_aircon`/`win_back`/`mot_month`/null), `segment jsonb` (checked by `campaign_segment_problem()`), `template` (text/WhatsApp, 1-1000), `email_subject` (1-150), `email_template` (null = `template`, ≤ 2000), `service_id` (the service the link opens; composite FK, set null), `status` (`draft` → `scheduled` → `sending` → `sent`; `scheduled`/`sending` → `cancelled`), `send_at`, `recipients`, `scheduled_at`, `scheduled_by`, `finished_at`, `cancelled_at`, `created_by` (default `auth.uid()`). Members read (any plan); owners/managers insert, update and delete **drafts only**, with `garage_has_feature(garage_id, 'campaigns')` (column grants: name, starter, segment, template, email_subject, email_template, service_id; never status) |
+| `campaign_sends` (tenant, child) | one row per recipient, unique (`garage_id`, `campaign_id`, `customer_id`): `vehicle_id` (the car the message is about), `channel` (the customer's, when claimed), `send_at`, `status` (`scheduled`/`sending`/`sent`/`delivered`/`failed`/`cancelled`/`skipped`), `skip_reason`, `claimed_at`, `message_id` (→ `messages`), `provider_msg_id`, `link_token_hash` (SHA-256 hex of the `/c/{token}` token) + `link_expires_at` (30 days), `opened_at`, `booking_id` (unique per garage: one send per booking), `body`, `sent_at`, `delivered_at`, `error_code`. Members read (any plan); no staff writes (service role and the definer functions below) |
+| trigger `customers_cancel_campaign_sends` | after update of `opted_out_at`/`anonymised_at`/`reminder_consent` on `customers`: that customer's `scheduled` campaign sends become `cancelled` (`opted_out`/`anonymised`/`no_consent`) in the same transaction. Covers STOP (`apply_messaging_keyword` → `opt_out_customer`), the unsubscribe link/form and staff changes without touching their functions |
+| trigger `messages_campaign_send_status` | after update of `messages.status` to `delivered`/`failed`: the campaign send linked by `message_id` follows (Twilio status webhook unchanged) |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `campaign_segment_problem(segment) → text` | authenticated, service | null when valid, else the reason. Keys: `car_age_min`/`car_age_max` (0-60 years, by `vehicles.year` in the garage's year), `mot_months` (1-12, distinct), `not_seen_months` (1-120), `service_id` + `service_history` (`had`/`never`), `channels` (subset of sms/whatsapp/email). Mirrors `campaignSegmentSchema` |
+| `campaign_audience(garage, segment, now)` | internal (no grants) | consent (`reminder_consent`, not opted out, not anonymised), an address for the customer's channel, a car matching the car filters (most recently booked first); last visit = latest past booking that went ahead or `last_service_at` (never seen counts as not seen; a booking coming up excludes from "not seen"); `MOT_DISABLED` when MOT months are used while `mot_enabled` is off |
+| `preview_campaign_audience(segment, limit) → (total, customer…, registration, last_visit)` | owners/managers of the selected garage (`garage_actor_allowed()`), Pro (`require_garage_feature`) | live count and up to 50 rows; one row with total 0 when nobody matches |
+| `schedule_campaign(campaign, send_at) → campaigns` | owners/managers, Pro | draft only; send time now-5 min … +366 days; freezes the audience into `campaign_sends` (idempotent per customer), `EMPTY_AUDIENCE` when none, queues `campaigns.send` for the send time (dedupe `campaigns.send:<garage>:<campaign>`), audited `campaign.scheduled` |
+| `cancel_campaign(campaign) → campaigns` | owners/managers (any plan: stopping is always allowed) | scheduled sends → `cancelled` (`campaign_cancelled`); audited `campaign.cancelled` |
+| `claim_campaign_sends(garage, now, limit) → rows` | service | like `claim_reminder_sends`: `for update skip locked` batches; re-checks at claim time (`campaign_cancelled`, `anonymised`, `opted_out`, `no_consent`, `no_address`, `vehicle_changed`, `mot_disabled`, `expired` > 7 days late); **an Essentials garage claims nothing and its due sends are skipped `plan_required`**; suspended/cancelled garages claim nothing; campaigns with nothing left scheduled become `sent` |
+| `attribute_campaign_booking(garage, send, booking) → boolean` | service | credits a booking to a send that went out when the booking (not cancelled/no-show/trashed) is for the send's own customer and car (create_booking matched them by phone and registration, as A52); one send per booking; a later booking replaces a cancelled one. **`create_booking()` is not redefined**: the booking flow calls this right after a successful create |
+| `campaign_results(campaign?) → (campaign_id, recipients, scheduled, sent, delivered, opened, failed, skipped, bookings, pence)` | members of the selected garage (any plan) | pence = issued/paid invoice totals of credited bookings, else `bookings.price_pence` (as `reminder_won_back()`) |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/campaigns/segment.ts` (client-safe) | `CampaignSegment`, `campaignSegmentSchema` (zod), `segmentFromForm(formData, {motEnabled})`, `parseStoredSegment`, `describeSegment`, `segmentUsesMot`, `CAMPAIGN_CHANNELS`, `CHANNEL_NAMES`, `MONTH_NAMES`, `NOT_SEEN_CHOICES` |
+| `src/lib/campaigns/templates.ts` (client-safe) | `CAMPAIGN_PLACEHOLDERS` (`{first_name}` `{vehicle}` `{reg}` `{link}` `{garage}`), `checkCampaignTemplate`, `campaignSampleValues`, `STARTERS`/`CAMPAIGN_STARTERS`/`availableStarters`, `starterSegment`, `starterService`, `nextMonth` |
+| `src/lib/campaigns/compose.ts` | `ClaimedCampaignSend`, `composeCampaign` (renderTemplate with the opt-out line on SMS/WhatsApp; email subject + "Stop reminders: <signed link>") |
+| `src/lib/campaigns/send.ts` | `sendGarageCampaigns` (send window, claim, token, compose, `messages` row, `getChannel` send, result handling as reminders/A14), `campaignLinkPath`, `CampaignSendRepo` |
+| `src/lib/campaigns/repository.ts` | `createSupabaseCampaignSendRepo` (service role) |
+| `src/lib/campaigns/open-link.ts` | `openCampaignLink`, `handleCampaignLinkRequest` (GET `/c/{token}`), `createSupabaseCampaignLinkRepo`, `attributeCampaignBooking` |
+| `src/lib/campaigns/admin.ts` | `loadCampaigns`, `loadCampaign`, `loadCampaignResults`, `totalResults`, `previewAudience` (masked contacts), `loadRecipients`, `loadCampaignServices` |
+| `src/lib/campaigns/test-send.ts` | `sendCampaignTest` ("Send me a test": member's own mobile, else email; rate limit shared with reminder tests; audited `campaign.test_sent`) |
+| `src/lib/campaigns/view.ts` (client-safe) | `campaignStatusPill`, `recipientPill`, `SKIP_REASON_LABELS`, `formatSendTime`, `localInputValue` |
+| `src/lib/jobs/handlers/campaigns-send.ts` | `campaigns.send` handler (fan-out to garages with due sends, per-garage send, quiet-hours deferral to `nextSendWindow`, rate-limit/retry like `reminders.send`), `garagesWithDueCampaignSends` |
+
+Shared files touched (one line or entry each): `JOB_KINDS` (`campaigns.send` after `reminders.send`), the registry, `campaignsSendPayload`, `cron.ts` (`campaigns.send` every 10 minutes and in `daily`), `GROW_NAV_ITEMS` (Campaigns, `Megaphone`), `BookingDraft.campaignSendId` + the sealed-draft schema, `booking-flow/actions.ts` (forget it with the car; call `attributeCampaignBooking` after a successful create), `next.config.ts` (`/c/:token` gets `Referrer-Policy: no-referrer`), `FIXTURES` (two entries), one Playwright project and one package.json script.
+
+### Routes
+
+| Route | What |
+| --- | --- |
+| `/app/campaigns` | results across campaigns (sent, links opened, bookings won, revenue won), ready-made starting points (Winter check, Summer air-con, Win-back, MOT month only with MOTs on), the list. Essentials: `ProLockedPage` with earlier campaigns listed read-only |
+| `/app/campaigns/new?starter=…` | editor: name; segment builder (car age, MOT months, last visit, service history, channels) with a live count and preview (names, masked numbers, plate chips; registrations never in URLs); `TemplateEditor` with the 160-character counter and opt-out line; email subject and wording with preview; the service the link opens. Owners/managers with MFA (`requireSetupContext`) |
+| `/app/campaigns/[id]` | draft: editor + "Send" (now, or a date/time in UK time; the hint explains 09:00-19:00 Mon-Sat), "Send me a test", delete. Scheduled/sent: results, recipients (masked, plate chip, status incl. skip reason and Booked), the message, the segment in words, "Stop sending" |
+| Server actions (`campaigns/actions.ts`) | `saveCampaignAction`, `previewAudienceAction`, `scheduleCampaignAction` (send now drains `campaigns.send` after the response), `cancelCampaignAction`, `deleteCampaignAction`, `sendCampaignTestAction`. Each: role (owner/manager), `featureProblem(admin, "campaigns")` (cancel excepted), zod/explicit validation, garage from the session only |
+| `GET /c/{token}` on the garage host (`src/app/%5Fsite/[garageId]/c/[token]/route.ts`) | hashed token lookup in the host garage's sends that went out, 30-day expiry, first open recorded, sealed `af_booking` draft with car (+ MOT date when MOT is on), service and `campaignSendId`; 303 to `/time` or `/service`; problems → `/r?link=…`; rate limited 30/10 min per IP; `no-store`, `no-referrer`, `noindex` |
+
+### Job
+
+`campaigns.send` (payload `{garageId?}`): queued by `schedule_campaign()` for the send time, and by cron (`/api/cron/campaigns.send` every 10 minutes on Vercel Pro; part of `daily` on Hobby). Without a garage it fans out to garages with due sends (dedupe per 10-minute slot); with a garage it sends inside the window or re-queues itself for `nextSendWindow` (dedupe per window). SMS are metered by P5.2 in `getChannel("sms")`.

@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const JOB_KINDS = [
   "reminders.schedule",
   "reminders.send",
+  "campaigns.send",
   "notifications.booking",
   "calls.text_back",
   "messages.reply",

@@ -68,6 +68,7 @@ describe("GET /api/cron/[job]", () => {
     expect(enqueued.map((entry) => [entry.kind, entry.payload, entry.options.dedupeKey, entry.options.garageId])).toEqual([
       ["reminders.schedule", {}, "cron:reminders.schedule:2026-10-27", undefined],
       ["reminders.send", {}, "cron:reminders.send:2026-10-27T11:00Z", undefined],
+      ["campaigns.send", {}, "cron:campaigns.send:2026-10-27T11:00Z", undefined],
       ["domains.check", {}, "cron:domains.check:2026-10-27T11:05Z", undefined],
       ["retention", {}, "cron:retention:2026-10-27", undefined],
       ["platform.close_impersonations", {}, "cron:platform.close_impersonations:2026-10-27T11:00Z", undefined],
@@ -79,7 +80,7 @@ describe("GET /api/cron/[job]", () => {
     expect(drain).toHaveBeenCalledWith(expect.objectContaining({ db, queue, budgetMs: CRON_DRAIN_BUDGET_MS }));
     expect(CRON_DRAIN_BUDGET_MS).toBe(20_000);
     const body = await response.json();
-    expect(body).toEqual({ job: "daily", queued: 9, drain: summary() });
+    expect(body).toEqual({ job: "daily", queued: 10, drain: summary() });
   });
 
   it("queues just one kind for a per-kind cron, and 404s unknown names", async () => {

@@ -17,6 +17,7 @@ import type { JobKind } from "./types";
 const PERIOD: Partial<Record<JobKind, "day" | { minutes: number }>> = {
   "reminders.schedule": "day",
   "reminders.send": { minutes: 10 },
+  "campaigns.send": { minutes: 10 },
   "mot.refresh": "day",
   "domains.check": { minutes: 5 },
   retention: "day",
@@ -29,6 +30,7 @@ export const CRON_JOBS = {
   daily: [
     "reminders.schedule",
     "reminders.send",
+    "campaigns.send",
     "domains.check",
     "retention",
     "platform.close_impersonations",
@@ -39,6 +41,7 @@ export const CRON_JOBS = {
   ],
   "reminders.schedule": ["reminders.schedule"],
   "reminders.send": ["reminders.send"],
+  "campaigns.send": ["campaigns.send"],
   "mot.refresh": ["mot.refresh"],
   "domains.check": ["domains.check"],
   retention: ["retention"],
