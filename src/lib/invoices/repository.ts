@@ -5,6 +5,7 @@ import { isValidEmailAddress } from "@/lib/email/identity";
 import { renderInvoiceEmail } from "@/lib/email/templates/invoice";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/tenancy/admin";
+import { getInvoiceAccount } from "@/lib/accounts/queries";
 import { deliverInvoiceEmail } from "./email-delivery";
 import { formatPence } from "./money";
 import { invoiceFileName, renderInvoicePdf } from "./pdf";
@@ -84,6 +85,9 @@ export async function sendInvoiceEmail(id: string, recipient: string, logicalSen
   const invoice = await getInvoiceForAdmin(id);
   if (!invoice || (invoice.status !== "issued" && invoice.status !== "paid")) throw new Error("Only issued or paid invoices can be emailed.");
   const reference = invoice.invoice_number || "Invoice";
+  // P5.7: an invoice charged to a fleet or trade account is billed to the account in its PDF.
+  const account = await getInvoiceAccount(client, garage.id, id);
+  const billTo = account ? { name: account.billToName, email: account.billToEmail, address: account.billToAddress, poNumber: account.poNumber } : null;
   const rendered = renderInvoiceEmail({
     brand: garageEmailBrand(garage),
     status: invoice.status,
@@ -107,7 +111,7 @@ export async function sendInvoiceEmail(id: string, recipient: string, logicalSen
     subject: `Invoice ${reference} from ${garage.name}`,
     text: rendered.text,
     html: rendered.html,
-    attachment: { filename: invoiceFileName(invoice), content: await renderInvoicePdf(invoice, garage) },
+    attachment: { filename: invoiceFileName(invoice), content: await renderInvoicePdf(invoice, garage, billTo) },
   }, {
     claim: async (claim) => {
       const { data, error } = await client.rpc("claim_invoice_email_send", {

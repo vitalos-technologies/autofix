@@ -9,6 +9,7 @@ import { addDays } from "@/lib/admin/dates";
 import type { LocationMode, PriceMode, ServiceLocationMode } from "@/lib/booking-engine/types";
 import { cn } from "@/lib/utils";
 import { SlotPicker } from "../_components/slot-picker";
+import { AccountChooser, type AccountFill, type ChooserAccount } from "./account-chooser";
 import { createStaffBookingAction, getStaffSlotsAction, type StaffBookingState } from "./actions";
 
 export type StaffService = {
@@ -70,6 +71,8 @@ export function NewBookingForm({
   timeZone,
   today,
   idempotencyKey,
+  accounts = [],
+  initialAccountId = null,
 }: {
   services: StaffService[];
   days: string[];
@@ -78,6 +81,9 @@ export function NewBookingForm({
   /** The garage's local date (YYYY-MM-DD): the earliest day for an outside-hours time. */
   today: string;
   idempotencyKey: string;
+  /** P5.7: the garage's fleet and trade accounts (Pro), for the optional Account step. */
+  accounts?: ChooserAccount[];
+  initialAccountId?: string | null;
 }) {
   const [state, action] = useActionState(createStaffBookingAction, idle);
   const [source, setSource] = useState<"phone" | "walk_in">("phone");
@@ -87,6 +93,12 @@ export function NewBookingForm({
   const [startsAt, setStartsAt] = useState<string | null>(null);
   const [overrideHours, setOverrideHours] = useState(false);
   const [freeTime, setFreeTime] = useState("");
+  // P5.7: values filled from an account's car or driver; `version` re-mounts the fields with them.
+  const [fill, setFill] = useState<AccountFill & { version: number }>({ version: 0 });
+  const applyFill = (next: AccountFill) => {
+    if (next.registration) setRegistration(next.registration);
+    setFill((previous) => ({ ...previous, ...next, version: previous.version + 1 }));
+  };
   const id = useId();
   // Outside opening hours (A179): a typed time wins over the grid until a grid time is picked again.
   const free = overrideHours && freeTime ? checkOverrideTime(freeTime, { today, timeZone }) : null;
@@ -112,6 +124,8 @@ export function NewBookingForm({
 
       <div className="flex flex-wrap items-start gap-[18px]">
         <div className="flex min-w-0 flex-[999_1_520px] flex-col gap-[18px]">
+          {accounts.length ? <AccountChooser accounts={accounts} initialAccountId={initialAccountId} onFill={applyFill} errors={{ accountId: errors.accountId, poNumber: errors.poNumber }} /> : null}
+
           <Panel title="How did they book?">
             <SegmentedControl
               label="Booking made"
@@ -129,10 +143,10 @@ export function NewBookingForm({
             <PlateInput value={registration} onChange={setRegistration} name="registration" error={errors.registration} id={`${id}-reg`} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field id={`${id}-make`} label="Make (optional)">
-                {(describedBy) => <input id={`${id}-make`} name="make" autoComplete="off" aria-describedby={describedBy} className={inputClass} />}
+                {(describedBy) => <input key={`make-${fill.version}`} defaultValue={fill.make} id={`${id}-make`} name="make" autoComplete="off" aria-describedby={describedBy} className={inputClass} />}
               </Field>
               <Field id={`${id}-model`} label="Model (optional)">
-                {(describedBy) => <input id={`${id}-model`} name="model" autoComplete="off" aria-describedby={describedBy} className={inputClass} />}
+                {(describedBy) => <input key={`model-${fill.version}`} defaultValue={fill.model} id={`${id}-model`} name="model" autoComplete="off" aria-describedby={describedBy} className={inputClass} />}
               </Field>
             </div>
           </Panel>
@@ -250,12 +264,14 @@ export function NewBookingForm({
           <Panel title="The customer">
             <Field id={`${id}-name`} label="Name" error={errors.customerName}>
               {(describedBy) => (
-                <input id={`${id}-name`} name="customerName" autoComplete="off" aria-describedby={describedBy} aria-invalid={errors.customerName ? true : undefined} className={inputClass} />
+                <input key={`name-${fill.version}`} defaultValue={fill.customerName} id={`${id}-name`} name="customerName" autoComplete="off" aria-describedby={describedBy} aria-invalid={errors.customerName ? true : undefined} className={inputClass} />
               )}
             </Field>
             <Field id={`${id}-phone`} label="Mobile" error={errors.customerPhone} hint="Their confirmation and updates go by text.">
               {(describedBy) => (
                 <input
+                  key={`phone-${fill.version}`}
+                  defaultValue={fill.customerPhone}
                   id={`${id}-phone`}
                   name="customerPhone"
                   type="tel"
@@ -269,7 +285,7 @@ export function NewBookingForm({
             </Field>
             <Field id={`${id}-email`} label="Email (optional)" error={errors.customerEmail}>
               {(describedBy) => (
-                <input id={`${id}-email`} name="customerEmail" type="email" autoComplete="off" aria-describedby={describedBy} aria-invalid={errors.customerEmail ? true : undefined} className={inputClass} />
+                <input key={`email-${fill.version}`} defaultValue={fill.customerEmail} id={`${id}-email`} name="customerEmail" type="email" autoComplete="off" aria-describedby={describedBy} aria-invalid={errors.customerEmail ? true : undefined} className={inputClass} />
               )}
             </Field>
             <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-[14px] leading-normal text-grey-800">
