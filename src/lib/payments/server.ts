@@ -5,6 +5,7 @@ import { notifyBooking } from "@/lib/booking-engine/notify";
 import { clearSlotCache } from "@/lib/booking-engine/slots";
 import { getChannel, type ChannelKind, type MessageChannel } from "@/lib/messaging/channel";
 import { garageHasFeature } from "@/lib/plans/server";
+import { applyPlanEvent } from "@/lib/service-plans/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { Garage } from "@/lib/tenancy/garage";
 import { garageUrl } from "@/lib/tenancy/urls";
@@ -314,6 +315,9 @@ export async function applyPaymentsEvent(event: PaymentsEvent, provider: Payment
     });
     outcome = applied.error ? (/ACCOUNT_NOT_FOUND|GARAGE_NOT_FOUND/.test(applied.error.message ?? "") ? "ignored" : "failed") : "applied";
     garageId = outcome === "applied" ? event.garageId : null;
+  } else if (event.kind === "plan_subscription") {
+    // P5.11: a service plan's Direct Debit (src/lib/service-plans/server.ts).
+    ({ outcome, garageId } = await applyPlanEvent(event, provider, db));
   }
   if (outcome !== "failed") await finish(garageId, outcome);
   log("webhook", { provider, type: event.type, outcome });

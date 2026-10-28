@@ -987,3 +987,64 @@ Jobs: `accounting.sync` added to `JOB_KINDS` (after `billing.close_usage`), the 
 Nav: one line in `PRO_SETUP_NAV_ITEMS` (`Accounting`, `Calculator` icon). Env (`.env.example`, `# P5.10`): `ACCOUNTING_PROVIDER_MODE`, `ACCOUNTING_TOKEN_KEY`, `XERO_CLIENT_ID/SECRET`, `QUICKBOOKS_CLIENT_ID/SECRET`, `QUICKBOOKS_ENVIRONMENT`, `SAGE_CLIENT_ID/SECRET`.
 
 Shared files touched (additive): `src/lib/jobs/{types,registry,cron}.ts`, `src/components/admin-ui/admin-nav.tsx` (icon import + one nav line), `src/__tests__/jobs-routes.test.ts` and `src/__tests__/admin-shell.test.tsx` (now derive the daily kinds and the Pro nav items instead of hard-coding them), `tests/integration/tenancy.test.ts` (fixtures), `playwright.garage.config.ts` (project + a local-only `ACCOUNTING_TOKEN_KEY` for the production build), `tests/e2e/garage-specs.ts`, `package.json` (`test:e2e:p5-accounting`), `.env.example`.
+
+## Customer service plans (Phase 5, P5.11; DECISIONS A374–A381)
+
+### Schema (`supabase/migrations/20261029001100_service_plans.sql`; pgTAP `037_service_plans`)
+
+| Object | Notes |
+| --- | --- |
+| `service_plans` (tenant) | `name` (2–60), `description` (≤ 500), `price_pence` (100–100000, monthly), `discount_percent` (0–50, off parts and labour on invoices), `priority_booking` (shown to staff; never changes slots), `status` (`active`/`archived`), `archived_at`, `sort`, `created_by`. Members read (any plan); owners/managers insert/update with `garage_has_feature(garage_id,'service_plans')`; no delete (archive) |
+| `service_plan_inclusions` (tenant) | `plan_id`, `service_id` (composite FKs), `uses_per_year` (1–12); unique per plan + service. Members read; owners/managers write (Pro) |
+| `customer_plan_subscriptions` (tenant) | `plan_id`, `customer_id`, `vehicle_id` (composite FKs), `status` (`pending_mandate`/`active`/`past_due`/`cancelled`), `price_pence` (snapshot at sign-up), `provider` (`mock`/`stripe`), `checkout_ref`, `mandate_ref`, `subscription_ref`, `started_at`, `renews_at`, `last_payment_failed_at`, `cancelled_at`/`cancelled_by`/`cancel_reason`, `last_notice_kind`/`_at`/`_channel`/`_outcome`. One live (not cancelled) per car. No bank details stored. Members read; no direct writes |
+| `service_plan_uses` (tenant) | `subscription_id`, `booking_id`, `service_id`, `plan_year_start`, `status` (`used`/`released`), `source` (`online`/`staff`), `used_at`, `released_at`. One live use per booking. Members read; no direct writes |
+| `service_plan_invoice_applications` (tenant) | `invoice_id` (unique), `subscription_id`, `included_pence`, `discount_pence`, `applied_by`. Members read; no direct writes |
+| Trigger `bookings_service_plans_follow` (after update of status on `bookings`) | a cancelled booking releases its use (a no-show keeps it) |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `save_service_plan(plan_id, payload) → service_plans` | owners/managers of the selected garage (`garage_actor_allowed()`); Pro | create (null id) or change a plan and its inclusions (≤ 5, active services of the garage). Audited `service_plan.created/updated` |
+| `set_service_plan_status(plan_id, status)` | owners/managers; Pro | archive / restore. Audited |
+| `cancel_plan_subscription(subscription_id, reason)` | owners, managers, front desk; **not** plan gated | records the cancellation after the server stopped the provider's subscription. Audited |
+| `use_plan_benefit(booking_id) → jsonb`, `release_plan_benefit(booking_id) → int` | any member; Pro | record / give back the included use on a booking (staff bookings, corrections) |
+| `apply_service_plan_to_invoice(invoice_id) → jsonb` | invoice rights (`require_invoice_actor()`, `save_invoice_draft()`'s own checks); Pro | draft invoice of a booking whose car is on an active plan: included service lines to £0.00 "(included in <plan>)", plan % added to the discount, through `save_invoice_draft()`. Once per invoice. `NOT_ON_PLAN`, `PLAN_PAST_DUE`, `INVOICE_NOT_DRAFT`, `NOTHING_TO_APPLY` |
+| `start_plan_signup(garage, plan, customer, vehicle, provider)` | service (garage host) | Pro + active plan + active payment account for the provider; links the customer by phone and the car by registration (consent untouched); reuses a pending sign-up for the car; `ALREADY_ON_PLAN` otherwise |
+| `set_plan_subscription_checkout(garage, subscription, ref)` | service | stores the provider checkout id |
+| `apply_plan_subscription_status(garage, subscription, provider, status, mandate_ref, subscription_ref, renews_at, at) → jsonb` | service (webhook, return, mock confirm) | row-locked transitions; returns `notify` = `confirmation` (pending → active) or `payment_failed` (→ past_due, once per run of failures); `cancelled` is final; provider and subscription ref must match. Not plan gated. Audited `service_plan.subscription_<status>` |
+| `record_plan_booking(garage, booking) → jsonb` | service (online flow, after `create_booking()`) | records the included use when the car is on an active plan including the service and the plan year has a use left; `{on_plan:false}` on Essentials |
+| `service_plan_year_start(started_at, at, tz)` | authenticated, service | start of the plan year `at` falls in (whole local years) |
+
+`create_booking`, `create_booking_at`, `available_slots*`, `staff_available_slots*` and every existing migration are unchanged.
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/payments/provider.ts` (extended) | `PlanSubscriptionStatus`, `MandateRequest`, `MandateResult`, `MandateState`; `PaymentsProvider.startMandate`, `getMandate`, `cancelMandate`; `PaymentsEvent` kind `plan_subscription` |
+| `src/lib/payments/stripe-direct-debit.ts` | `stripeMandateMethods(call)` (Checkout `mode=subscription`, `payment_method_types[0]=bacs_debit`, GBP monthly price, `subscription_data[metadata]` with our ids, on `Stripe-Account`; read back with `expand[]=subscription`; `DELETE /v1/subscriptions/{id}`), `mapStripePlanEvent` (`checkout.session.completed` (subscription mode), `customer.subscription.created/updated/deleted`, `invoice.paid`, `invoice.payment_failed`), `planStatusFromStripe` |
+| `src/lib/payments/mock.ts`, `stripe.ts`, `server.ts` (additive) | mock mandate is local; Stripe adapter spreads the mandate methods and maps plan events first; `applyPaymentsEvent()` dispatches `plan_subscription` events (same `payment_webhook_events` once-per-event claim, same endpoint `POST /api/webhooks/payments/stripe`) |
+| `src/lib/service-plans/view.ts` (client-safe) | statuses/labels, `ServicePlan`, `PlanSubscription`, `monthlyPrice`, `planBenefitLines`, `planYearStart` (mirrors SQL), `parsePlanForm`, `planPayload`, flash/error helpers, `DIRECT_DEBIT_GUARANTEE`, `guaranteeParagraphs` |
+| `src/lib/service-plans/messages.ts` (pure) | `composePlanNotice(kind, input, channel)` (texts end "Reply STOP to opt out."; no registration) |
+| `src/lib/service-plans/signup-session.ts` | sealed httpOnly `af_plan` cookie (AES-256-GCM, bound to the garage, path `/plans`, 2 h): `writePlanSession`, `readPlanSession` |
+| `src/lib/service-plans/server.ts` | `loadPlans`, `loadSubscriptions`, `loadUsage`, `loadBookingPlan`, `loadPublicPlans`, `signupReadiness`, `startSignup`, `loadSignup`, `applyPlanStatus` (sends the notice it asks for), `confirmMockMandate`, `syncMandate`, `applyPlanEvent`, `sendPlanNotice` (`getChannel`, `chooseLinkChannel`: own channel, STOP → email, else none; `messages` row; outcome on the subscription), `recordPlanBooking` (never throws), `cancelSubscription` |
+| `src/lib/service-plans/admin-actions.ts` | `savePlanAction`, `setPlanStatusAction` (owners/managers, Pro), `cancelPlanSubscriptionAction` (owners/managers/front desk, any plan), `useBenefitAction`, `releaseBenefitAction`, `applyPlanToInvoiceAction` (Pro). `requireStaffWriter` (MFA) + `featureProblem` |
+| `src/components/service-plans/*` | `SubscriptionStatusBadge`, `PlanNotice`, `PlanBenefits`, `PlanFields`; panels `BookingPlanPanel`, `CustomerPlansPanel`, `InvoicePlanPanel` |
+| Booking flow (additive) | `confirmBookingAction` calls `recordPlanBooking()` after the booking exists |
+| `src/lib/booking-engine/state.ts` (one line) | sealed-cookie purpose `af_plan` |
+
+### Routes
+
+| Route | Host | What |
+| --- | --- | --- |
+| `/app/service-plans` | admin | Pro: plans (add, edit, archive/restore), customers on plans, link to `/plans`, "connect payments first" notice. Essentials: `ProLockedPage`, existing subscriptions listed and the still-collecting Direct Debits flagged. Nav: one line in `GROW_NAV_ITEMS` |
+| `#service-plan` panels on `/app/bookings/[id]`, `/app/customers/[id]`, `/app/invoices/[id]` | admin | "On <plan>", use / give back, this plan year's uses, cancel, apply plan benefits (one import + one element each) |
+| `/plans` | garage | active plans of a Pro garage with payments connected; otherwise "Service plans aren't available" |
+| `/plans/[planId]` | garage | sign-up form + Direct Debit Guarantee + account-holder authorisation; 404 when not on offer |
+| `/plans/confirm` | garage | the sign-up from `af_plan` only: mock "Set up test Direct Debit", Stripe return (`?done=1` reads the mandate back), active / past due / cancelled |
+| `POST /api/webhooks/payments/stripe` | any | existing P5.4 endpoint now also applies plan events |
+
+No new job: Stripe collects each month and tells us by webhook. No new env vars.
+
+GoCardless (future adapter, not built): implement `startMandate` (Redirect Flow / Billing Request Flow for a mandate),
+`getMandate`, `cancelMandate` (cancel subscription) and map `mandates.*`/`subscriptions.*`/`payments.failed` webhook
+events to the same `plan_subscription` event kind; nothing else changes.
