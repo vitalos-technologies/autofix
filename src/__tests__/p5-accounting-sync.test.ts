@@ -151,8 +151,8 @@ describe("runAccountingSync", () => {
     expect(store.invoices.size).toBe(1);
     const [payment] = [...store.payments.values()];
     // 23:30 UTC on 1 May is 00:30 on 2 May in London (BST): the payment date is the garage's local date.
-    expect(payment.input.paidOn).toBe("2096-05-02");
-    expect(payment.input.reference).toBe("ACP-2096-000001");
+    expect(payment?.input.paidOn).toBe("2096-05-02");
+    expect(payment?.input.reference).toBe("ACP-2096-000001");
     expect(repo.connectionPatches.at(-1)).toMatchObject({ lastErrorCode: null, lastSyncAt: now });
     expect(enqueued).toEqual([]);
   });

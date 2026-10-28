@@ -21,6 +21,12 @@ const REDIRECT = "https://autofix.vitalos.co.uk/api/admin/accounting/xero/callba
 type FixtureResponse = { status: number; body: unknown; headers?: Record<string, string> };
 type Fixture = { responses: Record<string, FixtureResponse>; requests: Record<string, { method: string; url: string; headers: Record<string, string>; body: unknown }> };
 
+function pick<T>(record: Record<string, T>, key: string): T {
+  const value = record[key];
+  if (value === undefined) throw new Error(`fixture ${key} missing`);
+  return value;
+}
+
 type Route = { method: string; test: (url: string) => boolean; response: string };
 type Recorded = { method: string; url: string; headers: Record<string, string>; body: string | undefined };
 
@@ -30,7 +36,7 @@ function fixtureFetch(fixture: Fixture, routes: Route[], recorded: Recorded[]): 
     recorded.push({ method, url, headers: (init?.headers ?? {}) as Record<string, string>, body: typeof init?.body === "string" ? init.body : undefined });
     const route = routes.find((candidate) => candidate.method === method && candidate.test(url));
     if (!route) return new Response(JSON.stringify({ message: "no fixture" }), { status: 599 });
-    const response = fixture.responses[route.response];
+    const response = pick(fixture.responses, route.response);
     return new Response(response.body === null ? null : JSON.stringify(response.body), { status: response.status, headers: response.headers });
   };
 }
@@ -157,8 +163,8 @@ const HARNESSES: Harness[] = [
 ];
 
 function tokensFrom(harness: Harness): TokenSet {
-  const body = harness.fixture.responses.token.body as Record<string, string>;
-  return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresAt: new Date(NOW.getTime() + 600_000), refreshExpiresAt: null, scopes: [], tenantHint: harness.tenantId };
+  const body = pick(harness.fixture.responses, "token").body as Record<string, string>;
+  return { accessToken: String(body.access_token), refreshToken: String(body.refresh_token), expiresAt: new Date(NOW.getTime() + 600_000), refreshExpiresAt: null, scopes: [], tenantHint: harness.tenantId };
 }
 
 describe.each(HARNESSES)("$name adapter contract", (harness) => {
@@ -187,25 +193,25 @@ describe.each(HARNESSES)("$name adapter contract", (harness) => {
 
   it("exchanges the code and maps the token response", async () => {
     const tokens = await provider.exchangeCode({ code: "code-1", codeVerifier: "verifier-1", redirectUri: REDIRECT, callbackParams: harness.callbackParams });
-    const body = harness.fixture.responses.token.body as Record<string, string | number>;
+    const body = pick(harness.fixture.responses, "token").body as Record<string, string | number>;
     expect(tokens.accessToken).toBe(body.access_token);
     expect(tokens.refreshToken).toBe(body.refresh_token);
     expect(tokens.expiresAt.getTime()).toBe(NOW.getTime() + Number(body.expires_in) * 1000);
-    const form = new URLSearchParams(recorded[0].body);
+    const form = new URLSearchParams(recorded[0]!.body);
     expect(form.get("grant_type")).toBe("authorization_code");
     expect(form.get("code")).toBe("code-1");
     expect(form.get("redirect_uri")).toBe(REDIRECT);
     if (harness.name === "xero") expect(form.get("code_verifier")).toBe("verifier-1");
     // The client secret goes in Basic auth or the form, never the URL.
-    expect(recorded[0].url).not.toContain("client-secret");
+    expect(recorded[0]!.url).not.toContain("client-secret");
   });
 
   it("lists organisations", async () => {
     const tokens = await provider.exchangeCode({ code: "code-1", codeVerifier: "v", redirectUri: REDIRECT, callbackParams: harness.callbackParams });
     const tenants = await provider.listTenants(tokens);
     expect(tenants.length).toBeGreaterThanOrEqual(1);
-    expect(tenants[0].id).toBe(harness.tenantId);
-    expect(tenants[0].name.length).toBeGreaterThan(0);
+    expect(tenants[0]!.id).toBe(harness.tenantId);
+    expect(tenants[0]!.name.length).toBeGreaterThan(0);
   });
 
   it("creates a contact when none matches", async () => {
@@ -216,7 +222,7 @@ describe.each(HARNESSES)("$name adapter contract", (harness) => {
   });
 
   it("builds the invoice exactly as recorded and maps the created id", async () => {
-    const expected = harness.fixture.requests.invoice;
+    const expected = pick(harness.fixture.requests, "invoice");
     const built = harness.build.invoice(context("af-invoice-test"), INVOICE(harness.contactId)) as { method: string; url: string; headers: Record<string, string>; body: unknown };
     expect(built.method).toBe(expected.method);
     expect(built.url).toBe(expected.url);
@@ -227,7 +233,7 @@ describe.each(HARNESSES)("$name adapter contract", (harness) => {
   });
 
   it("builds the payment exactly as recorded and maps the created id", async () => {
-    const expected = harness.fixture.requests.payment;
+    const expected = pick(harness.fixture.requests, "payment");
     const built = harness.build.payment(context("af-payment-test"), PAYMENT(harness.invoiceId, harness.contactId)) as { method: string; url: string; headers: Record<string, string>; body: unknown };
     expect(built).toEqual({ method: expected.method, url: expected.url, headers: expected.headers, body: expected.body });
     const { remoteId } = await provider.pushPayment(context("af-payment-test"), PAYMENT(harness.invoiceId, harness.contactId));
@@ -274,22 +280,22 @@ describe("xero specifics", () => {
   it("reuses an existing contact found by contact number", async () => {
     const recorded: Recorded[] = [];
     const provider = createXeroProvider({ env: ENV("XERO"), fetch: fixtureFetch(xeroFixture as Fixture, [{ method: "GET", test: has("/Contacts?"), response: "contactCreated" }], recorded) });
-    const { remoteId } = await provider.upsertContact({ tokens: tokensFrom(HARNESSES[0]), tenantId: "t", settings: {}, idempotencyKey: "k" }, CONTACT);
+    const { remoteId } = await provider.upsertContact({ tokens: tokensFrom(HARNESSES[0]!), tenantId: "t", settings: {}, idempotencyKey: "k" }, CONTACT);
     expect(remoteId).toBe("3ff6d40c-af9a-40a3-89ce-3c1556a25591");
     expect(recorded).toHaveLength(1);
-    expect(decodeURIComponent(recorded[0].url)).toContain('ContactNumber=="AF-11111111-1111-4111-8111-111111111111"');
+    expect(decodeURIComponent(recorded[0]!.url)).toContain('ContactNumber=="AF-11111111-1111-4111-8111-111111111111"');
   });
 });
 
 describe("quickbooks specifics", () => {
   it("needs the realmId from the callback", async () => {
-    const provider = createQuickBooksProvider({ env: ENV("QUICKBOOKS"), fetch: fixtureFetch(quickbooksFixture as Fixture, HARNESSES[1].happyRoutes, []) });
+    const provider = createQuickBooksProvider({ env: ENV("QUICKBOOKS"), fetch: fixtureFetch(quickbooksFixture as Fixture, HARNESSES[1]!.happyRoutes, []) });
     const error = await provider.exchangeCode({ code: "c", codeVerifier: "v", redirectUri: REDIRECT, callbackParams: new URLSearchParams() }).catch((e: unknown) => e);
     expect((error as AccountingError).code).toBe("VALIDATION");
   });
 
   it("escapes quotes in the customer query", () => {
-    const request = quickbooksRequests.findCustomer({ apiBase: "https://x" }, { tokens: tokensFrom(HARNESSES[1]), tenantId: "1" }, "O'Brien");
+    const request = quickbooksRequests.findCustomer({ apiBase: "https://x" }, { tokens: tokensFrom(HARNESSES[1]!), tenantId: "1" }, "O'Brien");
     expect(new URL(request.url).searchParams.get("query")).toBe("select Id from Customer where DisplayName = 'O\\'Brien'");
   });
 });
@@ -298,7 +304,7 @@ describe("sage specifics", () => {
   it("finds an invoice already sent under the same number instead of creating it twice", async () => {
     const recorded: Recorded[] = [];
     const provider = createSageProvider({ env: ENV("SAGE"), fetch: fixtureFetch(sageFixture as Fixture, [{ method: "GET", test: has("/sales_invoices?"), response: "ledgerAccounts" }], recorded) });
-    const { remoteId } = await provider.pushInvoice({ tokens: tokensFrom(HARNESSES[2]), tenantId: "b", settings: {}, idempotencyKey: "k" }, INVOICE("c"));
+    const { remoteId } = await provider.pushInvoice({ tokens: tokensFrom(HARNESSES[2]!), tenantId: "b", settings: {}, idempotencyKey: "k" }, INVOICE("c"));
     expect(remoteId).toBe("9a994b92267a11e797950a57719b2edb");
     expect(recorded.every((request) => request.method === "GET")).toBe(true);
   });
