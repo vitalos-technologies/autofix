@@ -63,6 +63,16 @@ function routeGarageSite(request: NextRequest, garage: HostGarage) {
   return response;
 }
 
+/** P5.3: the Supabase origin health check media is signed on (only matters when it isn't https, i.e. locally). */
+function storageOrigin() {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    return url.protocol === "http:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Framing and CSP per host: a garage's booking pages may be framed by the sites it allowed (and load
  * the Askbridge widget when it is on); everything else is same-origin only. `next.config.ts` sets the
@@ -74,6 +84,7 @@ function withSecurityHeaders(response: NextResponse, garage: HostGarage | null) 
       embedOrigins: garage.embedOrigins ?? [],
       widgetOrigin: garage.widgetEnabled ? (askbridgeScriptUrl()?.origin ?? null) : null,
       dev: process.env.NODE_ENV === "development",
+      storageOrigin: storageOrigin(),
     })
     : ADMIN_SECURITY_HEADERS;
   for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);

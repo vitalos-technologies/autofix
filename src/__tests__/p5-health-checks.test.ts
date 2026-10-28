@@ -352,6 +352,9 @@ describe("health check views", () => {
   });
 
   it("lets the booking page play videos from signed storage URLs", () => {
-    expect(bookingSiteCsp({})).toContain("media-src 'self' blob: https:");
+    expect(bookingSiteCsp({})).toContain("media-src 'self' blob: https:;");
+    // The local (http) Supabase origin only when it is the configured one.
+    expect(bookingSiteCsp({ storageOrigin: "http://127.0.0.1:54321" })).toContain("media-src 'self' blob: https: http://127.0.0.1:54321;");
+    expect(bookingSiteCsp({})).not.toContain("http:");
   });
 });

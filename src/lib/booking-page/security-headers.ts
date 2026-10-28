@@ -20,6 +20,11 @@ export type BookingSiteHeaderInput = {
   widgetOrigin?: string | null;
   /** `next dev` needs eval and its HMR websocket. */
   dev?: boolean;
+  /**
+   * P5.3: the Supabase Storage origin, for health check photos and videos on signed URLs (needed when it
+   * is not https, as the local stack is; https origins are already allowed).
+   */
+  storageOrigin?: string | null;
 };
 
 export const ADMIN_SECURITY_HEADERS: Readonly<Record<string, string>> = {
@@ -31,16 +36,16 @@ function sources(...lists: Array<ReadonlyArray<string | null | undefined>>) {
   return [...new Set(lists.flat().filter((value): value is string => Boolean(value)))].join(" ");
 }
 
-export function bookingSiteCsp({ embedOrigins = [], widgetOrigin = null, dev = false }: BookingSiteHeaderInput): string {
+export function bookingSiteCsp({ embedOrigins = [], widgetOrigin = null, dev = false, storageOrigin = null }: BookingSiteHeaderInput): string {
   const widget = widgetOrigin ? [widgetOrigin] : [];
   const directives = [
     "default-src 'self'",
     `script-src ${sources(["'self'", "'unsafe-inline'"], dev ? ["'unsafe-eval'"] : [], [TURNSTILE_ORIGIN], widget)}`,
     "style-src 'self' 'unsafe-inline'",
     // Garage logos live in Supabase Storage; the widget may show its own images.
-    `img-src ${sources(["'self'", "data:", "blob:", "https:"], dev ? ["http:"] : [])}`,
-    // Health check videos (P5.3) play from short-lived signed Supabase Storage URLs (local Supabase is http in dev).
-    `media-src ${sources(["'self'", "blob:", "https:"], dev ? ["http:"] : [])}`,
+    `img-src ${sources(["'self'", "data:", "blob:", "https:"], [storageOrigin])}`,
+    // Health check videos (P5.3) play from short-lived signed Supabase Storage URLs.
+    `media-src ${sources(["'self'", "blob:", "https:"], [storageOrigin])}`,
     "font-src 'self' data:",
     `connect-src ${sources(["'self'", TURNSTILE_ORIGIN], widget, dev ? ["ws:", "wss:"] : [])}`,
     `frame-src ${sources(["'self'", TURNSTILE_ORIGIN], widget)}`,
