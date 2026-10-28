@@ -186,7 +186,7 @@ test("the month's statement is made, issued, emailed (mock) and paid", async () 
   await page.getByRole("button", { name: "Make", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/accounts\/statements\/[0-9a-f-]{36}\?done=generated$/);
   statementId = /statements\/([0-9a-f-]{36})/.exec(page.url())![1]!;
-  await expect(page.getByRole("region", { name: /^Invoices on statement / }).getByText("£189.00")).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Invoices on statement / }).getByText("£189.00").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Issue statement" }).click();
   await expect(page.getByText("Statement issued. Email it to the account next.")).toBeVisible();
