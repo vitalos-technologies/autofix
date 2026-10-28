@@ -21,8 +21,8 @@ insert into public.platform_admins (user_id) values
   ('1c000000-0000-4000-8000-0000000000f2');
 
 insert into public.garages (id, slug, name, booking_prefix, plan, status) values
-  ('ac000000-0000-4000-8000-000000000001', 'pgtap-platform-a', 'Platform Garage A', 'PGA', 'trial', 'active'),
-  ('bc000000-0000-4000-8000-000000000001', 'pgtap-platform-b', 'Platform Garage B', 'PGB', 'growth', 'onboarding');
+  ('ac000000-0000-4000-8000-000000000001', 'pgtap-platform-a', 'Platform Garage A', 'PGA', 'pro', 'active'),
+  ('bc000000-0000-4000-8000-000000000001', 'pgtap-platform-b', 'Platform Garage B', 'PGB', 'essentials', 'onboarding');
 
 insert into public.garage_members (garage_id, user_id, role) values
   ('ac000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-0000000000a1', 'owner'),
@@ -95,13 +95,13 @@ select is(public.platform_garage('ac000000-0000-4000-8000-000000000001') ->> 'sl
 -- Plan and status changes
 -- ---------------------------------------------------------------------------
 
-select throws_ok($$select public.platform_update_garage('ac000000-0000-4000-8000-000000000001', 'growth', null, ' ')$$,
+select throws_ok($$select public.platform_update_garage('ac000000-0000-4000-8000-000000000001', 'essentials', null, ' ')$$,
   '22023', null, 'a reason is required');
-select is(public.platform_update_garage('ac000000-0000-4000-8000-000000000001', 'growth', 'cancelled', 'Customer asked to close the account') ->> 'status',
+select is(public.platform_update_garage('ac000000-0000-4000-8000-000000000001', 'essentials', 'cancelled', 'Customer asked to close the account') ->> 'status',
   'cancelled', 'plan and status change together');
 
 reset role;
-select ok((select cancelled_at is not null and plan = 'growth' from public.garages where id = 'ac000000-0000-4000-8000-000000000001'),
+select ok((select cancelled_at is not null and plan = 'essentials' from public.garages where id = 'ac000000-0000-4000-8000-000000000001'),
   'cancelling sets cancelled_at');
 select is(
   (select array_agg(action order by action) from public.admin_audit_log where garage_id = 'ac000000-0000-4000-8000-000000000001' and action like 'platform.garage_%'),

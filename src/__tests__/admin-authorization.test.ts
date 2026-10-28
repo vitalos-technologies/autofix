@@ -182,7 +182,7 @@ describe("getAdminContext", () => {
     ];
     const context = await getAdminContext();
     // accent and plan feed the switcher tiles (the fixture garages have none).
-    expect(context?.memberships).toEqual([{ garageId: garageA.id, name: garageA.name, role: "manager", accent: null, plan: null }]);
+    expect(context?.memberships).toEqual([{ garageId: garageA.id, name: garageA.name, role: "manager", accent: null, plan: null, trialEndsAt: null, planChosen: null }]);
     expect(context?.garage.id).toBe(garageA.id);
   });
 

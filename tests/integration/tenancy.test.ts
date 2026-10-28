@@ -160,6 +160,26 @@ const ACTORS: ActorSpec[] = [
 
 type Actor = ActorSpec & { client: SupabaseClient; userId: string | null };
 
+/** Each member actor's role in its selected garage. */
+const ACTOR_ROLES: Partial<Record<ActorKey, "owner" | "manager" | "technician">> = {
+  ownerA: "owner",
+  managerA: "manager",
+  technicianA: "technician",
+  ownerB: "owner",
+  sharedWithA: "manager",
+};
+
+/**
+ * Tables whose select policy also limits the role (P5.2 billing and usage). Members outside these
+ * roles read zero rows of their own garage; everyone else's positive control reads them all.
+ */
+const ROLE_LIMITED_READS: Record<string, ReadonlyArray<"owner" | "manager" | "technician">> = {
+  billing_usage_reports: ["owner"],
+  garage_subscriptions: ["owner"],
+  plan_requests: ["owner"],
+  usage_events: ["owner", "manager"],
+};
+
 // ---------------------------------------------------------------------------
 // Fixtures: one or more rows per garage table, per garage
 // ---------------------------------------------------------------------------
@@ -369,9 +389,21 @@ const FIXTURES: Record<string, Fixture> = {
     patch: { outcome: "TAMPERED" },
   },
   agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
+  ai_front_desk_settings: { create: (rows) => rows.insert("ai_front_desk_settings", { enabled: false }), patch: { enabled: true } },
   admin_audit_log: {
     create: (rows) => rows.insert("admin_audit_log", { actor_id: rows.ownerId, action: "tenancy.probe", entity_type: "tenancy", entity_id: rows.garage.id }),
     patch: { action: "tampered" },
+  },
+  billing_usage_reports: {
+    create: (rows) => rows.insert("billing_usage_reports", {
+      period_month: "2096-04-01",
+      metric: "sms_segments",
+      plan: "pro",
+      used: 12,
+      allowance: 10,
+      overage: 2,
+    }),
+    patch: { overage: 99 },
   },
   booking_audit_log: {
     create: async (rows) => rows.insert("booking_audit_log", { booking_id: await rows.booking(), action: "created", actor_type: "system" }),
@@ -454,6 +486,10 @@ const FIXTURES: Record<string, Fixture> = {
   },
   // Rows come from provisioning (owner, manager, technician, shared manager).
   garage_members: { create: async () => undefined, patch: { role: "manager" } },
+  garage_subscriptions: {
+    create: (rows) => rows.insert("garage_subscriptions", { provider: "mock", status: "none", plan: "essentials" }),
+    patch: { status: "active", plan: "pro" },
+  },
   garage_phone_numbers: {
     create: (rows) => rows.insert("garage_phone_numbers", {
       number: rows.runNumber("78"),
@@ -527,6 +563,10 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { reason: "Tampered reason" },
   },
+  plan_requests: {
+    create: (rows) => rows.insert("plan_requests", { requested_plan: "pro", requested_by: rows.ownerId, note: `Tenancy probe ${rows.key}` }),
+    patch: { status: "done" },
+  },
   reminder_rules: { create: (rows) => rows.reminderRule(), patch: { template: "Tampered {link}" } },
   reminder_sends: {
     create: async (rows) => rows.insert("reminder_sends", {
@@ -550,6 +590,16 @@ const FIXTURES: Record<string, Fixture> = {
   site_settings: {
     create: (rows) => rows.insert("site_settings", { value: { tenancyProbe: rows.key } }),
     patch: { value: { tampered: true } },
+  },
+  usage_events: {
+    create: (rows) => rows.insert("usage_events", {
+      metric: "sms_segments",
+      quantity: 2,
+      period_month: "2096-04-01",
+      occurred_at: "2096-04-02T10:00:00.000Z",
+      source_key: `tenancy:${rows.key}:${localRunId}`,
+    }),
+    patch: { quantity: 99 },
   },
   vehicles: { create: (rows) => rows.vehicle(), patch: { make: "Tampered" } },
 };
@@ -949,6 +999,12 @@ describe("tenancy isolation", () => {
           return;
         }
         expect(result.error).toBeNull();
+        const limitedTo = ROLE_LIMITED_READS[table];
+        const role = ACTOR_ROLES[spec.key];
+        if (limitedTo && (!role || !limitedTo.includes(role))) {
+          expect(result.count).toBe(0);
+          return;
+        }
         expect(result.count).toBe(run().before.get(`${table}:${own}`)?.row_count);
       });
     }

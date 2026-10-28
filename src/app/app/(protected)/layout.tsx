@@ -5,11 +5,11 @@ import { ImpersonationBanner } from "@/components/platform/impersonation-banner"
 import { countOpenRequests } from "@/lib/admin/data";
 import { getAdminNotificationSummary } from "@/lib/admin/notifications";
 import { searchAdmin } from "@/lib/admin/search-actions";
+import { hasFeature, planLabel } from "@/lib/plans/entitlements";
+import { PRO_FEATURES } from "@/lib/plans/features";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { switchGarage } from "@/lib/tenancy/switch-garage";
 import { garageBaseUrl } from "@/lib/tenancy/urls";
-
-const PLAN_LABELS: Record<string, string> = { trial: "Trial", growth: "Growth plan", front_desk: "Front desk plan" };
 
 /** Account menu links (desktop avatar, phone header). */
 const ACCOUNT_LINKS = [
@@ -30,12 +30,21 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   if (admin.mfaState === "challenge_required") redirect("/app/mfa");
 
   const [notifications, requests] = await Promise.all([getAdminNotificationSummary(admin.client), countOpenRequests(admin.client)]);
-  const garages: AdminGarage[] = admin.memberships.map((membership) => ({
-    id: membership.garageId,
-    name: membership.name,
-    accent: membership.garageId === admin.garage.id ? admin.garage.accent : membership.accent,
-    plan: PLAN_LABELS[(membership.garageId === admin.garage.id ? admin.garage.plan : membership.plan) ?? ""] ?? null,
-  }));
+  const now = new Date();
+  const garages: AdminGarage[] = admin.memberships.map((membership) => {
+    const selected = membership.garageId === admin.garage.id;
+    return {
+      id: membership.garageId,
+      name: membership.name,
+      accent: selected ? admin.garage.accent : membership.accent,
+      plan: selected
+        ? planLabel({ plan: admin.garage.plan, trialEndsAt: admin.garage.trialEndsAt, planChosen: admin.garage.planChosen }, now)
+        : planLabel({ plan: membership.plan, trialEndsAt: membership.trialEndsAt, planChosen: membership.planChosen }, now),
+    };
+  });
+  // P5.2: Pro sections stay in the nav for Essentials garages, with a "Pro" badge.
+  const planState = { plan: admin.garage.plan, trialEndsAt: admin.garage.trialEndsAt, planChosen: admin.garage.planChosen };
+  const lockedFeatures = new Set<string>(PRO_FEATURES.filter((feature) => !hasFeature(planState, feature, now)));
 
   return (
     <>
@@ -44,7 +53,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         garages={garages}
         currentGarageId={admin.garage.id}
         switchGarageAction={switchGarage}
-        nav={defaultAdminNav({ newBookings: requests, newBookingsLabel: `${requests} waiting for your OK` })}
+        nav={defaultAdminNav({ newBookings: requests, newBookingsLabel: `${requests} waiting for your OK`, lockedFeatures })}
         user={{ name: admin.profile.display_name, email: admin.user.email ?? "" }}
         bookingPageUrl={garageBaseUrl(admin.garage)}
         unreadCount={notifications.count}

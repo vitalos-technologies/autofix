@@ -8,7 +8,7 @@ Core tables (migration `<ts>_tenancy.sql`):
 
 | Table | Columns (beyond `id uuid pk`, `created_at`, `updated_at`) |
 | --- | --- |
-| `garages` | `slug` (unique, `^[a-z0-9](-?[a-z0-9])*$`, 3–40), `name`, `legal_name`, `company_number`, `phone` (E.164), `whatsapp` (E.164), `email`, `address jsonb` (`line1`, `line2`, `town`, `postcode`), `timezone` default `Europe/London`, `logo_url`, `accent` default `#155fba` (`^#[0-9a-f]{6}$`), `plan` (`trial`/`growth`/`front_desk`), `mot_enabled` bool default false, `booking_prefix` (`^[A-Z]{2,4}$`), `slot_step_min` default 15, `approve_online` bool default false, `service_area text[]`, `cancellation_cutoff_h` default 24, `sms_sender` (≤ 11 chars), `status` (`onboarding`/`active`/`suspended`/`cancelled`), `settings jsonb`, `cancelled_at` |
+| `garages` | `slug` (unique, `^[a-z0-9](-?[a-z0-9])*$`, 3–40), `name`, `legal_name`, `company_number`, `phone` (E.164), `whatsapp` (E.164), `email`, `address jsonb` (`line1`, `line2`, `town`, `postcode`), `timezone` default `Europe/London`, `logo_url`, `accent` default `#155fba` (`^#[0-9a-f]{6}$`), `plan` (`essentials`/`pro` since P5.2, default `pro`; **changed in Phase 5, see "Plans and entitlements"**), `trial_ends_at` (default now + 14 days), `plan_chosen` (`essentials`/`pro`/null), `plan_changed_at`, `mot_enabled` bool default false, `booking_prefix` (`^[A-Z]{2,4}$`), `slot_step_min` default 15, `approve_online` bool default false, `service_area text[]`, `cancellation_cutoff_h` default 24, `sms_sender` (≤ 11 chars), `status` (`onboarding`/`active`/`suspended`/`cancelled`), `settings jsonb`, `cancelled_at` |
 | `garage_domains` | `garage_id`, `hostname` (unique, lower case), `kind` (`subdomain`/`custom`), `status` (`pending_dns`/`verifying`/`active`/`failed`), `verification jsonb`, `last_checked_at`, `error`, `deleted_at` |
 | `garage_members` | `garage_id`, `user_id → auth.users`, `role` (`owner`/`manager`/`technician`), unique (`garage_id`, `user_id`) |
 | `platform_admins` | `user_id` pk → `auth.users` |
@@ -423,3 +423,120 @@ Proxy: `/signup/*` gets the session refresh `/app` gets (no MFA rules there); th
 | `src/components/onboarding/*`, `src/components/team/*` | `OnboardingFrame`, `OnboardingProgress`, `TextField`, `Notice`, `ONBOARDING_STEPS`/`ONBOARDING_PATHS`; `InviteForm`, `ResendInviteButton`, `MemberList`, `PendingInviteList` |
 
 No background job kinds: invite emails are sent inline through `getChannel("email")`.
+
+## Plans and entitlements (Phase 5, P5.2; D17, D19; DECISIONS A300–A309)
+
+> **For the Django super admin session (P5.1, D18):** `garages.plan` changed in migration `20261029000100_plans.sql`. The check is now `plan in ('essentials','pro')` (was `trial`/`growth`/`front_desk`); existing rows were mapped `growth → essentials`, `front_desk → pro` (chosen), `trial → pro` with a fresh 14-day `trial_ends_at`. New columns: `trial_ends_at timestamptz` (null = not on trial; default `now() + 14 days`, so every new garage starts on the Pro trial), `plan_chosen text` (`essentials`/`pro`/null: what the garage chose or pays for), `plan_changed_at timestamptz`. "On trial" = `plan = 'pro' and trial_ends_at > now()`. What a garage may use now is `public.garage_effective_plan(id)` (an expired, unconverted trial is already `essentials`). Change plans through `platform_update_garage(id, plan, status, reason)` (a plan set by Vitalos counts as chosen, ends the trial and closes open plan requests); open "Request Pro" requests are in `plan_requests` (`status = 'open'`) / `platform_plan_requests()`.
+
+### Schema (`20261029000100_plans.sql`; pgTAP `028_plans`)
+
+| Object | Notes |
+| --- | --- |
+| `garage_subscriptions` (tenant, one per garage) | `provider` (`mock`/`stripe`), `customer_ref`, `subscription_ref`, `status` (`none`/`incomplete`/`trialing`/`active`/`past_due`/`unpaid`/`cancelled`), `plan`, `extra_sites` (0–100), `current_period_end`, `cancel_at_period_end`. Owners read; service role writes (`apply_billing_subscription()`) |
+| `plan_requests` (tenant) | `requested_plan`, `requested_by`, `note` (≤ 500), `status` (`open`/`done`/`withdrawn`), `handled_at`, `handled_by`; one open per garage. Owners read; written by `request_plan_change()`, `choose_essentials()`, the billing webhook and `platform_update_garage()` |
+| `usage_events` (tenant) | `metric` (`sms_segments`/`ai_minutes`), `quantity`, `period_month` (garage-local month), `occurred_at`, `source_key` (unique per garage + metric: counts once). Owners/managers read; `record_usage()` writes |
+| `billing_usage_reports` (tenant) | per `period_month` + `metric`: `plan`, `used`, `allowance`, `overage`, `status` (`recorded`/`reported`/`not_billable` while the allowance is a placeholder), `provider_ref`. Owners read; `close_usage_month()` writes |
+| `billing_webhook_events` (platform) | `event_id` pk, `provider`, `type`, `target_garage_id`, `outcome`; ids only. Service role |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `plan_feature_plan(feature) → text` | authenticated, service | `essentials`/`pro`; `22023 UNKNOWN_FEATURE` otherwise. Same list as `FEATURES` in `src/lib/plans/features.ts` (unit test compares) |
+| `garage_effective_plan(garage) → text` | service (and inside definer functions) | `essentials` for an expired trial whose `plan_chosen` isn't `pro`, else `plan` |
+| `garage_has_feature(garage, feature) → boolean` | authenticated (false for non-members), service | **Use in every Pro table's insert/update/delete policy**: `with check (garage_id = (select public.current_garage_id()) and public.garage_has_feature(garage_id, '<feature>'))`. Select policies do **not** check the plan, so Pro data stays readable (read-only) after a downgrade |
+| `require_garage_feature(garage, feature)` | authenticated, service | raises `P0001 PLAN_REQUIRED: <feature>`; call first in Pro-only SQL functions |
+| `expire_plan_trials(now) → int` | service | job `plans.expire_trials` (daily cron): `plan := coalesce(plan_chosen, 'essentials')`, trial cleared, audited `plan.trial_ended`. Deletes nothing |
+| `request_plan_change(plan, note) → plan_requests`, `choose_essentials() → jsonb` | owner of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled) | Request Pro; move to Essentials now (`BILLING_PORTAL_REQUIRED` while a Stripe subscription is live). Audited |
+| `apply_billing_subscription(garage, provider, customer_ref, subscription_ref, status, plan, period_end, extra_sites, cancel_at_period_end) → jsonb` | service | active/trialing/past_due Pro → `plan = pro`, chosen, trial over; cancelled/unpaid → Essentials (after a running trial). Audited `plan.billing_changed` |
+| `claim_billing_webhook_event(id, provider, type) → boolean`, `finish_billing_webhook_event(id, garage, outcome)` | service | once per event |
+| `record_usage(garage, metric, quantity, source_key, at) → boolean` | service | idempotent by source key; never raises for an unknown garage |
+| `garage_usage_month(month) → table(metric, quantity)` | owners/managers of the selected garage | |
+| `close_usage_month(garage, month, metric, allowance) → billing_usage_reports` | service | job `billing.close_usage` (daily cron, closes last month) |
+| `platform_plan_requests(limit)` | platform admins (AAL2) | open requests for `/admin` |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/plans/features.ts` (client-safe) | `PLANS`, `PLAN_NAMES`, `FEATURES` (key → `{plan, label, description, href?}`), `Feature`, `PRO_FEATURES`, `ESSENTIALS_FEATURES`, `isFeature`, `featurePlan`, `proFeatureForPath` |
+| `src/lib/plans/entitlements.ts` (client-safe) | `effectivePlan(state, now)`, `hasFeature(state, feature, now)`, `isOnTrial`, `trialDaysLeft`, `planLabel`, `PlanRequiredError` (403 `PLAN_REQUIRED`), `planRequiredBody(feature)`, `planRequiredMessage`, `isPlanRequiredDatabaseError(error)` |
+| `src/lib/plans/server.ts` | `garagePlan(garage)`, `garageHasFeature(garage, feature)`, `requireFeature(garage, feature)` (throws), `requireAdminFeature(admin, feature)`, `featureProblem(admin, feature)` (form-state message or null), `planRequiredResponse(feature)`, `featureGuard(garage, feature)` (route handlers: null or the 403) |
+| `src/lib/plans/config.ts` (client-safe) | `getPlansConfig(env)` (**prices and allowances are placeholders, `null` until set by env**: `PLAN_*`), `allowanceFor`, `formatPlanPrice`, `PLAN_CONFIG_ENV` |
+| `src/lib/plans/usage.ts` | `recordUsage({garageId, metric, quantity, sourceKey, at})` (service role, never throws), `loadUsageMonth(client, {plan, monthFirst})`, `usageLine` |
+| `src/lib/plans/jobs.ts` | handlers `plans.expire_trials`, `billing.close_usage` (both in the `daily` cron) |
+| `src/lib/messaging/metering.ts` | `meterSmsChannel()`: `getChannel("sms")` records `sms_segments` (source `sms:<idempotencyKey>`) after each successful send; never blocks. WhatsApp/email not metered (A303) |
+| `src/lib/billing/*` | `BillingProvider` (`startUpgrade`, `openPortal`, `setExtraSites`, `parseWebhook`), `getBillingProvider(env)` (Stripe **test mode only** when `BILLING_PROVIDER=stripe` + `sk_test_` key + `whsec_` + `STRIPE_PRICE_PRO`; else the mock), `getBillingReadiness`, `createStripeBillingProvider`, `verifyStripeSignature`, `signStripePayload`, `applyBillingEvent`, `loadSubscription` |
+| `src/components/plans/*` | `ProBadge`, `ProLockedCard({feature, canUpgrade, hasExistingData})`, `ProLockedPage({feature, title, canUpgrade})`, `PlanComparison`, `UsageMeter` |
+| `src/components/admin-ui/admin-nav.tsx` | `defaultAdminNav({…, lockedFeatures})`; **`GROW_NAV_ITEMS`** (Grow group) and **`PRO_SETUP_NAV_ITEMS`** (Setup): each Pro feature adds `{feature, label, href, icon}` when its route exists; locked items keep their link with a "Pro" badge |
+
+Routes: `/app/settings/plan` (current plan, trial days left, usage meters, Essentials vs Pro `#compare`, owners: Upgrade/Request Pro, Manage billing, Move to Essentials; actions in `settings/plan/actions.ts`), `POST /api/webhooks/billing/stripe` (signature on the raw body; 503 until configured). `/admin` lists open plan requests; `/admin/garages/[id]` shows trial, chosen plan, subscription and the open request.
+
+**How every Pro feature gates (P5.3–P5.12):** (1) pages: `if (!garageHasFeature(admin.garage, f)) return <ProLockedPage feature={f} … canUpgrade={admin.role === "owner"} hasExistingData={…} />` (reads of existing rows may still render below it); (2) server actions: `featureProblem(admin, f)` / `requireAdminFeature`; (3) `/api/admin/*` and public garage-host routes: `featureGuard(garage, f)` → 403 `{code: "PLAN_REQUIRED", feature, plan: "pro", message}`; (4) SQL: `require_garage_feature()` in functions, `garage_has_feature()` in write policies; (5) the tenancy suite covers every new table (`FIXTURES`, and `ROLE_LIMITED_READS` for role-limited select policies).
+
+## AI front desk on Pro (Phase 5, P5.12; DECISIONS A382–A389)
+
+### Schema (`supabase/migrations/20261029001200_ai_front_desk.sql`; pgTAP `038_ai_front_desk`)
+
+| Object | Notes |
+| --- | --- |
+| `agent_tokens.audience` (+) | `workforce` (default) or `askbridge`. Check: an `askbridge` token's scopes ⊆ `list_services`, `available_slots`, `garage_profile`. Existing rows: `askbridge` when their scopes were already a subset of those three, else `workforce` (A382) |
+| `agent_tokens.scopes`, `agent_call_log.tool` (checks replaced) | add `report_usage`. Existing workforce tokens holding all six P4.2 tools gain `report_usage` (A383) |
+| `ai_front_desk_settings` (tenant, one row per garage, pk `garage_id`) | `enabled`, `enabled_at`, `updated_by`, timestamps. Members of the selected garage read (no plan check, so it stays readable after a downgrade); no staff table grants: written only by `set_ai_front_desk()`; service role reads/writes |
+
+| SQL | Who | What |
+| --- | --- | --- |
+| `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash, p_audience) → jsonb` | service role | New overload. `workforce` needs Pro (`require_garage_feature(…, 'ai_front_desk')` → `P0001 PLAN_REQUIRED: ai_front_desk`). Null scopes: the six P4.2 tools for workforce (unchanged default), the three read-only tools for askbridge. Returns `audience`, never the hash. `22023` for an unknown audience |
+| `issue_agent_token(p_garage_id, p_name, p_scopes, p_token_hash) → jsonb` | service role | P4.2 signature kept; now issues `workforce` tokens through the overload (so it also needs Pro) |
+| `list_agent_tokens()` | owners/managers of the selected garage | Recreated with an extra `audience` column |
+| `set_ai_front_desk(p_enabled boolean) → jsonb` | **owner** of the selected garage (`garage_actor_allowed()`, AAL2 when enrolled; else `42501`) | Switching on needs Pro (`PLAN_REQUIRED`); off is always allowed. Upserts the row; audited `ai_front_desk.enabled` / `ai_front_desk.disabled` |
+| `ai_front_desk_hand_off(p_garage_id) → boolean` | service role | True when the garage is `active`/`onboarding`, on Pro (`garage_has_feature`) and switched on. Used by the voice webhook |
+
+No booking function is replaced (`create_booking*`, `available_slots*`, `staff_available_slots*` untouched).
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/agent-api/schemas.ts` (+) | `agentTools` gains `report_usage`; `agentTokenAudiences`, `AgentTokenAudience`, `isAgentTokenAudience`, `ASKBRIDGE_TOOLS`, `AGENT_PRO_FEATURE`; error code `PLAN_REQUIRED` (403, message = `planRequiredMessage("ai_front_desk")`); `AgentError.feature/plan`; `reportUsageInputSchema` (strict: `conversationId` `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, `channel` `call`/`whatsapp`, `minutes` 0 < m ≤ 600, `endedAt` ISO with offset), `AGENT_MAX_USAGE_MINUTES`, `AGENT_USAGE_MAX_AGE_DAYS` (31), `AgentUsageReport` |
+| `src/lib/agent-api/store.ts` (+) | `AgentTokenRecord.audience` and `.garage.plan` (`PlanState`); `AgentApiStore.recordAiMinutes({garageId, conversationId, minutes, endedAt})` → `recorded`/`replayed` (with the stored minutes)/`failed` (calls `recordUsage()`, then reads `usage_events` to tell a repeat from a failure); `aiUsageSourceKey(id)` = `ai:<id>`; `issueAgentToken({…, audience})` (default `workforce` with all seven tools; `PlanRequiredError` for an Essentials garage); `AiMinutesResult` |
+| `src/lib/agent-api/handler.ts` (+) | Pipeline: token → garage status → **plan** (workforce + not Pro → `PLAN_REQUIRED`, uses `hasFeature()` on the token's garage) → askbridge tool guard → scope → limits → body → tool. Tool `report_usage` (201 counted / 200 `replayed` / 422 `endedAt` outside the last 31 days or > 5 min ahead / 503 when it could not be stored). Rate limit 600 per 10 min per token |
+| `src/app/api/agent/v1/report_usage/route.ts` | one line, like the other tools |
+| `src/lib/ai-front-desk/hand-off.ts` (client-safe) | `AI_FRONT_DESK_ENV`, `parseWorkforceVoiceTarget`, `workforceVoiceTarget(env)` (`WORKFORCE_VOICE_SIP_URI`, `sip:`/`sips:` only), `workforceSipUri(target, {garageId, callSid})` (adds `X-Autofix-Garage`, `X-Autofix-Call-Sid` SIP headers), `WorkforceConnection`, `workforceConnectionStatus` |
+| `src/lib/ai-front-desk/server.ts` | `usageMonthFirst(garage, now)`, `loadAiFrontDeskSettings`, `listAgentTokens` (RLS client → `AgentTokenRow[]`), `workforceConnection(tokens, env)`, `loadAiMinutesThisMonth(client, garage, now)` (`loadUsageMonth()` → `.ai`) |
+| `src/lib/ai-front-desk/forms.ts` (client-safe) | `IssueTokenState`, `initialIssueTokenState`, `parseTokenName`, `TOKEN_NAME_MAX`, `AI_FRONT_DESK_MESSAGES` |
+| `src/lib/calls/twiml.ts` (+) | `VoiceStep` gains `agent`; `agentDialTwiml({sipUri, actionUrl})` (`<Dial answerOnBridge action=?step=agent><Sip>…</Sip></Dial>`) |
+| `src/lib/messaging/twilio-webhooks.ts` (+) | `TwilioWebhookRepo.aiFrontDeskHandOff?` and `.findCallId?` (optional: absent = never hand off); `TwilioWebhookDeps.workforceVoiceTarget?`; hook `aiFrontDeskTarget()`; new step handler for `?step=agent` |
+| `src/lib/messaging/twilio-webhook-repository.ts` (+) | `aiFrontDeskHandOff` (rpc `ai_front_desk_hand_off`), `findCallId` |
+| `src/components/admin-ui/admin-nav.tsx` (+) | `PRO_SETUP_NAV_ITEMS` entry `{feature: "ai_front_desk", label: "AI front desk", href: "/app/settings/ai-front-desk", icon: Headset}` |
+
+Voice flow additions (`POST /api/webhooks/twilio/voice`):
+
+| Request | Event key | Writes | Answer |
+| --- | --- | --- | --- |
+| incoming call, no own phone to ring (or our forward came back), **hand-off on** | `voice:<CallSid>:<status>` | `calls` row `missed = true`; **no** `calls.text_back` | `<Dial timeout=20 answerOnBridge action=?step=agent><Sip>$WORKFORCE_VOICE_SIP_URI?X-Autofix-Garage=<garage id>&X-Autofix-Call-Sid=<CallSid></Sip></Dial>`; outcome `call_ai_front_desk` |
+| `?step=dial` missed (busy/no-answer/failed/canceled), **hand-off on** | `voice:<CallSid>:dial` | `dial_status`, `missed = true`; no text-back | the same `<Sip>` dial; outcome `dial_missed_ai_front_desk` |
+| `?step=agent` (`DialCallStatus` of the Workforce leg) | `voice:<CallSid>:agent` | missed statuses: `calls.text_back` queued (by CallSid → call id) | missed: the voicemail TwiML (`agent_missed`); answered: `<Hangup/>` (`agent_answered`) |
+
+"Hand-off on" = `WORKFORCE_VOICE_SIP_URI` valid **and** `ai_front_desk_hand_off(garage)`; if the check throws, the Essentials flow runs (a call is never lost to it). The garage's own phone is still rung first.
+
+**WhatsApp**: no hand-off in code. The hook point is `inbound()` in `src/lib/messaging/twilio-webhooks.ts`, after the inbound WhatsApp message is stored: for a garage where `ai_front_desk_hand_off()` is true, queue a job that forwards the stored message to Workforce's WhatsApp endpoint (signed, like the Askbridge sync), and Workforce replies through the agent API / messages pipeline. Not built until Workforce publishes that endpoint (Waiting on Temitope). Until then WhatsApp behaves as today on every plan; Workforce still reports any WhatsApp minutes with `report_usage` (`channel: whatsapp`).
+
+Routes:
+
+| Route | Who | What |
+| --- | --- | --- |
+| `POST /api/agent/v1/report_usage` | Workforce (`workforce` token with the `report_usage` scope, garage on Pro) | `{conversationId, channel, minutes, endedAt}` → `{usage: {conversationId, channel, minutes, replayed}}` |
+| `/app/settings/ai-front-desk` | members (read); owner (switch); owners/managers (tokens, minutes) | Pro: switch (`Switch` submits `setAiFrontDeskAction`), Workforce connection (`Calls` ready or waiting, token status, last used), Tokens for Workforce (`IssueTokenForm` → `issueWorkforceTokenAction`, raw token shown once with Copy; list with audience + Live/Revoked; `revokeAgentTokenAction`), This month (`UsageMeter` for `ai_minutes`, link to Plan). Essentials: `ProLockedPage` + "Missed calls still get a text back and can leave a voicemail on Essentials." |
+
+Server actions (`settings/ai-front-desk/actions.ts`, all through `requireSetupContext()` so MFA is done this session; the garage is the selected garage):
+
+| Action | Who | Gate | Audit |
+| --- | --- | --- | --- |
+| `setAiFrontDeskAction(formData)` | owner | on: `featureProblem(admin, "ai_front_desk")` then `set_ai_front_desk()` (Pro in SQL); off: always | in SQL |
+| `issueWorkforceTokenAction(state, formData)` | owners, managers | `featureProblem` + SQL `PLAN_REQUIRED`; name 1–80 chars | `agent_token.issued` (id, name, audience; never the token) |
+| `revokeAgentTokenAction(formData)` | owners, managers | none (revoking works on any plan) | `agent_token.revoked` |
+
+No agent-token UI existed before (tokens were issued only by Vitalos with the service role), so this page is the token UI. Askbridge tokens, if any, are listed there too with an "Askbridge chat" badge; the page only issues Workforce tokens.
+
+Jobs: none new (the existing `calls.text_back` is reused; `billing.close_usage` closes AI minutes as before).
+
+Env: `WORKFORCE_VOICE_SIP_URI` (server only, `.env.example` under `# P5.12`). `playwright.garage.config.ts` passes a local-only `AGENT_TOKEN_PEPPER` to the production server so the e2e can issue tokens.

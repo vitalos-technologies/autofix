@@ -86,10 +86,10 @@ describe("platform access", () => {
 
   it("changes plan and status with a reason, visible in the garage's audit log", async () => {
     const { data, error } = await as(platformAdmin).rpc("platform_update_garage", {
-      p_garage_id: garageB.id, p_plan: "front_desk", p_status: "suspended", p_reason: "Integration check",
+      p_garage_id: garageB.id, p_plan: "pro", p_status: "suspended", p_reason: "Integration check",
     });
     expect(error).toBeNull();
-    expect(data).toMatchObject({ plan: "front_desk", status: "suspended" });
+    expect(data).toMatchObject({ plan: "pro", status: "suspended" });
     const { data: audit } = await service.from("admin_audit_log").select("action,detail").eq("garage_id", garageB.id).like("action", "platform.%");
     expect(audit?.map((row) => row.action).sort()).toEqual(["platform.garage_plan_changed", "platform.garage_status_changed"]);
   });

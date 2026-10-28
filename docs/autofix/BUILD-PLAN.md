@@ -111,6 +111,28 @@ Gate 4: **first garage live on its own domain**: `book.<garage>.co.uk` serves it
 | [x] P4.9 | api | Wire legal copy: privacy notice per garage (from `docs/autofix/legal/`), consent wording in Book 4, unsubscribe page, DPA acceptance at garage sign-up | Copy matches the reviewed drafts — done `5b0fd8b`. `/privacy`, `/unsubscribe`, `/unsubscribe/[token]` on garage hosts; `/app/settings/agreements`; migration `20261028000300_dpa_acceptance.sql` (`garage_agreements`, `opt_out_customer()`, `resume_customer_reminders()`); copy-equality tests, pgTAP 017, `tests/e2e/legal.spec.ts`. Drafts still await solicitor review (pages flag it); DECISIONS A69–A73 |
 | [x] P4.8 | api | Launch checklist in `docs/autofix/LAUNCH.md`: env vars set in Vercel, domains attached, crons, Supabase backups, Sentry, DPA/privacy copy, first garage data import | Checklist ready for Temitope — done `5b0fd8b`: [LAUNCH.md](LAUNCH.md) |
 
+## Phase 5 · Essentials and Pro (D17, D19)
+
+Two plans approved by Temitope on 28 Oct 2026: **Essentials** (run the garage: everything Autofix did before Phase 5 except the AI front desk) and **Pro** (grow the garage). New garages get a 14-day Pro trial. Prices and allowances are placeholders until Temitope sets them. P5.1 (Django super admin, D18) is built in another session on `phase-5/p5.1-django-superadmin`. Migrations `20261029000100` (P5.2) to `20261029001200` (P5.12), pgTAP `028`–`038`.
+
+Gate 5: the full Playwright suite plus a journey per new feature, axe on every new screen at 390 and 1440, the tenancy suite and pgTAP, Lighthouse on booking routes ≥ 90 performance / 100 accessibility, `pnpm verify` green, and screenshots of every new screen in `docs/autofix/screenshots/phase-5/`.
+
+| ID | Lane | Task | Done when |
+| --- | --- | --- | --- |
+| [ ] P5.1 | api | Django super admin in `superadmin/` (other session, D18) | Its own PR |
+| [x] P5.2 | data, api, ui | Plans, entitlements and billing: `plan in ('essentials','pro')` + `trial_ends_at`/`plan_chosen`, existing rows mapped, `plans.expire_trials` job; `src/lib/plans` (`FEATURES`, `hasFeature`, `requireFeature`) + SQL `garage_has_feature()`; every plan reference updated; Settings → Plan (trial, comparison, usage, upgrade/downgrade, locked states); billing interface (Stripe test mode + mock "Request Pro"); SMS/AI usage metering with overage | pgTAP 028, unit tests, tenancy suite, e2e upgrade/downgrade/locked/trial expiry — done `918276b`, `6b82a96`, `233487d` (PR #10, merged `86ddb1c` with CI green: pgTAP 028 51/51, tenancy 2715/2715, `p5-plans` 5/5) |
+| [ ] P5.3 | data, api, ui | Digital health checks: RAG checklist with photos/video (Storage, per-garage paths, signed URLs), customer approval page on the garage host (signed token, no registration), approved items into the booking and invoice | pgTAP, tenancy, Playwright journey + axe |
+| [ ] P5.4 | api, integrations | Payments (Stripe Connect test mode behind an interface): deposits at booking per service, pay-by-link invoices, no-show fees; status on invoices and bookings; bookings still only through `create_booking()` | pgTAP, unit, Playwright journey |
+| [ ] P5.5 | api, ui | Campaigns: segment builder (car age, MOT month, last visit, service history), template, schedule, preview, send through the messaging pipeline to opted-in customers only (STOP, quiet hours); bookings won | pgTAP, unit, Playwright journey |
+| [ ] P5.6 | data, ui | Advanced reports + CSV exports: revenue by service and technician, bay utilisation, hours sold vs worked, reminder and campaign ROI | pgTAP, unit, Playwright journey |
+| [ ] P5.7 | data, ui | Fleet and trade accounts: business customer with many vehicles, monthly account statement, fleet bookings | pgTAP, tenancy, Playwright journey |
+| [ ] P5.8 | data, ui | Courtesy cars as bookable resources with jobs; collection/delivery slots via the mobile/van location mode | pgTAP incl. no double booking of a car, Playwright journey |
+| [ ] P5.9 | api, ui | Multi-site: one login across garages, group overview and reports, add a site, extra-site charge through billing; tenancy unchanged | tenancy, Playwright journey |
+| [ ] P5.10 | integrations | Accounting sync: provider interface (Xero first, then QuickBooks, Sage), invoices and payments, OAuth connect/disconnect in Settings; fake provider + contract tests until sandbox apps exist | contract tests, Playwright journey |
+| [ ] P5.11 | data, api, ui | Customer service plans: garage-defined plans, sign-up on the garage host, Direct Debit (Stripe BACS test mode behind an interface), benefits at booking and invoicing | pgTAP, tenancy, Playwright journey |
+| [x] P5.12 | api | AI front desk on Pro: gate the Workforce/agent hand-off and the agent tool API, minutes metering, allowance on the Plan page; Essentials keeps missed-call text-back | contract tests, unit — done `c1f5b8b`…`302c3dc`: token audience (Askbridge read-only stays Essentials), 403 `PLAN_REQUIRED` for Workforce tokens on Essentials, `report_usage` tool, voice hand-off hook (SIP, `WORKFORCE_VOICE_SIP_URI`), `/app/settings/ai-front-desk`; pgTAP 038 36/36, contract 43, e2e `p5-ai-front-desk` 2/2. WhatsApp hand-off waits on Workforce's contract |
+| [ ] P5.13 | qa | Gate 5 | **Gate 5** green |
+
 ---
 
 ## Definition of done (every task)
