@@ -15,13 +15,18 @@ const checkClass = "m-0 mt-px size-5 shrink-0 cursor-pointer accent-accent focus
  * when the service offers it). Inside the details form, so they post with Confirm booking.
  */
 export function BookingExtrasFields({ offered, errors }: { offered: BookingExtrasOptions; errors?: { postcode?: string; address?: string } }) {
+  // React resets the form after each action response (form.reset()), which puts every field back to
+  // its default. The defaults follow what the customer chose, so fixing the postcode loses nothing.
+  const [courtesy, setCourtesy] = useState(false);
   const [collect, setCollect] = useState(Boolean(errors?.postcode || errors?.address));
+  const [address, setAddress] = useState("");
+  const [postcode, setPostcode] = useState("");
   return (
     <fieldset className="m-0 flex min-w-0 flex-col gap-2.5 border-0 p-0">
       <legend className="mb-1 p-0 text-[14px] font-semibold text-grey-800">Extras</legend>
       {offered.courtesy ? (
         <label className={boxClass}>
-          <input type="checkbox" name="courtesyCar" value="yes" className={checkClass} />
+          <input type="checkbox" name="courtesyCar" value="yes" defaultChecked={courtesy} onChange={(event) => setCourtesy(event.target.checked)} className={checkClass} />
           <span className="flex flex-col gap-0.5">
             <span className="text-[14.5px] font-semibold text-navy-950">I&apos;d like a courtesy car</span>
             <span className="text-[13px] leading-[1.45] text-grey-700">One is free that day. The garage confirms it with you; it isn&apos;t booked until they do.</span>
@@ -35,7 +40,7 @@ export function BookingExtrasFields({ offered, errors }: { offered: BookingExtra
               type="checkbox"
               name="collectionDelivery"
               value="yes"
-              checked={collect}
+              defaultChecked={collect}
               onChange={(event) => setCollect(event.target.checked)}
               aria-controls="collection-fields"
               className={checkClass}
@@ -52,6 +57,8 @@ export function BookingExtrasFields({ offered, errors }: { offered: BookingExtra
               label="Address to collect from"
               autoComplete="street-address"
               maxLength={300}
+              defaultValue={address}
+              onChange={(event) => setAddress(event.target.value)}
               error={errors?.address}
               disabled={!collect}
             />
@@ -62,6 +69,8 @@ export function BookingExtrasFields({ offered, errors }: { offered: BookingExtra
               autoComplete="postal-code"
               autoCapitalize="characters"
               maxLength={10}
+              defaultValue={postcode}
+              onChange={(event) => setPostcode(event.target.value)}
               error={errors?.postcode}
               disabled={!collect}
               className="max-w-[200px]"
