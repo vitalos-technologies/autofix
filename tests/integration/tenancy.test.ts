@@ -416,6 +416,15 @@ const FIXTURES: Record<string, Fixture> = {
     }),
     patch: { status: "failed" },
   },
+  // P5.6: written only by assign_booking_technician(); staff have no update grant, so the probe is refused.
+  booking_assignments: {
+    create: async (rows) => rows.insert("booking_assignments", {
+      booking_id: await rows.booking(),
+      technician_id: rows.ownerId,
+      technician_name: `Tenancy technician ${rows.key}`,
+    }),
+    patch: { technician_name: "Tampered" },
+  },
   booking_events: {
     create: async (rows) => rows.insert("booking_events", {
       booking_id: await rows.booking(),
