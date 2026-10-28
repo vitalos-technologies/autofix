@@ -1,0 +1,208 @@
+"""Changes to Autofix, and the audited actions around Autofix data. Views call these, never the DB.
+
+Every change goes through a platform SQL function (``db.call_platform_function``), which re-checks
+the platform admin, validates the input and writes Autofix's own audit logs. Here we add what the
+super admin owns: the role check, a verified second factor, a linked platform admin, a reason, and
+our own append-only audit event. Nothing writes to Autofix tables directly, and nothing here touches
+bookings (bookings are created only through Autofix's ``create_booking()``).
+"""
+
+import uuid
+from dataclasses import dataclass
+
+from django.conf import settings
+from django.core.exceptions import PermissionDenied, ValidationError
+
+from apps.accounts.roles import can_change_autofix, can_support
+from apps.audit.services import record
+
+from . import db
+from . import plans as plan_rules
+from .models import GARAGE_STATUSES, Garage, GarageDomain, Job
+from .redact import clean_reason
+
+REASON_HELP = "Give a reason of 5 to 500 characters. It is logged and shown to the garage's owners."
+FRIENDLY_ERRORS = {
+    "PLATFORM_ADMIN_REQUIRED": "Autofix did not accept your linked platform admin. Check the link in Settings → Users.",
+    "INVALID_REASON": REASON_HELP,
+    "GARAGE_NOT_FOUND": "That garage could not be found.",
+    "NOTHING_TO_CHANGE": "Choose a different plan or status.",
+    "INVALID_PLAN": "Choose a plan.",
+    "INVALID_STATUS": "Choose a status.",
+    "DOMAIN_NOT_FOUND": "That domain could not be found.",
+    "DOMAIN_NOT_CHECKABLE": "Only custom domains waiting for DNS or verification can be re-checked.",
+    "NOT_CONFIGURED": "Autofix data is not connected.",
+}
+
+
+@dataclass(frozen=True)
+class Outcome:
+    ok: bool
+    message: str
+    detail: dict | None = None
+
+
+def _require_writer(request) -> uuid.UUID:
+    """SuperAdmin, verified with TOTP in this session, linked to an Autofix platform admin."""
+    user = request.user
+    if not can_change_autofix(user):
+        raise PermissionDenied
+    is_verified = getattr(user, "is_verified", None)
+    if not (is_verified and is_verified()):
+        raise PermissionDenied
+    if not user.autofix_admin_id:
+        raise ValidationError(
+            "Your account is not linked to an Autofix platform admin, so Autofix is read-only for you. "
+            "A SuperAdmin can link it in Settings → Users."
+        )
+    return user.autofix_admin_id
+
+
+def _reason(value) -> str:
+    reason = clean_reason(value)
+    if reason is None:
+        raise ValidationError(REASON_HELP)
+    return reason
+
+
+def _friendly(error: db.PlatformError) -> str:
+    return FRIENDLY_ERRORS.get(error.code, "Autofix refused the change. Nothing was changed.")
+
+
+def _update_garage(garage: Garage, plan: str | None, status: str | None, reason: str, actor):
+    """``platform_update_garage`` with the D17 plan name, or its old name if the database predates D17."""
+    args = [str(garage.pk), plan, status, reason]
+    try:
+        return db.call_platform_function("platform_update_garage", args, actor_id=actor)
+    except db.PlatformError as error:
+        if error.code != "INVALID_PLAN" or plan not in plan_rules.LEGACY:
+            raise
+    args[1] = plan_rules.LEGACY[plan]
+    return db.call_platform_function("platform_update_garage", args, actor_id=actor)
+
+
+def change_plan_status(request, garage: Garage, *, plan: str | None, status: str, reason) -> Outcome:
+    """Plan and/or status through ``platform_update_garage`` (one audit entry per change in Autofix)."""
+    actor = _require_writer(request)
+    reason = _reason(reason)
+    statuses = dict(GARAGE_STATUSES)
+    # plan=None keeps the plan as it is (bulk status changes never touch plans or trials).
+    if (plan is not None and plan not in plan_rules.LABELS) or status not in statuses:
+        raise ValidationError("Choose a plan and a status.")
+    new_plan = None if plan is None or plan_rules.same_plan(garage, plan) else plan
+    new_status = status if status != garage.status else None
+    if new_plan is None and new_status is None:
+        raise ValidationError(FRIENDLY_ERRORS["NOTHING_TO_CHANGE"])
+    try:
+        result = _update_garage(garage, new_plan, new_status, reason, actor)
+    except db.PlatformError as error:
+        record(
+            "autofix.garage_update_refused",
+            request=request,
+            entity_type="autofix.garage",
+            entity_id=str(garage.pk),
+            summary=f"{garage.name}: refused ({error.code})",
+            code=error.code,
+        )
+        return Outcome(False, _friendly(error))
+    changes = []
+    if new_plan:
+        changes.append(f"plan {garage.plan_label} → {plan_rules.LABELS[new_plan]}")
+    if new_status:
+        changes.append(f"status {statuses[garage.status]} → {statuses[new_status]}")
+    record(
+        "autofix.garage_updated",
+        request=request,
+        entity_type="autofix.garage",
+        entity_id=str(garage.pk),
+        summary=f"{garage.name}: {', '.join(changes)}",
+        reason=reason,
+        plan=new_plan,
+        status=new_status,
+        autofix_admin=str(actor),
+    )
+    return Outcome(True, f"Saved: {', '.join(changes)}. The change is in the garage's audit log.", result)
+
+
+def retry_job(request, job: Job, reason) -> Outcome:
+    actor = _require_writer(request)
+    reason = _reason(reason)
+    if job.status != "failed":
+        return Outcome(False, "Only failed jobs can be retried. It may have been retried already.")
+    try:
+        retried = db.call_platform_function("platform_retry_job", [str(job.pk), reason], actor_id=actor)
+    except db.PlatformError as error:
+        return Outcome(False, _friendly(error))
+    if not retried:
+        return Outcome(False, "Only failed jobs can be retried. It may have been retried already.")
+    record(
+        "autofix.job_retried",
+        request=request,
+        entity_type="autofix.job",
+        entity_id=str(job.pk),
+        summary=f"{job.kind} queued again",
+        reason=reason,
+        kind=job.kind,
+        autofix_admin=str(actor),
+    )
+    return Outcome(True, "Queued again with fresh attempts.")
+
+
+def request_domain_check(request, domain: GarageDomain, reason) -> Outcome:
+    actor = _require_writer(request)
+    reason = _reason(reason)
+    if not domain.checkable:
+        return Outcome(False, FRIENDLY_ERRORS["DOMAIN_NOT_CHECKABLE"])
+    try:
+        result = db.call_platform_function(
+            "platform_request_domains_check", [str(domain.pk), reason], actor_id=actor
+        )
+    except db.PlatformError as error:
+        return Outcome(False, _friendly(error))
+    record(
+        "autofix.domain_check_requested",
+        request=request,
+        entity_type="autofix.garage_domain",
+        entity_id=str(domain.pk),
+        summary=f"{domain.hostname} ({domain.garage.name})",
+        reason=reason,
+        autofix_admin=str(actor),
+    )
+    return Outcome(True, "Re-check queued. Autofix checks the domain within 5 minutes.", result)
+
+
+def view_as_support(request, garage: Garage, reason) -> str:
+    """The audited hand-off to Autofix's own read-only impersonation. Returns where to go.
+
+    The session itself starts in Autofix (/admin/garages/<id>), under the admin's own Autofix sign-in
+    and MFA, where Autofix records it again. Nothing is passed but the garage's id: no token, no
+    session, no personal data (ADR-044 "Open" pattern).
+    """
+    if not can_support(request.user):
+        raise PermissionDenied
+    reason = _reason(reason)
+    destination = f"{settings.AUTOFIX_APP_URL}/admin/garages/{garage.pk}"
+    record(
+        "autofix.view_as_support",
+        request=request,
+        entity_type="autofix.garage",
+        entity_id=str(garage.pk),
+        summary=f"{garage.name}",
+        reason=reason,
+        destination=destination,
+    )
+    return destination
+
+
+def record_personal_data_view(request, garage: Garage, what: str, rows: int) -> None:
+    if not can_support(request.user):
+        raise PermissionDenied
+    record(
+        "autofix.personal_data_viewed",
+        request=request,
+        entity_type="autofix.garage",
+        entity_id=str(garage.pk),
+        summary=f"{garage.name}: {what} ({rows} rows)",
+        what=what,
+        rows=rows,
+    )

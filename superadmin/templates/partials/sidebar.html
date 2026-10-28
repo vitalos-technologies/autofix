@@ -1,0 +1,108 @@
+{% load static ui %}
+<aside id="sidebar" class="sidebar" aria-label="Primary">
+  <div class="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-4 md:collapsed:justify-center md:collapsed:px-0">
+    <a href="{% url 'core:overview' %}" class="flex min-h-11 items-center gap-2 rounded-sm" data-testid="brand" aria-label="Autofix by Vitalos, Super Admin overview">
+      <span aria-hidden="true" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-plate text-plate-ink">{% icon "wrench" "h-[18px] w-[18px]" %}</span>
+      <span class="md:collapsed:hidden" aria-hidden="true">
+        <span class="block font-display text-[22px] leading-none font-bold tracking-[0.01em] text-white">Autofix</span>
+        <span class="block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-300">by Vitalos</span>
+      </span>
+    </a>
+    <span class="env-badge ml-auto md:collapsed:hidden {% if app_environment == 'production' %}bg-mineral/15 text-mineral-300{% elif app_environment == 'staging' %}bg-amber-400/15 text-amber-200{% else %}bg-white/10 text-slate-300{% endif %}" data-testid="env-badge">{{ environment_label }}</span>
+    <button type="button" class="btn ml-1 p-1 text-slate-300 hover:bg-white/6 hover:text-white md:hidden" data-sidebar-close aria-label="Close navigation">{% icon "x" "h-5 w-5" %}</button>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto px-2 pb-4 md:collapsed:overflow-visible md:collapsed:px-1.5" aria-label="Main">
+    {% for group in nav_groups %}
+      <p class="sidebar-group-label" id="nav-group-{{ forloop.counter }}">{{ group.label }}</p>
+      <ul class="space-y-0.5" aria-labelledby="nav-group-{{ forloop.counter }}">
+        {% for entry in group.items %}
+          <li>
+            {% if entry.children %}
+              {# A dropdown (Mail). Open by default; the collapsed rail always shows the children as icons. #}
+              <button type="button" class="nav-item w-full md:collapsed:hidden" aria-expanded="true" aria-controls="nav-sub-{{ entry.item.key }}" data-nav-toggle data-nav-parent="{{ entry.item.key }}">
+                {% icon entry.item.icon "h-[18px] w-[18px] shrink-0" %}
+                <span class="nav-label">{{ entry.item.label }}</span>
+                <span class="nav-chevron ml-auto" aria-hidden="true">{% icon "down" "h-4 w-4" %}</span>
+              </button>
+              <ul id="nav-sub-{{ entry.item.key }}" class="nav-sub space-y-0.5" aria-label="{{ entry.item.label }}">
+                {% for child in entry.children %}
+                  <li>
+                    <a href="{{ child.url }}" class="nav-item nav-child" {% if child.active %}aria-current="page"{% endif %} data-nav="{{ child.item.key }}">
+                      {% icon child.item.icon "h-[18px] w-[18px] shrink-0" %}
+                      <span class="nav-label">{{ child.item.label }}</span>
+                      <span class="nav-tip" aria-hidden="true">{{ entry.item.label }}: {{ child.item.label }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <a href="{{ entry.url }}" class="nav-item" {% if entry.active %}aria-current="page"{% endif %} data-nav="{{ entry.item.key }}">
+                {% icon entry.item.icon "h-[18px] w-[18px] shrink-0" %}
+                <span class="nav-label">{{ entry.item.label }}</span>
+                {% if entry.item.key == "notifications" %}
+                  <span hx-get="{% url 'notifications:badge' %}?nav=1" hx-trigger="load, every 60s" hx-swap="innerHTML" class="contents" data-testid="notifications-badge-slot"></span>
+                {% endif %}
+                <span class="nav-tip" aria-hidden="true">{{ entry.item.label }}</span>
+              </a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  </nav>
+
+  <div class="shrink-0 space-y-0.5 border-t border-white/10 p-2 md:collapsed:px-1.5">
+    <a href="{% url 'core:help' %}" class="nav-item" {% if request.path == '/help/' %}aria-current="page"{% endif %}>
+      {% icon "life-buoy" "h-[18px] w-[18px] shrink-0" %}<span class="nav-label">Help &amp; docs</span><span class="nav-tip" aria-hidden="true">Help &amp; docs</span>
+    </a>
+    <button type="button" class="nav-item w-full" data-theme-toggle data-testid="theme-toggle" aria-describedby="theme-current">
+      {% icon "sun-moon" "h-[18px] w-[18px] shrink-0" %}<span class="nav-label">Theme: <span id="theme-current" data-theme-label>{{ theme|capfirst }}</span></span><span class="nav-tip" aria-hidden="true">Theme</span>
+    </button>
+    <button type="button" class="nav-item hidden w-full md:flex" data-sidebar-toggle aria-controls="sidebar" aria-expanded="{% if sidebar_collapsed %}false{% else %}true{% endif %}" aria-keyshortcuts="Control+B Meta+B" data-testid="sidebar-toggle">
+      {% icon "panel-left" "h-[18px] w-[18px] shrink-0" %}<span class="nav-label">{% if sidebar_collapsed %}Expand sidebar{% else %}Collapse sidebar{% endif %}</span><span class="nav-tip" aria-hidden="true">Expand sidebar (Ctrl+B)</span>
+    </button>
+
+    <details class="relative" data-menu>
+      <summary class="nav-item cursor-pointer list-none" aria-label="Account menu for {{ user.email }}" data-testid="user-menu">
+        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-plate text-xs font-semibold text-plate-ink">{{ user_initials }}</span>
+        <span class="nav-label min-w-0 text-left">
+          <span class="block truncate text-[13px] text-white">{{ user.email }}</span>
+          <span class="block truncate text-[11px] text-slate-300">{{ role_label }}</span>
+        </span>
+      </summary>
+      <div class="card absolute bottom-full left-0 z-[60] mb-2 w-72 p-2 text-sm text-slate-900 dark:text-slate-100 md:collapsed:left-full md:collapsed:bottom-0 md:collapsed:ml-2">
+        <div class="border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+          <p class="truncate font-medium">{{ user.get_full_name }}</p>
+          <p class="muted truncate text-xs">{{ user.email }}</p>
+          <p class="mt-1 text-xs font-medium">{{ role_label }}</p>
+          <dl class="muted mt-2 space-y-0.5 text-xs">
+            <div class="flex gap-1"><dt>Last sign-in:</dt><dd data-testid="last-sign-in">{% if previous_sign_in %}{{ previous_sign_in.created_at|date:"j M Y, H:i" }}{% if previous_sign_in.ip %} from {{ previous_sign_in.ip }}{% endif %}{% else %}First session{% endif %}</dd></div>
+            <div class="flex gap-1"><dt>Two-factor:</dt><dd>{% if mfa_enabled %}On (authenticator app){% else %}Off{% endif %}</dd></div>
+            <div class="flex gap-1"><dt>Autofix changes:</dt><dd>{% if user.autofix_admin_id %}Linked{% else %}Read-only{% endif %}</dd></div>
+          </dl>
+        </div>
+        <a class="flex min-h-11 items-center rounded px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'accounts:account' %}">Account &amp; security</a>
+        <a class="flex min-h-11 items-center rounded px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'notifications:list' %}">Notifications</a>
+        <a class="flex min-h-11 items-center rounded px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'api:docs' %}">API docs</a>
+        {% if user.is_superuser %}<a class="flex min-h-11 items-center rounded px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'admin:index' %}">Django admin</a>{% endif %}
+        <form method="post" action="{% url 'accounts:logout' %}" class="border-t border-slate-200 pt-1 dark:border-slate-800" data-logout-form>
+          {% csrf_token %}
+          <button type="submit" class="flex min-h-11 w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800" data-confirm-logout aria-haspopup="dialog" aria-controls="logout-dialog">{% icon "logout" "h-4 w-4" %} Sign out</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</aside>
+{# Sign-out confirmation. Without JS the Sign out button submits its POST form directly. #}
+<dialog id="logout-dialog" class="logout-dialog card w-full max-w-sm p-6 text-slate-900 dark:text-slate-100" aria-labelledby="logout-title" data-testid="logout-dialog">
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <h2 id="logout-title" class="text-2xl">Sign out of Autofix Super Admin?</h2>
+    <p class="muted mt-2 text-sm">You will need to sign in again to continue.</p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button type="button" class="btn btn-ghost" data-close-logout autofocus>Cancel</button>
+      <button type="submit" class="btn btn-primary" data-testid="logout-confirm">Sign out</button>
+    </div>
+  </form>
+</dialog>

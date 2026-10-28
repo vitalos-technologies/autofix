@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Jobs · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Jobs</h1>
+  <p class="muted mt-1 text-sm">Autofix's Postgres job queue: reminders, domain checks, MOT refreshes and more. Payloads are never shown; errors are masked.</p>
+  <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="kpi" data-testid="kpi-queued"><p class="kpi-label">Queued</p><p class="kpi-value">{{ health.totals.queued }}</p><p class="kpi-time">{% if health.oldest_queued_at %}Oldest due {{ health.oldest_queued_at|date:"j M H:i" }}{% else %}Nothing waiting{% endif %}</p></div>
+    <div class="kpi"><p class="kpi-label">Running</p><p class="kpi-value">{{ health.totals.running }}</p><p class="kpi-time">{{ health.expired|length }} with an expired lock</p></div>
+    <div class="kpi" data-testid="kpi-failed"><p class="kpi-label">Failed</p><p class="kpi-value">{{ health.totals.failed }}</p><p class="kpi-time">Waiting for a retry</p></div>
+    <div class="kpi"><p class="kpi-label">Done</p><p class="kpi-value">{{ health.totals.done }}</p><p class="kpi-time">All time</p></div>
+  </div>
+
+  <section class="card mt-6 overflow-x-auto" tabindex="0" aria-labelledby="failures-heading">
+    <h2 id="failures-heading" class="px-4 pt-4 text-xl">Recent failures</h2>
+    {% if can_retry %}<p class="muted px-4 text-xs">Retry puts the job back in the queue now with fresh attempts, through Autofix's platform_retry_job. Give a reason; it is logged.</p>{% endif %}
+    <table class="table-base mt-2" data-testid="failures-table">
+      <caption class="sr-only">The 20 latest failed jobs</caption>
+      <thead><tr><th scope="col">Job</th><th scope="col">Garage</th><th scope="col">Attempts</th><th scope="col">Failed</th><th scope="col">Error</th>{% if can_retry %}<th scope="col">Retry</th>{% endif %}</tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for failure in health.failures %}
+          <tr>
+            <td class="font-mono text-xs">{{ failure.job.kind }}</td>
+            <td>{% if failure.job.garage_id %}<a class="text-link hover:underline" href="{% url 'autofix:garage' failure.job.garage_id %}">{{ failure.job.garage.name }}</a>{% else %}<span class="muted">Platform</span>{% endif %}</td>
+            <td class="tabular-nums">{{ failure.job.attempts }} / {{ failure.job.max_attempts }}</td>
+            <td class="whitespace-nowrap text-xs">{{ failure.job.finished_at|date:"j M H:i" }}</td>
+            <td class="max-w-md text-xs break-words">{{ failure.error|default:"—" }}</td>
+            {% if can_retry %}
+              <td>
+                <form method="post" action="{% url 'autofix:job_retry' failure.job.pk %}" class="flex flex-wrap items-center gap-2">
+                  {% csrf_token %}
+                  <label class="sr-only" for="retry-{{ failure.job.pk }}">Reason for retrying {{ failure.job.kind }}</label>
+                  <input id="retry-{{ failure.job.pk }}" name="reason" required minlength="5" maxlength="500" placeholder="Reason" class="input-sm">
+                  {% include "partials/step_up_inline.html" with id=failure.job.pk %}
+                  <button type="submit" class="btn btn-secondary btn-sm">Retry</button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}<tr><td colspan="6" class="muted py-6 text-center">No failed jobs.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <div class="mt-6 grid gap-6 lg:grid-cols-2">
+    <section class="card overflow-x-auto" tabindex="0" aria-labelledby="kinds-heading">
+      <h2 id="kinds-heading" class="px-4 pt-4 text-xl">By kind</h2>
+      <table class="table-base mt-2">
+        <caption class="sr-only">Jobs by kind and status</caption>
+        <thead><tr><th scope="col">Kind</th><th scope="col" class="text-right">Queued</th><th scope="col" class="text-right">Running</th><th scope="col" class="text-right">Failed</th><th scope="col" class="text-right">Done</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for kind, counts in health.kinds %}<tr><td class="font-mono text-xs">{{ kind }}</td><td class="text-right tabular-nums">{{ counts.queued }}</td><td class="text-right tabular-nums">{{ counts.running }}</td><td class="text-right tabular-nums">{{ counts.failed }}</td><td class="text-right tabular-nums">{{ counts.done }}</td></tr>
+          {% empty %}<tr><td colspan="5" class="muted py-6 text-center">No jobs yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section class="card overflow-x-auto" tabindex="0" aria-labelledby="reminders-heading">
+      <h2 id="reminders-heading" class="px-4 pt-4 text-xl">Reminders skipped or failed, 7 days</h2>
+      <table class="table-base mt-2">
+        <caption class="sr-only">Reminder sends skipped or failed per garage</caption>
+        <thead><tr><th scope="col">Garage</th><th scope="col" class="text-right">Skipped</th><th scope="col" class="text-right">Failed</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for row in health.reminder_problems %}<tr><td><a class="text-link hover:underline" href="{% url 'autofix:garage' row.garage_id %}?tab=messaging">{{ row.garage__name }}</a></td><td class="text-right tabular-nums">{{ row.skipped }}</td><td class="text-right tabular-nums">{{ row.failed }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="muted py-6 text-center">None.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+{% endblock %}

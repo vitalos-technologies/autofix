@@ -1,0 +1,8 @@
+# Development, test and audit tooling. Pin with: uv pip compile requirements-dev.in -o requirements-dev.txt --python-version 3.12
+-c requirements.txt
+pytest
+pytest-django
+pip-audit
+bandit
+ruff
+playwright==1.63.0  # Chromium build 1194, the browser preinstalled in the build image

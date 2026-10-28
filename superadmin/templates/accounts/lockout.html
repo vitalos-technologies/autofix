@@ -1,0 +1,7 @@
+{% extends "accounts/auth_base.html" %}
+{% block title %}Temporarily locked · Autofix Super Admin{% endblock %}
+{% block auth_body %}
+  <h1 class="mb-2 text-xl font-semibold">Too many failed attempts</h1>
+  <p class="muted text-sm">Sign-in for this account from your network is locked for a while. Wait and try again, or ask a SuperAdmin to help.</p>
+  <a href="{% url 'accounts:login' %}" class="btn btn-secondary mt-6 w-full">Back to sign in</a>
+{% endblock %}

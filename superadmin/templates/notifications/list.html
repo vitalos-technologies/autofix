@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load ui humanize %}
+{% block title %}Notifications · Autofix Super Admin{% endblock %}
+{% block breadcrumb_title %}Notifications{% endblock %}
+{% block content %}
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <h1 class="text-2xl font-semibold">Notifications</h1>
+    <form method="post" action="{% url 'notifications:read_all' %}">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">{% icon "check" "h-4 w-4" %} Mark all as read</button></form>
+  </div>
+  {% include "notifications/_tabs.html" %}
+  <ul class="card mt-6 divide-y divide-slate-100 dark:divide-slate-800" data-testid="notification-list">
+    {% for notification in notifications %}
+      <li class="{% if not notification.is_read %}bg-cobalt-600/5 dark:bg-cobalt/10{% endif %}">
+        <form method="post" action="{% url 'notifications:open' notification.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="flex w-full items-start gap-3 px-4 py-3 text-left">
+            <span class="mt-0.5 {% if notification.kind == "role_assigned" %}text-cobalt-600 dark:text-cobalt-300{% else %}text-rose-700 dark:text-rose-300{% endif %}">{% if notification.kind == "role_assigned" %}{% icon "user" %}{% else %}{% icon "alert" %}{% endif %}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm {% if not notification.is_read %}font-semibold{% else %}font-medium{% endif %}">{{ notification.title }}</span>
+              {% if notification.body %}<span class="muted block text-sm">{{ notification.body }}</span>{% endif %}
+              <span class="muted block text-xs">{{ notification.created_at|naturaltime }}</span>
+            </span>
+            {% if not notification.is_read %}<span class="sr-only">Unread</span><span class="mt-2 h-2 w-2 rounded-full bg-cobalt-600" aria-hidden="true"></span>{% endif %}
+          </button>
+        </form>
+      </li>
+    {% empty %}<li class="muted px-4 py-8 text-center text-sm">You have no notifications.</li>{% endfor %}
+  </ul>
+{% endblock %}

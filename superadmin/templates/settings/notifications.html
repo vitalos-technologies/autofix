@@ -1,0 +1,12 @@
+{% extends "settings/_shell.html" %}
+{% block settings_panel %}
+  <section class="card max-w-xl p-6">
+    <h2 class="text-2xl">Notification preferences</h2>
+    <p class="muted mb-4 text-sm">Which Autofix alerts appear in your bell. In-app only: this system sends no email or texts.</p>
+    <form method="post" action="{% url 'notifications:preferences' %}" novalidate>
+      {% csrf_token %}
+      {% include "partials/form_fields.html" %}
+      <button type="submit" class="btn btn-primary mt-6">Save preferences</button>
+    </form>
+  </section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}{{ title }} · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <div class="card mt-6 flex items-start gap-3 p-4" role="alert" data-testid="autofix-unavailable">
+    {% icon "alert" "h-5 w-5 shrink-0 text-rose-700 dark:text-rose-300" %}
+    <p class="text-sm">{{ message }}</p>
+  </div>
+{% endblock %}

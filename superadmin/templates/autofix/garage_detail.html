@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}{{ garage.name }} · Autofix Super Admin{% endblock %}
+{% block breadcrumbs %}
+  <li class="muted hidden sm:block"><a href="{% url 'autofix:garages' %}" class="hover:underline">Garages</a></li>
+  <li class="muted hidden sm:block" aria-hidden="true">/</li>
+  <li class="truncate font-medium" aria-current="page">{{ garage.name }}</li>
+{% endblock %}
+{% block content %}
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="break-words">{{ garage.name }}</h1>
+      <p class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <span class="{{ garage.status|badge_class }}">{{ garage.get_status_display }}</span>
+        <span class="{{ garage.plan_key|badge_class }}">{{ garage.plan_label }}</span>
+        <span class="muted font-mono text-xs">{{ garage.slug }}</span>
+        <span class="muted text-xs">Signed up {{ garage.created_at|date:"j M Y" }}</span>
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      {% if can_support %}
+        <a class="btn btn-secondary" href="{% url 'autofix:view_as_support' garage.pk %}" hx-get="{% url 'autofix:view_as_support' garage.pk %}" hx-target="#modal" data-testid="view-as-support">{% icon "eye" "h-4 w-4" %} View as support</a>
+      {% endif %}
+      {% if can_change_autofix %}
+        <a class="btn btn-primary" href="{% url 'autofix:garage_plan' garage.pk %}" hx-get="{% url 'autofix:garage_plan' garage.pk %}" hx-target="#modal" data-testid="change-plan">{% icon "edit" "h-4 w-4" %} Plan and status</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <nav class="mt-6 flex gap-1 overflow-x-auto border-b border-slate-200 pb-2 dark:border-slate-800" aria-label="Garage sections" data-testid="garage-tabs">
+    {% for key, label in tabs %}
+      <a class="tab" href="?tab={{ key }}" {% if key == tab %}aria-current="page"{% endif %}
+         hx-get="{% url 'autofix:garage_tab' garage.pk key %}" hx-target="#garage-tab" hx-swap="innerHTML" hx-push-url="?tab={{ key }}" data-tab="{{ key }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <div id="garage-tab" class="mt-6" aria-live="polite" hx-get="{% url 'autofix:garage_tab' garage.pk tab %}" hx-trigger="vsa-changed from:body" hx-swap="innerHTML">
+    {% include "autofix/tabs/"|add:tab|add:".html" %}
+  </div>
+{% endblock %}

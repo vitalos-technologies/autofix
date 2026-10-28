@@ -1,0 +1,39 @@
+{% load ui %}
+{# Context: summary (selectors.messaging_summary). Counts only: no bodies, numbers or addresses. #}
+<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <div class="kpi" data-testid="kpi-quiet-hours"><p class="kpi-label">Quiet hours</p><p class="kpi-value {% if summary.quiet_hours.compliance|length > 6 %}kpi-value-text{% endif %}">{{ summary.quiet_hours.compliance }}</p><p class="kpi-delta">{{ summary.quiet_hours.outside }} of {{ summary.quiet_hours.checked }} reminders outside 09:00–19:00 Mon–Sat</p><p class="kpi-time">Garage's time zone, {{ summary.days }} days</p></div>
+  <div class="kpi"><p class="kpi-label">Opted out (STOP)</p><p class="kpi-value">{{ summary.opt_outs.recent }}</p><p class="kpi-delta">{{ summary.opt_outs.total }} opted out in total</p><p class="kpi-time">Last {{ summary.days }} days</p></div>
+  <div class="kpi"><p class="kpi-label">Consented</p><p class="kpi-value">{{ summary.opt_outs.consented }}</p><p class="kpi-delta">Customers who may get reminders</p><p class="kpi-time">Now</p></div>
+  <div class="kpi"><p class="kpi-label">Missed calls</p><p class="kpi-value">{{ summary.calls.missed_calls }}</p><p class="kpi-delta">{{ summary.calls.texted_back }} texted back · {{ summary.inbound }} replies in</p><p class="kpi-time">Last {{ summary.days }} days</p></div>
+</div>
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+  <section class="card overflow-x-auto" tabindex="0" aria-labelledby="delivery-heading">
+    <h2 id="delivery-heading" class="px-4 pt-4 text-xl">Delivery by channel</h2>
+    <table class="table-base mt-2" data-testid="delivery-table">
+      <caption class="sr-only">Outbound messages by channel, last {{ summary.days }} days</caption>
+      <thead><tr><th scope="col">Channel</th><th scope="col" class="text-right">Sent</th><th scope="col" class="text-right">Delivered</th><th scope="col" class="text-right">Failed</th><th scope="col" class="text-right">Delivery</th><th scope="col" class="text-right">Failure</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in summary.channels %}
+          <tr><td class="font-medium">{% if row.channel == "sms" %}Text{% elif row.channel == "whatsapp" %}WhatsApp{% else %}Email{% endif %}</td><td class="text-right tabular-nums">{{ row.total }}</td><td class="text-right tabular-nums">{{ row.delivered }}</td><td class="text-right tabular-nums">{{ row.failed }}</td><td class="text-right">{{ row.delivery_rate }}</td><td class="text-right">{{ row.failure_rate }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="muted py-6 text-center">No messages sent in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card overflow-x-auto" tabindex="0" aria-labelledby="errors-heading">
+    <h2 id="errors-heading" class="px-4 pt-4 text-xl">Failures by error</h2>
+    <table class="table-base mt-2">
+      <caption class="sr-only">Failed messages by provider and error code</caption>
+      <thead><tr><th scope="col">Provider</th><th scope="col">Channel</th><th scope="col">Error code</th><th scope="col" class="text-right">Count</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in summary.errors %}<tr><td>{{ row.provider|capfirst }}</td><td>{{ row.channel }}</td><td class="font-mono text-xs">{{ row.error_code|default:"—" }}</td><td class="text-right tabular-nums">{{ row.total }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="muted py-6 text-center">No failures.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card p-4 lg:col-span-2" aria-labelledby="reminders-heading">
+    <h2 id="reminders-heading" class="text-xl">Reminder sends</h2>
+    <ul class="mt-3 flex flex-wrap gap-2">
+      {% for row in summary.reminder_status %}<li class="{{ row.status|badge_class }}">{{ row.status|capfirst }}: {{ row.total }}</li>{% empty %}<li class="muted text-sm">No reminder activity in this period.</li>{% endfor %}
+    </ul>
+  </section>
+</div>

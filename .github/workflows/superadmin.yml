@@ -1,0 +1,258 @@
+name: Super Admin
+
+# The Django super admin in superadmin/ (P5.1, DECISIONS D18). Mirrors vitalos-platform's
+# .github/workflows/superadmin.yml: lint, tests on PostgreSQL 17, deploy checks, pip-audit and bandit,
+# then the integration tests against a local Supabase as autofix_superadmin, the production image,
+# its release job (twice), and the Playwright smoke test against the running container.
+on:
+  pull_request:
+    paths:
+      - "superadmin/**"
+      - "!superadmin/**.md"
+      - "!superadmin/docs/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/superadmin.yml"
+  push:
+    branches: [main]
+    paths:
+      - "superadmin/**"
+      - "!superadmin/**.md"
+      - "!superadmin/docs/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/superadmin.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: superadmin-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: superadmin
+
+jobs:
+  checks:
+    name: Lint, tests, deploy checks, pip-audit and bandit
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: superadmin/requirements*.txt
+      - run: python -m venv "$RUNNER_TEMP/venv" && echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: ruff check . && ruff format --check .
+      - name: Migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+      - name: Start PostgreSQL 17 for this runner
+        run: |
+          [[ "${RUNNER_NAME:-}" =~ ([0-9]+)$ ]] && slot=$((10#${BASH_REMATCH[1]})) || slot=0
+          port=$((55400 + slot))
+          name="superadmin-pg-${slot}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          docker run -d --name "$name" -p "127.0.0.1:${port}:5432" -e POSTGRES_PASSWORD=postgres postgres:17
+          for _ in $(seq 1 30); do docker exec "$name" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          echo "PG_NAME=$name" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgres://postgres:postgres@127.0.0.1:${port}/superadmin" >> "$GITHUB_ENV"
+          echo "AUTOFIX_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:${port}/autofix" >> "$GITHUB_ENV"
+      - name: pytest (PostgreSQL 17, both aliases)
+        run: pytest
+      - name: manage.py check --deploy
+        env:
+          DATABASE_URL: postgres://u@localhost:5432/db
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          ALLOWED_HOSTS: autofix.vitalos.co.uk
+          CSRF_TRUSTED_ORIGINS: https://autofix.vitalos.co.uk
+          AUTOFIX_APP_URL: https://autofix.vitalos.co.uk
+          AUTOFIX_SUPERADMIN_URL: https://autofix.vitalos.co.uk/superadmin
+          SUPERADMIN_PATH_PREFIX: /superadmin
+        run: |
+          DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
+          SUPERADMIN_PROXY_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
+          export DJANGO_SECRET_KEY SUPERADMIN_PROXY_SECRET
+          python manage.py check --deploy --fail-level WARNING
+      - name: pip-audit (runtime dependencies)
+        run: pip-audit --strict -r requirements.txt
+      - name: bandit
+        run: bandit -r apps config -c pyproject.toml
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker rm -f "${PG_NAME:-none}" >/dev/null 2>&1 || true
+
+  integration:
+    name: Supabase role, container and browser smoke test
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: checks
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.113.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: superadmin/requirements*.txt
+      - run: python -m venv "$RUNNER_TEMP/venv" && echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Give this runner its own Supabase project and ports
+        run: bash scripts/ci/supabase-isolate.sh
+        working-directory: .
+      - name: Clear a stack left behind by a cancelled job on this runner
+        run: supabase stop --no-backup || true
+        working-directory: .
+      - name: Start isolated local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,postgres-meta
+        working-directory: .
+      - name: Rebuild local database from migrations
+        run: supabase db reset --local --no-seed
+        working-directory: .
+      - name: Seed demo data and give the super admin role a throwaway local password
+        working-directory: .
+        run: |
+          bash scripts/ci/supabase-env.sh
+          set -a; . "$GITHUB_ENV"; set +a
+          pnpm db:seed
+          role_password="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          echo "::add-mask::$role_password"
+          docker exec "supabase_db_${SUPABASE_PROJECT_ID}" psql -U postgres -qc \
+            "alter role autofix_superadmin with login password '${role_password}'"
+          {
+            echo "AUTOFIX_LIVE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:${SUPABASE_DB_PORT}/postgres"
+            echo "AUTOFIX_LIVE_DATABASE_URL=postgres://autofix_superadmin:${role_password}@127.0.0.1:${SUPABASE_DB_PORT}/postgres"
+          } >> "$GITHUB_ENV"
+      - name: Integration tests as autofix_superadmin
+        run: pytest -m integration
+      - name: Build the production image
+        run: |
+          # The runners' Docker CLI has no buildx plugin (the daemon has BuildKit), and the Dockerfile needs
+          # BuildKit. A pinned, checksum-verified plugin goes into this job's own Docker config only.
+          version=v0.37.2
+          sha256=982ca20490b45ed1ec8d99795974d3d874a358f75938c9c237305010e6b7e548
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG/cli-plugins"
+          curl -fsSL -o "$DOCKER_CONFIG/cli-plugins/docker-buildx" \
+            "https://github.com/docker/buildx/releases/download/${version}/buildx-${version}.linux-amd64"
+          echo "${sha256}  $DOCKER_CONFIG/cli-plugins/docker-buildx" | sha256sum -c -
+          chmod +x "$DOCKER_CONFIG/cli-plugins/docker-buildx"
+          docker buildx build --load -t "autofix-superadmin:ci-${{ github.run_id }}" .
+      - name: Run the release job twice and start the production image
+        run: |
+          [[ "${RUNNER_NAME:-}" =~ ([0-9]+)$ ]] && slot=$((10#${BASH_REMATCH[1]})) || slot=0
+          app_port=$((3400 + slot * 10 + 5))
+          image="autofix-superadmin:ci-${{ github.run_id }}"
+          net="supabase_network_${SUPABASE_PROJECT_ID}"
+          relay="superadmin-ci-relay-${slot}"
+          docker rm -f "superadmin-ci-pg-${slot}" "superadmin-ci-web-${slot}" "$relay" >/dev/null 2>&1 || true
+          # Rootless Docker: --network host would be Docker's own namespace, out of the runner's reach. The app
+          # shares the relay's namespace instead: its port is published to the runner, and Autofix's database
+          # is at 127.0.0.1:55432 (the production image allows plain text only on localhost).
+          docker run -d --name "superadmin-ci-pg-${slot}" --network "$net" -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=superadmin postgres:17
+          docker run -d --name "$relay" --network "$net" -p "127.0.0.1:${app_port}:${app_port}" \
+            -v "$PWD/e2e/tcp_relay.py:/relay.py:ro" "$image" python /relay.py 55432 "supabase_db_${SUPABASE_PROJECT_ID}:5432"
+          for _ in $(seq 1 30); do docker exec "superadmin-ci-pg-${slot}" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          umask 077
+          status_token="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
+          admin_password="$(python -c 'import secrets; print(secrets.token_urlsafe(18))')"
+          proxy_secret="$(python -c 'import secrets; print(secrets.token_urlsafe(40))')"
+          echo "::add-mask::$status_token"
+          echo "::add-mask::$admin_password"
+          echo "::add-mask::$proxy_secret"
+          {
+            echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
+            echo "DATABASE_URL=postgres://postgres:postgres@superadmin-ci-pg-${slot}:5432/superadmin"
+            echo "AUTOFIX_DATABASE_URL=${AUTOFIX_LIVE_DATABASE_URL/:${SUPABASE_DB_PORT}\//:55432/}?sslmode=disable"
+            echo "AUTOFIX_STATUS_TOKEN=${status_token}"
+            # Path mode, as in production behind the Autofix proxy (DECISIONS D18).
+            echo "SUPERADMIN_PATH_PREFIX=/superadmin"
+            echo "SUPERADMIN_PROXY_SECRET=${proxy_secret}"
+            echo "ALLOWED_HOSTS=localhost,127.0.0.1"
+            echo "CSRF_TRUSTED_ORIGINS=http://localhost:${app_port}"
+            echo "SECURE_SSL_REDIRECT=False"
+            echo "APP_ENVIRONMENT=staging"
+            echo "PORT=${app_port}"
+            echo "BOOTSTRAP_ADMIN_EMAIL=ci-admin@example.test"
+            echo "BOOTSTRAP_ADMIN_PASSWORD=${admin_password}"
+          } > "$RUNNER_TEMP/app.env"
+          docker run --rm --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
+          docker run --rm --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image" bin/release.sh
+          docker run -d --name "superadmin-ci-web-${slot}" --network "container:$relay" --env-file "$RUNNER_TEMP/app.env" "$image"
+          for _ in $(seq 1 30); do curl -fsS "http://127.0.0.1:${app_port}/healthz/" && break; sleep 1; done
+          # The proxy gate: without the secret, even the sign-in page is a bare 404.
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${app_port}/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: wrong" "http://localhost:${app_port}/superadmin/login/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: ${proxy_secret}" "http://localhost:${app_port}/login/")" = 404
+          curl -fsS -o /dev/null -H "x-autofix-superadmin-proxy: ${proxy_secret}" "http://localhost:${app_port}/superadmin/login/"
+          echo "SLOT=${slot}" >> "$GITHUB_ENV"
+          echo "SMOKE_BASE_URL=http://localhost:${app_port}/superadmin" >> "$GITHUB_ENV"
+      - name: Install Chromium for the smoke test
+        run: python -m playwright install chromium
+      - name: Browser smoke test (every page at 1440 and 390, no CSP violations, status endpoint)
+        run: |
+          export SMOKE_EMAIL=ci-admin@example.test
+          SMOKE_PASSWORD="$(grep '^BOOTSTRAP_ADMIN_PASSWORD=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          SMOKE_STATUS_TOKEN="$(grep '^AUTOFIX_STATUS_TOKEN=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          SMOKE_PROXY_SECRET="$(grep '^SUPERADMIN_PROXY_SECRET=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          export SMOKE_PASSWORD SMOKE_STATUS_TOKEN SMOKE_PROXY_SECRET
+          python e2e/smoke.py --screenshots "$RUNNER_TEMP/screenshots"
+      - name: Accessibility (axe-core, WCAG 2.2 AA, light and dark, 1440 and 390)
+        run: |
+          axe="$(find ../node_modules/.pnpm -path '*axe-core@*/node_modules/axe-core/axe.min.js' | sort -V | tail -n 1)"
+          test -n "$axe"
+          # A signed-in, second-factor-verified session for the CI admin, minted inside the container.
+          session="$(docker exec "superadmin-ci-web-${SLOT}" python manage.py shell -c "
+          from django.contrib.auth import get_user_model
+          from django.contrib.sessions.backends.db import SessionStore
+          from django_otp import DEVICE_ID_SESSION_KEY
+          from django_otp.plugins.otp_totp.models import TOTPDevice
+          user = get_user_model().objects.get(email='ci-admin@example.test')
+          device, _ = TOTPDevice.objects.get_or_create(user=user, name='ci-a11y', defaults={'confirmed': True})
+          session = SessionStore()
+          session.update({'_auth_user_id': str(user.pk), '_auth_user_backend': 'django.contrib.auth.backends.ModelBackend',
+                          '_auth_user_hash': user.get_session_auth_hash(), DEVICE_ID_SESSION_KEY: device.persistent_id})
+          session.create()
+          print(session.session_key)" | tail -n 1)"
+          echo "::add-mask::$session"
+          proxy_secret="$(grep '^SUPERADMIN_PROXY_SECRET=' "$RUNNER_TEMP/app.env" | cut -d= -f2-)"
+          python e2e/a11y.py --base "$SMOKE_BASE_URL" --axe "$axe" --session "$session" \
+            --cookie-name __Secure-afsa_session --proxy-secret "$proxy_secret"
+      - name: Container logs
+        if: always()
+        run: docker logs "superadmin-ci-web-${SLOT:-0}" 2>&1 | tail -200 || true
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: superadmin-smoke-screenshots
+          path: ${{ runner.temp }}/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Clean up containers and Supabase
+        if: always()
+        working-directory: .
+        run: |
+          docker rm -f "superadmin-ci-web-${SLOT:-0}" "superadmin-ci-relay-${SLOT:-0}" "superadmin-ci-pg-${SLOT:-0}" >/dev/null 2>&1 || true
+          docker image rm "autofix-superadmin:ci-${{ github.run_id }}" >/dev/null 2>&1 || true
+          supabase stop --no-backup || true

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}You don't have access to this page · Autofix Super Admin{% endblock %}
+{% block content %}
+  <div class="card mx-auto mt-10 max-w-lg p-8 text-center">
+    <p class="text-sm font-semibold text-cobalt-600 dark:text-cobalt-300">403</p>
+    <h1 class="mt-2 text-xl font-semibold">You don't have access to this page</h1>
+    <p class="muted mt-2 text-sm">Your role does not allow this action. Ask a SuperAdmin if you need access.</p>
+    <a href="{% url 'core:overview' %}" class="btn btn-primary mt-6">Back to the overview</a>
+  </div>
+{% endblock %}

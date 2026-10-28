@@ -1,0 +1,13 @@
+{% load ui %}
+<div class="card max-h-[60vh] overflow-y-auto p-2 shadow-lg" data-testid="search-results">
+  {% for group in groups %}
+    <p class="muted px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider">{{ group.label }}</p>
+    {% for result in group.results %}
+      <a href="{{ result.url }}" class="flex min-h-11 items-center gap-3 rounded px-2 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+        {% icon result.icon "h-4 w-4 shrink-0 opacity-70" %}<span class="min-w-0 flex-1 truncate font-medium">{{ result.label }}</span>{% if result.hint %}<span class="muted truncate text-xs">{{ result.hint }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  {% empty %}
+    <p class="muted px-2 py-4 text-center text-sm">{% if query %}No matches for “{{ query }}”.{% else %}Type a garage name, slug or domain.{% endif %}</p>
+  {% endfor %}
+</div>

@@ -10,6 +10,7 @@ import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } f
 import { classifyHost } from "@/lib/tenancy/hosts";
 import { REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
 import { resolveHost, type HostGarage } from "@/lib/tenancy/resolve";
+import { isSuperadminPath, superadminRequest } from "@/lib/superadmin/proxy";
 
 /** Internal prefix for garage booking sites (folder `src/app/%5Fsite/[garageId]`). */
 export const SITE_PREFIX = "/_site";
@@ -17,7 +18,7 @@ export const SITE_PREFIX = "/_site";
 export const DEV_GARAGE_COOKIE = "af_dev_garage";
 
 /** Paths that only exist on the admin host. */
-const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent"];
+const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/superadmin", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent"];
 
 function hasPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -92,7 +93,19 @@ function withSecurityHeaders(response: NextResponse, garage: HostGarage | null) 
   return response;
 }
 
+/** Next.js's own trailing-slash redirect (off in next.config.ts), except under /superadmin. */
+function trailingSlashRedirect(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  if (pathname === "/" || !pathname.endsWith("/") || isSuperadminPath(pathname)) return null;
+  // A plain URL: NextURL would put the slash back when formatting.
+  const url = new URL(request.url);
+  url.pathname = pathname.replace(/\/+$/, "") || "/";
+  return NextResponse.redirect(url, 308);
+}
+
 export async function proxy(request: NextRequest) {
+  const slashRedirect = trailingSlashRedirect(request);
+  if (slashRedirect) return slashRedirect;
   const host = requestHost(request);
   const param = devGarageParam(request);
   let resolution;
@@ -103,7 +116,16 @@ export async function proxy(request: NextRequest) {
   }
 
   if (resolution.kind === "garage") return withSecurityHeaders(routeGarageSite(request, resolution.garage), resolution.garage);
+  // The Django super admin sets its own, stricter headers (CSP, framing), so they are left alone.
+  if (resolution.kind === "admin" && isSuperadminPath(request.nextUrl.pathname)) return superadmin(request);
   return withSecurityHeaders(resolution.kind === "unknown" ? notFound() : await adminHost(request, param), null);
+}
+
+/** Forwards /superadmin/* to the super admin's origin (src/lib/superadmin/proxy.ts); 404 when not set up. */
+function superadmin(request: NextRequest) {
+  const target = superadminRequest(request);
+  if (!target) return notFound();
+  return NextResponse.rewrite(target.url, { request: { headers: target.headers } });
 }
 
 async function adminHost(request: NextRequest, param: string | null) {
@@ -183,5 +205,6 @@ async function adminSession(request: NextRequest) {
 
 export const config = {
   // Every route except build assets and static files, so no garage host can reach an unrouted page.
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?|map)$).*)"],
+  // /superadmin is listed on its own so its static files (icons, fonts) are forwarded too.
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?|map)$).*)", "/superadmin/:path*"],
 };

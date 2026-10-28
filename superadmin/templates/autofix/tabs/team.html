@@ -1,0 +1,30 @@
+{% load ui %}
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<div class="grid gap-6 lg:grid-cols-2" data-testid="tab-team">
+  <section class="card overflow-x-auto" tabindex="0" aria-labelledby="members-heading">
+    <h2 id="members-heading" class="px-4 pt-4 text-xl">Team</h2>
+    <table class="table-base mt-2">
+      <caption class="sr-only">Garage team members</caption>
+      <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Joined</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for member in team.members %}
+          <tr><td class="font-medium">{{ member.display_name|default:"Unnamed" }}</td><td>{{ member.role|capfirst }}</td><td class="text-xs">{{ member.created_at|date:"j M Y" }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="muted py-6 text-center">No team members.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card overflow-x-auto" tabindex="0" aria-labelledby="invites-heading">
+    <h2 id="invites-heading" class="px-4 pt-4 text-xl">Invites</h2>
+    <table class="table-base mt-2">
+      <caption class="sr-only">Team invites (email masked)</caption>
+      <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">State</th></tr></thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for invite in team.invites %}
+          <tr><td class="font-mono text-xs">{{ invite.email_masked|default:"—" }}</td><td>{{ invite.role|capfirst }}</td>
+            <td class="text-xs">{% if invite.accepted_at %}Accepted {{ invite.accepted_at|date:"j M" }}{% elif invite.revoked_at %}Revoked{% else %}Expires {{ invite.expires_at|date:"j M H:i" }}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="3" class="muted py-6 text-center">No invites.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endif %}

@@ -1,0 +1,17 @@
+{% extends "accounts/auth_base.html" %}
+{% load static %}
+{% block title %}Two-factor check · Autofix Super Admin{% endblock %}
+{% block auth_body %}
+  <h1 class="mb-2 text-xl font-semibold">Two-factor check</h1>
+  <p class="muted mb-6 text-sm">Enter the 6-digit code from your authenticator app for {{ user.email }}.</p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    {% include "partials/form_fields.html" %}
+    <button type="submit" class="btn btn-primary mt-6 w-full">Verify</button>
+  </form>
+  <form method="post" action="{% url 'accounts:logout' %}" class="mt-4 text-center">
+    {% csrf_token %}<button type="submit" class="text-sm text-slate-500 underline hover:text-slate-700">Use a different account</button>
+  </form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/otp.js' %}" nonce="{{ csp_nonce }}" defer></script>{% endblock %}
