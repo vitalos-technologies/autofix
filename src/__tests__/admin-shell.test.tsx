@@ -100,6 +100,7 @@ describe("shell navigation", () => {
       "/app/settings/branding",
       "/app/settings/booking-page",
       "/app/settings/team",
+      "/app/settings/plan",
       "/app/settings/agreements",
       "/app/settings",
       "/app/configuration/security",
@@ -138,6 +139,27 @@ describe("shell navigation", () => {
     expect(screen.getByRole("link", { name: /View booking page/ })).toHaveAttribute("href", "http://hartley-road.localhost:3000");
     for (const nav of screen.getAllByRole("navigation", { name: "Main" })) {
       expect(within(nav).getByRole("link", { name: "Diary" })).toHaveAttribute("aria-current", "page");
+    }
+  });
+});
+
+describe("Pro sections in the nav (P5.2)", () => {
+  it("keeps a locked Pro link visible with a Pro badge, and unlocked ones plain", async () => {
+    const nav = await import("@/components/admin-ui/admin-nav");
+    const { Megaphone } = await import("lucide-react");
+    nav.GROW_NAV_ITEMS.push({ feature: "campaigns", label: "Campaigns", href: "/app/campaigns", icon: Megaphone });
+    try {
+      const { unmount } = render(<AdminNavGroups groups={defaultAdminNav({ lockedFeatures: new Set(["campaigns"]) })} activeHref="/app" />);
+      const link = screen.getByRole("link", { name: /Campaigns/ });
+      expect(link).toHaveAttribute("href", "/app/campaigns");
+      expect(link).toHaveTextContent("Pro");
+      expect(link).toHaveTextContent("not on your plan");
+      unmount();
+      render(<AdminNavGroups groups={defaultAdminNav({ lockedFeatures: new Set() })} activeHref="/app" />);
+      expect(screen.getByRole("link", { name: /Campaigns/ })).not.toHaveTextContent("Pro");
+      expect(screen.getByText("Grow")).toBeInTheDocument();
+    } finally {
+      nav.GROW_NAV_ITEMS.pop();
     }
   });
 });

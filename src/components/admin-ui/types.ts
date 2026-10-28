@@ -49,6 +49,8 @@ export type AdminNavItem = {
   badge?: number;
   /** Screen reader text for the badge; default `"{n} new"`. */
   badgeLabel?: string;
+  /** P5.2: a Pro feature the garage's plan doesn't include. The link stays, with a "Pro" badge, and opens the upgrade card. */
+  proLocked?: boolean;
 };
 
 export type AdminNavGroup = {

@@ -4,12 +4,17 @@
  */
 import { REQUEST_METHOD_HEADER } from "@/lib/tenancy/request-headers";
 
-export const GARAGE_PLANS = ["trial", "growth", "front_desk"] as const;
+/** `garages.plan` values (P5.2, D17). A garage on its Pro trial has plan `pro` with `trial_ends_at` set. */
+export const GARAGE_PLANS = ["essentials", "pro"] as const;
+/** Plan filter on /admin: the plans, plus "trial" (garages with a trial date). */
+export const GARAGE_PLAN_FILTERS = ["essentials", "pro", "trial"] as const;
 export const GARAGE_STATUSES = ["onboarding", "active", "suspended", "cancelled"] as const;
 export type GaragePlan = (typeof GARAGE_PLANS)[number];
+export type GaragePlanFilter = (typeof GARAGE_PLAN_FILTERS)[number];
 export type GarageStatus = (typeof GARAGE_STATUSES)[number];
 
-export const PLAN_LABELS: Record<GaragePlan, string> = { trial: "Trial", growth: "Growth", front_desk: "Front desk" };
+export const PLAN_LABELS: Record<GaragePlan, string> = { essentials: "Essentials", pro: "Pro" };
+export const PLAN_FILTER_LABELS: Record<GaragePlanFilter, string> = { essentials: "Essentials", pro: "Pro (incl. trials)", trial: "On trial" };
 export const STATUS_LABELS: Record<GarageStatus, string> = {
   onboarding: "Onboarding",
   active: "Active",
@@ -37,6 +42,10 @@ export const GARAGES_PAGE_SIZE = 25;
 
 export function isGaragePlan(value: unknown): value is GaragePlan {
   return typeof value === "string" && (GARAGE_PLANS as readonly string[]).includes(value);
+}
+
+export function isGaragePlanFilter(value: unknown): value is GaragePlanFilter {
+  return typeof value === "string" && (GARAGE_PLAN_FILTERS as readonly string[]).includes(value);
 }
 
 export function isGarageStatus(value: unknown): value is GarageStatus {

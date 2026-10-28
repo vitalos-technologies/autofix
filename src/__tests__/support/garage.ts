@@ -15,7 +15,7 @@ export function testGarage(overrides: Partial<Garage> = {}): Garage {
     timezone: "Europe/London",
     logoUrl: null,
     accent: "#0f766e",
-    plan: "growth",
+    plan: "essentials",
     motEnabled: false,
     bookingPrefix: "HRM",
     slotStepMin: 15,

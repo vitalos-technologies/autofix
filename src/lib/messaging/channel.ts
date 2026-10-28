@@ -15,6 +15,7 @@ import "server-only";
 
 import { getMessagingMode, readEmailReadiness, readTwilioConfig, type MessagingEnv, type MessagingMode } from "./config";
 import { createResendEmailChannel } from "./email";
+import { meterSmsChannel } from "./metering";
 import { createMockChannel } from "./mock";
 import { configurationRequired } from "./results";
 import { createTwilioSmsChannel, createTwilioWhatsAppChannel } from "./twilio";
@@ -96,9 +97,14 @@ export function createUnconfiguredChannel(kind: ChannelKind): MessageChannel {
  * The channel to send through. Mock unless MESSAGING_MODE=live; in live mode
  * missing credentials give a channel that returns `configuration_required`.
  * `env` is injectable for tests; email configuration is read by
- * src/lib/email/resend.ts from process.env.
+ * src/lib/email/resend.ts from process.env. SMS sends are metered (P5.2,
+ * ./metering.ts) after a successful send; metering never changes the result.
  */
 export function getChannel(kind: ChannelKind, env: MessagingEnv = process.env): MessageChannel {
+  return meterSmsChannel(resolveChannel(kind, env), env);
+}
+
+function resolveChannel(kind: ChannelKind, env: MessagingEnv): MessageChannel {
   if (getMessagingMode(env) === "mock") return createMockChannel(kind);
 
   if (kind === "email") {
