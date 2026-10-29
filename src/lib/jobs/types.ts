@@ -20,6 +20,7 @@ export const JOB_KINDS = [
   "payments.expire_deposits",
   "accounts.statements",
   "accounting.sync",
+  "numbers.provision",
   "customers.enrich",
   "mot.refresh",
 ] as const;

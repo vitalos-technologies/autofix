@@ -6,12 +6,14 @@ import { ProLockedPage, UsageMeter } from "@/components/plans";
 import { voiceDeskStatus, workforceConnectionStatus } from "@/lib/ai-front-desk/hand-off";
 import { AI_FRONT_DESK_MESSAGES } from "@/lib/ai-front-desk/forms";
 import { listAgentTokens, loadAiFrontDeskSettings, loadAiMinutesThisMonth, loadAutofixNumber, voiceServiceConfigured, workforceConnection, type AgentTokenRow } from "@/lib/ai-front-desk/server";
+import { loadAiDeskNumber } from "@/lib/phone-numbers/repository";
 import { garageHasFeature } from "@/lib/plans/server";
 import { canChangeGarage, canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import { FlashMessage, ReadOnlyNotice, SetupNotice } from "../_components/setup-nav";
 import { revokeAgentTokenAction, setAiFrontDeskAction } from "./actions";
+import { AiDeskNumberPanel } from "./ai-desk-number-panel";
 import { IssueTokenForm } from "./ai-front-desk-forms";
 
 export const metadata: Metadata = { title: "AI front desk" };
@@ -85,12 +87,16 @@ export default async function AiFrontDeskSettingsPage({ searchParams }: PageProp
     );
   }
 
-  const [settings, tokens, minutes, autofixNumber] = await Promise.all([
+  const [settings, tokens, minutes, routedNumber, deskNumber] = await Promise.all([
     loadAiFrontDeskSettings(admin.client, garage.id),
     canManage ? listAgentTokens(admin.client) : Promise.resolve([] as AgentTokenRow[]),
     canManage ? loadAiMinutesThisMonth(admin.client, garage) : Promise.resolve(null),
     loadAutofixNumber(admin.client, garage.id),
+    loadAiDeskNumber(admin.client, garage.id),
   ]);
+  // The AI desk number (D22) once it is ready, else any number Vitalos routed to the garage by hand.
+  const autofixNumber = (deskNumber?.status === "ready" ? deskNumber.number : null) ?? routedNumber;
+  const ringsFirst = deskNumber?.status === "ready" && deskNumber.number === autofixNumber ? deskNumber.ringsGarageFirst !== false : true;
   const enabled = settings?.enabled ?? false;
   const connection = workforceConnection(tokens ?? []);
   const status = workforceConnectionStatus(connection);
@@ -145,6 +151,8 @@ export default async function AiFrontDeskSettingsPage({ searchParams }: PageProp
             </div>
           </Panel>
 
+          <AiDeskNumberPanel number={deskNumber} enabled={enabled} timeZone={garage.timezone} />
+
           {canManage ? (
             <Panel id="tokens" title="Tokens for other agents" actions={<Badge tone={status.tone}>{status.label}</Badge>}>
               <div className="flex flex-col gap-4">
@@ -185,7 +193,7 @@ export default async function AiFrontDeskSettingsPage({ searchParams }: PageProp
           <Panel id="test-call" title="Try a test call">
             <ol className="m-0 flex list-decimal flex-col gap-2 pl-5 text-[14px] leading-snug text-grey-800">
               <li>Switch the AI front desk on above.</li>
-              <li>From a mobile, call {autofixNumber ? <strong>{formatPhoneForDisplay(autofixNumber)}</strong> : "your Autofix number"}. If your own phone rings first, let it ring out.</li>
+              <li>From a mobile, call {autofixNumber ? <strong>{formatPhoneForDisplay(autofixNumber)}</strong> : "your Autofix number"}.{ringsFirst ? " If your own phone rings first, let it ring out." : " Once your phone diverts to it, also try ringing your usual number and letting it ring out."}</li>
               <li>You&apos;ll hear: &ldquo;Hi, you&apos;re through to the automated assistant for {garage.name}.&rdquo; Ask for a time for a service, then book it.</li>
               <li>Hang up. The booking request shows in Bookings for you to confirm, and the call shows under Missed calls with what it was about.</li>
             </ol>

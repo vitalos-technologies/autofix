@@ -47,6 +47,11 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 //   gets the voicemail. Without the voice service configured
 //   (VOICE_RELAY_URL, VOICE_RELAY_SECRET), or if the check fails, the flow
 //   above is unchanged (src/lib/ai-front-desk/hand-off.ts).
+// - voice, a number Autofix bought for a garage's AI front desk (D22, A432):
+//   garage_phone_numbers.ring_garage_first is false. The garage's own phone
+//   diverts missed calls to it, so the garage's phone is never rung first
+//   (that would loop back here): straight to the AI front desk, or the
+//   voicemail and text-back when the desk can't take the call.
 // - voice, Autofix's own line (A420): a number in AUTOFIX_PLATFORM_VOICE_NUMBERS
 //   belongs to no garage. The call is logged in `platform_calls` (which no
 //   garage can read), greeted in Autofix's name and sent to the voicemail: no
@@ -55,7 +60,17 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 
 export type TwilioWebhookKind = "sms" | "whatsapp" | "status" | "voice";
 
-export type RoutedNumber = { garageId: string; garageName: string; purpose: string };
+export type RoutedNumber = {
+  garageId: string;
+  garageName: string;
+  purpose: string;
+  /**
+   * D22, A432: false for a number Autofix bought for the garage's AI front desk. The garage's own phone forwards
+   * its missed calls there, so the call never rings that phone again (it would come straight back: a loop).
+   * Absent means true (every other number, as before).
+   */
+  ringGarageFirst?: boolean;
+};
 
 export type InboundMessageRow = {
   garageId: string;
@@ -297,8 +312,10 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
       return { status: "processed", outcome: "call_status", response: twimlResponse() };
     }
 
-    // Ring the garage's own phone first, unless this call is that forward coming back to us.
-    const target = await repo.findDialTarget(routed.garageId, to);
+    // Ring the garage's own phone first, unless the garage forwards its missed calls to this number (A432),
+    // or this call is that forward coming back to us.
+    const forwardedHere = routed.ringGarageFirst === false;
+    const target = forwardedHere ? null : await repo.findDialTarget(routed.garageId, to);
     const loop = target !== null
       && (form.ForwardedFrom?.trim() === target || (from !== null && await repo.callerRangRecently(routed.garageId, from, callSid, FORWARD_LOOP_WINDOW_MS)));
     const dialling = target !== null && !loop;
@@ -314,7 +331,7 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
     const response = dialling && target
       ? twimlResponse(dialTwiml({ number: target, actionUrl: voiceStepUrl(context.signedUrl, "dial") }))
       : agent ? relayConnect(agent, routed, callSid, context) : voicemail(routed, context);
-    const outcome = dialling ? "call_dialling" : agent ? "call_ai_front_desk" : loop ? "call_forward_returned" : "call_missed";
+    const outcome = dialling ? "call_dialling" : agent ? "call_ai_front_desk" : loop ? "call_forward_returned" : forwardedHere ? "call_forwarded_missed" : "call_missed";
     return { status: "processed", outcome, response, queued, prewarm: agent?.healthUrl };
   };
 

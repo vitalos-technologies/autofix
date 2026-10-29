@@ -443,6 +443,8 @@ const FIXTURES: Record<string, Fixture> = {
   },
   agent_tokens: { create: (rows) => rows.agentToken(), patch: { revoked_at: "2096-04-01T00:00:00.000Z" } },
   ai_front_desk_settings: { create: (rows) => rows.insert("ai_front_desk_settings", { enabled: false }), patch: { enabled: true } },
+  // D22: the garage's AI desk number state, written by the numbers.provision job (service role) only.
+  ai_front_desk_numbers: { create: (rows) => rows.insert("ai_front_desk_numbers", { status: "waiting_upgrade" }), patch: { status: "ready" } },
   accounting_connections: { create: (rows) => rows.accountingConnection(), patch: { tenant_name: "Tampered" } },
   accounting_connection_secrets: { create: (rows) => rows.accountingConnection(), patch: { expires_at: "2096-04-02T00:00:00.000Z" } },
   accounting_sync_items: {

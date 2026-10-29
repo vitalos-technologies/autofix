@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { parseTokenName, type IssueTokenState } from "@/lib/ai-front-desk/forms";
 import { issueAgentToken } from "@/lib/agent-api/store";
 import { AgentTokenConfigError } from "@/lib/agent-api/tokens";
@@ -14,9 +15,38 @@ import { createAdminClient } from "@/lib/supabase/server";
 // (MFA done this session). The switch is the owner's (set_ai_front_desk(), Pro to switch on);
 // Workforce tokens are issued and revoked by owners and managers, like list_agent_tokens() and
 // revoke_agent_token(). Issuing needs Pro (the database refuses it too); revoking never does.
+// Switching on also queues the garage's AI desk number (D22); switching off keeps any number (A436).
 
 const PATH = "/app/settings/ai-front-desk";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * D22: switching the desk on queues the garage's number check at once (numbers.provision for this garage) and
+ * runs it straight after the response, so a garage on an upgraded account gets its number in seconds. On a
+ * trial account it only records "waiting for the upgrade"; the daily run re-checks either way. Never blocks
+ * or fails the switch.
+ */
+async function provisionNumberSoon(garageId: string) {
+  try {
+    const [{ enqueueJob }, { utcSlot }] = await Promise.all([import("@/lib/jobs/queue"), import("@/lib/jobs/periods")]);
+    await enqueueJob("numbers.provision", { garageId }, { garageId, dedupeKey: `numbers.provision:${garageId}:${utcSlot(new Date(), 1)}` });
+  } catch {
+    // The daily run picks the garage up.
+    return;
+  }
+  try {
+    after(async () => {
+      try {
+        const { drainJobs } = await import("@/lib/jobs/runner");
+        await drainJobs({ kinds: ["numbers.provision"], budgetMs: 20_000 });
+      } catch {
+        // The queued job stays for the next drain.
+      }
+    });
+  } catch {
+    // Outside a request.
+  }
+}
 
 /** Switch the AI front desk on or off (form field `enabled` = "on" | "off"). */
 export async function setAiFrontDeskAction(formData: FormData) {
@@ -27,6 +57,7 @@ export async function setAiFrontDeskAction(formData: FormData) {
 
   const { error } = await admin.client.rpc("set_ai_front_desk", { p_enabled: enabled });
   if (error) redirect(`${PATH}?error=${isPlanRequiredDatabaseError(error) ? "plan_required" : error.code === "42501" ? "owner_only" : "save_failed"}`);
+  if (enabled) await provisionNumberSoon(admin.garage.id);
   revalidatePath(PATH);
   redirect(`${PATH}?done=${enabled ? "enabled" : "disabled"}`);
 }

@@ -7,11 +7,13 @@
  * Workforce token (shown once, then listed, then revoked), AI minutes recorded through record_usage()
  * shown here and on Settings, Plan with the same figure, the locked page for an Essentials garage with the
  * missed-call text-back line, and axe with no violations at 390 and 1440 with no horizontal scroll.
+ * D22: switching the desk on queues the garage's own AI desk number at once; on the mock Twilio account (a
+ * trial, like the real one today) "Your AI desk number" says it waits for the upgrade and nothing is bought.
  * Screenshots go to docs/autofix/screenshots/phase-5/ai-front-desk-*.png.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { createTotpMember, signInWithTotp, type TotpMember } from "../helpers/admin-session";
@@ -81,6 +83,37 @@ test("Pro: the switch, a Workforce token shown once then revoked, and this month
   const { data: settings } = await service.from("ai_front_desk_settings").select("enabled").eq("garage_id", garage.id).single();
   expect(settings?.enabled).toBe(true);
 
+  // D22: the number check ran straight after the switch (numbers.provision for this garage, drained by after()).
+  const deskNumber = page.locator("#number");
+  await expect(deskNumber.getByRole("heading", { level: 2, name: "Your AI desk number" })).toBeVisible();
+  await expect.poll(async () => {
+    await page.reload();
+    return (await deskNumber.textContent()) ?? "";
+  }, { timeout: 30_000, message: "the number state after switching on" }).toContain("Waiting for upgrade");
+  await expect(deskNumber.getByRole("status")).toContainText("Vitalos is upgrading the account with our phone provider (Twilio).");
+  const { data: numberState } = await service.from("ai_front_desk_numbers").select("status,number,provider_sid").eq("garage_id", garage.id).single();
+  expect(numberState).toEqual({ status: "waiting_upgrade", number: null, provider_sid: null });
+  const { count: routed } = await service.from("garage_phone_numbers").select("id", { count: "exact", head: true }).eq("garage_id", garage.id);
+  expect(routed).toBe(0);
+
+  // Once the account is upgraded the job attaches the bought number exactly like this (service role); the page
+  // then shows it with the divert codes. A number from Ofcom's 01632 960xxx drama range, unique to this garage.
+  const suffix = (parseInt(garage.id.replaceAll("-", "").slice(0, 8), 16) % 1000).toString().padStart(3, "0");
+  const desk = `+441632960${suffix}`;
+  const attached = await service.rpc("attach_ai_front_desk_number", {
+    p_garage_id: garage.id,
+    p_number: desk,
+    p_provider_sid: `PN${createHash("sha256").update(garage.id).digest("hex").slice(0, 32)}`,
+    p_ring_garage_first: false,
+  });
+  expect(attached.error).toBeNull();
+  await page.reload();
+  await expect(deskNumber.getByText("Ready")).toBeVisible();
+  await expect(deskNumber.getByRole("link", { name: `01632 960${suffix}` })).toHaveAttribute("href", `tel:${desk}`);
+  await expect(deskNumber.getByRole("list", { name: "Divert codes" }).getByRole("listitem")).toHaveCount(3);
+  await expect(deskNumber).toContainText(`**61*01632960${suffix}#`);
+  await expectAccessibleAt(page, "number-ready");
+
   const tokens = page.locator("#tokens");
   await tokens.getByLabel("Token name").fill("Workforce pilot");
   await tokens.getByRole("button", { name: "Create token" }).click();
@@ -116,8 +149,13 @@ test("Pro: the switch, a Workforce token shown once then revoked, and this month
   await page.getByRole("switch", { name: "AI front desk" }).click();
   await page.waitForURL(/done=disabled/);
   await expect(page.getByRole("switch", { name: "AI front desk" })).toHaveAttribute("aria-checked", "false");
-  const { count } = await service.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("garage_id", garage.id).like("action", "ai_front_desk.%");
+  const { count } = await service.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("garage_id", garage.id).in("action", ["ai_front_desk.enabled", "ai_front_desk.disabled"]);
   expect(count).toBe(2);
+  const { count: ready } = await service.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("garage_id", garage.id).eq("action", "ai_front_desk.number_ready");
+  expect(ready).toBe(1);
+  // Switching the desk off keeps the number (nothing is released, A436).
+  await expect(deskNumber.getByText("Kept")).toBeVisible();
+  await expect(deskNumber.getByRole("link", { name: `01632 960${suffix}` })).toBeVisible();
 });
 
 test("Essentials: the locked page, and missed calls still get a text back", async () => {

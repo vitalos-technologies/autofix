@@ -38,7 +38,7 @@ type Customer = { garageId: string; phone: string; consent: boolean; optedOut: b
 type StoredCall = CallRecord & { id: string; dialStatus?: string; voicemail?: { url: string; durationSeconds: number | null } };
 type StoredPlatformCall = PlatformCallRecord & { voicemail?: { url: string; durationSeconds: number | null } };
 
-function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[]; dialTarget?: string; recentCaller?: boolean } = {}) {
+function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[]; dialTarget?: string; recentCaller?: boolean; ringGarageFirst?: boolean } = {}) {
   const events = new Map<string, string>();
   const customers = options.customers ?? [{ garageId: GARAGE, phone: CUSTOMER, consent: true, optedOut: false }];
   const messageStatus = { ...options.messageStatus };
@@ -66,7 +66,8 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
       state.finished.push({ key, status, outcome });
     },
     async findGarageByNumber(number) {
-      return options.routed === false || number !== GARAGE_NUMBER ? null : { garageId: GARAGE, garageName: "Hartley Road & Sons", purpose: "forwarding" };
+      if (options.routed === false || number !== GARAGE_NUMBER) return null;
+      return { garageId: GARAGE, garageName: "Hartley Road & Sons", purpose: "forwarding", ...(options.ringGarageFirst === undefined ? {} : { ringGarageFirst: options.ringGarageFirst }) };
     },
     async findCustomerId(garageId, phone) {
       return customers.some((customer) => customer.garageId === garageId && customer.phone === phone) ? "customer-1" : null;
@@ -401,6 +402,31 @@ describe("voice (P4.1 missed calls)", () => {
     expect(again).not.toContain("<Dial");
   });
 
+  it("never rings the garage's own phone on a number its phone diverts missed calls to (D22, A432): no loop", async () => {
+    const { repo, state } = memoryRepo({ dialTarget: OWN_PHONE, ringGarageFirst: false });
+    const findDialTarget = vi.spyOn(repo, "findDialTarget");
+    const xml = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo))).text();
+    expect(xml).not.toContain("<Dial");
+    expect(xml).toContain("<Record ");
+    expect(findDialTarget).not.toHaveBeenCalled();
+    expect(state.calls.get(CALL)).toMatchObject({ missed: true });
+    expect(state.textBacks).toEqual([`call-${CALL}`]);
+    expect(state.finished.at(-1)).toMatchObject({ outcome: "call_forwarded_missed" });
+
+    // With the AI front desk ready, the diverted call goes straight to it.
+    const desk = memoryRepo({ dialTarget: OWN_PHONE, ringGarageFirst: false });
+    desk.repo.aiFrontDeskVoiceReady = vi.fn(async () => true);
+    const relay = { url: "wss://voice.example/relay", healthUrl: "https://voice.example/healthz", secret: "relay-secret-0123456789abcdef0123" };
+    const connected = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(desk.repo, { voiceRelayTarget: relay, prewarm: async () => undefined }))).text();
+    expect(connected).toContain("<ConversationRelay");
+    expect(connected).not.toContain("<Dial");
+    expect(desk.state.textBacks).toEqual([]);
+
+    // Every other number still rings the garage first.
+    const ordinary = memoryRepo({ dialTarget: OWN_PHONE, ringGarageFirst: true });
+    expect(await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(ordinary.repo))).text()).toContain(`<Number>${OWN_PHONE}</Number>`);
+  });
+
   it("answers Twilio's retry of the first request with the same TwiML, without writing or texting twice", async () => {
     const { repo, state } = memoryRepo();
     const first = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo))).text();
@@ -566,11 +592,18 @@ describe("Supabase webhook repository", () => {
   it("routes only provisioned numbers (provider_sid set)", async () => {
     const fake = createFakeSupabase({ from: () => ({ data: { garage_id: GARAGE, purpose: "messaging", garages: { name: "Hartley Road Motors" } } }) });
     const repo = createSupabaseTwilioWebhookRepo(fake.client);
-    expect(await repo.findGarageByNumber(GARAGE_NUMBER)).toEqual({ garageId: GARAGE, purpose: "messaging", garageName: "Hartley Road Motors" });
+    expect(await repo.findGarageByNumber(GARAGE_NUMBER)).toEqual({ garageId: GARAGE, purpose: "messaging", garageName: "Hartley Road Motors", ringGarageFirst: true });
     const query = fake.queries[0]!;
     expect(query.table).toBe("garage_phone_numbers");
     expect(filterValue(query, "eq", "number")).toBe(GARAGE_NUMBER);
     expect(query.filters).toContainEqual({ method: "not", args: ["provider_sid", "is", null] });
+    expect(query.columns).toContain("ring_garage_first");
+  });
+
+  it("reads a bought AI desk number as one the garage's phone diverts to (ring_garage_first false)", async () => {
+    const fake = createFakeSupabase({ from: () => ({ data: { garage_id: GARAGE, purpose: "forwarding", ring_garage_first: false, garages: { name: "Hartley Road Motors" } } }) });
+    const repo = createSupabaseTwilioWebhookRepo(fake.client);
+    expect(await repo.findGarageByNumber(GARAGE_NUMBER)).toMatchObject({ purpose: "forwarding", ringGarageFirst: false });
   });
 
   it("moves a delivered reminder forward from sent, scoped to its garage", async () => {

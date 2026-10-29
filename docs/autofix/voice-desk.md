@@ -34,15 +34,16 @@ caller ─► Twilio number ─► POST /api/webhooks/twilio/voice (Autofix, Ver
 | Token exchange | `src/app/api/voice/v1/session/route.ts`, `src/lib/ai-front-desk/voice-session.ts`, `issueVoiceCallToken()` in `src/lib/agent-api/store.ts` |
 | Summary tool | `log_call_summary` in `src/lib/agent-api/{schemas,handler}.ts`, `docs/autofix/agent-api.yaml` |
 | Database | `supabase/migrations/20261029002000_ai_voice_desk.sql`, pgTAP `039_ai_voice_desk.test.sql` |
-| Staff view | missed-call card (`src/components/admin-ui/missed-call-card.tsx`), Settings · AI front desk (status, Autofix number, test-call guide, minutes) |
+| Staff view | missed-call card (`src/components/admin-ui/missed-call-card.tsx`), Settings · AI front desk (status, Your AI desk number with divert codes, test-call guide, minutes) |
+| The garage's number (D22) | `src/lib/phone-numbers/*`, job `numbers.provision` (`src/lib/jobs/handlers/numbers-provision.ts`), Twilio adapter `src/lib/messaging/twilio-numbers.ts`, migration `20261029003400_twilio_numbers.sql`, pgTAP `043_twilio_numbers.test.sql` |
 | Voice service | `services/voice/` (README there), deploy `services/voice/deploy/azure/deploy.sh`, `.github/workflows/voice-deploy.yml` |
 
 ## Switching it on in production
 
 1. Repository secret `ANTHROPIC_API_KEY` (Temitope; spend approval). Optional: `TWILIO_AUTH_TOKEN`.
 2. Actions > Voice desk deploy > `DEPLOY`. It deploys `autofix-voice`, then sets `VOICE_RELAY_URL` and `VOICE_RELAY_SECRET` in Vercel (Production) and redeploys.
-3. A Twilio number with voice for the garage (Temitope; money), its voice webhook pointed at `/api/webhooks/twilio/voice`, and a `garage_phone_numbers` row with `provider_sid`.
-4. The garage owner switches the AI front desk on in Settings, then follows the test-call guide there.
+3. A Twilio number with voice for the garage. Automatic since D22 (DECISIONS A431–A437): once the Twilio account is upgraded and a GB local business bundle is approved, the `numbers.provision` job buys the garage a UK local number (in its area code when Twilio has one), points its voice webhook at `/api/webhooks/twilio/voice` and adds the `garage_phone_numbers` row with `provider_sid` and `ring_garage_first = false`, up to `TWILIO_NUMBER_CAP` numbers on the account. Settings, AI front desk shows where it stands ("Your AI desk number").
+4. The garage owner switches the AI front desk on in Settings (which queues step 3 at once), sets the garage's own phone to divert missed calls to the new number (the codes are on the page), then follows the test-call guide there. That number never rings the garage's own phone first, so the divert cannot loop (A432).
 
 ## Testing without Twilio or Claude
 

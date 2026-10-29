@@ -51,7 +51,7 @@ const unset = [...new Set(Object.keys(process.env)
 if (unset.length) console.log(`not set in GitHub (skipped): ${unset.join(", ")}`);
 
 // Modes and plan settings are not secret: show their values so the log says what production runs.
-const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
+const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|TWILIO_NUMBERS_MODE|TWILIO_NUMBER_CAP|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
 for (const [key, { value, type }] of byKey) if (type === "encrypted" && SHOWN.test(key)) console.log(`value ${key}=${value}`);
 
 // Stripe is test mode only (DECISIONS D17, P5.2/P5.4): a live key never reaches Vercel.
@@ -59,6 +59,28 @@ const stripeKey = byKey.get("STRIPE_SECRET_KEY");
 if (stripeKey && !/^(sk|rk)_test_/.test(stripeKey.value)) {
   byKey.delete("STRIPE_SECRET_KEY");
   console.error("skipped STRIPE_SECRET_KEY: not a test-mode key (sk_test_ or rk_test_); live keys are refused");
+}
+
+// Resend: a key whose account does not hold the sending domain would stop every email. On 29 Oct 2026 the
+// repository secret went missing, so RESEND_API_KEY fell back to the organisation's key (another product's
+// Resend account) and reached production. Such a key is skipped and the run fails, so it shows. A send-only
+// key cannot list domains, so it is passed on unchecked.
+let refused = 0;
+const resendKey = byKey.get("RESEND_API_KEY");
+const fromDomain = byKey.get("RESEND_FROM_EMAIL")?.value.match(/@([^\s>]+)>?\s*$/)?.[1]?.toLowerCase();
+if (resendKey && fromDomain) {
+  const response = await fetch("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${resendKey.value}` } }).catch(() => null);
+  const body = response ? await response.json().catch(() => ({})) : {};
+  if (response?.ok) {
+    const names = (body.data ?? []).map((entry) => String(entry.name).toLowerCase());
+    if (!names.includes(fromDomain)) {
+      byKey.delete("RESEND_API_KEY");
+      refused += 1;
+      console.error(`skipped RESEND_API_KEY: its Resend account has no ${fromDomain} (it has ${names.join(", ") || "no domains"}). Add the product's own key as the repository secret RESEND_API_KEY.`);
+    }
+  } else if (body?.name !== "restricted_api_key") {
+    console.error(`RESEND_API_KEY: could not list its Resend domains (${response ? `HTTP ${response.status}` : "no response"}); passed on unchecked`);
+  }
 }
 
 const url = `https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env?upsert=true&teamId=${encodeURIComponent(teamId)}`;
@@ -80,4 +102,4 @@ for (const [key, { value, type }] of [...byKey].sort(([a], [b]) => a.localeCompa
 }
 
 console.log(`${byKey.size - failed} of ${byKey.size} set. Redeploy in Vercel for a running deployment to pick them up.`);
-if (failed > 0) process.exit(1);
+if (failed > 0 || refused > 0) process.exit(1);

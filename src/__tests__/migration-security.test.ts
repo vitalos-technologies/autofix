@@ -26,6 +26,7 @@ const platformTables = [
   "rate_limit_buckets", "resend_webhook_events", "inbound_email_events", "provider_webhook_events",
   "unmatched_inbound_emails", "admin_profiles", "admin_mfa_policy", "admin_mfa_recovery_codes",
   "admin_mfa_recovery_sessions", "admin_trusted_devices", "twilio_webhook_events", "platform_enquiries",
+  "twilio_number_provisioning",
 ];
 const removedSurfaces = ["content_entries", "content_revisions", "navigation_items", "sale_vehicles", "sale_vehicle_images", "import_article_drafts", "vehicle-sales"];
 const serviceRoleFunctions = [

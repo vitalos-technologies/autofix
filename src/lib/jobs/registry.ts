@@ -6,6 +6,7 @@ import { customersEnrichHandler } from "./handlers/customers-enrich";
 import { domainsCheckHandler } from "./handlers/domains-check";
 import { messagesReplyHandler } from "./handlers/messages-reply";
 import { motRefreshHandler } from "./handlers/mot-refresh";
+import { numbersProvisionHandler } from "./handlers/numbers-provision";
 import { notificationsBookingHandler } from "./handlers/notifications-booking";
 import { remindersScheduleHandler } from "./handlers/reminders-schedule";
 import { remindersSendHandler } from "./handlers/reminders-send";
@@ -36,6 +37,7 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "payments.expire_deposits": { handler: paymentsExpireDepositsHandler, timeoutMs: 15_000 },
   "accounts.statements": { handler: accountsStatementsHandler, timeoutMs: 18_000 },
   "accounting.sync": { handler: accountingSyncHandler, timeoutMs: 18_000 },
+  "numbers.provision": { handler: numbersProvisionHandler, timeoutMs: 18_000 },
   "customers.enrich": { handler: customersEnrichHandler, timeoutMs: 18_000 },
   "mot.refresh": { handler: motRefreshHandler, timeoutMs: 18_000 },
 };

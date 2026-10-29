@@ -48,6 +48,15 @@ describe("production deployment configuration", () => {
     }
   });
 
+  it("documents Twilio numbers: mock by default, live in production through Sync Vercel env (D22)", () => {
+    const workflow = readFileSync(".github/workflows/vercel-env.yml", "utf8");
+    expect(envExample).toContain("TWILIO_NUMBERS_MODE=mock");
+    expect(envExample).toContain("TWILIO_NUMBER_CAP=20");
+    expect(workflow).toContain("VAR__TWILIO_NUMBERS_MODE: ${{ vars.TWILIO_NUMBERS_MODE || 'live' }}");
+    expect(workflow).toContain("VAR__TWILIO_NUMBER_CAP: ${{ vars.TWILIO_NUMBER_CAP || '20' }}");
+    expect(requiredProductionVariables).not.toContain("TWILIO_NUMBERS_MODE");
+  });
+
   it("documents the Vehicle Data Global integration without exposing a key", () => {
     expect(envExample).toContain("VEHICLE_LOOKUP_PROVIDER=vehicle-data-global");
     expect(envExample).toContain("VEHICLE_DATA_GLOBAL_API_KEY=");
