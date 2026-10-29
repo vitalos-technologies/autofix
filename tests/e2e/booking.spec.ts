@@ -535,6 +535,24 @@ test.describe("5-step booking flow", () => {
     expect(enquiry.data).toMatchObject({ type: "general", description: "Can you fit a towbar to my Focus next week?", status: "new", vehicles: { registration: CONTACT_REGISTRATION } });
   });
 
+  test("the header has Contact and a solid Call button side by side, both labelled and 44px or more", async ({ page }) => {
+    await page.goto("/");
+    const contact = page.locator("header").getByRole("link", { name: /^Contact / });
+    const call = page.locator("header").getByRole("link", { name: /^Call / });
+    await expect(contact).toHaveText("Contact");
+    await expect(call).toHaveText("Call");
+    await expect(call).toHaveAttribute("href", /^tel:\+44\d+$/);
+    const [contactBox, callBox] = [await contact.boundingBox(), await call.boundingBox()];
+    for (const box of [contactBox, callBox]) expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    // Side by side: the same row, Contact first.
+    expect(Math.abs((contactBox?.y ?? 0) - (callBox?.y ?? 1))).toBeLessThan(2);
+    expect((contactBox?.x ?? 0) + (contactBox?.width ?? 0)).toBeLessThanOrEqual(callBox?.x ?? 0);
+    await noHorizontalOverflow(page);
+    await contact.click();
+    await page.waitForURL(/\/contact$/);
+    await expectOneVisibleH1(page, "Contact us");
+  });
+
   test("offers Contact us from the service step for a job that doesn't fit", async ({ page }) => {
     await findCar(page);
     await page.getByRole("button", { name: "Continue" }).click();

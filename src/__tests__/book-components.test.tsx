@@ -372,6 +372,29 @@ describe("header, progress and summary", () => {
     expect(garageInitials("Kwik-Fit")).toBe("KW");
   });
 
+  it("GarageHeader puts a labelled Contact button beside a solid, labelled Call button", () => {
+    const { rerender } = render(<GarageHeader name="Hartley Road Motors" subtitle="Doncaster" phone="+441302000000" contactHref="/contact" />);
+    const contact = screen.getByRole("link", { name: "Contact Hartley Road Motors" });
+    const call = screen.getByRole("link", { name: "Call Hartley Road Motors" });
+    expect(contact).toHaveAttribute("href", "/contact");
+    expect(contact).toHaveTextContent("Contact");
+    expect(call).toHaveAttribute("href", "tel:+441302000000");
+    expect(call).toHaveTextContent("Call");
+    // Call is the solid accent button; both are 46px tall and sit together.
+    expect(call).toHaveClass("bg-accent", "text-accent-ink", "h-[46px]");
+    expect(contact).toHaveClass("h-[46px]");
+    expect(call.parentElement).toBe(contact.parentElement);
+    expect(contact.compareDocumentPosition(call) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // No phone: Contact only. With a back button (steps 2 to 4): neither.
+    rerender(<GarageHeader name="Hartley Road Motors" contactHref="/contact" />);
+    expect(screen.getByRole("link", { name: "Contact Hartley Road Motors" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Call/ })).not.toBeInTheDocument();
+    rerender(<GarageHeader name="Hartley Road Motors" phone="+441302000000" contactHref="/contact" back={{ href: "/", label: "Back to vehicle" }} />);
+    expect(screen.queryByRole("link", { name: /^Contact/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Call/ })).not.toBeInTheDocument();
+  });
+
   it("GarageHeader's light tone (white confirmation page) has no navy strip and navy text", () => {
     render(<GarageHeader tone="light" name="Hartley Road Motors" phone="+441302000000" />);
     const header = screen.getByRole("banner");

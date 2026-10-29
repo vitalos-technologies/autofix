@@ -84,7 +84,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-white font-sans text-grey-800">
       <div className={cn(BOOKING_COLUMN, "flex grow flex-col")}>
-        <GarageHeader tone="light" name={garage.name} logoUrl={garage.logoUrl} />
+        <GarageHeader tone="light" name={garage.name} logoUrl={garage.logoUrl} phone={garage.phone} contactHref="/contact" />
         <div className="flex flex-col items-center gap-[22px] px-6 pt-9 text-center">
           <span
             aria-hidden="true"

@@ -164,7 +164,7 @@ export function ComponentGallery() {
         <div className="grid grid-cols-1 gap-x-8 gap-y-12 md:grid-cols-2 xl:grid-cols-3">
           {/* Book 1 · Vehicle */}
           <Frame title="Book 1 · Vehicle" screen>
-            <GarageHeader name={GARAGE.name} subtitle={GARAGE.location} phone={GARAGE.phone} />
+            <GarageHeader name={GARAGE.name} subtitle={GARAGE.location} phone={GARAGE.phone} contactHref="#af-gallery" />
             <StepProgress step={1} className="px-5 pt-4" />
             <div className="flex flex-col gap-[18px] px-5 pt-[22px] pb-6">
               <div className="flex flex-col gap-2">
@@ -352,7 +352,7 @@ export function ComponentGallery() {
 
           {/* Book 5 · Confirmed */}
           <Frame title="Book 5 · Confirmed" tone="white" screen>
-            <GarageHeader name={GARAGE.name} tone="light" />
+            <GarageHeader name={GARAGE.name} tone="light" phone={GARAGE.phone} contactHref="#af-gallery" />
             <div className="flex flex-col items-center gap-[22px] px-6 pt-9 pb-7 text-center">
               <span aria-hidden="true" className="flex size-[84px] items-center justify-center rounded-full bg-success outline-[10px] outline-[rgba(22,163,74,0.18)] outline-solid">
                 <Check size={40} strokeWidth={3} className="text-white" />
@@ -378,8 +378,8 @@ export function ComponentGallery() {
 
           {/* States */}
           <Frame title="Header and progress states">
-            <GarageHeader name="Kwik Lane Garage" subtitle="No phone on file: no call button" />
-            <GarageHeader name={GARAGE.name} logoUrl={SAMPLE_LOGO} subtitle="With a logo" phone={GARAGE.phone} />
+            <GarageHeader name="Kwik Lane Garage" subtitle="No phone on file: no Call button" contactHref="#af-gallery" />
+            <GarageHeader name={GARAGE.name} logoUrl={SAMPLE_LOGO} subtitle="With a logo" phone={GARAGE.phone} contactHref="#af-gallery" />
             <div className="flex flex-col gap-5 px-5 py-5">
               {[1, 2, 3, 4].map((step) => (
                 <StepProgress key={step} step={step} />

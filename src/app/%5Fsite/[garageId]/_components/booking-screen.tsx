@@ -32,6 +32,7 @@ export function BookingScreen({ garage, step, subtitle, back, withActionBar = tr
           subtitle={subtitle}
           logoUrl={garage.logoUrl}
           phone={back ? null : garage.phone}
+          contactHref={back ? null : "/contact"}
           back={back}
         />
       </div>

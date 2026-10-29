@@ -86,7 +86,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| `GarageHeader` | Every booking step | Navy bar: garage logo or initials tile in accent, name, subtitle (location, or car + reg once known), call or back button 44px. `tone="light"` on Book 5: no bar, navy name, grey subtitle, grey-bordered buttons with the accent focus ring |
+| `GarageHeader` | Every booking step | Navy bar: garage logo or initials tile in accent, name, subtitle (location, or car + reg once known), and either the back button (steps 2 to 4, logo on the right) or two 46px labelled buttons side by side: Contact (`MessageSquare`, outlined, opens `/contact`) then Call (`Phone`, solid garage accent with white text, `tel:`; only when the garage has a phone). With the buttons the name may wrap to two lines (Temitope, 29 Oct 2026; supersedes the icon-only call button drawn in Book 1). `tone="light"` on Book 5: no bar, navy name, grey subtitle, grey-bordered Contact, accent Call, accent focus ring |
 | `StepProgress` | Booking 1 to 4 | "Step n of 5" + step name + 5 segments (accent / `#dfe6ee`) |
 | `PlateInput` | Booking 1 | Yellow plate, UK band, uppercase, auto-spacing to `AB12 CDE`, `autocomplete=off`, never written into the URL |
 | `PlateChip` | Summaries, admin lists | Small yellow plate |
