@@ -197,8 +197,8 @@ export function ComponentGallery() {
                 now={NOW}
               />
               <div className="flex justify-between text-[14px] font-semibold">
-                <a href="#af-gallery" className="text-accent underline">Not your car?</a>
-                <a href="#af-gallery" className="text-accent underline">Enter details manually</a>
+                <a href="#af-gallery" className="text-accent-text underline">Not your car?</a>
+                <a href="#af-gallery" className="text-accent-text underline">Enter details manually</a>
               </div>
               <div className="flex flex-col gap-2.5 pt-1 text-[13px] text-grey-700">
                 <p className="m-0 flex items-center gap-2.5">

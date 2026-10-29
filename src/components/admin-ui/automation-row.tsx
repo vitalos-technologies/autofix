@@ -77,7 +77,7 @@ export function AutomationRow({
         {editHref ? (
           <Link
             href={editHref}
-            className={cn("inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-accent underline underline-offset-2 hover:text-blue-700", focusRing)}
+            className={cn("inline-flex min-h-11 items-center px-1 text-[13px] font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700", focusRing)}
           >
             <span aria-hidden="true">{editLabel}</span>
             <span className="sr-only">{`${editLabel} ${name}`}</span>

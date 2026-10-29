@@ -106,7 +106,7 @@ export default async function PayPage({ params, searchParams }: PayPageProps) {
               : `Open the link from the message ${garage.name} sent you, on this device. If it still doesn't work, contact the garage.`}
           </p>
           <CallGarage garage={garage} />
-          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent underline underline-offset-2">
+          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent-text underline underline-offset-2">
             Go to the booking page
           </Link>
         </div>

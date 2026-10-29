@@ -33,7 +33,7 @@ export function OnboardingFrame({ step, eyebrow, title, description, children, h
       <main className={cn("mx-auto flex flex-col gap-5 px-5 pt-6 pb-16", width === "wide" ? "max-w-[720px]" : "max-w-[560px]")}>
         {step ? <OnboardingProgress step={step} /> : null}
         {title ? <div className="flex flex-col gap-2">
-          {eyebrow ? <p className="m-0 text-[12px] font-bold tracking-[0.08em] text-accent uppercase">{eyebrow}</p> : null}
+          {eyebrow ? <p className="m-0 text-[12px] font-bold tracking-[0.08em] text-accent-text uppercase">{eyebrow}</p> : null}
           <h1 className="m-0 font-display text-[36px] leading-[0.98] font-extrabold text-navy-950">{title}</h1>
           {description ? <p className="m-0 text-[15px] leading-6 text-grey-600">{description}</p> : null}
         </div> : null}

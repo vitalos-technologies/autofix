@@ -20,7 +20,7 @@ export function InvoiceDraftsWorkspace({ header, children, drafts }: { header: R
       <div className="min-w-0">{header}</div>
       <button type="button" aria-expanded={isOpen} aria-controls="invoice-drafts-panel" onClick={() => setIsOpen((open) => !open)} className="mt-5 inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[#BCD6F6] bg-white px-4 text-sm font-extrabold text-[#1D4ED8] shadow-sm transition hover:border-[#2563EB] hover:bg-[#F1F7FF]">
         <FilePenLine size={18} aria-hidden="true" /> Draft invoices
-        <span className="rounded-full bg-[#EFF6FF] px-2 py-0.5 text-xs text-accent">{drafts.length}</span>
+        <span className="rounded-full bg-[#EFF6FF] px-2 py-0.5 text-xs text-accent-text">{drafts.length}</span>
       </button>
     </div>
 
@@ -28,8 +28,8 @@ export function InvoiceDraftsWorkspace({ header, children, drafts }: { header: R
       <div className="min-w-0">{children}</div>
       {isOpen && <aside id="invoice-drafts-panel" aria-label="Draft invoices" className="mt-6 rounded-2xl border border-[#BCD6F6] bg-[#F6FAFF] p-4 shadow-lg xl:sticky xl:top-6">
         <div className="flex items-center justify-between gap-3 border-b border-[#D7E5F5] pb-3">
-          <div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Saved work</p><h2 className="mt-1 text-xl font-extrabold text-[#0f2747]">Draft invoices</h2></div>
-          <button type="button" onClick={() => setIsOpen(false)} aria-label="Close draft invoices" className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#CBD5E1] bg-white text-[#475569] transition hover:border-[#2563EB] hover:text-accent"><X size={18} aria-hidden="true" /></button>
+          <div><p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">Saved work</p><h2 className="mt-1 text-xl font-extrabold text-[#0f2747]">Draft invoices</h2></div>
+          <button type="button" onClick={() => setIsOpen(false)} aria-label="Close draft invoices" className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#CBD5E1] bg-white text-[#475569] transition hover:border-[#2563EB] hover:text-accent-text"><X size={18} aria-hidden="true" /></button>
         </div>
         {drafts.length ? <div className="mt-3 grid max-h-[65vh] gap-3 overflow-y-auto pr-1">
           {drafts.map((draft) => <article key={draft.id} className="rounded-xl border border-[#DCE7F2] bg-white p-4">

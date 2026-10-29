@@ -68,7 +68,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
             <Search size={18} strokeWidth={2} aria-hidden="true" />
             Find your booking
           </Link>
-          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent underline underline-offset-2">
+          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent-text underline underline-offset-2">
             Book a car in
           </Link>
         </div>

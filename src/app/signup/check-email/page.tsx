@@ -11,7 +11,7 @@ export default function CheckEmailPage() {
   return (
     <OnboardingFrame eyebrow="Almost there" title="Check your email" description="We've sent you a link to confirm your email address. Open it on this device to set up your garage.">
       <div className="flex items-start gap-3 rounded-card border border-grey-200 bg-white p-5">
-        <MailCheck size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-accent" />
+        <MailCheck size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text" />
         <div className="flex flex-col gap-2 text-[15px] leading-6">
           <p className="m-0 font-semibold text-navy-950">The link works for one hour.</p>
           <p className="m-0 text-grey-600">Can&apos;t see it? Check your spam folder, or sign up again with the right address.</p>

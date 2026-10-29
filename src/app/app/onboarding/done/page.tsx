@@ -39,7 +39,7 @@ export default async function OnboardingDonePage() {
         <ul className="m-0 flex list-none flex-col divide-y divide-grey-200 p-0">
           {NEXT_STEPS.map((step) => (
             <li key={step.href} className="flex items-start gap-3 py-3">
-              <step.icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-accent" />
+              <step.icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text" />
               <span className="flex flex-col">
                 <Link href={step.href} className={textLinkClass}>{step.title}</Link>
                 <span className="text-[14px] text-grey-600">{step.text}</span>

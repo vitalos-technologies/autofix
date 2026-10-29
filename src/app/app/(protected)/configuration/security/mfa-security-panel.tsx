@@ -29,7 +29,7 @@ export function MfaSecurityPanel({ factorId }: { factorId?: string }) {
   return (
     <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 sm:p-7" aria-labelledby="authenticator-heading">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-        <div className="flex items-start gap-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#EFF6FF] text-accent"><Smartphone size={21} aria-hidden="true" /></span><div><h2 id="authenticator-heading" className="text-xl font-bold text-[#0f2747]">Authenticator app</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">Protect your account using Google Authenticator, Microsoft Authenticator, Authy, 1Password or another TOTP-compatible authenticator.</p></div></div>
+        <div className="flex items-start gap-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#EFF6FF] text-accent-text"><Smartphone size={21} aria-hidden="true" /></span><div><h2 id="authenticator-heading" className="text-xl font-bold text-[#0f2747]">Authenticator app</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#475569]">Protect your account using Google Authenticator, Microsoft Authenticator, Authy, 1Password or another TOTP-compatible authenticator.</p></div></div>
         <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${factorId ? "bg-green-100 text-green-800" : "bg-[#F1F5F9] text-[#475569]"}`}>{factorId && <CheckCircle2 size={15} />}Status: {factorId ? "Enabled" : "Not enabled"}</span>
       </div>
 

@@ -48,7 +48,7 @@ export default async function EnquiriesPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <p className="text-xs font-extrabold tracking-widest text-accent uppercase">Customer requests</p>
+      <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">Customer requests</p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4"><h1 className="text-4xl font-extrabold text-[#0f2747]">Enquiries</h1><div className="flex flex-wrap gap-2"><EmailDeliveryDrawer attempts={(attemptsResult.data || []) as EmailDeliveryAttempt[]} /></div></div>
       <p className="mt-2 max-w-2xl text-[#475569]">Open an enquiry to read and continue its email conversation.</p>
 
@@ -62,11 +62,11 @@ export default async function EnquiriesPage({ searchParams }: { searchParams: Pr
             const conversation = conversations.get(enquiry.id); const latest = latestMessages.get(enquiry.id);
             return <tr key={enquiry.id} className={`border-t border-[#E2E8F0] ${conversation?.unread_count ? "bg-[#F1F7FF]" : ""}`}>
               <td className="px-2 py-2"><AdminItemCheckbox id={enquiry.id} label={`Select enquiry from ${enquiry.customers?.name || "customer"}`} /></td>
-              <td className="px-5 py-4"><EnquiryOpenLink href={`/app/enquiries/${enquiry.id}`} className="font-extrabold text-[#0f2747] hover:text-accent">{conversation?.unread_count ? <span className="mr-2 text-accent" aria-label="New customer reply">●</span> : null}{enquiry.customers?.name || "Customer enquiry"}</EnquiryOpenLink><p className="mt-1 truncate text-xs text-grey-600">{enquiry.customers?.email || enquiry.customers?.phone}</p></td>
+              <td className="px-5 py-4"><EnquiryOpenLink href={`/app/enquiries/${enquiry.id}`} className="font-extrabold text-[#0f2747] hover:text-accent-text">{conversation?.unread_count ? <span className="mr-2 text-accent-text" aria-label="New customer reply">●</span> : null}{enquiry.customers?.name || "Customer enquiry"}</EnquiryOpenLink><p className="mt-1 truncate text-xs text-grey-600">{enquiry.customers?.email || enquiry.customers?.phone}</p></td>
               <td className="px-5 py-4"><p className="font-bold capitalize text-[#0f2747]">{enquiry.type.replaceAll("_", " ")}</p><p className="mt-1 truncate text-sm text-grey-600">{latest?.text_body || enquiry.description || "No message preview"}</p>{enquiry.vehicles && <p className="mt-1 truncate text-xs font-semibold text-[#475569]">{[enquiry.vehicles.make, enquiry.vehicles.model, enquiry.vehicles.registration].filter(Boolean).join(" · ")}</p>}</td>
               <td className="px-5 py-4"><Status status={enquiry.status} />{enquiry.notification_status === "failed" && <p className="mt-2 text-xs font-bold text-red-700">Notification failed</p>}</td>
-              <td className="px-5 py-4 text-sm text-[#475569]">{formatDate(conversation?.last_activity_at || enquiry.created_at)}{conversation?.unread_count ? <p className="mt-1 text-xs font-bold text-accent">New reply</p> : null}</td>
-              <td className="px-5 py-4"><EnquiryOpenLink href={`/app/enquiries/${enquiry.id}`} className="font-extrabold text-accent">Open<span className="sr-only"> enquiry from {enquiry.customers?.name || "customer"}</span></EnquiryOpenLink></td>
+              <td className="px-5 py-4 text-sm text-[#475569]">{formatDate(conversation?.last_activity_at || enquiry.created_at)}{conversation?.unread_count ? <p className="mt-1 text-xs font-bold text-accent-text">New reply</p> : null}</td>
+              <td className="px-5 py-4"><EnquiryOpenLink href={`/app/enquiries/${enquiry.id}`} className="font-extrabold text-accent-text">Open<span className="sr-only"> enquiry from {enquiry.customers?.name || "customer"}</span></EnquiryOpenLink></td>
             </tr>;
           })}</tbody>
         </table>
@@ -77,7 +77,7 @@ export default async function EnquiriesPage({ searchParams }: { searchParams: Pr
         return <article key={enquiry.id} className={`relative rounded-2xl border p-5 pl-14 ${conversation?.unread_count ? "border-[#8EBEF5] bg-[#F1F7FF]" : "border-[#E2E8F0] bg-white"}`}>
           <div className="absolute left-2 top-3"><AdminItemCheckbox id={enquiry.id} label={`Select enquiry from ${enquiry.customers?.name || "customer"}`} /></div>
           <EnquiryOpenLink href={`/app/enquiries/${enquiry.id}`} className="block">
-            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">{enquiry.type.replaceAll("_", " ")}</p><h2 className="mt-2 text-xl font-extrabold text-[#0f2747]">{enquiry.customers?.name || "Customer enquiry"}</h2></div>{conversation?.unread_count ? <span className="rounded-full bg-[#2563EB] px-2.5 py-1 text-xs font-bold text-white">New reply</span> : <Status status={enquiry.status} />}</div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">{enquiry.type.replaceAll("_", " ")}</p><h2 className="mt-2 text-xl font-extrabold text-[#0f2747]">{enquiry.customers?.name || "Customer enquiry"}</h2></div>{conversation?.unread_count ? <span className="rounded-full bg-[#2563EB] px-2.5 py-1 text-xs font-bold text-white">New reply</span> : <Status status={enquiry.status} />}</div>
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#475569]">{latest?.text_body || enquiry.description || "No message preview"}</p>
             <p className="mt-3 text-xs text-grey-600">{formatDate(conversation?.last_activity_at || enquiry.created_at)}</p>
           </EnquiryOpenLink>

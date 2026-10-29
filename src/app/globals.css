@@ -112,6 +112,9 @@
   --pitline-steel: #64748b;
   --pitline-light: #e2e8f0;
   --focus-ring: var(--pitline-orange-600);
+  /* Accent as text (links, eyebrows). Electric Blue is 4.2:1 on the tinted notice and Light Gray
+     surfaces, so Pitline's own pages set text in blue-700 (5.4:1 or better on all of them). */
+  --accent-text: #1d4ed8;
   --focus-ring-on-dark: var(--pitline-orange);
 
   --navy-950: #0f2747;
@@ -182,6 +185,7 @@
   --color-brand-orange-600: var(--pitline-orange-600);
   --color-brand-steel: var(--pitline-steel);
   --color-brand-light: var(--pitline-light);
+  --color-accent-text: var(--accent-text);
   --color-focus: var(--focus-ring);
   --color-focus-on-dark: var(--focus-ring-on-dark);
   --font-display: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
@@ -207,4 +211,11 @@
 /* Garage booking sites focus in the garage's own colour, not Pitline's orange. */
 [data-garage] {
   --focus-ring: var(--garage-accent);
+}
+
+/* Wherever a garage's colour is set (booking sites, the Branding preview), accent text is that
+   colour, already darkened until readable (src/lib/branding/accent.ts). */
+[data-garage],
+[style*="--garage-accent"] {
+  --accent-text: var(--garage-accent);
 }

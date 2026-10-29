@@ -64,7 +64,7 @@ export function SegmentedControl<T extends string = string>({
                     ? "rounded-[11px] bg-white font-bold text-navy-950 shadow-[0_1px_3px_rgba(7,17,39,0.12)]"
                     : "rounded-[11px] bg-transparent font-semibold text-grey-700 hover:bg-white/60"
                   : pressed
-                    ? "rounded-input border-2 border-accent bg-white font-bold text-accent"
+                    ? "rounded-input border-2 border-accent bg-white font-bold text-accent-text"
                     : "rounded-input border border-grey-300 bg-white font-semibold text-grey-700 hover:border-grey-600",
               )}
             >

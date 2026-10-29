@@ -64,7 +64,7 @@ export function AdminTabBar({ tabs = DEFAULT_ADMIN_TABS, activeHref, label = "Ma
                 hrefs={hrefs}
                 activeHref={activeHref}
                 className={cn("relative flex min-h-11 w-full flex-col items-center gap-1 rounded-[10px] py-1.5 text-[11px] no-underline", focusRing)}
-                activeClassName="font-bold text-accent"
+                activeClassName="font-bold text-accent-text"
                 inactiveClassName="font-semibold text-grey-600 hover:text-navy-950"
               >
                 {tab.primary ? (

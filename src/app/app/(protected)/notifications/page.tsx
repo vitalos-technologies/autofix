@@ -125,7 +125,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 
   return (
     <>
-      <p className="text-xs font-extrabold tracking-widest text-accent uppercase">Operations</p>
+      <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">Operations</p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-extrabold text-[#0f2747]">Notification centre</h1>
@@ -156,7 +156,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
               <td className="px-5 py-4 font-bold text-[#0f2747]">{alert.customer}</td>
               <td className="px-5 py-4 text-[#475569]">{alert.reason}</td>
               <td className="px-5 py-4"><div className="flex flex-wrap gap-2">{alert.badges.map((badge) => <StatusBadge key={`${badge.label}:${badge.tone || "default"}`} label={badge.label} danger={badge.tone === "danger"} pending={badge.tone === "pending"} />)}</div></td>
-              <td className="px-5 py-4 text-right"><Link href={alert.href} className="inline-flex min-h-10 items-center whitespace-nowrap font-bold text-accent hover:underline">Open {alert.kind}</Link></td>
+              <td className="px-5 py-4 text-right"><Link href={alert.href} className="inline-flex min-h-10 items-center whitespace-nowrap font-bold text-accent-text hover:underline">Open {alert.kind}</Link></td>
             </tr>
           ))}
             </tbody>
@@ -171,7 +171,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 }
 
 function SummaryCard({ href, icon, label, value, tone = "default" }: { href: string; icon: React.ReactNode; label: string; value: number; tone?: "default" | "danger" }) {
-  return <Link href={href} className={`group rounded-2xl border bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#2563EB] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] ${tone === "danger" ? "border-red-200" : "border-[#E2E8F0]"}`}><span className={tone === "danger" ? "text-red-700" : "text-accent"}>{icon}</span><p className="mt-4 text-sm font-semibold text-grey-600 group-hover:text-accent">{label}</p><strong className="mt-1 block text-3xl text-[#0f2747]">{value}</strong></Link>;
+  return <Link href={href} className={`group rounded-2xl border bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#2563EB] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] ${tone === "danger" ? "border-red-200" : "border-[#E2E8F0]"}`}><span className={tone === "danger" ? "text-red-700" : "text-accent-text"}>{icon}</span><p className="mt-4 text-sm font-semibold text-grey-600 group-hover:text-accent-text">{label}</p><strong className="mt-1 block text-3xl text-[#0f2747]">{value}</strong></Link>;
 }
 
 function StatusBadge({ label, danger = false, pending = false }: { label: string; danger?: boolean; pending?: boolean }) {

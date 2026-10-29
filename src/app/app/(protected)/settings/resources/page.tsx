@@ -105,7 +105,7 @@ export default async function ResourcesSetupPage({ searchParams }: PageProps) {
                   </div>
                   {canEdit ? (
                     <details className="group">
-                      <summary className={cn("inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent underline underline-offset-2 [&::-webkit-details-marker]:hidden", focusRing)}>
+                      <summary className={cn("inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent-text underline underline-offset-2 [&::-webkit-details-marker]:hidden", focusRing)}>
                         Rename or delete <span className="sr-only">{resource.name}</span>
                       </summary>
                       <div className="mt-2 flex flex-col gap-3 rounded-input bg-grey-50 p-3">

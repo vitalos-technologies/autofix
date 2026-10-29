@@ -16,7 +16,7 @@ import { PoweredByPitline } from "@/components/brand/powered-by";
 const FORM_ID = "vehicle-form";
 
 const linkButton = cn(
-  "inline-flex min-h-11 items-center rounded-[6px] bg-transparent p-0 text-left text-[14px] font-semibold text-accent underline underline-offset-2 hover:text-blue-700",
+  "inline-flex min-h-11 items-center rounded-[6px] bg-transparent p-0 text-left text-[14px] font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700",
   focusRing,
 );
 

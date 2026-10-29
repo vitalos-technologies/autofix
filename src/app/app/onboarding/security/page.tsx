@@ -29,7 +29,7 @@ export default async function OnboardingSecurityPage() {
       ) : (
         <>
           <div className="flex items-start gap-3 rounded-card border border-grey-200 bg-white p-5">
-            <ShieldCheck size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-accent" />
+            <ShieldCheck size={22} aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text" />
             <ol className="m-0 flex list-decimal flex-col gap-1.5 pl-5 text-[15px] leading-6 text-grey-700">
               <li>Open an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password).</li>
               <li>Scan the QR code on the next screen.</li>

@@ -36,7 +36,7 @@ const chipBase = cn(
   focusRing,
 );
 const chipOff = "border-grey-300 text-grey-700 hover:border-grey-600";
-const chipOn = "border-[1.5px] border-accent text-accent";
+const chipOn = "border-[1.5px] border-accent text-accent-text";
 
 /** Toggle chips for symptoms (`aria-pressed`) plus an "Add a note" chip that reveals a text area. */
 export function SymptomChips({

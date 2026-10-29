@@ -57,7 +57,7 @@ export default async function PlansPage({ params }: { params: Promise<{ garageId
         ) : (
           <p className="m-0 text-[15px] leading-normal text-grey-700">{garage.name} doesn&apos;t offer service plans online right now. You can still book your car in.</p>
         )}
-        <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent underline underline-offset-2">
+        <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent-text underline underline-offset-2">
           Book a job instead
         </Link>
       </div>

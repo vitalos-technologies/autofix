@@ -118,7 +118,7 @@ export function OpeningHoursForm({ initial, canEdit }: { initial: WeekWindows; c
                     <button
                       type="button"
                       onClick={() => update(day, [...rows, defaultRow(rows)])}
-                      className={buttonClass("ghost", "sm", "w-fit gap-1.5 px-2 text-accent")}
+                      className={buttonClass("ghost", "sm", "w-fit gap-1.5 px-2 text-accent-text")}
                     >
                       <Plus size={18} strokeWidth={2} aria-hidden="true" />
                       {rows.length ? "Add more hours" : "Open this day"}

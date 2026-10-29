@@ -94,7 +94,7 @@ export function VehicleCard({
         ) : null}
       </div>
       {selected ? (
-        <span className="shrink-0 text-accent">
+        <span className="shrink-0 text-accent-text">
           <Check size={22} strokeWidth={2} aria-hidden="true" />
           <span className="sr-only">Selected</span>
         </span>

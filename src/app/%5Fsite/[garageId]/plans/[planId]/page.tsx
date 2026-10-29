@@ -39,7 +39,7 @@ export default async function JoinPlanPage({ params }: { params: Promise<{ garag
           </ul>
           <p className="m-0 text-[13px] text-grey-600">
             Included services count once per booking, per plan year (from the day you join). The plan is for one car.{" "}
-            <Link href="/privacy" className="font-semibold text-accent underline underline-offset-2">
+            <Link href="/privacy" className="font-semibold text-accent-text underline underline-offset-2">
               Privacy
             </Link>
           </p>

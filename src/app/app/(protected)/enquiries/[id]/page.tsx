@@ -74,7 +74,7 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
       <header className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <p className="text-xs font-extrabold tracking-widest text-accent uppercase">{formatType(enquiry.type)} enquiry</p>
+            <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">{formatType(enquiry.type)} enquiry</p>
             <h1 className="mt-2 text-3xl font-extrabold text-[#0f2747]">{customer?.name || "Customer enquiry"}</h1>
             {vehicleSummary && <p className="mt-3 font-bold text-[#0f2747]">{vehicleSummary}</p>}
             {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#475569] uppercase">{enquiry.vehicles.registration}</p>}
@@ -116,7 +116,7 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
             <p className="text-xs font-extrabold tracking-widest text-grey-600 uppercase">Original private attachments · links expire in 5 minutes</p>
             <div className="mt-3 flex flex-wrap gap-2">{enquiry.enquiry_attachments.map((attachment) => {
               const url = signedByPath.get(attachment.object_path);
-              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EFF6FF] px-3 py-2 text-sm font-bold text-accent">{attachment.file_name}</a> : null;
+              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EFF6FF] px-3 py-2 text-sm font-bold text-accent-text">{attachment.file_name}</a> : null;
             })}</div>
           </div>
         )}
