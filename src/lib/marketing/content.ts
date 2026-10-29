@@ -14,6 +14,7 @@ export const marketing = {
     { label: "Features", href: "#features" },
     { label: "Plans", href: "#plans" },
     { label: "FAQs", href: "#faqs" },
+    { label: "Contact", href: "/contact" },
   ],
   login: { label: "Log in", href: "/app/login" },
   start: { label: "Set up your garage", href: "/signup" },
@@ -199,9 +200,46 @@ export const marketing = {
       },
       {
         title: "Company",
-        links: [{ label: "Vitalos Technologies", href: "https://vitalos.co.uk" }],
+        links: [
+          { label: "Contact us", href: "/contact" },
+          { label: "Vitalos Technologies", href: "https://vitalos.co.uk" },
+        ],
       },
     ],
     company: "Vitalos Technologies Ltd",
+  },
+
+  // `/contact` on the admin host: the form posts to /api/contact, which stores the message in
+  // platform_enquiries and emails Vitalos. Only promise what happens: a person reads it and replies.
+  contact: {
+    metaTitle: "Contact Autofix · Online booking for independent garages",
+    description: "Questions about Autofix, a demo for your garage, or help with your account: send the Autofix team at Vitalos a message.",
+    eyebrow: "Contact",
+    heading: "Talk to the Autofix team",
+    intro: "Questions about Autofix, a demo for your garage, help with your account or a partnership idea. Send us a message and a person at Vitalos will reply by email.",
+    faqCta: { lead: "Something we haven't answered?", label: "Send us a message", after: "and a person at Vitalos will reply." },
+    aside: {
+      heading: "What happens next",
+      steps: [
+        "Your message goes straight to the Autofix team at Vitalos.",
+        "A person reads it and replies to the email address you give.",
+        "If you'd rather talk, add a phone number and say when suits you.",
+      ],
+      privacy: "We use your details only to answer your message.",
+      customers: { lead: "Already using Autofix?", label: "Log in", href: "/app/login" },
+      start: { lead: "Ready to start?", label: "Set up your garage", href: "/signup" },
+    },
+    form: {
+      heading: "Send a message",
+      submit: "Send message",
+      sending: "Sending…",
+      required: "All fields are required unless marked optional.",
+    },
+    thanks: {
+      heading: "Thanks, your message is on its way.",
+      body: "It has reached the Autofix team at Vitalos. We'll reply to",
+      again: "Send another message",
+      home: "Back to the home page",
+    },
   },
 } as const;

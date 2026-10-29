@@ -64,9 +64,17 @@ describe("marketing page (/ on the admin host)", () => {
     }
   });
 
-  it("is the one page on the admin host that may be indexed", () => {
+  it("links to the contact page from the nav, the FAQs and the footer", () => {
+    render(<HomePage />);
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Contact" })).toHaveAttribute("href", "/contact");
+    expect(within(screen.getByRole("navigation", { name: "Menu" })).getByRole("link", { name: "Contact" })).toHaveAttribute("href", "/contact");
+    expect(within(document.querySelector("#faqs") as HTMLElement).getByRole("link", { name: marketing.contact.faqCta.label })).toHaveAttribute("href", "/contact");
+    expect(within(screen.getByRole("navigation", { name: "Footer: Company" })).getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
+  });
+
+  it("is indexable, and robots.txt allows only it and the contact page on the admin host", () => {
     expect(metadata.robots).toEqual({ index: true, follow: true });
     expect(metadata.title).toEqual({ absolute: marketing.metaTitle });
-    expect(robots().rules).toEqual({ userAgent: "*", allow: "/$", disallow: "/" });
+    expect(robots().rules).toEqual({ userAgent: "*", allow: ["/$", "/contact$"], disallow: "/" });
   });
 });
