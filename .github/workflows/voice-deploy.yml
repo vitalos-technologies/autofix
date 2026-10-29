@@ -149,8 +149,9 @@ jobs:
           curl -fsS -o /dev/null "$origin/healthz"
           ready="$(curl -s -o /dev/null -w '%{http_code}' "$origin/readyz")"
           echo "readyz: $ready"
-          # Without a claim the relay refuses the upgrade.
-          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+          # Without a claim the relay refuses the upgrade. HTTP/1.1, as Twilio connects: over HTTP/2 curl's
+          # upgrade headers are dropped and the request lands on the plain 404 route.
+          code="$(curl --http1.1 -s -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
             -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "$origin/relay")"
           echo "relay without a claim: $code"
           [[ "$code" == 403 || "$code" == 503 ]]
