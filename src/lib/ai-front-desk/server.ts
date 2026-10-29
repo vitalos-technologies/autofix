@@ -6,7 +6,8 @@ import { localDateKey, monthStart } from "@/lib/admin/dates";
 import { effectivePlan } from "@/lib/plans/entitlements";
 import { loadUsageMonth, type UsageLine } from "@/lib/plans/usage";
 import type { Garage } from "@/lib/tenancy/garage";
-import { workforceVoiceTarget, type WorkforceConnection } from "./hand-off";
+import type { WorkforceConnection } from "./hand-off";
+import { parseVoiceRelayTarget } from "./voice-relay";
 
 // Settings · AI front desk (P5.12): the owner's switch, the Workforce connection, the garage's agent
 // tokens and this month's AI minutes. Reads go through the member's RLS client (selected garage);
@@ -50,10 +51,28 @@ export async function listAgentTokens(client: SupabaseClient): Promise<AgentToke
   }));
 }
 
-export function workforceConnection(tokens: AgentTokenRow[], env: Readonly<Record<string, string | undefined>> = process.env): WorkforceConnection {
+export function workforceConnection(tokens: AgentTokenRow[]): WorkforceConnection {
   const live = tokens.filter((token) => token.audience === "workforce" && !token.revokedAt);
   const lastUsedAt = live.map((token) => token.lastUsedAt).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
-  return { voiceConfigured: workforceVoiceTarget(env) !== null, activeTokens: live.length, lastUsedAt };
+  return { activeTokens: live.length, lastUsedAt };
+}
+
+/** The voice service is configured for the platform (VOICE_RELAY_URL and VOICE_RELAY_SECRET). No values. */
+export function voiceServiceConfigured(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return parseVoiceRelayTarget(env) !== null;
+}
+
+/** The garage's Autofix number (provisioned by the platform, so Twilio routes it to us), for the test-call guide. */
+export async function loadAutofixNumber(client: SupabaseClient, garageId: string): Promise<string | null> {
+  const { data, error } = await client
+    .from("garage_phone_numbers")
+    .select("number")
+    .eq("garage_id", garageId)
+    .not("provider_sid", "is", null)
+    .order("created_at")
+    .limit(1);
+  if (error) return null;
+  return ((data ?? []) as Array<{ number: string }>)[0]?.number ?? null;
 }
 
 /** AI front desk minutes this month for the selected garage (owners/managers), against the plan's allowance. */

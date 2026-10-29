@@ -307,6 +307,13 @@ describe("MissedCallCard", () => {
     expect(screen.queryByText("Texted back")).toBeNull();
     expect(screen.queryByRole("button", { name: /Play voicemail/ })).toBeNull();
   });
+
+  it("shows what the AI front desk wrote about the call", () => {
+    render(<MissedCallCard call={{ ...call, aiSummary: "Asked for a full service next Tuesday; booking request made.", aiOutcome: "booked" }} timeZone="Europe/London" markHandledAction="/x" />);
+    const card = screen.getByRole("article", { name: /^Sam Driver/ });
+    expect(within(card).getByText("AI booked a request")).toBeInTheDocument();
+    expect(within(card).getByText("Asked for a full service next Tuesday; booking request made.")).toBeInTheDocument();
+  });
 });
 
 describe("TemplateEditor", () => {

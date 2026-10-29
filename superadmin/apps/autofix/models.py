@@ -367,7 +367,7 @@ class Call(AutofixModel):
     text_back_message_id = models.UUIDField(null=True, blank=True)
     handled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField()
-    # 20261029001400_superadmin_calls.sql: masked like the garage app (07••• •••123); null when withheld.
+    # 20261029002200_superadmin_calls.sql: masked like the garage app (07••• •••123); null when withheld.
     caller_masked = models.TextField(null=True, blank=True)
     voicemail_duration_s = models.IntegerField(null=True, blank=True)
     has_voicemail = models.BooleanField(default=False)

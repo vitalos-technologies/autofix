@@ -479,13 +479,15 @@ describe("voice, Autofix's own line (A420)", () => {
   it("greets in Autofix's name and takes a voicemail: no ring-through, no text-back, no AI front desk, no garage", async () => {
     // Even with a garage dial target and the front desk on, the platform line never uses them.
     const { repo, state } = memoryRepo({ dialTarget: "+441302000101" });
-    repo.aiFrontDeskHandOff = vi.fn(async () => true);
+    repo.aiFrontDeskVoiceReady = vi.fn(async () => true);
     const findGarage = vi.spyOn(repo, "findGarageByNumber");
     const drainQueued = vi.fn(async () => undefined);
+    const prewarm = vi.fn(async () => undefined);
+    const relay = { url: "wss://voice.example/relay", healthUrl: "https://voice.example/healthz", secret: "relay-secret-0123456789abcdef0123" };
     const response = await handleTwilioWebhook(
       signedRequest("voice", callParams("ringing")),
       "voice",
-      platformDeps(repo, { drainQueued, workforceVoiceTarget: { sipUri: "sip:agent@workforce.example" } }),
+      platformDeps(repo, { drainQueued, voiceRelayTarget: relay, prewarm }),
     );
     const xml = await response.text();
     expect(xml).toBe(
@@ -497,8 +499,9 @@ describe("voice, Autofix's own line (A420)", () => {
     expect(state.calls.size).toBe(0);
     expect(state.textBacks).toEqual([]);
     expect(findGarage).not.toHaveBeenCalled();
-    expect(repo.aiFrontDeskHandOff).not.toHaveBeenCalled();
+    expect(repo.aiFrontDeskVoiceReady).not.toHaveBeenCalled();
     expect(drainQueued).not.toHaveBeenCalled();
+    expect(prewarm).not.toHaveBeenCalled();
     expect(state.finished.at(-1)).toMatchObject({ key: `voice:${CALL}:ringing`, status: "processed", outcome: "platform_call_voicemail" });
   });
 
@@ -521,6 +524,8 @@ describe("voice, Autofix's own line (A420)", () => {
     expect(retry).toBe(first);
     expect(record).toHaveBeenCalledTimes(1);
     const dial = await handleTwilioWebhook(signedRequest("voice", callParams("in-progress", { DialCallStatus: "no-answer" }), { query: "?step=dial" }), "voice", platformDeps(repo));
+    const relayStep = await handleTwilioWebhook(signedRequest("voice", callParams("in-progress"), { query: "?step=relay" }), "voice", platformDeps(repo));
+    expect(await relayStep.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
     expect(await dial.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
     expect(state.textBacks).toEqual([]);
   });

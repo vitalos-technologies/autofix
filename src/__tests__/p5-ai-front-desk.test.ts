@@ -1,8 +1,8 @@
 /**
- * P5.12 AI front desk on Pro: the Workforce hand-off hook in the Twilio voice webhook (Essentials
- * unchanged, Pro with the switch on hands missed calls to Workforce, an unanswered Workforce leg
- * falls back to voicemail + text-back), the hand-off helpers, the settings actions' plan and role
- * gates, and the usage month shared with the Plan page (clock-change edges).
+ * P5.12 AI front desk on Pro (voice desk): the hook in the Twilio voice webhook (Essentials unchanged,
+ * Pro with the switch on and minutes left gets the disclosure and the ConversationRelay connection to
+ * Autofix's voice service, a failed session falls back to voicemail + text-back), the relay claim, the
+ * settings states and actions' plan and role gates, and the usage month shared with the Plan page.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,52 +43,87 @@ vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => ({}) }));
 
 import { issueWorkforceTokenAction, revokeAgentTokenAction, setAiFrontDeskAction } from "@/app/app/(protected)/settings/ai-front-desk/actions";
 import { initialIssueTokenState, parseTokenName } from "@/lib/ai-front-desk/forms";
-import { AI_FRONT_DESK_ENV, parseWorkforceVoiceTarget, workforceConnectionStatus, workforceSipUri, workforceVoiceTarget } from "@/lib/ai-front-desk/hand-off";
-import { usageMonthFirst, workforceConnection, type AgentTokenRow } from "@/lib/ai-front-desk/server";
+import { voiceDeskStatus, workforceConnectionStatus } from "@/lib/ai-front-desk/hand-off";
+import { usageMonthFirst, voiceServiceConfigured, workforceConnection, type AgentTokenRow } from "@/lib/ai-front-desk/server";
+import { parseVoiceRelayTarget, RELAY_CLAIM_TTL_SECONDS, relayConnectUrl, signRelayClaim, verifyRelayClaim, type VoiceRelayTarget } from "@/lib/ai-front-desk/voice-relay";
 import { localDateKey, monthStart } from "@/lib/admin/dates";
-import { agentDialTwiml, isVoiceStep } from "@/lib/calls/twiml";
+import { aiDeskTwiml, aiDisclosure, isVoiceStep } from "@/lib/calls/twiml";
 import { computeTwilioSignature } from "@/lib/messaging/twilio";
 import { handleTwilioWebhook, type CallRecord, type TwilioWebhookRepo } from "@/lib/messaging/twilio-webhooks";
 import { PlanRequiredError } from "@/lib/plans/entitlements";
 
 // ---------------------------------------------------------------------------
-// Hand-off helpers
+// Relay target, claim and TwiML
 // ---------------------------------------------------------------------------
 
-const SIP = "sip:frontdesk@workforce.example.com";
+const SECRET = "voice-relay-secret-0123456789-abcdefghij";
+const RELAY: VoiceRelayTarget = { url: "wss://autofix-voice.example.azurecontainerapps.io/relay", healthUrl: "https://autofix-voice.example.azurecontainerapps.io/healthz", secret: SECRET };
 const GARAGE = "a0000000-0000-4000-8000-00000000000a";
 const CALL = "CA00000000000000000000000000000001";
 
-describe("Workforce voice target", () => {
-  it("accepts only sip:/sips: URIs from WORKFORCE_VOICE_SIP_URI", () => {
-    expect(parseWorkforceVoiceTarget(SIP)).toEqual({ sipUri: SIP });
-    expect(parseWorkforceVoiceTarget(" sips:agent@sip.workforce.example:5061;transport=tls ")).toEqual({ sipUri: "sips:agent@sip.workforce.example:5061;transport=tls" });
-    for (const bad of ["", "https://workforce.example/voice", "+441302000000", "sip:a@b?X-Injected=1", "sip:a@b\"><Hangup/>", "sip:@host"]) {
-      expect(parseWorkforceVoiceTarget(bad), bad).toBeNull();
+describe("voice relay target and claim", () => {
+  it("needs a wss:// URL without a query and a 32+ character secret", () => {
+    expect(parseVoiceRelayTarget({ VOICE_RELAY_URL: RELAY.url, VOICE_RELAY_SECRET: ` ${SECRET} ` })).toEqual(RELAY);
+    for (const [url, secret] of [
+      ["", SECRET], [RELAY.url, ""], [RELAY.url, "short"], ["https://autofix-voice.example/relay", SECRET],
+      [`${RELAY.url}?g=1`, SECRET], ["wss://user:pw@host/relay", SECRET], ["not a url", SECRET],
+    ] as const) {
+      expect(parseVoiceRelayTarget({ VOICE_RELAY_URL: url, VOICE_RELAY_SECRET: secret }), `${url} / ${secret.length}`).toBeNull();
     }
-    expect(workforceVoiceTarget({})).toBeNull();
-    expect(workforceVoiceTarget({ [AI_FRONT_DESK_ENV.voiceSipUri]: SIP })).toEqual({ sipUri: SIP });
+    expect(voiceServiceConfigured({})).toBe(false);
+    expect(voiceServiceConfigured({ VOICE_RELAY_URL: RELAY.url, VOICE_RELAY_SECRET: SECRET })).toBe(true);
   });
 
-  it("tells Workforce the garage and the CallSid (its conversationId) as SIP headers, nothing about the caller", () => {
-    const uri = workforceSipUri({ sipUri: SIP }, { garageId: GARAGE, callSid: CALL });
-    expect(uri).toBe(`${SIP}?X-Autofix-Garage=${GARAGE}&X-Autofix-Call-Sid=${CALL}`);
-    const xml = agentDialTwiml({ sipUri: uri, actionUrl: "https://autofix.vitalos.co.uk/api/webhooks/twilio/voice?step=agent" });
-    expect(xml).toBe(`<Dial timeout="20" answerOnBridge="true" action="https://autofix.vitalos.co.uk/api/webhooks/twilio/voice?step=agent" method="POST"><Sip>${SIP}?X-Autofix-Garage=${GARAGE}&amp;X-Autofix-Call-Sid=${CALL}</Sip></Dial>`);
-    expect(isVoiceStep("agent")).toBe(true);
+  it("matches the shared test vector (services/voice/src/claim.test.ts checks the same one)", () => {
+    expect(signRelayClaim("test-secret-test-secret-test-secret", { garageId: GARAGE, callSid: CALL, expires: 1793000000 }))
+      .toBe("a8df7828c754f67da80ce34466c1e0b0da5e6ec95ed72d8f3c475c3b429d746e");
   });
 
-  it("describes the connection from the garage's tokens", () => {
-    expect(workforceConnectionStatus({ voiceConfigured: false, activeTokens: 0, lastUsedAt: null }).label).toBe("Not connected");
-    expect(workforceConnectionStatus({ voiceConfigured: false, activeTokens: 1, lastUsedAt: null }).label).toBe("Waiting for Workforce");
-    expect(workforceConnectionStatus({ voiceConfigured: true, activeTokens: 1, lastUsedAt: "2026-10-28T09:00:00Z" })).toMatchObject({ tone: "success", label: "Connected" });
+  it("puts the garage, CallSid, expiry and signature in the URL and nothing about the caller; the claim verifies until it expires", () => {
+    const now = new Date("2026-10-29T10:00:00Z");
+    const url = new URL(relayConnectUrl(RELAY, { garageId: GARAGE, callSid: CALL, now }));
+    expect(`${url.protocol}//${url.host}${url.pathname}`).toBe(RELAY.url);
+    expect([...url.searchParams.keys()]).toEqual(["g", "c", "e", "s"]);
+    const input = { garageId: url.searchParams.get("g"), callSid: url.searchParams.get("c"), expires: url.searchParams.get("e"), signature: url.searchParams.get("s") };
+    expect(verifyRelayClaim(SECRET, input, now)).toEqual({ garageId: GARAGE, callSid: CALL, expires: now.getTime() / 1000 + RELAY_CLAIM_TTL_SECONDS });
+    expect(verifyRelayClaim(SECRET, input, new Date(now.getTime() + RELAY_CLAIM_TTL_SECONDS * 1000))).toBeNull();
+    expect(verifyRelayClaim("another-secret-another-secret-another", input, now)).toBeNull();
+    expect(verifyRelayClaim(SECRET, { ...input, callSid: "CA00000000000000000000000000000002" }, now)).toBeNull();
+    expect(verifyRelayClaim(SECRET, { ...input, garageId: "b0000000-0000-4000-8000-00000000000b" }, now)).toBeNull();
+    expect(verifyRelayClaim(SECRET, { ...input, expires: String(Number(input.expires) + 3600) }, now)).toBeNull();
+  });
+
+  it("speaks the approved disclosure, then connects ConversationRelay in en-GB with the step=relay action", () => {
+    expect(aiDisclosure("Hartley Road")).toBe("Hi, you're through to the automated assistant for Hartley Road. I can check times and book you in, or take a message for the team.");
+    const xml = aiDeskTwiml({ garageName: "Tom & Jo's", relayUrl: "wss://h/relay?g=1&c=2", actionUrl: "https://a/voice?step=relay" });
+    expect(xml).toBe(`<Say language="en-GB">Hi, you&apos;re through to the automated assistant for Tom &amp; Jo&apos;s. I can check times and book you in, or take a message for the team.</Say>`
+      + `<Connect action="https://a/voice?step=relay" method="POST"><ConversationRelay url="wss://h/relay?g=1&amp;c=2" language="en-GB" interruptible="any"/></Connect>`);
+    expect(isVoiceStep("relay")).toBe(true);
+    expect(isVoiceStep("agent")).toBe(false);
+  });
+});
+
+describe("settings states", () => {
+  it("describes partner tokens from the garage's tokens", () => {
+    expect(workforceConnectionStatus({ activeTokens: 0, lastUsedAt: null }).label).toBe("No tokens");
+    expect(workforceConnectionStatus({ activeTokens: 1, lastUsedAt: null }).label).toBe("Not used yet");
+    expect(workforceConnectionStatus({ activeTokens: 1, lastUsedAt: "2026-10-28T09:00:00Z" })).toMatchObject({ tone: "success", label: "In use" });
     const token = (overrides: Partial<AgentTokenRow>): AgentTokenRow => ({ id: "t", name: "n", audience: "workforce", scopes: [], lastUsedAt: null, revokedAt: null, createdAt: "2026-10-01T00:00:00Z", ...overrides });
     expect(workforceConnection([
       token({ lastUsedAt: "2026-10-27T09:00:00Z" }),
       token({ lastUsedAt: "2026-10-28T09:00:00Z", revokedAt: "2026-10-28T10:00:00Z" }),
       token({ audience: "askbridge", lastUsedAt: "2026-10-28T11:00:00Z" }),
       token({}),
-    ], {})).toEqual({ voiceConfigured: false, activeTokens: 2, lastUsedAt: "2026-10-27T09:00:00Z" });
+    ])).toEqual({ activeTokens: 2, lastUsedAt: "2026-10-27T09:00:00Z" });
+  });
+
+  it("says whether calls are being answered, and why not", () => {
+    const ready = { serviceConfigured: true, enabled: true, hasNumber: true, overAllowance: false };
+    expect(voiceDeskStatus(ready)).toMatchObject({ tone: "success", label: "Answering" });
+    expect(voiceDeskStatus({ ...ready, enabled: false }).label).toBe("Off");
+    expect(voiceDeskStatus({ ...ready, serviceConfigured: false }).label).toBe("Waiting for Vitalos");
+    expect(voiceDeskStatus({ ...ready, hasNumber: false }).label).toBe("No Autofix number");
+    expect(voiceDeskStatus({ ...ready, overAllowance: true }).label).toBe("Allowance used");
   });
 });
 
@@ -98,7 +133,7 @@ describe("Workforce voice target", () => {
 
 const AUTH_TOKEN = "twilio-test-auth-token-0123456789";
 const BASE = "https://autofix.vitalos.co.uk";
-const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE };
+const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE, PLAN_PRO_AI_MINUTES: "200" };
 const GARAGE_NUMBER = "+447700100200";
 const CALLER = "+447700900123";
 const OWN_PHONE = "+441302000101";
@@ -112,9 +147,9 @@ function signedVoice(params: Record<string, string>, query = "") {
 
 const callParams = (status: string, extra: Record<string, string> = {}) => ({ CallSid: CALL, From: CALLER, To: GARAGE_NUMBER, CallStatus: status, Direction: "inbound", ...extra });
 
-function voiceRepo(options: { handOff?: boolean | "throws"; dialTarget?: string; withHook?: boolean } = {}) {
+function voiceRepo(options: { ready?: boolean | "throws"; dialTarget?: string; withHook?: boolean } = {}) {
   const events = new Set<string>();
-  const state = { calls: new Map<string, CallRecord & { id: string }>(), textBacks: [] as string[], handOffChecks: 0 };
+  const state = { calls: new Map<string, CallRecord & { id: string }>(), textBacks: [] as string[], readyChecks: [] as Array<number | null> };
   const repo: TwilioWebhookRepo = {
     async claimEvent(key) {
       if (events.has(key)) return false;
@@ -150,67 +185,95 @@ function voiceRepo(options: { handOff?: boolean | "throws"; dialTarget?: string;
     async queueTextBack(_garageId, callId) { state.textBacks.push(callId); },
   };
   if (options.withHook !== false) {
-    repo.aiFrontDeskHandOff = async () => {
-      state.handOffChecks += 1;
-      if (options.handOff === "throws") throw new Error("database down");
-      return options.handOff ?? false;
+    repo.aiFrontDeskVoiceReady = async (_garageId, allowance) => {
+      state.readyChecks.push(allowance);
+      if (options.ready === "throws") throw new Error("database down");
+      return options.ready ?? false;
     };
     repo.findCallId = async (_garageId, callSid) => state.calls.get(callSid)?.id ?? null;
   }
   return { repo, state };
 }
 
-const deps = (repo: TwilioWebhookRepo, target: string | null = SIP) => ({ repo: () => repo, env: ENV, workforceVoiceTarget: target ? { sipUri: target } : null });
+function deps(repo: TwilioWebhookRepo, relay: VoiceRelayTarget | null = RELAY) {
+  const prewarmed: string[] = [];
+  const after: Array<() => Promise<unknown>> = [];
+  return {
+    prewarmed,
+    after,
+    repo: () => repo,
+    env: ENV,
+    voiceRelayTarget: relay,
+    prewarm: async (url: string) => { prewarmed.push(url); },
+    afterResponse: (task: () => Promise<unknown>) => { after.push(task); },
+  };
+}
+
+async function runAfter(d: ReturnType<typeof deps>) {
+  for (const task of d.after.splice(0)) await task();
+}
 
 describe("voice webhook: Essentials keeps missed-call text-back and voicemail", () => {
-  it("an Essentials garage (hand-off false) gets the voicemail and the text-back even with Workforce configured", async () => {
-    const { repo, state } = voiceRepo({ handOff: false });
-    const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo))).text();
+  it("not ready (Essentials, switched off or minutes used up) gets the voicemail and the text-back even with the service configured", async () => {
+    const { repo, state } = voiceRepo({ ready: false });
+    const d = deps(repo);
+    const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", d)).text();
     expect(xml).toContain("<Record ");
-    expect(xml).not.toContain("<Sip>");
+    expect(xml).not.toContain("ConversationRelay");
     expect(state.textBacks).toEqual([`call-${CALL}`]);
-    expect(state.handOffChecks).toBe(1);
+    expect(state.readyChecks).toEqual([200]);
+    await runAfter(d);
+    expect(d.prewarmed).toEqual([]);
   });
 
-  it("a repo without the hook, no Workforce target, or a failing check: unchanged", async () => {
-    for (const [setup, target] of [[{ withHook: false, handOff: true }, SIP], [{ handOff: true }, null], [{ handOff: "throws" }, SIP]] as const) {
+  it("a repo without the hook, no voice service, or a failing check: unchanged", async () => {
+    for (const [setup, relay] of [[{ withHook: false, ready: true }, RELAY], [{ ready: true }, null], [{ ready: "throws" }, RELAY]] as const) {
       const { repo, state } = voiceRepo(setup);
-      const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo, target))).text();
+      const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo, relay))).text();
       expect(xml).toContain("<Record ");
       expect(state.textBacks).toEqual([`call-${CALL}`]);
     }
   });
 
-  it("the garage's own phone still rings first; the hand-off is not even asked", async () => {
-    const { repo, state } = voiceRepo({ handOff: true, dialTarget: OWN_PHONE });
+  it("the garage's own phone still rings first; the AI front desk is not even asked", async () => {
+    const { repo, state } = voiceRepo({ ready: true, dialTarget: OWN_PHONE });
     const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo))).text();
     expect(xml).toContain(`<Number>${OWN_PHONE}</Number>`);
-    expect(state.handOffChecks).toBe(0);
+    expect(state.readyChecks).toEqual([]);
   });
 });
 
-describe("voice webhook: Pro with the AI front desk on hands missed calls to Workforce", () => {
-  it("a missed call goes to the Workforce SIP target, is logged missed, and gets no text-back", async () => {
-    const { repo, state } = voiceRepo({ handOff: true });
-    const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo))).text();
-    expect(xml).toBe(`<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeout="20" answerOnBridge="true" action="${BASE}/api/webhooks/twilio/voice?step=agent" method="POST"><Sip>${SIP}?X-Autofix-Garage=${GARAGE}&amp;X-Autofix-Call-Sid=${CALL}</Sip></Dial></Response>`);
+describe("voice webhook: Pro with the AI front desk on answers missed calls", () => {
+  it("a missed call hears the disclosure and is connected to the voice service, which is woken after the response; no text-back", async () => {
+    const { repo, state } = voiceRepo({ ready: true });
+    const d = deps(repo);
+    const xml = await (await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", d)).text();
+    expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?><Response><Say language="en-GB">Hi, you&apos;re through to the automated assistant for Hartley Road\./);
+    expect(xml).toContain(`<Connect action="${BASE}/api/webhooks/twilio/voice?step=relay" method="POST"><ConversationRelay url="${RELAY.url}?g=${GARAGE}&amp;c=${CALL}&amp;e=`);
     expect(xml).not.toContain(CALLER);
+    expect(xml).not.toContain(SECRET);
     expect(state.calls.get(CALL)).toMatchObject({ missed: true });
     expect(state.textBacks).toEqual([]);
+    expect(d.prewarmed).toEqual([]);
+    await runAfter(d);
+    expect(d.prewarmed).toEqual([RELAY.healthUrl]);
   });
 
-  it("after the garage's phone goes unanswered the call goes to Workforce", async () => {
-    const { repo, state } = voiceRepo({ handOff: true, dialTarget: OWN_PHONE });
+  it("after the garage's phone goes unanswered the call goes to the AI front desk", async () => {
+    const { repo, state } = voiceRepo({ ready: true, dialTarget: OWN_PHONE });
     await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo));
-    const xml = await (await handleTwilioWebhook(signedVoice(callParams("in-progress", { DialCallStatus: "no-answer" }), "?step=dial"), "voice", deps(repo))).text();
-    expect(xml).toContain("<Sip>");
+    const d = deps(repo);
+    const xml = await (await handleTwilioWebhook(signedVoice(callParams("in-progress", { DialCallStatus: "no-answer" }), "?step=dial"), "voice", d)).text();
+    expect(xml).toContain("<ConversationRelay ");
     expect(state.textBacks).toEqual([]);
+    await runAfter(d);
+    expect(d.prewarmed).toEqual([RELAY.healthUrl]);
   });
 
-  it.each(["no-answer", "busy", "failed", "canceled"])("a %s Workforce leg falls back to the voicemail and the text-back, once", async (status) => {
-    const { repo, state } = voiceRepo({ handOff: true });
+  it("a failed session (service down) falls back to the voicemail and the text-back, once", async () => {
+    const { repo, state } = voiceRepo({ ready: true });
     await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo));
-    const request = () => signedVoice(callParams("in-progress", { DialCallStatus: status }), "?step=agent");
+    const request = () => signedVoice(callParams("in-progress", { SessionStatus: "failed", ErrorCode: "39001" }), "?step=relay");
     const xml = await (await handleTwilioWebhook(request(), "voice", deps(repo))).text();
     expect(xml).toContain("<Record ");
     expect(state.textBacks).toEqual([`call-${CALL}`]);
@@ -218,10 +281,22 @@ describe("voice webhook: Pro with the AI front desk on hands missed calls to Wor
     expect(state.textBacks).toHaveLength(1);
   });
 
-  it("an answered Workforce leg just hangs up afterwards", async () => {
-    const { repo, state } = voiceRepo({ handOff: true });
+  it("a session the desk ended for a message goes to the voicemail without a text-back", async () => {
+    const { repo, state } = voiceRepo({ ready: true });
     await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo));
-    const xml = await (await handleTwilioWebhook(signedVoice(callParams("in-progress", { DialCallStatus: "completed" }), "?step=agent"), "voice", deps(repo))).text();
+    const xml = await (await handleTwilioWebhook(signedVoice(callParams("in-progress", { SessionStatus: "ended", HandoffData: '{"to":"voicemail"}' }), "?step=relay"), "voice", deps(repo))).text();
+    expect(xml).toContain("<Record ");
+    expect(state.textBacks).toEqual([]);
+  });
+
+  it.each([
+    [{ SessionStatus: "ended", HandoffData: '{"to":"hangup","reason":"done"}' }],
+    [{ SessionStatus: "completed", CallStatus: "completed" }],
+    [{ SessionStatus: "ended", HandoffData: "not json" }],
+  ])("a finished session hangs up: %j", async (extra) => {
+    const { repo, state } = voiceRepo({ ready: true });
+    await handleTwilioWebhook(signedVoice(callParams("ringing")), "voice", deps(repo));
+    const xml = await (await handleTwilioWebhook(signedVoice({ ...callParams("in-progress"), ...extra }, "?step=relay"), "voice", deps(repo))).text();
     expect(xml).toContain("<Hangup/>");
     expect(xml).not.toContain("<Record");
     expect(state.textBacks).toEqual([]);

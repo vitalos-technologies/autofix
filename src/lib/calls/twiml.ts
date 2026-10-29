@@ -16,11 +16,11 @@ export const DIAL_TIMEOUT_SECONDS = 20;
 /** Dial outcomes after which the caller was not put through: the call is missed. */
 export const MISSED_DIAL_STATUSES = new Set(["busy", "no-answer", "failed", "canceled"]);
 
-/** `agent` (P5.12): how the hand-off to the Workforce voice agent went. */
-export type VoiceStep = "dial" | "recorded" | "recording" | "agent";
+/** `relay` (P5.12 voice desk): how the AI front desk call went (Twilio's <Connect action> callback). */
+export type VoiceStep = "dial" | "recorded" | "recording" | "relay";
 
 export function isVoiceStep(value: string | null): value is VoiceStep {
-  return value === "dial" || value === "recorded" || value === "recording" || value === "agent";
+  return value === "dial" || value === "recorded" || value === "recording" || value === "relay";
 }
 
 export function escapeXml(value: string) {
@@ -68,13 +68,25 @@ function recordTwiml(greeting: string, input: { recordedUrl: string; recordingSt
   ].join("");
 }
 
+/** The AI front desk's first sentence (docs/autofix/legal/consent-and-messaging-wording.md v1.0, "Automated assistant disclosure"). */
+export function aiDisclosure(garageName: string) {
+  return `Hi, you're through to the automated assistant for ${garageName}. I can check times and book you in, or take a message for the team.`;
+}
+
 /**
- * P5.12 hand-off: put the caller through to the Workforce voice agent over SIP; Twilio then asks
- * `actionUrl` (?step=agent) with DialCallStatus, and an unanswered leg falls back to the voicemail.
+ * P5.12 voice desk: the disclosure, then the call goes to Autofix's voice service over Twilio
+ * ConversationRelay (https://www.twilio.com/docs/voice/twiml/connect/conversationrelay, read 29 Oct
+ * 2026). The disclosure plays while the service wakes. When the session ends Twilio asks `actionUrl`
+ * (?step=relay) with SessionStatus (ended / completed / failed) and any HandoffData; a failed
+ * session falls back to the voicemail. Speech in and out is en-GB; nothing is recorded.
  */
-export function agentDialTwiml(input: { sipUri: string; actionUrl: string; timeoutSeconds?: number }) {
-  const timeout = Math.max(5, Math.min(60, Math.trunc(input.timeoutSeconds ?? DIAL_TIMEOUT_SECONDS)));
-  return `<Dial timeout="${timeout}" answerOnBridge="true" action="${escapeXml(input.actionUrl)}" method="POST"><Sip>${escapeXml(input.sipUri)}</Sip></Dial>`;
+export function aiDeskTwiml(input: { garageName: string; relayUrl: string; actionUrl: string }) {
+  return [
+    say(aiDisclosure(input.garageName)),
+    `<Connect action="${escapeXml(input.actionUrl)}" method="POST">`,
+    `<ConversationRelay url="${escapeXml(input.relayUrl)}" language="en-GB" interruptible="any"/>`,
+    "</Connect>",
+  ].join("");
 }
 
 export function afterRecordingTwiml() {

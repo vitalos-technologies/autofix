@@ -16,5 +16,7 @@ export default defineConfig([
     "**/.wrangler-dry-run/**",
     // The Django super admin (P5.1) has its own tooling (ruff, bandit; superadmin/README.md).
     "superadmin/**",
+    // The voice service (services/voice) is its own package with its own checks (pnpm verify there).
+    "services/**",
   ]),
 ]);

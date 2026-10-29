@@ -6,14 +6,14 @@
 --      garage_id, RLS is on and signed-in staff and anon get nothing, so no
 --      garage can ever read it. Only the service role (the voice webhook)
 --      writes it; the Django super admin reads it through superadmin.calls
---      (20261029001400_superadmin_calls.sql). There is no text-back and no
+--      (20261029002200_superadmin_calls.sql). There is no text-back and no
 --      ring-through on this line, so it has no dial or text-back columns.
 --   2. apply_platform_call_retention(): clears voicemail links after 12
 --      months, as apply_message_retention() does for garage calls (A57).
 --      Run by the daily `retention` job's platform step.
 --
 -- Rollback (manual): drop function public.apply_platform_call_retention();
--- drop table public.platform_calls (after 20261029001400 is rolled back).
+-- drop table public.platform_calls (after 20261029002200 is rolled back).
 
 -- ---------------------------------------------------------------------------
 -- 1. platform_calls

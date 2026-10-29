@@ -266,9 +266,9 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
       return (platform.data ?? []).length > 0;
     },
 
-    async aiFrontDeskHandOff(garageId) {
-      const { data, error } = await db.rpc("ai_front_desk_hand_off", { p_garage_id: garageId });
-      if (error) throw databaseError("ai_front_desk.hand_off", error);
+    async aiFrontDeskVoiceReady(garageId, allowance) {
+      const { data, error } = await db.rpc("ai_front_desk_voice_ready", { p_garage_id: garageId, p_allowance: allowance });
+      if (error) throw databaseError("ai_front_desk.voice_ready", error);
       return data === true;
     },
 

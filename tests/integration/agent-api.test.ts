@@ -89,6 +89,7 @@ describe.skipIf(!configured).sequential("agent tool API against local Supabase",
       get_booking: (await import("../../src/app/api/agent/v1/get_booking/route")).POST,
       garage_profile: (await import("../../src/app/api/agent/v1/garage_profile/route")).POST,
       report_usage: (await import("../../src/app/api/agent/v1/report_usage/route")).POST,
+      log_call_summary: (await import("../../src/app/api/agent/v1/log_call_summary/route")).POST,
     };
   });
 
@@ -193,5 +194,47 @@ describe.skipIf(!configured).sequential("agent tool API against local Supabase",
     expect((await call("list_services", {}, askbridgeB.token)).status).toBe(200);
     expect(await call("create_booking", {}, askbridgeB.token)).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
     await expect(issueAgentToken({ garageId: users.garageB.id, name: "Workforce again" }, service)).rejects.toBeInstanceOf(PlanRequiredError);
+  });
+
+  it("voice desk: one expiring token per recent call while the front desk is on; it books, reports and logs the summary", async () => {
+    const { issueVoiceCallToken } = await import("../../src/lib/agent-api/store");
+    const garageId = users.garageA.id;
+    const callSid = `CA${randomUUID().replaceAll("-", "")}`;
+    await insert("calls", [{ garage_id: garageId, provider_call_sid: callSid, from_number: "+447700900555", to_number: "+447700100200", status: "in-progress", missed: true }]);
+
+    expect(await issueVoiceCallToken({ garageId, callSid }, service)).toEqual({ ok: false, code: "FRONT_DESK_OFF" });
+    expect((await service.rpc("ai_front_desk_voice_ready", { p_garage_id: garageId, p_allowance: 200 })).data).toBe(false);
+    const { error: switchError } = await service.from("ai_front_desk_settings").upsert({ garage_id: garageId, enabled: true, enabled_at: new Date().toISOString() });
+    expect(switchError).toBeNull();
+    expect((await service.rpc("ai_front_desk_voice_ready", { p_garage_id: garageId, p_allowance: 200 })).data).toBe(true);
+    expect((await service.rpc("ai_front_desk_voice_ready", { p_garage_id: garageId, p_allowance: null })).data).toBe(true);
+    expect(await issueVoiceCallToken({ garageId, callSid: `CA${randomUUID().replaceAll("-", "")}` }, service)).toEqual({ ok: false, code: "CALL_NOT_FOUND" });
+    expect(await issueVoiceCallToken({ garageId: users.garageB.id, callSid }, service)).toEqual({ ok: false, code: "CALL_NOT_FOUND" });
+
+    const issued = await issueVoiceCallToken({ garageId, callSid }, service);
+    if (!issued.ok) throw new Error(`no call token: ${issued.code}`);
+    expect(await issueVoiceCallToken({ garageId, callSid }, service)).toEqual({ ok: false, code: "ALREADY_ISSUED" });
+    const { data: row } = await service.from("agent_tokens").select("call_sid,expires_at,audience,scopes").eq("call_sid", callSid).single();
+    expect(row).toMatchObject({ call_sid: callSid, audience: "workforce" });
+    expect(row?.scopes).toContain("log_call_summary");
+    expect(Date.parse(String(row?.expires_at))).toBeGreaterThan(Date.now());
+    // Staff never see per-call tokens.
+    expect(((await users.admin.rpc("list_agent_tokens")).data as Array<{ name: string }>).map((entry) => entry.name)).not.toContain("AI front desk call");
+
+    expect((await call("list_services", {}, issued.token)).status).toBe(200);
+    const note = { callSid, summary: "Asked about a service for EF34 GHI; wants a call back.", outcome: "callback" };
+    expect(await call("log_call_summary", note, issued.token)).toMatchObject({ status: 201, body: { stored: true } });
+    expect(await call("log_call_summary", note, issued.token)).toMatchObject({ status: 200, body: { stored: false } });
+    expect(await call("log_call_summary", note, tokenB)).toMatchObject({ status: 403 });
+    const { data: logged } = await service.from("calls").select("ai_summary,ai_outcome,ai_handled_at").eq("provider_call_sid", callSid).single();
+    expect(logged).toMatchObject({ ai_summary: "Asked about a service for [reg]; wants a call back.", ai_outcome: "callback" });
+    expect(logged?.ai_handled_at).not.toBeNull();
+
+    const usage = { conversationId: callSid, channel: "call", minutes: 3, endedAt: new Date().toISOString() };
+    expect(await call("report_usage", usage, issued.token)).toMatchObject({ status: 201 });
+    expect((await service.rpc("ai_front_desk_voice_ready", { p_garage_id: garageId, p_allowance: 1 })).data).toBe(false);
+
+    await service.from("agent_tokens").update({ expires_at: new Date(Date.now() - 1000).toISOString() }).eq("call_sid", callSid);
+    expect(await call("list_services", {}, issued.token)).toMatchObject({ status: 401, body: { code: "UNAUTHORIZED" } });
   });
 });

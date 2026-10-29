@@ -5,7 +5,7 @@ set local search_path = public, extensions;
 
 select plan(17);
 
--- Super admin calls (20261029001400_superadmin_calls.sql): the masked caller
+-- Super admin calls (20261029002200_superadmin_calls.sql): the masked caller
 -- and voicemail length on superadmin.calls, platform-line calls alongside
 -- garage calls, recording links only in superadmin.call_voicemails, and
 -- nothing raw anywhere else.

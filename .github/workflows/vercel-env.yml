@@ -90,13 +90,14 @@ jobs:
           VAR__NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           VAR__PAYMENTS_PROVIDER: ${{ vars.PAYMENTS_PROVIDER }}
           VAR__PLACES_PROVIDER: ${{ vars.PLACES_PROVIDER }}
-          # Plans (D17): Essentials £20 and Pro £45 a month, excluding VAT (Temitope, 29 Oct 2026); the rest
+          # Plans (D17): Essentials £20 and Pro £45 a month, excluding VAT (Temitope, 29 Oct 2026); 200 AI front
+          # desk minutes a month on Pro (D20; the voice desk falls back to voicemail at the allowance); the rest
           # stay "to be confirmed" until set. A repository variable overrides any of them.
           VAR__PLAN_ESSENTIALS_PRICE_PENCE: ${{ vars.PLAN_ESSENTIALS_PRICE_PENCE || '2000' }}
           VAR__PLAN_PRO_PRICE_PENCE: ${{ vars.PLAN_PRO_PRICE_PENCE || '4500' }}
           VAR__PLAN_ESSENTIALS_SMS_ALLOWANCE: ${{ vars.PLAN_ESSENTIALS_SMS_ALLOWANCE }}
           VAR__PLAN_PRO_SMS_ALLOWANCE: ${{ vars.PLAN_PRO_SMS_ALLOWANCE }}
-          VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES }}
+          VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES || '200' }}
           VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE }}
           VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE }}
           VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
