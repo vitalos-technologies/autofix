@@ -42,6 +42,8 @@ const MIGRATION_PROBES = [
   ["20261029001000", "accounting_connections?select=id"],
   ["20261029001100", "service_plans?select=id"],
   ["20261029001200", "ai_front_desk_settings?select=*"],
+  // 20261029001300 (askbridge_site_key) only changes functions and settings, which PostgREST can't probe.
+  ["20261029001400", "customers?select=offers_consent"],
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
