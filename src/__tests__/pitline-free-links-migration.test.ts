@@ -3,14 +3,19 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { migrationFiles, sqlStatements } from "./support/migrations";
 
-const FILE = "20261029003000_pitline_free_links.sql";
+const FILE = "20261029003200_pitline_free_links.sql";
 const source = readFileSync(join(process.cwd(), "supabase", "migrations", FILE), "utf8");
 const statements = sqlStatements(source);
 
 describe("Pitline free-link migration (DECISIONS D23)", () => {
   it("runs after every earlier migration", () => {
     expect(migrationFiles).toContain(FILE);
-    expect(migrationFiles.indexOf(FILE)).toBeGreaterThan(migrationFiles.indexOf("20261029002000_ai_voice_desk.sql"));
+    expect(migrationFiles.indexOf(FILE)).toBeGreaterThan(migrationFiles.indexOf("20261029003100_booking_page_show_prices.sql"));
+  });
+
+  it("has a version no other migration uses (Supabase keys schema_migrations on it)", () => {
+    const versions = migrationFiles.map((file) => file.slice(0, file.indexOf("_")));
+    expect(versions.filter((version, index) => versions.indexOf(version) !== index)).toEqual([]);
   });
 
   it("rewrites only free-link rows ending in the old root, and never onto a live hostname", () => {
