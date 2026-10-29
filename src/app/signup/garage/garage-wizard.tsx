@@ -17,6 +17,12 @@ type Details = { name: string; phone: string; email: string; website: string; li
 const EMPTY: Details = { name: "", phone: "", email: "", website: "", line1: "", line2: "", town: "", postcode: "" };
 const STEP_ONE_FIELDS: GarageField[] = ["name", "phone", "email", "website", "line1", "line2", "town", "postcode", "placeId", "openingHours"];
 const initialCreateState: CreateGarageState = { seq: 0, errors: {} };
+/**
+ * Typing in the link box checks the slug once the owner pauses. Server actions run one at a time per
+ * client, so a check per keystroke queued every one of them and kept "Create my garage" disabled for
+ * seconds after the last key.
+ */
+const SLUG_CHECK_DELAY_MS = 300;
 
 export type GarageWizardProps = {
   placesEnabled: boolean;
@@ -50,6 +56,8 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
   const [slugTouched, setSlugTouched] = useState(false);
   const [slugCheck, setSlugCheck] = useState<SlugCheckResult | null>(null);
   const [checking, startCheck] = useTransition();
+  const [checkDue, setCheckDue] = useState(false);
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, formAction, creating] = useActionState(createGarageAction, initialCreateState);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -74,6 +82,10 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+
+  useEffect(() => () => {
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+  }, []);
 
   function runSearch() {
     setPlacesMessage("");
@@ -116,12 +128,27 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
     });
   }
 
+  function cancelPendingCheck() {
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    checkTimer.current = null;
+    setCheckDue(false);
+  }
+
   function checkSlug(value: string) {
+    cancelPendingCheck();
     const seq = ++checkSeq.current;
     startCheck(async () => {
       const result = await checkSlugAction(value, details.town);
       if (seq === checkSeq.current) setSlugCheck(result);
     });
+  }
+
+  /** Checks `value` once typing pauses; a newer value replaces it, and older answers are ignored. */
+  function checkSlugSoon(value: string) {
+    cancelPendingCheck();
+    checkSeq.current += 1;
+    setCheckDue(true);
+    checkTimer.current = setTimeout(() => checkSlug(value), SLUG_CHECK_DELAY_MS);
   }
 
   function continueToLink() {
@@ -139,12 +166,14 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
     setStep(2);
   }
 
-  function changeSlug(value: string) {
+  function changeSlug(value: string, { immediate = false } = {}) {
     const next = value.toLowerCase().replace(/\s+/g, "-");
     setSlug(next);
     setSlugTouched(true);
     setSlugCheck(null);
-    if (next.length >= 3) checkSlug(next);
+    if (next.length < 3) cancelPendingCheck();
+    else if (immediate) checkSlug(next);
+    else checkSlugSoon(next);
   }
 
   const slugError = state.errors.slug ?? (slugCheck && slugCheck.slug === slug && slugCheck.status !== "available" ? slugCheck.message : undefined);
@@ -303,7 +332,7 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
               error={slugError}
             />
             <div aria-live="polite" className="flex flex-col gap-2">
-              {checking ? <p className="m-0 text-[14px] text-grey-600">Checking…</p> : slugOk ? (
+              {checking || checkDue ? <p className="m-0 text-[14px] text-grey-600">Checking…</p> : slugOk ? (
                 <p className="m-0 inline-flex items-center gap-1.5 text-[14px] font-semibold text-success-ink">
                   <Check size={16} aria-hidden="true" /> {slugCheck?.message}
                 </p>
@@ -312,7 +341,7 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[14px] text-grey-700">Free:</span>
                   {slugCheck.alternatives.map((alternative) => (
-                    <button key={alternative} type="button" onClick={() => changeSlug(alternative)} className={buttonClass("secondary", "sm")}>
+                    <button key={alternative} type="button" onClick={() => changeSlug(alternative, { immediate: true })} className={buttonClass("secondary", "sm")}>
                       {alternative}
                     </button>
                   ))}
