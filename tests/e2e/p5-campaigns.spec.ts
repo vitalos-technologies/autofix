@@ -124,7 +124,8 @@ test.beforeAll(async ({ browser }) => {
         offers_consent_text: `Send me occasional offers from ${garage.name}. You can stop these any time.`,
       },
       // Reminder consent alone does not put a customer in a campaign.
-      { garage_id: garage.id, name: "Nora Remindersonly", phone: "+447700900589", preferred_contact: "phone", channel: "sms", reminder_consent: true, consent_at: new Date().toISOString(), consent_source: "booking" },
+      // offers_consent is spelled out: a multi-row insert sends null for a column another row names.
+      { garage_id: garage.id, name: "Nora Remindersonly", phone: "+447700900589", preferred_contact: "phone", channel: "sms", reminder_consent: true, consent_at: new Date().toISOString(), consent_source: "booking", offers_consent: false },
     ])
     .select("id,name");
   if (created.error || !created.data) throw new Error(`Could not add the customers: ${created.error?.message}`);
