@@ -103,7 +103,7 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
     <div className="flex flex-col gap-[22px] pb-10">
       <PageHeader
         title="Campaigns"
-        description="Seasonal offers, win-backs and MOT months, to customers who agreed to hear from you. Every message has a one-tap opt-out."
+        description="Seasonal offers, win-backs and MOT months, to customers who ticked the offers box when booking (or existing customers under the soft opt-in). Every message has a one-tap opt-out."
         actions={
           canEdit ? (
             <Link href="/app/campaigns/new" className={buttonClass("primary")}>

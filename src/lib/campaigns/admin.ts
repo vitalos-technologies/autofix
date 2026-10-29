@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maskEmail, maskMobile } from "@/lib/booking-flow/copy";
+import { parseCampaignConsentBasis, type CampaignConsentBasis } from "@/lib/consent/offers";
 import { parseStoredSegment, type CampaignChannel, type CampaignSegment } from "./segment";
 import { isCampaignStarter, type CampaignStarter } from "./templates";
 
@@ -146,12 +147,16 @@ export type AudienceRow = {
   registration: string;
   vehicle: string;
   lastVisit: string | null;
+  /** Why the campaign may go to them: they ticked offers, or soft opt-in. */
+  basis: CampaignConsentBasis;
 };
 
-export type AudiencePreview = { total: number; rows: AudienceRow[] };
+/** `offersTotal` of `total` ticked the offers box; the rest are existing customers under the soft opt-in. */
+export type AudiencePreview = { total: number; offersTotal: number; rows: AudienceRow[] };
 
 type AudienceDbRow = {
   total: number;
+  offers_total: number | null;
   customer_id: string | null;
   customer_name: string | null;
   phone: string | null;
@@ -161,6 +166,7 @@ type AudienceDbRow = {
   make: string | null;
   model: string | null;
   last_visit: string | null;
+  consent_basis: string | null;
 };
 
 function contactHint(channel: string | null, phone: string | null, email: string | null) {
@@ -185,6 +191,7 @@ export async function previewAudience(client: SupabaseClient, segment: CampaignS
     ok: true,
     preview: {
       total: Number(rows[0]?.total ?? 0),
+      offersTotal: Number(rows[0]?.offers_total ?? 0),
       rows: rows
         .filter((row) => row.customer_id)
         .map((row) => ({
@@ -195,6 +202,7 @@ export async function previewAudience(client: SupabaseClient, segment: CampaignS
           registration: row.registration ?? "",
           vehicle: [row.make, row.model].filter(Boolean).join(" "),
           lastVisit: row.last_visit,
+          basis: parseCampaignConsentBasis(row.consent_basis) ?? "offers",
         })),
     },
   };

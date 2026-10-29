@@ -206,7 +206,11 @@ export async function importCustomersAction(input: { fileName: string; csv: stri
 
 const customerIdSchema = z.string().uuid();
 
-/** Records an opt-out the customer asked for (phone, in person). Never cleared here. */
+/**
+ * Records an opt-out the customer asked for (phone, in person). Never cleared here. It stops
+ * reminders and offers alike: the customers_offers_consent trigger turns offers consent off, and
+ * staff can never turn it on (only the customer can, by ticking the box when booking).
+ */
 export async function optOutCustomerAction(formData: FormData) {
   const id = customerIdSchema.safeParse(formData.get("customerId"));
   if (!id.success) redirect("/app/customers");

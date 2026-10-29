@@ -4,10 +4,11 @@
  * build and local Supabase.
  *
  * The spec makes its own garage (MOT on, `seed_garage_defaults()`, on the Pro trial every new garage gets), an
- * owner with a verified TOTP factor, a customer with reminder consent and a 9-year-old car, and a customer
- * without consent; it deletes all of it afterwards. In order:
+ * owner with a verified TOTP factor, a customer who ticked the offers box and has a 9-year-old car, and a customer
+ * with reminder consent only (not enough for campaigns since consent wording v1.0); it deletes all of it
+ * afterwards. In order:
  *   1. /app/campaigns: results, the ready-made starting points, the empty list;
- *   2. the "Winter check" starter: live count (1 customer: consent is required), a filter that matches nobody,
+ *   2. the "Winter check" starter: live count (1 customer: offers consent is required), a filter that matches nobody,
  *      the wording with the opt-out line, the link's service; saved as a draft;
  *   3. the draft: "Send me a test", then scheduled for tomorrow 10:00 UK time;
  *   4. the send: a `campaigns.send` job drained by the job runner in this process on the mock SMS channel, its
@@ -116,8 +117,14 @@ test.beforeAll(async ({ browser }) => {
   const created = await service
     .from("customers")
     .insert([
-      { garage_id: garage.id, name: CUSTOMER.name, phone: CUSTOMER.phone, preferred_contact: "phone", channel: "sms", reminder_consent: true, consent_at: new Date().toISOString(), consent_source: "booking" },
-      { garage_id: garage.id, name: "Nora Noconsent", phone: "+447700900589", preferred_contact: "phone", channel: "sms", reminder_consent: false },
+      {
+        garage_id: garage.id, name: CUSTOMER.name, phone: CUSTOMER.phone, preferred_contact: "phone", channel: "sms",
+        reminder_consent: true, consent_at: new Date().toISOString(), consent_source: "booking",
+        offers_consent: true, offers_consent_at: new Date().toISOString(), offers_consent_source: "booking",
+        offers_consent_text: `Send me occasional offers from ${garage.name}. You can stop these any time.`,
+      },
+      // Reminder consent alone does not put a customer in a campaign.
+      { garage_id: garage.id, name: "Nora Remindersonly", phone: "+447700900589", preferred_contact: "phone", channel: "sms", reminder_consent: true, consent_at: new Date().toISOString(), consent_source: "booking" },
     ])
     .select("id,name");
   if (created.error || !created.data) throw new Error(`Could not add the customers: ${created.error?.message}`);
@@ -177,11 +184,12 @@ test("a Winter check from the starter: live count, wording and the link's servic
   await staffPage.getByRole("link", { name: /Winter check/ }).click();
   await expect(staffPage).toHaveURL(`${adminOrigin}/app/campaigns/new?starter=winter_check`);
   await expect(staffPage.getByRole("heading", { level: 1, name: "New campaign: Winter check" })).toBeVisible();
-  // Only the customer who agreed to hear from the garage.
+  // Only the customer who ticked the offers box (reminder consent alone is not enough).
   await expect(staffPage.getByText("1 customer match")).toBeVisible();
   const list = staffPage.getByRole("list", { name: "First matching customers" });
   await expect(list.getByText(CUSTOMER.name)).toBeVisible();
-  await expect(list.getByText("Nora Noconsent")).toHaveCount(0);
+  await expect(list.getByText("Nora Remindersonly")).toHaveCount(0);
+  await expect(list.getByText("Ticked offers")).toBeVisible();
   await expect(list).not.toContainText(CUSTOMER.phone);
   await expect(staffPage.getByText(/Reply STOP to opt out\./).first()).toBeVisible();
   await expect(staffPage.getByText(/of 160 characters · 1 text/)).toBeVisible();

@@ -140,7 +140,7 @@ describe("segment builder", () => {
   });
 
   it("describes segments in words", () => {
-    expect(describeSegment({})).toEqual(["Every customer who agreed to hear from you"]);
+    expect(describeSegment({})).toEqual(["Every customer you may send offers to"]);
     expect(describeSegment({ car_age_min: 3, car_age_max: 8, mot_months: [3, 4], not_seen_months: 12, service_id: "s", service_history: "had", channels: ["sms"] }, { serviceName: () => "Air-con regas" })).toEqual([
       "Cars 3 to 8 years old",
       "MOT due in March and April",
