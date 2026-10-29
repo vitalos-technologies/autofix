@@ -28,7 +28,7 @@ export type LegalDocument = {
 };
 
 /** When the customer privacy notice text last changed ("Last updated [date]"). Bump with the draft's version. */
-export const PRIVACY_NOTICE_UPDATED = "2026-10-27";
+export const PRIVACY_NOTICE_UPDATED = "2026-10-29";
 
 const DRAFT_HEADING = /\s*\((?:draft )?v([0-9][0-9A-Za-z.-]*)\)\s*$/;
 const DRAFT_LINE = /^(Draft for solicitor review; not legal advice\.)\s*/;
