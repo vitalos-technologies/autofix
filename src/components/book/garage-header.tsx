@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { garageInitials } from "./format";
-import { focusRingOnDark } from "./styles";
+import { focusRing, focusRingOnDark } from "./styles";
 
 export type GarageHeaderBack = {
   /** Previous step. */
@@ -23,17 +23,23 @@ export type GarageHeaderProps = {
   phone?: string | null;
   /** Back button (steps 2 to 4). The logo tile moves to the right, as drawn. */
   back?: GarageHeaderBack | null;
-  /** `bar` = navy header strip; `plain` = no background, for the navy confirmation page. */
-  tone?: "bar" | "plain";
+  /** `bar` = navy header strip (the steps); `light` = no strip, navy text, for the white confirmation page. */
+  tone?: "bar" | "light";
   className?: string;
 };
 
-const actionClass = cn(
-  "flex size-[46px] shrink-0 items-center justify-center rounded-input border border-navy-line text-white transition-colors hover:bg-navy-900",
-  focusRingOnDark,
-);
+const actionClass = {
+  bar: cn(
+    "flex size-[46px] shrink-0 items-center justify-center rounded-input border border-navy-line text-white transition-colors hover:bg-navy-900",
+    focusRingOnDark,
+  ),
+  light: cn(
+    "flex size-[46px] shrink-0 items-center justify-center rounded-input border border-grey-300 bg-white text-navy-950 transition-colors hover:bg-grey-100",
+    focusRing,
+  ),
+} as const;
 
-function GarageMark({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+function GarageMark({ name, logoUrl, light = false }: { name: string; logoUrl?: string | null; light?: boolean }) {
   if (logoUrl) {
     return (
       <Image
@@ -42,7 +48,7 @@ function GarageMark({ name, logoUrl }: { name: string; logoUrl?: string | null }
         width={38}
         height={38}
         unoptimized
-        className="size-[38px] shrink-0 rounded-[10px] bg-white object-contain"
+        className={cn("size-[38px] shrink-0 rounded-[10px] bg-white object-contain", light && "border border-grey-200")}
       />
     );
   }
@@ -58,6 +64,7 @@ function GarageMark({ name, logoUrl }: { name: string; logoUrl?: string | null }
 
 /** Navy bar at the top of every booking step: garage mark, name, subtitle and a call or back button. */
 export function GarageHeader({ name, subtitle, logoUrl, phone, back, tone = "bar", className }: GarageHeaderProps) {
+  const light = tone === "light";
   return (
     <header
       className={cn(
@@ -67,20 +74,20 @@ export function GarageHeader({ name, subtitle, logoUrl, phone, back, tone = "bar
       )}
     >
       {back ? (
-        <Link href={back.href} aria-label={back.label} className={actionClass}>
+        <Link href={back.href} aria-label={back.label} className={actionClass[tone]}>
           <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
         </Link>
       ) : (
-        <GarageMark name={name} logoUrl={logoUrl} />
+        <GarageMark name={name} logoUrl={logoUrl} light={light} />
       )}
       <div className="flex min-w-0 grow flex-col gap-px">
-        <p className="m-0 truncate text-[15px] font-bold text-white">{name}</p>
-        {subtitle ? <p className="m-0 truncate text-[12px] text-[#9aa7b6]">{subtitle}</p> : null}
+        <p className={cn("m-0 truncate text-[15px] font-bold", light ? "text-navy-950" : "text-white")}>{name}</p>
+        {subtitle ? <p className={cn("m-0 truncate text-[12px]", light ? "text-grey-600" : "text-[#9aa7b6]")}>{subtitle}</p> : null}
       </div>
       {back ? (
-        <GarageMark name={name} logoUrl={logoUrl} />
+        <GarageMark name={name} logoUrl={logoUrl} light={light} />
       ) : phone ? (
-        <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} aria-label={`Call ${name}`} className={actionClass}>
+        <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} aria-label={`Call ${name}`} className={actionClass[tone]}>
           <Phone size={19} strokeWidth={2} aria-hidden="true" />
         </a>
       ) : null}

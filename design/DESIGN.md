@@ -28,7 +28,7 @@ All names, cars, prices and figures in the screens are sample data. Never hard-c
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--navy-950` | `#071127` | Booking header, admin sidebar, dark cards, H1 text |
+| `--navy-950` | `#071127` | Booking header bar, admin sidebar, dark cards, H1 text. Never a booking-site page background (see Booking site backgrounds) |
 | `--navy-900` | `#0c1d3d` | Hover on navy |
 | `--navy-line` | `#22385f` | Borders on navy |
 | `--garage-accent` | per garage, default `#155fba` | Primary buttons, selected states, progress, links |
@@ -48,6 +48,16 @@ All names, cars, prices and figures in the screens are sample data. Never hard-c
 | `--danger-600` | `#dc2626` | Errors, the diary's "now" line |
 
 Accent options shown in Branding: `#155fba` blue, `#0f766e` teal, `#b9451a` orange, `#6d28d9` purple. Custom colours are allowed only if white text on them passes 4.5:1. Validate on save and darken automatically if not.
+
+### Booking site backgrounds
+
+Light pages only (Temitope, 29 Oct 2026). The steps, manage and legal pages sit on `--grey-50` under the navy `GarageHeader` bar. Book 5 · Confirmed is a white page (`#ffffff`) with navy text: no navy page background anywhere on a garage's booking site.
+
+- Text on white: H1 `--navy-950`, body `--grey-800`, secondary `--grey-600` (5.9:1), "Powered by Autofix" `--grey-600` at 11.5px.
+- Cards that were light on navy keep a white or `--grey-50` fill and gain a 1px `--grey-200` border so they stay distinct from the page.
+- The garage accent stays on primary buttons and links. Secondary buttons are white with a `--grey-300` border and navy text.
+- Focus: the accent ring (`focusRing`, 3px, offset 2px) on every control; `focusRingOnDark` (white) is only for controls on navy (the header bar, summary bar, admin sidebar).
+- `design/screens/Book-5-Confirmed.dc.html` and its screenshot show the white version; the live design canvas still shows the earlier navy page.
 
 ### Type
 
@@ -76,7 +86,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| `GarageHeader` | Every booking step | Navy bar: garage logo or initials tile in accent, name, subtitle (location, or car + reg once known), call or back button 44px |
+| `GarageHeader` | Every booking step | Navy bar: garage logo or initials tile in accent, name, subtitle (location, or car + reg once known), call or back button 44px. `tone="light"` on Book 5: no bar, navy name, grey subtitle, grey-bordered buttons with the accent focus ring |
 | `StepProgress` | Booking 1 to 4 | "Step n of 5" + step name + 5 segments (accent / `#dfe6ee`) |
 | `PlateInput` | Booking 1 | Yellow plate, UK band, uppercase, auto-spacing to `AB12 CDE`, `autocomplete=off`, never written into the URL |
 | `PlateChip` | Summaries, admin lists | Small yellow plate |
@@ -89,7 +99,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 | `StickyActionBar` | Booking 1 to 4 | White bar, 54px accent button whose label states the next step or the chosen time |
 | `BookingSummaryBar` | Booking 4 | Navy card: plate chip, service, time, Edit |
 | `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due". A second, separate one under it for offers (consent wording v1.0), also unticked: "Send me occasional offers from [Garage name]. You can stop these any time." |
-| `ConfirmationCard` | Booking 5 | Reference in Barlow, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
+| `ConfirmationCard` | Booking 5 | White card with a `--grey-200` border on the white page: reference in Barlow, 2×2 facts, Add to calendar (accent) / Change or cancel (white, `--grey-300` border, navy text) / WhatsApp (`#15803d`) |
 | `BookingStatusChip` | Manage booking | Customer-facing status: 999px chip with a dot, success / warning / info / neutral / danger (same colour pairs as `StatusPill`) |
 | `AdminShell` | Admin desktop | Navy sidebar (garage switcher, 3 groups), white top bar (search, booking page link, bell, avatar); stacks on phones |
 | `AdminTabBar` | Admin phone | 5 tabs: Today, Diary, New (accent), Customers, More |

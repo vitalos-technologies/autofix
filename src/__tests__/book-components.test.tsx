@@ -372,6 +372,15 @@ describe("header, progress and summary", () => {
     expect(garageInitials("Kwik-Fit")).toBe("KW");
   });
 
+  it("GarageHeader's light tone (white confirmation page) has no navy strip and navy text", () => {
+    render(<GarageHeader tone="light" name="Hartley Road Motors" phone="+441302000000" />);
+    const header = screen.getByRole("banner");
+    expect(header).not.toHaveClass("bg-navy-950");
+    expect(screen.getByText("Hartley Road Motors")).toHaveClass("text-navy-950");
+    // The call button keeps a visible focus ring on white (the garage accent, not white).
+    expect(screen.getByRole("link", { name: "Call Hartley Road Motors" }).className).toContain("focus-visible:outline-accent");
+  });
+
   it("StepProgress exposes progressbar semantics", () => {
     render(<StepProgress step={2} />);
     const bar = screen.getByRole("progressbar", { name: "Booking progress" });
@@ -442,5 +451,15 @@ describe("header, progress and summary", () => {
     expect(screen.getByRole("link", { name: "Add to calendar" })).toHaveAttribute("href", "/api/bookings/ics");
     expect(screen.getByRole("link", { name: "Change or cancel" })).toHaveAttribute("href", "/manage");
     expect(screen.queryByRole("link", { name: /WhatsApp/ })).not.toBeInTheDocument();
+  });
+
+  it("ConfirmationCard is a bordered light card with light actions for the white page", () => {
+    render(<ConfirmationCard reference="ABC-1234" when="Tue 27 Oct, 09:15" vehicle="Ford Focus" service="Diagnostics" location="Workshop, DN1" manageHref="/manage" />);
+    const card = screen.getByText("ABC-1234").closest("div.rounded-hero");
+    expect(card).toHaveClass("border", "border-grey-200", "bg-white");
+    const manage = screen.getByRole("link", { name: "Change or cancel" });
+    expect(manage).toHaveClass("text-navy-950", "border-grey-300");
+    expect(manage.className).toContain("focus-visible:outline-accent");
+    expect(manage.className).not.toContain("outline-white");
   });
 });

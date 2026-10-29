@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, Search } from "lucide-react";
 import { ConfirmationCard, GarageHeader, formatRegistrationDisplay, formatSlotLabel } from "@/components/book";
-import { focusRingOnDark } from "@/components/book/styles";
+import { focusRing } from "@/components/book/styles";
 import { readJustBooked, type JustBooked } from "@/lib/booking-engine/state";
 import { lastDigits } from "@/lib/booking-flow/copy";
 import { bookingCalendarPath } from "@/lib/booking-flow/server";
@@ -10,6 +10,7 @@ import { whatsappHref } from "@/lib/tenancy/contact";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
 import { BOOKING_COLUMN, BookingScreen } from "../../_components/booking-screen";
+import { manageTextLink } from "../../_components/manage-ui";
 
 export const metadata: Metadata = {
   title: "Booking confirmed",
@@ -44,6 +45,7 @@ function SentTo({ booked }: { booked: JustBooked }) {
 /**
  * Book 5 · Confirmed. Shows the booking only to the browser that just made it (sealed `af_booked`
  * cookie for this garage and reference); the reference in the address reveals nothing by itself.
+ * A white page with navy text (Temitope, 29 Oct 2026); the garage accent stays on the buttons.
  */
 export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
   const { garageId, reference: rawReference } = await params;
@@ -80,19 +82,19 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
   const car = [booked.vehicleName, formatRegistrationDisplay(booked.registration)].filter(Boolean).join(" · ");
 
   return (
-    <div className="flex min-h-dvh flex-col bg-navy-950 font-sans text-white">
+    <div className="flex min-h-dvh flex-col bg-white font-sans text-grey-800">
       <div className={cn(BOOKING_COLUMN, "flex grow flex-col")}>
-        <GarageHeader tone="plain" name={garage.name} logoUrl={garage.logoUrl} />
+        <GarageHeader tone="light" name={garage.name} logoUrl={garage.logoUrl} />
         <div className="flex flex-col items-center gap-[22px] px-6 pt-9 text-center">
           <span
             aria-hidden="true"
-            className="flex size-[84px] items-center justify-center rounded-full bg-success outline-[10px] outline-[rgba(22,163,74,0.18)] outline-solid"
+            className="flex size-[84px] items-center justify-center rounded-full bg-success text-white outline-[10px] outline-[rgba(22,163,74,0.18)] outline-solid"
           >
             <Check size={40} strokeWidth={3} />
           </span>
           <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold text-white">{requested ? "Request sent" : "You're booked in"}</h1>
-            <p className="m-0 text-[15px] leading-normal text-[#b8c4d4]">
+            <h1 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold text-navy-950">{requested ? "Request sent" : "You're booked in"}</h1>
+            <p className="m-0 text-[15px] leading-normal text-grey-600">
               {requested ? `${garage.name} will check the job and confirm the time with you. ` : null}
               <SentTo booked={booked} />
             </p>
@@ -109,7 +111,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
           {booked.extras?.length ? (
             <ul aria-label="Extras" className="m-0 flex w-full list-none flex-col gap-2 p-0 text-left">
               {booked.extras.map((line) => (
-                <li key={line} className="rounded-[12px] bg-white/10 px-4 py-3 text-[14px] leading-normal text-white">
+                <li key={line} className="rounded-[12px] border border-grey-200 bg-grey-50 px-4 py-3 text-[14px] leading-normal text-grey-800">
                   {line}
                 </li>
               ))}
@@ -123,19 +125,16 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
               rel="noopener noreferrer"
               className={cn(
                 "flex h-[50px] w-full items-center justify-center rounded-control bg-[#15803d] px-3 text-[14.5px] font-bold text-white no-underline transition-colors hover:bg-success-ink",
-                focusRingOnDark,
+                focusRing,
               )}
             >
               Message the garage on WhatsApp
             </a>
           ) : null}
-          <Link
-            href="/"
-            className={cn("inline-flex min-h-11 items-center rounded-[6px] px-1 text-[13px] text-[#9cc8ff] underline underline-offset-2 hover:text-white", focusRingOnDark)}
-          >
+          <Link href="/" className={manageTextLink}>
             Book another car
           </Link>
-          <span className="text-[11px] text-[#8796ab]">Powered by Autofix</span>
+          <span className="text-[11.5px] text-grey-600">Powered by Autofix</span>
         </div>
       </div>
     </div>
