@@ -1,16 +1,17 @@
 // Gate 4 launch steps (docs/autofix/LAUNCH.md), run from GitHub Actions with the repository's secrets and
 // variables (.github/workflows/launch-ops.yml), so nobody pastes a key into a chat or a terminal.
 //
-//   LAUNCH_TASK   report | vercel-domains | twilio-webhooks | resend-domain | supabase-migrate | supabase-auth
+//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | resend-domain | supabase-migrate | supabase-auth
 //   LAUNCH_APPLY  "true" to change anything; otherwise every task only reports what it would do.
 //
 // Prints names, statuses, hosts and public DNS records only: never a secret value. Phone numbers are
 // shown by their last four digits.
 
+import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const TASKS = ["report", "vercel-domains", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth"];
+const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth"];
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -154,6 +155,86 @@ async function vercelDomains() {
     } else {
       console.log(`    dns: ${errorText(config)}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Vercel: the app's own random secrets (LAUNCH 3.3), generated here so nobody makes or pastes them
+// ---------------------------------------------------------------------------------------------------------
+
+// Created only where missing, never replaced: rotating one revokes agent tokens, retires sent manage and
+// unsubscribe links, empties the vehicle cache or disconnects every accounting connection. Production and
+// Preview get different values, made in this job and sent only to Vercel (type sensitive, so nobody can
+// read them back). [name, encoding, random bytes]
+const GENERATED_SECRETS = [
+  ["BOOKING_MANAGEMENT_SECRET", "base64url", 48],
+  ["BOOKING_STATE_SECRET", "base64url", 48],
+  ["CRON_SECRET", "base64url", 48],
+  ["VEHICLE_FACTS_PEPPER", "base64url", 48],
+  ["AGENT_TOKEN_PEPPER", "base64url", 48],
+  ["ACCOUNTING_TOKEN_KEY", "hex", 32],
+];
+const SECRET_TARGETS = ["production", "preview"];
+
+async function vercelSecrets() {
+  heading("Vercel generated secrets");
+  if (missing(["VERCEL_API_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID"])) return fail("Vercel is not configured");
+  const project = encodeURIComponent(env("VERCEL_PROJECT_ID"));
+  const team = `teamId=${encodeURIComponent(env("VERCEL_TEAM_ID"))}`;
+  const headers = { Authorization: `Bearer ${env("VERCEL_API_TOKEN")}`, "Content-Type": "application/json" };
+
+  const list = await call(`https://api.vercel.com/v9/projects/${project}/env?${team}`, { headers });
+  if (!list.ok) return fail(`env list: ${errorText(list)}`);
+  // A branch-only Preview value does not cover the other branches.
+  const envs = (list.body?.envs ?? []).filter((entry) => !entry.gitBranch);
+
+  let productionChanged = false;
+  for (const [name, encoding, bytes] of GENERATED_SECRETS) {
+    const targets = new Set(envs.filter((entry) => entry.key === name).flatMap((entry) => entry.target ?? []));
+    const absent = SECRET_TARGETS.filter((target) => !targets.has(target));
+    if (!absent.length) {
+      console.log(`  ${name}: set (${SECRET_TARGETS.join(", ")})`);
+      continue;
+    }
+    if (!apply) {
+      console.log(`  ${name}: missing for ${absent.join(", ")} (would generate)`);
+      continue;
+    }
+    for (const target of absent) {
+      const value = randomBytes(bytes).toString(encoding);
+      const created = await call(`https://api.vercel.com/v10/projects/${project}/env?${team}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ key: name, value, type: "sensitive", target: [target] }),
+      });
+      if (!created.ok) {
+        fail(`${name} (${target}): ${errorText(created)}`);
+        continue;
+      }
+      console.log(`  ${name}: generated for ${target}`);
+      if (target === "production") productionChanged = true;
+    }
+  }
+  if (!productionChanged) return;
+
+  // Production reads its variables at build time: rebuild the current production deployment with them.
+  const deployments = await call(`https://api.vercel.com/v6/deployments?projectId=${project}&target=production&state=READY&limit=1&${team}`, { headers });
+  const current = deployments.body?.deployments?.[0];
+  if (!deployments.ok || !current) return fail(`no ready production deployment to redeploy (${errorText(deployments)}); redeploy by hand`);
+  const redeploy = await call(`https://api.vercel.com/v13/deployments?${team}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: current.name, deploymentId: current.uid, target: "production" }),
+  });
+  if (!redeploy.ok) return fail(`redeploy: ${errorText(redeploy)}; redeploy by hand`);
+  console.log(`  redeploying production (${current.uid} -> ${redeploy.body.id})`);
+  const deadline = Date.now() + 12 * 60 * 1000;
+  for (;;) {
+    const state = (await call(`https://api.vercel.com/v13/deployments/${encodeURIComponent(redeploy.body.id)}?${team}`, { headers })).body?.readyState;
+    if (state === "READY") return console.log("  production redeployed with the new secrets");
+    if (state === "ERROR" || state === "CANCELED") return fail(`the redeploy ended ${state}`);
+    if (Date.now() > deadline) return fail("the redeploy was not ready within 12 minutes; check it in Vercel");
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
   }
 }
 
@@ -448,11 +529,13 @@ const run = {
   report: async () => {
     keysLine();
     await vercelDomains();
+    await vercelSecrets();
     await twilioWebhooks();
     await resendDomain();
     await supabase();
   },
   "vercel-domains": vercelDomains,
+  "vercel-secrets": vercelSecrets,
   "twilio-webhooks": twilioWebhooks,
   "resend-domain": resendDomain,
   "supabase-migrate": supabase,
