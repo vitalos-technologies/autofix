@@ -44,6 +44,19 @@ for (const [name, raw] of Object.entries(process.env)) {
   if (value && name.startsWith("SECRET__")) byKey.set(name.slice(8), { value, type: "sensitive" });
 }
 
+// Names listed in vercel-env.yml but not set in GitHub (repository or organisation), so a missing key shows.
+const unset = [...new Set(Object.keys(process.env)
+  .filter((name) => (name.startsWith("SECRET__") || name.startsWith("VAR__")) && !clean(process.env[name]))
+  .map((name) => name.replace(/^(SECRET|VAR)__/, "")))].filter((key) => !byKey.has(key)).sort();
+if (unset.length) console.log(`not set in GitHub (skipped): ${unset.join(", ")}`);
+
+// Stripe is test mode only (DECISIONS D17, P5.2/P5.4): a live key never reaches Vercel.
+const stripeKey = byKey.get("STRIPE_SECRET_KEY");
+if (stripeKey && !/^(sk|rk)_test_/.test(stripeKey.value)) {
+  byKey.delete("STRIPE_SECRET_KEY");
+  console.error("skipped STRIPE_SECRET_KEY: not a test-mode key (sk_test_ or rk_test_); live keys are refused");
+}
+
 const url = `https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env?upsert=true&teamId=${encodeURIComponent(teamId)}`;
 
 let failed = 0;
