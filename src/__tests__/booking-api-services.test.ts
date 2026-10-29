@@ -36,6 +36,23 @@ describe("GET /api/services", () => {
     expect(engine.listOnlineServices).toHaveBeenCalledWith(garage.id);
   });
 
+  it("leaves prices out when the garage hides them on its booking page", async () => {
+    harness.garage = testGarage({ showPrices: false });
+    engine.listOnlineServices.mockResolvedValue([
+      { id: "33333333-3333-4333-8333-333333333333", name: "Full service", pricePence: 17900, priceMode: "from", durationMin: 180 },
+      { id: "44444444-4444-4444-8444-444444444444", name: "Brakes", pricePence: null, priceMode: "quote", durationMin: 90 },
+    ]);
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      services: [
+        { id: "33333333-3333-4333-8333-333333333333", name: "Full service", durationMin: 180 },
+        { id: "44444444-4444-4444-8444-444444444444", name: "Brakes", durationMin: 90 },
+      ],
+      pricesHidden: true,
+    });
+  });
+
   it("uses whichever garage the host resolves to, never another", async () => {
     harness.garage = otherTestGarage();
     await GET();

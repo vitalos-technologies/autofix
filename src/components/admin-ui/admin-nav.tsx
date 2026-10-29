@@ -126,7 +126,7 @@ export type AdminNavGroupsProps = {
   groups: AdminNavGroup[];
   /** Current path, for `aria-current="page"`. Omit it to follow the browser's path. */
   activeHref?: string;
-  /** `sidebar` for the desktop sidebar (white, brand kit D22), `light` for the phone "More" page, `navy` on dark. */
+  /** `sidebar` for the desktop sidebar (white, brand kit D23), `light` for the phone "More" page, `navy` on dark. */
   tone?: "sidebar" | "navy" | "light";
   className?: string;
 };

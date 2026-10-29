@@ -1,7 +1,7 @@
 // Gate 4 launch steps (docs/autofix/LAUNCH.md), run from GitHub Actions with the repository's secrets and
 // variables (.github/workflows/launch-ops.yml), so nobody pastes a key into a chat or a terminal.
 //
-//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | resend-domain | supabase-migrate | supabase-auth
+//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | twilio-number | twilio-buy-mobile | resend-domain | supabase-migrate | supabase-auth
 //                 | stripe-setup
 //   LAUNCH_APPLY  "true" to change anything; otherwise every task only reports what it would do.
 //
@@ -12,9 +12,9 @@ import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
+const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "twilio-number", "twilio-buy-mobile", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it. The Resend sending
-// domain is pitline.co.uk since D22, so set CLOUDFLARE_ZONE_ID to the pitline.co.uk zone for resend-domain.
+// domain is pitline.co.uk since D23, so set CLOUDFLARE_ZONE_ID to the pitline.co.uk zone for resend-domain.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
 // One table or column each migration adds, read through PostgREST with the service key.
@@ -46,6 +46,7 @@ const MIGRATION_PROBES = [
   // 20261029001300 (askbridge_site_key) only changes functions and settings, which PostgREST can't probe.
   ["20261029001400", "customers?select=offers_consent"],
   ["20261029002000", "calls?select=ai_summary"],
+  ["20261029003000", "platform_enquiries?select=id"],
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
@@ -313,6 +314,179 @@ async function twilioWebhooks() {
     else fail(`${lastFour(number.phone_number)}: ${errorText(result)}`);
   }
   console.log("  Each garage number still needs a garage_phone_numbers row with its provider_sid (PN…) before calls and texts route to a garage.");
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Twilio: put one of the account's numbers in Pitline's Messaging Service and give it to a garage (LAUNCH 6.2)
+// ---------------------------------------------------------------------------------------------------------
+
+// Inputs `number` (E.164) and `garage` (its slug). The number joins the Messaging Service, its calls and
+// call status go to Pitline, and a garage_phone_numbers row (purpose messaging, provider_sid PN…) routes its
+// texts and calls to that garage. A voice-only number (a UK landline) routes calls only (purpose forwarding). A number another app answers, or that another garage holds, is left alone.
+async function twilioNumber() {
+  heading("Twilio number");
+  if (missing(["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY"])) {
+    return fail("Twilio or Supabase is not configured");
+  }
+  const wanted = env("LAUNCH_NUMBER");
+  const slug = env("LAUNCH_GARAGE");
+  if (!/^\+[1-9][0-9]{6,14}$/.test(wanted ?? "")) return fail("set the workflow input `number` in E.164, e.g. +441146974393");
+  if (!/^[a-z0-9](-?[a-z0-9])*$/.test(slug ?? "")) return fail("set the workflow input `garage` to the garage's slug, e.g. doncaster-auto");
+  const ref = projectRef();
+  if (!ref) return fail("NEXT_PUBLIC_SUPABASE_URL is not a https://<ref>.supabase.co URL");
+
+  const account = env("TWILIO_ACCOUNT_SID");
+  const service = env("TWILIO_MESSAGING_SERVICE_SID");
+  const headers = { Authorization: `Basic ${Buffer.from(`${account}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64")}` };
+  const form = (fields) => ({ method: "POST", headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+  const secretKey = env("SUPABASE_SECRET_KEY");
+  const db = { apikey: secretKey, Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" };
+  const rest = `https://${ref}.supabase.co/rest/v1`;
+  const origin = siteOrigin();
+  const ours = new URL(origin).host;
+  const voice = `${origin}/api/webhooks/twilio/voice`;
+
+  const found = await call(`https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(wanted)}`, { headers });
+  if (!found.ok) return fail(`phone numbers: ${errorText(found)}`);
+  const number = (found.body?.incoming_phone_numbers ?? [])[0];
+  if (!number) return fail(`${lastFour(wanted)} is not a number on this Twilio account`);
+  const voiceHost = number.voice_url ? new URL(number.voice_url).host : null;
+  // Calls answered by another app stay with it; a TwiML Bin or nothing (Twilio's own hosts) can be taken over.
+  if (voiceHost && voiceHost !== ours && !voiceHost.endsWith("twilio.com")) return fail(`${lastFour(wanted)}: its calls go to ${voiceHost}; left alone`);
+
+  // garage "platform": the number is the product's own line (A420, AUTOFIX_PLATFORM_VOICE_NUMBERS), so any garage
+  // routing for it is removed and its calls still point at the voice webhook, which answers it as the platform line.
+  if (slug === "platform") {
+    const routed = await call(`${rest}/garage_phone_numbers?select=id,garage_id&number=eq.${encodeURIComponent(wanted)}`, { headers: db });
+    if (!routed.ok) return fail(`garage_phone_numbers: ${errorText(routed)}`);
+    const count = (routed.body ?? []).length;
+    console.log(`  ${lastFour(wanted)}: platform line; voice=${voiceHost ?? "none"}; garage routing rows: ${count}`);
+    if (!apply) {
+      console.log(`  would ${count ? `remove ${count} garage routing row(s), ` : ""}point its calls and call status at ${voice}`);
+    } else {
+      if (count) {
+        const removed = await call(`${rest}/garage_phone_numbers?number=eq.${encodeURIComponent(wanted)}`, { method: "DELETE", headers: db });
+        if (!removed.ok) return fail(`removing the garage routing of ${lastFour(wanted)}: ${errorText(removed)}`);
+        console.log(`  ${lastFour(wanted)}: garage routing removed`);
+      }
+      const pointed = await call(
+        `https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers/${number.sid}.json`,
+        form({ VoiceUrl: voice, VoiceMethod: "POST", StatusCallback: voice, StatusCallbackMethod: "POST" }),
+      );
+      if (!pointed.ok) return fail(`${lastFour(wanted)} voice: ${errorText(pointed)}`);
+      console.log(`  ${lastFour(wanted)}: calls and call status point at ${ours}`);
+    }
+    console.log("  It is answered as the platform line only while AUTOFIX_PLATFORM_VOICE_NUMBERS lists it (Sync Vercel env).");
+    return;
+  }
+
+  // A UK landline (01/02/03) takes calls but not texts: it routes calls (and the AI front desk) only, with
+  // purpose forwarding, and stays out of the Messaging Service (Twilio refuses it there: 21715).
+  const canText = number.capabilities?.sms !== false;
+  const purpose = canText ? "messaging" : "forwarding";
+  const membership = canText ? await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers/${number.sid}`, { headers }) : null;
+  const inService = Boolean(membership?.ok);
+  if (membership && !inService && membership.status !== 404) return fail(`Messaging Service membership: ${errorText(membership)}`);
+
+  const garages = await call(`${rest}/garages?select=id,name&slug=eq.${encodeURIComponent(slug)}`, { headers: db });
+  if (!garages.ok) return fail(`garage: ${errorText(garages)}`);
+  const garage = (garages.body ?? [])[0];
+  if (!garage) return fail(`no garage with the slug ${slug}`);
+  const rows = await call(`${rest}/garage_phone_numbers?select=id,garage_id,purpose,provider_sid&number=eq.${encodeURIComponent(wanted)}`, { headers: db });
+  if (!rows.ok) return fail(`garage_phone_numbers: ${errorText(rows)}`);
+  const row = (rows.body ?? [])[0];
+  if (row && row.garage_id !== garage.id) return fail(`${lastFour(wanted)} already belongs to another garage; left alone`);
+  const rowReady = row && row.purpose === purpose && row.provider_sid === number.sid;
+
+  console.log(`  ${lastFour(wanted)}: ${canText ? `${inService ? "in" : "not in"} the Messaging Service` : "voice only (no SMS on this number)"}; voice=${voiceHost ?? "none"}; garage "${garage.name}": ${rowReady ? "routed" : row ? "row needs updating" : "no row"}`);
+  if (!apply) {
+    const service_ = canText ? `${inService ? "keep it in" : "add it to"} the Messaging Service, ` : "";
+    console.log(`  would ${service_}point its calls and call status at ${voice}, and route it to "${garage.name}" (purpose ${purpose})`);
+    return;
+  }
+
+  if (canText && !inService) {
+    const added = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers`, form({ PhoneNumberSid: number.sid }));
+    if (!added.ok) return fail(`adding ${lastFour(wanted)} to the Messaging Service: ${errorText(added)}`);
+    console.log(`  ${lastFour(wanted)}: added to the Messaging Service`);
+  }
+  const pointed = await call(
+    `https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers/${number.sid}.json`,
+    form({ VoiceUrl: voice, VoiceMethod: "POST", StatusCallback: voice, StatusCallbackMethod: "POST" }),
+  );
+  if (!pointed.ok) return fail(`${lastFour(wanted)} voice: ${errorText(pointed)}`);
+  console.log(`  ${lastFour(wanted)}: calls and call status point at ${ours}`);
+
+  if (!rowReady) {
+    const body = JSON.stringify({ garage_id: garage.id, number: wanted, purpose, provider_sid: number.sid });
+    const saved = row
+      ? await call(`${rest}/garage_phone_numbers?id=eq.${row.id}`, { method: "PATCH", headers: db, body: JSON.stringify({ purpose, provider_sid: number.sid }) })
+      : await call(`${rest}/garage_phone_numbers`, { method: "POST", headers: db, body });
+    if (!saved.ok) return fail(`routing ${lastFour(wanted)} to "${garage.name}": ${errorText(saved)}`);
+  }
+  console.log(`  ${lastFour(wanted)}: ${canText ? "texts and calls" : "calls"} route to "${garage.name}"`);
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Twilio: buy one UK mobile number for texts and put it in the Messaging Service (Temitope, 29 Oct 2026)
+// ---------------------------------------------------------------------------------------------------------
+
+// Texts go out through the Messaging Service, so one SMS-capable number there lets every garage text
+// (booking confirmations, reminders, text-backs). Buys only when the service has no SMS-capable number yet,
+// so a re-run never buys a second one. UK mobile numbers need an approved Twilio regulatory bundle.
+async function twilioBuyMobile() {
+  heading("Twilio mobile number for texts");
+  if (missing(["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID"])) return fail("Twilio is not configured");
+  const account = env("TWILIO_ACCOUNT_SID");
+  const service = env("TWILIO_MESSAGING_SERVICE_SID");
+  const headers = { Authorization: `Basic ${Buffer.from(`${account}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64")}` };
+  const form = (fields) => ({ method: "POST", headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+  const api = `https://api.twilio.com/2010-04-01/Accounts/${account}`;
+  const voice = `${siteOrigin()}/api/webhooks/twilio/voice`;
+
+  const acct = await call(`${api}.json`, { headers });
+  if (!acct.ok) return fail(`account: ${errorText(acct)}`);
+  console.log(`  account: ${acct.body.type} (${acct.body.status})`);
+
+  const inService = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers?PageSize=100`, { headers });
+  if (!inService.ok) return fail(`Messaging Service numbers: ${errorText(inService)}`);
+  const texting = (inService.body.phone_numbers ?? []).filter((number) => number.capabilities?.includes?.("SMS") ?? true);
+  if (texting.length) {
+    console.log(`  the Messaging Service already has ${texting.length} number(s) that can text (${texting.map((number) => lastFour(number.phone_number)).join(", ")}); nothing to buy`);
+    return;
+  }
+
+  const bundles = await call("https://numbers.twilio.com/v2/RegulatoryCompliance/Bundles?Status=twilio-approved&IsoCountry=GB&NumberType=mobile&PageSize=20", { headers });
+  const bundle = bundles.ok ? (bundles.body?.results ?? [])[0] : null;
+  console.log(`  approved UK mobile regulatory bundle: ${bundle ? `yes (${bundle.friendly_name})` : bundles.ok ? "none" : `unknown (${errorText(bundles)})`}`);
+  const addresses = await call(`${api}/Addresses.json?IsoCountry=GB&PageSize=20`, { headers });
+  const address = addresses.ok ? (addresses.body?.addresses ?? [])[0] : null;
+
+  const available = await call(`${api}/AvailablePhoneNumbers/GB/Mobile.json?SmsEnabled=true&VoiceEnabled=true&PageSize=5`, { headers });
+  if (!available.ok) return fail(`available UK mobile numbers: ${errorText(available)}`);
+  const candidates = available.body?.available_phone_numbers ?? [];
+  if (!candidates.length) return fail("no UK mobile numbers with SMS and voice are available right now");
+  console.log(`  available: ${candidates.map((number) => number.friendly_name).join(", ")}`);
+  if (!apply) {
+    console.log(`  would buy ${candidates[0].friendly_name}, add it to the Messaging Service and point its calls at ${voice}`);
+    if (acct.body.type === "Trial") console.log("  note: a trial account may not be allowed a second number; upgrade it in the Twilio console if the purchase is refused");
+    if (!bundle) console.log("  note: UK mobile numbers need an approved regulatory bundle (Twilio console > Phone Numbers > Regulatory Compliance)");
+    return;
+  }
+
+  const bought = await call(`${api}/IncomingPhoneNumbers.json`, form({
+    PhoneNumber: candidates[0].phone_number,
+    FriendlyName: "Pitline texts",
+    VoiceUrl: voice,
+    VoiceMethod: "POST",
+    ...(bundle ? { BundleSid: bundle.sid } : {}),
+    ...(address ? { AddressSid: address.sid } : {}),
+  }));
+  if (!bought.ok) return fail(`buying ${candidates[0].friendly_name}: ${errorText(bought)}`);
+  console.log(`  bought ${bought.body.friendly_name} (…${String(bought.body.phone_number).slice(-4)})`);
+  const added = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers`, form({ PhoneNumberSid: bought.body.sid }));
+  if (!added.ok) return fail(`adding it to the Messaging Service: ${errorText(added)}`);
+  console.log("  added to the Messaging Service: every garage's texts can go out now");
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -867,6 +1041,8 @@ const run = {
   "vercel-domains": vercelDomains,
   "vercel-secrets": vercelSecrets,
   "twilio-webhooks": twilioWebhooks,
+  "twilio-number": twilioNumber,
+  "twilio-buy-mobile": twilioBuyMobile,
   "resend-domain": resendDomain,
   "supabase-migrate": supabase,
   "supabase-auth": supabase,

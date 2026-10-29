@@ -1,5 +1,5 @@
 /**
- * The addresses Pitline had as Autofix (DECISIONS D22): the admin host `autofix.vitalos.co.uk` and the
+ * The addresses Pitline had as Autofix (DECISIONS D23): the admin host `autofix.vitalos.co.uk` and the
  * free links `<slug>.autofix.vitalos.co.uk`. Each answers with a permanent redirect to the same path and
  * query on the configured admin host or tenant root. Webhook and cron paths are served where they land:
  * Twilio, Stripe and Resend keep posting to the old host until each is switched over.

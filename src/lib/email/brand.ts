@@ -8,7 +8,7 @@ import { adminBaseUrl, garageBaseUrl } from "@/lib/tenancy/urls";
 /** The platform's own name. The admin, staff and account emails are Pitline-branded. */
 export const PLATFORM_NAME = "Pitline";
 
-/** Brand kit (D22): the tagline, Electric Blue for buttons, and the colour logo (public/brand/, 2x PNG). */
+/** Brand kit (D23): the tagline, Electric Blue for buttons, and the colour logo (public/brand/, 2x PNG). */
 export const PLATFORM_TAGLINE = "Your garage, fully booked.";
 export const PLATFORM_ACCENT = "#2563eb";
 export const PLATFORM_EMAIL_LOGO_PATH = "/brand/pitline-logo-email.png";

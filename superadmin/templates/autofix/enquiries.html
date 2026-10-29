@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Enquiries · Pitline Super Admin{% endblock %}
+{% block content %}
+  <h1>Enquiries</h1>
+  <p class="muted mt-1 text-sm">Messages from the contact page on pitline.co.uk, newest first. Open one to see the sender's details and to change its status or notes.</p>
+  <div class="mt-6 grid grid-cols-3 gap-3">
+    <div class="kpi" data-testid="kpi-enquiries-new"><p class="kpi-label">New</p><p class="kpi-value">{{ counts.new }}</p><p class="kpi-time">Not picked up yet</p></div>
+    <div class="kpi" data-testid="kpi-enquiries-in-progress"><p class="kpi-label">In progress</p><p class="kpi-value">{{ counts.in_progress }}</p><p class="kpi-time">Being handled</p></div>
+    <div class="kpi" data-testid="kpi-enquiries-closed"><p class="kpi-label">Closed</p><p class="kpi-value">{{ counts.closed }}</p><p class="kpi-time">All time</p></div>
+  </div>
+
+  <form method="get" action="{% url 'autofix:enquiries' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-3"
+        hx-get="{% url 'autofix:enquiries' %}" hx-trigger="change" hx-target="#enquiry-results" hx-swap="outerHTML" hx-push-url="true"
+        data-testid="enquiry-filters">
+    <div>
+      <label class="field-label" for="f-estatus">Status</label>
+      <select id="f-estatus" name="status" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All statuses</option>
+        {% for key, label in statuses %}<option value="{{ key }}" {% if key == filters.status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="f-etopic">Topic</label>
+      <select id="f-etopic" name="topic" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All topics</option>
+        {% for key, label in topics %}<option value="{{ key }}" {% if key == filters.topic %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <input type="hidden" name="density" value="{{ density }}">
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{% url 'autofix:enquiries' %}" class="btn btn-ghost">Clear</a>
+    </div>
+  </form>
+  <div class="mt-4">{% include "partials/data_table.html" %}</div>
+{% endblock %}

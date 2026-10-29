@@ -62,7 +62,7 @@ function AdminLogo() {
 
 /**
  * The admin frame (design/screens/Admin-Dashboard.dc.html). From 1024px: a white sidebar (the Navy
- * monochrome Pitline logo, brand kit D22; garage switcher; nav groups) and a white top bar (search,
+ * monochrome Pitline logo, brand kit D23; garage switcher; nav groups) and a white top bar (search,
  * booking page link, bell, account menu).
  * Under 1024px: no sidebar or top bar; `AdminTabBar` is fixed to the bottom and each page's
  * `PageHeader` carries search and the account menu. The admin is Pitline-branded: only the garage

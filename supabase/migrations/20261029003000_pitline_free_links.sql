@@ -1,4 +1,4 @@
--- Autofix is now Pitline (DECISIONS D22): free links move from
+-- Autofix is now Pitline (DECISIONS D23): free links move from
 -- <slug>.autofix.vitalos.co.uk to <slug>.pitline.co.uk. The app resolves free
 -- links from the slug and the tenant root, so the only stored full hostnames
 -- are garage_domains rows of kind 'subdomain'. This migration:

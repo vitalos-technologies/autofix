@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The Pitline logo as a home link. The admin and sign-in screens use the Navy monochrome logo
- * (brand kit, D22); the marketing page passes `primary`. `inverse` is the reversed logo for Navy
+ * (brand kit, D23); the marketing page passes `primary`. `inverse` is the reversed logo for Navy
  * backgrounds. Garage logos appear only on customer screens.
  */
 export function Logo({

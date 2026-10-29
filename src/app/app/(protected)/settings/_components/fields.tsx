@@ -70,11 +70,13 @@ export type TextInputFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "i
   prefix?: string;
   /** Text after the box, e.g. "minutes". */
   suffix?: string;
+  /** A control (e.g. a submit button) on the input's own row, so the hint and error stay below both. */
+  action?: ReactNode;
   fieldClassName?: string;
 };
 
 /** Labelled 46px input with hint and error. */
-export function TextInputField({ id, label, hint, error, prefix, suffix, fieldClassName, className, ...input }: TextInputFieldProps) {
+export function TextInputField({ id, label, hint, error, prefix, suffix, action, fieldClassName, className, ...input }: TextInputFieldProps) {
   const control = (
     <input
       id={id}
@@ -86,7 +88,7 @@ export function TextInputField({ id, label, hint, error, prefix, suffix, fieldCl
   );
   return (
     <FieldShell id={id} label={label} hint={hint} error={error} className={fieldClassName}>
-      {prefix || suffix ? (
+      {prefix || suffix || action ? (
         <div className="flex items-center gap-2.5">
           <div className="relative min-w-0 grow">
             {prefix ? (
@@ -97,6 +99,7 @@ export function TextInputField({ id, label, hint, error, prefix, suffix, fieldCl
             {control}
           </div>
           {suffix ? <span className="shrink-0 text-[14px] text-grey-700">{suffix}</span> : null}
+          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : (
         control

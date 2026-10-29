@@ -84,7 +84,7 @@ const GALLERY_INPUT =
 
 const ACCENTS = [...ACCENT_PALETTE.map((value) => ({ value, label: value })), { value: "#ffcc00", label: "#ffcc00 (darkened)" }];
 
-function Frame({ title, children, tone = "light", screen = false }: { title: string; children: ReactNode; tone?: "light" | "navy"; screen?: boolean }) {
+function Frame({ title, children, tone = "light", screen = false }: { title: string; children: ReactNode; tone?: "light" | "white"; screen?: boolean }) {
   return (
     <section aria-label={title} className="flex w-full max-w-[390px] flex-col gap-2 justify-self-center">
       <h2 className="m-0 px-5 font-display text-2xl font-bold tracking-normal text-navy-950 sm:px-0">{title}</h2>
@@ -92,7 +92,7 @@ function Frame({ title, children, tone = "light", screen = false }: { title: str
         data-frame={title}
         className={cn(
           "flex flex-col overflow-hidden leading-[normal] sm:rounded-card sm:border sm:border-grey-200",
-          tone === "navy" ? "bg-navy-950 text-white" : "bg-grey-50 text-grey-800",
+          tone === "white" ? "bg-white text-grey-800" : "bg-grey-50 text-grey-800",
           screen && "min-h-[844px]",
         )}
       >
@@ -165,7 +165,7 @@ export function ComponentGallery() {
         <div className="grid grid-cols-1 gap-x-8 gap-y-12 md:grid-cols-2 xl:grid-cols-3">
           {/* Book 1 · Vehicle */}
           <Frame title="Book 1 · Vehicle" screen>
-            <GarageHeader name={GARAGE.name} subtitle={GARAGE.location} phone={GARAGE.phone} />
+            <GarageHeader name={GARAGE.name} subtitle={GARAGE.location} phone={GARAGE.phone} contactHref="#af-gallery" />
             <StepProgress step={1} className="px-5 pt-4" />
             <div className="flex flex-col gap-[18px] px-5 pt-[22px] pb-6">
               <div className="flex flex-col gap-2">
@@ -352,15 +352,15 @@ export function ComponentGallery() {
           </Frame>
 
           {/* Book 5 · Confirmed */}
-          <Frame title="Book 5 · Confirmed" tone="navy" screen>
-            <GarageHeader name={GARAGE.name} tone="plain" />
+          <Frame title="Book 5 · Confirmed" tone="white" screen>
+            <GarageHeader name={GARAGE.name} tone="light" phone={GARAGE.phone} contactHref="#af-gallery" />
             <div className="flex flex-col items-center gap-[22px] px-6 pt-9 pb-7 text-center">
               <span aria-hidden="true" className="flex size-[84px] items-center justify-center rounded-full bg-success outline-[10px] outline-[rgba(22,163,74,0.18)] outline-solid">
                 <Check size={40} strokeWidth={3} className="text-white" />
               </span>
               <div className="flex flex-col gap-2">
-                <h3 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold tracking-[-0.01em] text-white">You&apos;re booked in</h3>
-                <p className="m-0 text-[15px] leading-normal text-[#94a3b8]">We&apos;ve texted your confirmation to 07••• •••412.</p>
+                <h3 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold tracking-[-0.01em] text-navy-950">You&apos;re booked in</h3>
+                <p className="m-0 text-[15px] leading-normal text-grey-600">We&apos;ve texted your confirmation to 07••• •••412.</p>
               </div>
               <ConfirmationCard
                 reference="HRM-4821"
@@ -372,15 +372,15 @@ export function ComponentGallery() {
                 manageHref="#af-gallery"
                 whatsappHref="#af-gallery"
               />
-              <a href="#af-gallery" className="text-[13px] text-[#9cc8ff] underline">Book another car</a>
-              <PoweredByPitline onDark />
+              <a href="#af-gallery" className="text-[14px] font-semibold text-accent-text underline">Book another car</a>
+              <PoweredByPitline className="text-[11.5px]" />
             </div>
           </Frame>
 
           {/* States */}
           <Frame title="Header and progress states">
-            <GarageHeader name="Kwik Lane Garage" subtitle="No phone on file: no call button" />
-            <GarageHeader name={GARAGE.name} logoUrl={SAMPLE_LOGO} subtitle="With a logo" phone={GARAGE.phone} />
+            <GarageHeader name="Kwik Lane Garage" subtitle="No phone on file: no Call button" contactHref="#af-gallery" />
+            <GarageHeader name={GARAGE.name} logoUrl={SAMPLE_LOGO} subtitle="With a logo" phone={GARAGE.phone} contactHref="#af-gallery" />
             <div className="flex flex-col gap-5 px-5 py-5">
               {[1, 2, 3, 4].map((step) => (
                 <StepProgress key={step} step={step} />

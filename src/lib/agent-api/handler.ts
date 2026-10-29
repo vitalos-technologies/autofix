@@ -135,8 +135,9 @@ function gbp(pence: number) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 }
 
-export function agentService(service: OnlineService): AgentService {
-  const pricePence = service.priceMode === "quote" ? null : service.pricePence;
+/** A garage that hides prices on its booking page (D22) hides them from AI assistants too: every service reads "Price on quote". */
+export function agentService(service: OnlineService, showPrices = true): AgentService {
+  const pricePence = !showPrices || service.priceMode === "quote" ? null : service.pricePence;
   const priceText = pricePence === null ? "Price on quote" : service.priceMode === "from" ? `from ${gbp(pricePence)}` : gbp(pricePence);
   return {
     id: service.id,
@@ -224,9 +225,10 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
     }
   },
 
-  async list_services(_input, { garageId }) {
+  async list_services(_input, { garageId, token }) {
     const services = await getBookingEngine().listOnlineServices(garageId);
-    return ok({ services: services.map(agentService) });
+    const showPrices = token.garage.showPrices !== false;
+    return ok({ services: services.map((service) => agentService(service, showPrices)) });
   },
 
   async available_slots(input, { garageId, token }) {

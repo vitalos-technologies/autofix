@@ -381,6 +381,17 @@ describe("list_services", () => {
       ["quote", null, "Price on quote"],
     ]);
   });
+
+  it("every service reads 'Price on quote' when the garage hides prices on its booking page", async () => {
+    const record = tokenRecord(TOKEN, { garage: { status: "active", motEnabled: true, timezone: "Europe/London", plan: PRO, showPrices: false } });
+    tokens.set(record.tokenHash, record);
+    const listed = (await call("list_services", {})).body.services as Array<Record<string, unknown>>;
+    expect(listed.map((service) => [service.priceMode, service.pricePence, service.priceText])).toEqual([
+      ["quote", null, "Price on quote"],
+      ["quote", null, "Price on quote"],
+      ["quote", null, "Price on quote"],
+    ]);
+  });
 });
 
 describe("available_slots", () => {

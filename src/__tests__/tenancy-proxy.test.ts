@@ -54,7 +54,7 @@ describe("host routing proxy", () => {
     expect(response.status).toBe(200);
   });
 
-  it.each(["/app", "/app/bookings", "/admin", "/auth/confirm", "/api/admin/notifications/count", "/api/cron/retention", "/api/agent/v1/list_services", "/dev/components", `/_site/${garages.demoB.id}`])(
+  it.each(["/app", "/app/bookings", "/admin", "/auth/confirm", "/api/admin/notifications/count", "/api/cron/retention", "/api/agent/v1/list_services", "/api/contact", "/dev/components", `/_site/${garages.demoB.id}`])(
     "returns 404 for %s on a garage host",
     async (path) => {
       const response = await proxy(request(`https://hartley-road.pitline.co.uk${path}`));

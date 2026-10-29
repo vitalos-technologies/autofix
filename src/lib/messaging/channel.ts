@@ -47,6 +47,8 @@ export type OutboundMessage = {
   subject?: string;
   /** Email only. */
   html?: string;
+  /** Email only: the Reply-To address (e.g. the person who wrote in). Falls back to RESEND_REPLY_TO. */
+  replyTo?: string;
   /** SMS only: the garage's alphanumeric sender (1 to 11 characters, at least one letter, e.g. `HartleyRd`). */
   senderId?: string;
   /** SMS/WhatsApp delivery webhook; defaults to TWILIO_STATUS_CALLBACK_BASE_URL + /api/webhooks/twilio/status. */

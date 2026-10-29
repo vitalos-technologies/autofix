@@ -38,7 +38,7 @@ export function onBehalfLine(brand: Pick<EmailBrand, "kind" | "name">) {
 }
 
 function header(brand: EmailBrand) {
-  // Platform mail: the colour Pitline logo on white (brand kit, D22).
+  // Platform mail: the colour Pitline logo on white (brand kit, D23).
   if (brand.kind === "platform" && brand.logoUrl) {
     return `<img src="${escapeHtml(brand.logoUrl)}" width="150" height="43" alt="${escapeHtml(brand.name)}" style="display:inline-block;width:150px;height:auto;border:0;color:#0F2747;font-size:22px;font-weight:700;">`;
   }

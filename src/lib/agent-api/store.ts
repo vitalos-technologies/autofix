@@ -6,6 +6,7 @@ import { findBookingForManage, type ManagedBooking } from "@/lib/booking-engine/
 import { agentTools, ASKBRIDGE_TOOLS, CALL_TOKEN_TOOLS, isAgentTokenAudience, isAgentTool, type AgentErrorCode, type AgentTokenAudience, type AgentTool, type CallOutcome } from "@/lib/agent-api/schemas";
 import { generateAgentToken, hashAgentToken } from "@/lib/agent-api/tokens";
 import { isPlanRequiredDatabaseError, PlanRequiredError, type PlanState } from "@/lib/plans/entitlements";
+import { showPricesFromSettings } from "@/lib/booking-page/show-prices";
 import { recordUsage, type UsageRecorder } from "@/lib/plans/usage";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { GarageAddress } from "@/lib/tenancy/garage";
@@ -27,7 +28,7 @@ export type AgentTokenRecord = {
   callSid?: string | null;
   /** Voice desk: when a per-call token stops working (ISO). */
   expiresAt?: string | null;
-  garage: { status: string; motEnabled: boolean; timezone: string; plan: PlanState };
+  garage: { status: string; motEnabled: boolean; timezone: string; plan: PlanState; showPrices?: boolean };
 };
 
 /** Voice desk: per-call tokens live this long at most (the call itself is capped well below it). */
@@ -97,7 +98,7 @@ type TokenRow = {
   revoked_at: string | null;
   call_sid: string | null;
   expires_at: string | null;
-  garages: Related<{ status: string; mot_enabled: boolean | null; timezone: string | null; plan: string | null; trial_ends_at: string | null; plan_chosen: string | null }>;
+  garages: Related<{ status: string; mot_enabled: boolean | null; timezone: string | null; plan: string | null; trial_ends_at: string | null; plan_chosen: string | null; settings?: unknown }>;
 };
 
 /** `last_used_at` is refreshed at most once a minute per token. */
@@ -144,7 +145,7 @@ export function createSupabaseAgentApiStore(
     async findToken(tokenHash) {
       const { data, error } = await client()
         .from("agent_tokens")
-        .select("id,garage_id,token_hash,scopes,audience,revoked_at,call_sid,expires_at,garages(status,mot_enabled,timezone,plan,trial_ends_at,plan_chosen)")
+        .select("id,garage_id,token_hash,scopes,audience,revoked_at,call_sid,expires_at,garages(status,mot_enabled,timezone,plan,trial_ends_at,plan_chosen,settings)")
         .eq("token_hash", tokenHash)
         .maybeSingle();
       if (error) throw new BookingEngineError("UNAVAILABLE");
@@ -167,6 +168,7 @@ export function createSupabaseAgentApiStore(
           motEnabled: Boolean(garage.mot_enabled),
           timezone: garage.timezone || "Europe/London",
           plan: { plan: garage.plan, trialEndsAt: garage.trial_ends_at, planChosen: garage.plan_chosen },
+          showPrices: showPricesFromSettings(garage.settings),
         },
       };
     },

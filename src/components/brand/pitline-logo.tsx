@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { PITLINE_LOCKUPS, PITLINE_MARK } from "./logo-geometry";
 
 /**
- * The Pitline logo (brand kit, DECISIONS D22), drawn inline from design/brand/pitline/.
+ * The Pitline logo (brand kit, DECISIONS D23), drawn inline from design/brand/pitline/.
  * - `primary`: Electric Blue mark, orange triangle, Navy wordmark. Marketing, emails, "Powered by".
  * - `mono`: all Navy, for light backgrounds. The garage admin.
  * - `reversed`: white mark with the orange triangle kept, white wordmark, for Navy backgrounds.

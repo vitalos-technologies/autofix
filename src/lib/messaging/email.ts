@@ -74,6 +74,7 @@ export function createResendEmailChannel(options: ResendEmailChannelOptions = {}
           subject: subjectFor(message),
           text: message.body,
           html: message.html,
+          ...(message.replyTo && isValidEmailAddress(message.replyTo) ? { replyTo: message.replyTo } : {}),
           idempotencyKey: message.idempotencyKey ? resendIdempotencyKey(message.garageId, message.idempotencyKey) : undefined,
           tags: /^[A-Za-z0-9_-]{1,256}$/.test(message.garageId) ? [{ name: "garage_id", value: message.garageId }] : undefined,
         });

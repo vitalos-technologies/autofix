@@ -12,7 +12,7 @@ State as of 25 Oct 2026.
 | `_acme-challenge.autofix` NS → `ns1.vercel-dns.com`, `ns2.vercel-dns.com` | Cloudflare | Lets Vercel issue the `*.pitline.co.uk` wildcard certificate |
 | Vercel team "Vitalos' projects" | Vercel, **Hobby** plan | Hosts vitalos.co.uk, Askbridge, Fauward |
 | GitHub repo `vitalos-technologies/pitline` | GitHub, private | Created 25 Oct 2026, empty until `/bootstrap` pushes |
-| Vercel project `autofix` | Team `vitalos-projects-8e978de2` (team ID `team_5uDOAjR2l4XPYSxXtcUmWNMC`), project ID `prj_MyFtTDfjEtEh2lCMkD6PHJWqTh2V` | Created and linked to the repo by Temitope on 27 Oct 2026; previews deploy per PR (e.g. `autofix-theta.vercel.app`). Set `VERCEL_PROJECT_ID` and `VERCEL_TEAM_ID` to these. No env vars or domains yet |
+| Vercel project `autofix` | Team `vitalos-projects-8e978de2` (team ID `team_5uDOAjR2l4XPYSxXtcUmWNMC`), project ID `prj_MyFtTDfjEtEh2lCMkD6PHJWqTh2V` | Created and linked to the repo by Temitope on 27 Oct 2026; previews deploy per PR (e.g. `autofix-theta.vercel.app`). Set `VERCEL_PROJECT_ID` and `VERCEL_TEAM_ID` to these. No env vars or domains yet. Functions run in `lhr1` (London), set by `regions` in `vercel.json`, next to Supabase (eu-west-2). Deployments before that setting ran in Vercel's default `iad1` (Washington, D.C.), where every Supabase call crossed the Atlantic (about 125 ms each, measured 29 Oct 2026) |
 | SOB Autofix | Vercel project `sobautofix` (separate team), Supabase, Cal.com | Source of the fork; keep running unchanged |
 
 ## To create (needs Temitope's OK where marked)

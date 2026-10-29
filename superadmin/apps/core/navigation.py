@@ -42,6 +42,15 @@ GROUPS = ("Operate", "Garages", "System")
 
 NAV_ITEMS = (
     NavItem("overview", "Overview", "core:overview", "layout-dashboard", "Operate", ("/",), exact=True),
+    NavItem(
+        "enquiries",
+        "Enquiries",
+        "autofix:enquiries",
+        "inbox",
+        "Operate",
+        ("/enquiries",),
+        permission="apps.accounts.roles.can_handle_enquiries",
+    ),
     NavItem("garages", "Garages", "autofix:garages", "wrench", "Garages", ("/garages",)),
     NavItem("signups", "Sign-ups", "autofix:signups", "trend", "Garages", ("/signups",)),
     NavItem(

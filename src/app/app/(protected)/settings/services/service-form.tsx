@@ -50,7 +50,18 @@ const LOCATION_OPTIONS = [
 const FIELD_ORDER: ServiceField[] = ["name", "description", "priceMode", "price", "durationMin", "bufferMin", "locationMode", "resourceKind", "minNoticeH", "maxDaysAhead"];
 
 /** Add or edit a service. Every field is checked again by the server action. */
-export function ServiceForm({ initial, motEnabled, garageName }: { initial: ServiceFormValues; motEnabled: boolean; garageName: string }) {
+export function ServiceForm({
+  initial,
+  motEnabled,
+  garageName,
+  showPrices = true,
+}: {
+  initial: ServiceFormValues;
+  motEnabled: boolean;
+  garageName: string;
+  /** The garage's "Show prices on my booking page": the preview leaves the price out when it is off. */
+  showPrices?: boolean;
+}) {
   const [state, formAction] = useActionState<SetupFormState<ServiceField>, FormData>(saveServiceAction, initialSetupFormState);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
@@ -265,11 +276,14 @@ export function ServiceForm({ initial, motEnabled, garageName }: { initial: Serv
                 {[description.trim(), Number.isFinite(previewDuration) ? formatDuration(previewDuration) : ""].filter(Boolean).join(" · ") || "Description"}
               </span>
             </span>
-            <span className="shrink-0 text-right text-[13px] font-semibold text-grey-700">{formatServicePrice(previewPence, priceMode)}</span>
+            {showPrices ? (
+              <span className="shrink-0 text-right text-[13px] font-semibold text-grey-700">{formatServicePrice(previewPence, priceMode)}</span>
+            ) : null}
           </div>
           <p className="m-0 text-[13px] text-grey-600">
             {onlineEnabled ? "Bookable online." : "Not shown to customers: staff bookings only."}
             {needsApproval ? " Each booking waits for your OK." : ""}
+            {showPrices ? "" : " Your booking page hides prices."}
           </p>
         </Panel>
       </aside>

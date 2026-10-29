@@ -3,7 +3,7 @@ import { PitlineLogo } from "./pitline-logo";
 
 /**
  * "Powered by" and the Pitline logo, under a garage's booking pages: the colour logo on light
- * backgrounds, the reversed one on Navy (brand kit, D22). Screen readers hear "Powered by Pitline".
+ * backgrounds, the reversed one on Navy (brand kit, D23). Screen readers hear "Powered by Pitline".
  */
 export function PoweredByPitline({ onDark = false, className }: { onDark?: boolean; className?: string }) {
   return (

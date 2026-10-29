@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader, textLinkClass } from "@/components/admin-ui";
+import { garageShowsPrices } from "@/lib/booking-page/show-prices";
 import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { ReadOnlyNotice } from "../../_components/setup-nav";
@@ -38,7 +39,7 @@ export default async function NewServicePage() {
       </Link>
       <PageHeader eyebrow="Services & prices" title="Add a service" description="Name it as customers would, then set the price and how long it takes." />
       {canEdit ? (
-        <ServiceForm initial={NEW_SERVICE} motEnabled={admin?.garage.motEnabled ?? false} garageName={admin?.garage.name ?? "Your"} />
+        <ServiceForm initial={NEW_SERVICE} motEnabled={admin?.garage.motEnabled ?? false} garageName={admin?.garage.name ?? "Your"} showPrices={admin ? garageShowsPrices(admin.garage) : true} />
       ) : (
         <ReadOnlyNotice level="manage" />
       )}

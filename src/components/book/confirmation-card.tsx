@@ -1,6 +1,6 @@
 import { CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { focusRingOnDark } from "./styles";
+import { focusRing } from "./styles";
 
 export type ConfirmationCardProps = {
   /** Booking reference, e.g. the garage prefix and number. */
@@ -22,11 +22,14 @@ export type ConfirmationCardProps = {
 };
 
 const actionBase = cn(
-  "flex h-[50px] items-center justify-center gap-2 rounded-control px-3 text-center text-[14.5px] font-bold text-white no-underline transition-colors",
-  focusRingOnDark,
+  "flex h-[50px] items-center justify-center gap-2 rounded-control px-3 text-center text-[14.5px] font-bold no-underline transition-colors",
+  focusRing,
 );
 
-/** White card on the navy confirmation page: reference, 2 × 2 facts and the follow-up actions. */
+/**
+ * Card on the white confirmation page: reference, 2 × 2 facts and the follow-up actions. The card is
+ * white with a grey border (as on the manage page) so it stays distinct from the page.
+ */
 export function ConfirmationCard({
   reference,
   when,
@@ -48,7 +51,7 @@ export function ConfirmationCard({
 
   return (
     <div className={cn("flex w-full flex-col gap-2.5 font-sans leading-[normal]", className)}>
-      <div className="flex flex-col gap-3.5 rounded-hero bg-white p-[18px] text-left text-grey-800">
+      <div className="flex flex-col gap-3.5 rounded-hero border border-grey-200 bg-white p-[18px] text-left text-grey-800">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[12px] font-bold tracking-[0.06em] text-grey-600 uppercase">Booking ref</span>
           <span className="font-display text-[22px] font-bold tracking-[0.04em] text-navy-950">{reference}</span>
@@ -72,7 +75,7 @@ export function ConfirmationCard({
             </a>
           ) : null}
           {manageHref ? (
-            <a href={manageHref} className={cn(actionBase, "border-[1.5px] border-[#3a5480] hover:bg-navy-900")}>
+            <a href={manageHref} className={cn(actionBase, "border-[1.5px] border-grey-300 bg-white text-navy-950 hover:border-navy-950 hover:bg-grey-100")}>
               Change or cancel
             </a>
           ) : null}
@@ -82,7 +85,7 @@ export function ConfirmationCard({
         <a
           href={whatsappHref}
           rel="noopener noreferrer"
-          className={cn(actionBase, "mt-3 w-full bg-[#15803d] hover:bg-success-ink")}
+          className={cn(actionBase, "mt-3 w-full bg-[#15803d] text-white hover:bg-success-ink")}
         >
           Message the garage on WhatsApp
         </a>

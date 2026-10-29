@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { regexes } from "zod/v4/core";
 
 vi.mock("server-only", () => ({}));
 
@@ -9,8 +12,8 @@ import { describeOpeningHours, mapPlaceDetails, placeAddress, placeOpeningHours,
 import { cleanPlacesQuery, createGooglePlacesProvider, createMockPlacesProvider, DETAILS_FIELD_MASK, resolvePlacesMode, SEARCH_FIELD_MASK } from "@/lib/places/provider";
 import { PlacesLookupError } from "@/lib/places/types";
 import { generateInviteToken, hashInviteToken, inviteUrl, isInviteToken } from "@/lib/signup/invite-token";
-import { createGaragePayload, parseAccountForm, parseGarageDetails, parseGarageForm, parseInviteForm, parseOpeningHours, parseSlug } from "@/lib/signup/schema";
-import { createGarageError } from "@/lib/signup/server";
+import { createGaragePayload, EMAIL_PATTERN, parseAccountForm, parseGarageDetails, parseGarageForm, parseInviteForm, parseOpeningHours, parseSlug } from "@/lib/signup/schema";
+import { availableSlugs, createGarageError } from "@/lib/signup/server";
 import { slugAlternatives, slugify, slugProblem } from "@/lib/signup/slug";
 import { composeInviteEmail } from "@/lib/team/server";
 import { RESERVED_SLUGS } from "@/lib/tenancy/hosts";
@@ -50,6 +53,29 @@ describe("booking link slugs", () => {
     expect(slugAlternatives("kingsway-autocare", "Doncaster")).toEqual(["kingsway-autocare-doncaster", "kingsway-autocare-2", "kingsway-autocare-3"]);
     expect(slugAlternatives("a".repeat(40))).toEqual([`${"a".repeat(37)}-2`, `${"a".repeat(37)}-3`]);
     for (const candidate of slugAlternatives("station-road-garage", "Sutton-in-Ashfield")) expect(slugProblem(candidate)).toBeNull();
+  });
+
+  it("looks a link and its alternatives up in one query", async () => {
+    const queries: Array<{ table: string; column: string; values: string[] }> = [];
+    const service = {
+      from: (table: string) => ({
+        select: () => ({
+          in: async (column: string, values: string[]) => {
+            queries.push({ table, column, values });
+            return { data: [{ slug: "kingsway-autocare" }, { slug: "kingsway-autocare-2" }], error: null };
+          },
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const asked = ["kingsway-autocare", "kingsway-autocare-doncaster", "kingsway-autocare-2", "admin", "kingsway-autocare-3", "kingsway-autocare-doncaster"];
+    await expect(availableSlugs(asked, service)).resolves.toEqual(["kingsway-autocare-doncaster", "kingsway-autocare-3"]);
+    // Malformed and reserved links never reach the database.
+    expect(queries).toEqual([{ table: "garages", column: "slug", values: ["kingsway-autocare", "kingsway-autocare-doncaster", "kingsway-autocare-2", "kingsway-autocare-3"] }]);
+
+    const failing = { from: () => ({ select: () => ({ in: async () => ({ data: null, error: { message: "unavailable" } }) }) }) } as unknown as SupabaseClient;
+    await expect(availableSlugs(["kingsway-autocare"], failing)).resolves.toBeNull();
+    await expect(availableSlugs(["kingsway-autocare"], null)).resolves.toBeNull();
+    await expect(availableSlugs(["admin", "ab"], null)).resolves.toEqual([]);
   });
 
   it("keeps the database's reserved list equal to RESERVED_SLUGS", () => {
@@ -175,6 +201,23 @@ describe("Places provider", () => {
 });
 
 describe("wizard validation", () => {
+  it("keeps the copied email pattern equal to zod's", () => {
+    expect(EMAIL_PATTERN.source).toBe(regexes.email.source);
+    expect(EMAIL_PATTERN.flags).toBe(regexes.email.flags);
+  });
+
+  it("accepts and refuses email addresses exactly as z.email() does", () => {
+    const samples = [
+      "owner@garage.co.uk", "o'brien@garage.co.uk", "first.last+tag@sub.example.org", "a_b-c@garage.example",
+      "a..b@garage.co.uk", ".a@garage.co.uk", "a.@garage.co.uk", "owner@garage", "owner@-garage.co.uk",
+      "owner@garage.c", "owner@@garage.co.uk", "ówner@garage.co.uk", "owner@garage..co.uk", "owner garage@x.co.uk", "",
+    ];
+    for (const sample of samples) {
+      const parsed = parseInviteForm({ email: sample, role: "technician" });
+      expect(parsed.ok ? undefined : parsed.errors.email, sample).toBe(z.email().safeParse(sample).success ? undefined : "Enter their email address.");
+    }
+  });
+
   const goodDetails = {
     name: " Kingsway  Autocare ",
     phone: "01632 960123",

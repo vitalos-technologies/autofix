@@ -12,3 +12,4 @@ class AutofixConfig(AppConfig):
         from . import search
 
         palette.register(search.palette_results)
+        palette.register(search.enquiry_results)

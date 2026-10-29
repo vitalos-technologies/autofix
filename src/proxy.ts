@@ -19,7 +19,7 @@ export const SITE_PREFIX = "/_site";
 export const DEV_GARAGE_COOKIE = "af_dev_garage";
 
 /** Paths that only exist on the admin host. */
-const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/superadmin", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent", "/api/voice"];
+const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/superadmin", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent", "/api/voice", "/api/contact"];
 
 function hasPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -106,7 +106,7 @@ function trailingSlashRedirect(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   const host = requestHost(request);
-  // The old Autofix addresses first, so one redirect lands on the final URL (DECISIONS D22).
+  // The old Autofix addresses first, so one redirect lands on the final URL (DECISIONS D23).
   const legacy = legacyHostDecision(request.url, host);
   if (legacy?.kind === "redirect") return NextResponse.redirect(legacy.location, 308);
   if (legacy?.kind === "serve") return withSecurityHeaders(await adminHost(request, null), null);

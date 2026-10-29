@@ -101,7 +101,7 @@
   }
 }
 
-/* Pitline design tokens (design/tokens.css; brand kit, DECISIONS D22) */
+/* Pitline design tokens (design/tokens.css; brand kit, DECISIONS D23) */
 :root {
   /* Brand palette. Signal Orange is for the main call to action and highlights; focus rings use
      orange-600 on light surfaces (#f97316 on white is 2.8:1, under the 3:1 a focus ring needs). */

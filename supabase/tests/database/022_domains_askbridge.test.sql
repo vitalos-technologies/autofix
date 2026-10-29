@@ -40,8 +40,8 @@ $$;
 -- Privileges, and the knowledge sync is gone
 -- ---------------------------------------------------------------------------
 
-select ok(has_function_privilege('authenticated', 'public.set_booking_page_settings(jsonb,jsonb)', 'execute'), 'staff can call set_booking_page_settings (owners only inside)');
-select ok(not has_function_privilege('anon', 'public.set_booking_page_settings(jsonb,jsonb)', 'execute'), 'anon cannot change booking page settings');
+select ok(has_function_privilege('authenticated', 'public.set_booking_page_settings(jsonb,jsonb,boolean)', 'execute'), 'staff can call set_booking_page_settings (owners only inside)');
+select ok(not has_function_privilege('anon', 'public.set_booking_page_settings(jsonb,jsonb,boolean)', 'execute'), 'anon cannot change booking page settings');
 select hasnt_function('public', 'enqueue_askbridge_sync', 'enqueue_askbridge_sync() is gone');
 select hasnt_function('public', 'askbridge_sync_after_change', 'the askbridge sync trigger function is gone');
 select is(
@@ -87,7 +87,7 @@ select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": fa
 
 select is(
   public.set_booking_page_settings('["https://www.page-a.example", "https://shop.page-a.example:8443"]'::jsonb, null),
-  '{"embedOrigins": ["https://www.page-a.example", "https://shop.page-a.example:8443"], "askbridge": {"enabled": false, "siteKey": null}}'::jsonb,
+  '{"embedOrigins": ["https://www.page-a.example", "https://shop.page-a.example:8443"], "askbridge": {"enabled": false, "siteKey": null}, "showPrices": true}'::jsonb,
   'the owner saves allowed sites'
 );
 

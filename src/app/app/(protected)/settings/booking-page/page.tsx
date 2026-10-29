@@ -19,6 +19,7 @@ import { accentForWhiteText } from "@/lib/branding/accent";
 import { checkAvailableInMs, dnsRecordsForDisplay, failedStepFor, isDomainInProgress } from "@/lib/booking-page/domain-view";
 import { getCustomDomain } from "@/lib/booking-page/domains-server";
 import { embedOriginsFromSettings } from "@/lib/booking-page/embed-origins";
+import { showPricesFromSettings } from "@/lib/booking-page/show-prices";
 import { qrSvg } from "@/lib/booking-page/qr";
 import { canChangeGarage } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -27,6 +28,7 @@ import { getDomainCnameTarget } from "@/lib/vercel/domains";
 import { FlashMessage, ReadOnlyNotice, SetupNav, SetupNotice } from "../_components/setup-nav";
 import { removeDomainAction } from "./actions";
 import { AskbridgeForm, CheckDomainForm, ConnectDomainForm, EmbedOriginsForm } from "./booking-page-forms";
+import { ShowPricesForm } from "./show-prices-form";
 
 export const metadata: Metadata = { title: "Booking page" };
 
@@ -61,7 +63,7 @@ function emailStepsHref(hostname: string, records: Array<{ type: string; name: s
   return `mailto:?subject=${encodeURIComponent(`DNS record for ${hostname}`)}&body=${encodeURIComponent(lines.join("\n"))}`;
 }
 
-/** Setup · Booking page: free link and QR code, own web address (DNS + status), embed code, Askbridge chat. */
+/** Setup · Booking page: free link and QR code, own web address (DNS + status), embed code, prices shown or hidden, Askbridge chat. */
 export default async function BookingPageSettings({ searchParams }: PageProps) {
   const admin = await getAdminContext({ allowTrustedDevice: true });
   const query = await searchParams;
@@ -82,6 +84,7 @@ export default async function BookingPageSettings({ searchParams }: PageProps) {
   const settings = settingsRow.data?.settings ?? null;
   const embedOrigins = embedOriginsFromSettings(settings);
   const askbridge = askbridgeFromSettings(settings);
+  const showPrices = showPricesFromSettings(settings);
   const widgetAvailable = askbridgeScriptUrl() !== null;
 
   const freeUrl = garageBaseUrl({ slug: garage.slug });
@@ -197,7 +200,7 @@ export default async function BookingPageSettings({ searchParams }: PageProps) {
           </Panel>
         </div>
 
-        <aside aria-label="Branding and chat" className="flex min-w-0 flex-col gap-5">
+        <aside aria-label="Branding, prices and chat" className="flex min-w-0 flex-col gap-5">
           <Panel id="branding" title="Your branding">
             <div className="flex items-center gap-3">
               {garage.logoUrl ? (
@@ -223,6 +226,10 @@ export default async function BookingPageSettings({ searchParams }: PageProps) {
             <Link href="/app/settings/branding" className={buttonClass("secondary", "md", "w-full")}>
               Change branding
             </Link>
+          </Panel>
+
+          <Panel id="prices" title="Prices" actions={showPrices ? <Badge tone="success">Shown</Badge> : <Badge tone="muted">Hidden</Badge>}>
+            <ShowPricesForm showPrices={showPrices} canEdit={canEdit} />
           </Panel>
 
           <Panel id="askbridge" title="Askbridge chat" actions={askbridge.enabled ? <Badge tone="success">On</Badge> : <Badge tone="muted">Off</Badge>}>

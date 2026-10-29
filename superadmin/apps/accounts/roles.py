@@ -2,7 +2,8 @@
 
 - SuperAdmin: everything, including plan and status changes, job retries, domain re-checks, users.
 - Support: reads everything a garage needs help with, the audited personal-data views and "View as
-  support" (the read-only hand-off to Pitline). Never changes anything in Pitline.
+  support" (the read-only hand-off to Pitline). Handles contact page enquiries (status and notes);
+  never changes anything else in Pitline.
 - Finance: plans, statuses and the sign-up funnel (read). No personal data, no hand-off, no writes.
 """
 
@@ -17,7 +18,7 @@ FINANCE = "Finance"
 ROLES = (SUPERADMIN, SUPPORT, FINANCE)
 ROLE_DESCRIPTIONS = {
     SUPERADMIN: "Full control: plans and statuses, job retries, domain re-checks, users and settings.",
-    SUPPORT: "Read-only, plus audited customer details on bookings and View as support.",
+    SUPPORT: "Read-only, plus audited customer details on bookings, View as support and handling enquiries.",
     FINANCE: "Plans, statuses and the sign-up funnel, read-only. No personal data.",
 }
 ROLE_LABELS = {SUPERADMIN: "Super admin", SUPPORT: "Support", FINANCE: "Finance"}
@@ -75,6 +76,14 @@ def can_support(user) -> bool:
 
 def can_operate(user) -> bool:
     """Operational pages (jobs, messaging, domains): SuperAdmin and Support."""
+    return has_role(user, SUPPORT)
+
+
+def can_handle_enquiries(user) -> bool:
+    """Contact page enquiries: read them and change status and notes. SuperAdmin and Support (no Finance).
+
+    A change also needs a verified device and a link to a Pitline platform admin, like every write.
+    """
     return has_role(user, SUPPORT)
 
 

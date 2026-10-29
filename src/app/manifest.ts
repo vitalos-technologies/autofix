@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-/** Web app manifest: the brand app icon (brand kit, D22), Navy theme. */
+/** Web app manifest: the brand app icon (brand kit, D23), Navy theme. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Pitline",
