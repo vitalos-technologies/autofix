@@ -320,7 +320,7 @@ async function twilioWebhooks() {
 
 // Inputs `number` (E.164) and `garage` (its slug). The number joins the Messaging Service, its calls and
 // call status go to Autofix, and a garage_phone_numbers row (purpose messaging, provider_sid PN…) routes its
-// texts and calls to that garage. A number another app answers, or that another garage holds, is left alone.
+// texts and calls to that garage. A voice-only number (a UK landline) routes calls only (purpose forwarding). A number another app answers, or that another garage holds, is left alone.
 async function twilioNumber() {
   heading("Twilio number");
   if (missing(["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY"])) {
@@ -352,9 +352,13 @@ async function twilioNumber() {
   // Calls answered by another app stay with it; a TwiML Bin or nothing (Twilio's own hosts) can be taken over.
   if (voiceHost && voiceHost !== ours && !voiceHost.endsWith("twilio.com")) return fail(`${lastFour(wanted)}: its calls go to ${voiceHost}; left alone`);
 
-  const membership = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers/${number.sid}`, { headers });
-  const inService = membership.ok;
-  if (!inService && membership.status !== 404) return fail(`Messaging Service membership: ${errorText(membership)}`);
+  // A UK landline (01/02/03) takes calls but not texts: it routes calls (and the AI front desk) only, with
+  // purpose forwarding, and stays out of the Messaging Service (Twilio refuses it there: 21715).
+  const canText = number.capabilities?.sms !== false;
+  const purpose = canText ? "messaging" : "forwarding";
+  const membership = canText ? await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers/${number.sid}`, { headers }) : null;
+  const inService = Boolean(membership?.ok);
+  if (membership && !inService && membership.status !== 404) return fail(`Messaging Service membership: ${errorText(membership)}`);
 
   const garages = await call(`${rest}/garages?select=id,name&slug=eq.${encodeURIComponent(slug)}`, { headers: db });
   if (!garages.ok) return fail(`garage: ${errorText(garages)}`);
@@ -364,15 +368,16 @@ async function twilioNumber() {
   if (!rows.ok) return fail(`garage_phone_numbers: ${errorText(rows)}`);
   const row = (rows.body ?? [])[0];
   if (row && row.garage_id !== garage.id) return fail(`${lastFour(wanted)} already belongs to another garage; left alone`);
-  const rowReady = row && row.purpose === "messaging" && row.provider_sid === number.sid;
+  const rowReady = row && row.purpose === purpose && row.provider_sid === number.sid;
 
-  console.log(`  ${lastFour(wanted)}: ${inService ? "in" : "not in"} the Messaging Service; voice=${voiceHost ?? "none"}; garage "${garage.name}": ${rowReady ? "routed" : row ? "row needs updating" : "no row"}`);
+  console.log(`  ${lastFour(wanted)}: ${canText ? `${inService ? "in" : "not in"} the Messaging Service` : "voice only (no SMS on this number)"}; voice=${voiceHost ?? "none"}; garage "${garage.name}": ${rowReady ? "routed" : row ? "row needs updating" : "no row"}`);
   if (!apply) {
-    console.log(`  would ${inService ? "keep it in" : "add it to"} the Messaging Service, point its calls and call status at ${voice}, and route it to "${garage.name}" (purpose messaging)`);
+    const service_ = canText ? `${inService ? "keep it in" : "add it to"} the Messaging Service, ` : "";
+    console.log(`  would ${service_}point its calls and call status at ${voice}, and route it to "${garage.name}" (purpose ${purpose})`);
     return;
   }
 
-  if (!inService) {
+  if (canText && !inService) {
     const added = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers`, form({ PhoneNumberSid: number.sid }));
     if (!added.ok) return fail(`adding ${lastFour(wanted)} to the Messaging Service: ${errorText(added)}`);
     console.log(`  ${lastFour(wanted)}: added to the Messaging Service`);
@@ -385,13 +390,13 @@ async function twilioNumber() {
   console.log(`  ${lastFour(wanted)}: calls and call status point at ${ours}`);
 
   if (!rowReady) {
-    const body = JSON.stringify({ garage_id: garage.id, number: wanted, purpose: "messaging", provider_sid: number.sid });
+    const body = JSON.stringify({ garage_id: garage.id, number: wanted, purpose, provider_sid: number.sid });
     const saved = row
-      ? await call(`${rest}/garage_phone_numbers?id=eq.${row.id}`, { method: "PATCH", headers: db, body: JSON.stringify({ purpose: "messaging", provider_sid: number.sid }) })
+      ? await call(`${rest}/garage_phone_numbers?id=eq.${row.id}`, { method: "PATCH", headers: db, body: JSON.stringify({ purpose, provider_sid: number.sid }) })
       : await call(`${rest}/garage_phone_numbers`, { method: "POST", headers: db, body });
     if (!saved.ok) return fail(`routing ${lastFour(wanted)} to "${garage.name}": ${errorText(saved)}`);
   }
-  console.log(`  ${lastFour(wanted)}: texts and calls route to "${garage.name}"`);
+  console.log(`  ${lastFour(wanted)}: ${canText ? "texts and calls" : "calls"} route to "${garage.name}"`);
 }
 
 // ---------------------------------------------------------------------------------------------------------
