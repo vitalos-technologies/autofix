@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BookingEngineError } from "@/lib/booking-engine/errors";
 import { findBookingForManage, type ManagedBooking } from "@/lib/booking-engine/manage";
-import { agentTools, ASKBRIDGE_TOOLS, isAgentTokenAudience, isAgentTool, type AgentErrorCode, type AgentTokenAudience, type AgentTool } from "@/lib/agent-api/schemas";
+import { agentTools, ASKBRIDGE_TOOLS, CALL_TOKEN_TOOLS, isAgentTokenAudience, isAgentTool, type AgentErrorCode, type AgentTokenAudience, type AgentTool, type CallOutcome } from "@/lib/agent-api/schemas";
 import { generateAgentToken, hashAgentToken } from "@/lib/agent-api/tokens";
 import { isPlanRequiredDatabaseError, PlanRequiredError, type PlanState } from "@/lib/plans/entitlements";
 import { recordUsage, type UsageRecorder } from "@/lib/plans/usage";
@@ -23,8 +23,18 @@ export type AgentTokenRecord = {
   /** P5.12: `workforce` (AI front desk, needs Pro) or `askbridge` (website chat, Essentials). */
   audience: AgentTokenAudience;
   revokedAt: string | null;
+  /** Voice desk: the CallSid a per-call token was minted for (null for tokens staff issue). */
+  callSid?: string | null;
+  /** Voice desk: when a per-call token stops working (ISO). */
+  expiresAt?: string | null;
   garage: { status: string; motEnabled: boolean; timezone: string; plan: PlanState };
 };
+
+/** Voice desk: per-call tokens live this long at most (the call itself is capped well below it). */
+export const VOICE_CALL_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+/** `/^CA[0-9a-f]{32}$/i`: what a Twilio CallSid looks like. */
+export const CALL_SID = /^CA[0-9a-fA-F]{32}$/;
 
 /** `recorded`: counted now; `replayed`: this conversation was already counted (`minutes` is the stored figure); `failed`: try again. */
 export type AiMinutesResult = { status: "recorded" | "replayed"; minutes: number } | { status: "failed" };
@@ -66,6 +76,8 @@ export interface AgentApiStore {
   findBooking(garageId: string, reference: string, registration: string): Promise<ManagedBooking | null>;
   /** P5.12: AI front desk minutes for one conversation, once per conversation id (`ai:<conversationId>`). Never throws. */
   recordAiMinutes(input: { garageId: string; conversationId: string; minutes: number; endedAt: Date }): Promise<AiMinutesResult>;
+  /** Voice desk: the AI front desk's summary on the call, once (false when already stored). Throws when it cannot write. */
+  recordCallSummary(input: { garageId: string; callSid: string; summary: string; outcome: CallOutcome }): Promise<boolean>;
 }
 
 /** The usage source key for one AI front desk conversation. */
@@ -83,6 +95,8 @@ type TokenRow = {
   scopes: string[] | null;
   audience: string | null;
   revoked_at: string | null;
+  call_sid: string | null;
+  expires_at: string | null;
   garages: Related<{ status: string; mot_enabled: boolean | null; timezone: string | null; plan: string | null; trial_ends_at: string | null; plan_chosen: string | null }>;
 };
 
@@ -130,7 +144,7 @@ export function createSupabaseAgentApiStore(
     async findToken(tokenHash) {
       const { data, error } = await client()
         .from("agent_tokens")
-        .select("id,garage_id,token_hash,scopes,audience,revoked_at,garages(status,mot_enabled,timezone,plan,trial_ends_at,plan_chosen)")
+        .select("id,garage_id,token_hash,scopes,audience,revoked_at,call_sid,expires_at,garages(status,mot_enabled,timezone,plan,trial_ends_at,plan_chosen)")
         .eq("token_hash", tokenHash)
         .maybeSingle();
       if (error) throw new BookingEngineError("UNAVAILABLE");
@@ -146,6 +160,8 @@ export function createSupabaseAgentApiStore(
         // Anything unexpected is treated as workforce: the stricter of the two (needs Pro).
         audience: isAgentTokenAudience(row.audience) ? row.audience : "workforce",
         revokedAt: row.revoked_at,
+        callSid: row.call_sid,
+        expiresAt: row.expires_at,
         garage: {
           status: garage.status,
           motEnabled: Boolean(garage.mot_enabled),
@@ -174,6 +190,17 @@ export function createSupabaseAgentApiStore(
       } catch {
         return { status: "failed" };
       }
+    },
+
+    async recordCallSummary({ garageId, callSid, summary, outcome }) {
+      const { data, error } = await client().rpc("record_ai_call_summary", {
+        p_garage_id: garageId,
+        p_call_sid: callSid,
+        p_summary: summary,
+        p_outcome: outcome,
+      });
+      if (error) throw new BookingEngineError("UNAVAILABLE");
+      return data === true;
     },
 
     async recordCall(entry) {
@@ -280,7 +307,7 @@ export async function issueAgentToken(
   const { data, error } = await client.rpc("issue_agent_token", {
     p_garage_id: input.garageId,
     p_name: input.name,
-    p_scopes: input.scopes ? [...input.scopes] : audience === "askbridge" ? [...ASKBRIDGE_TOOLS] : [...agentTools],
+    p_scopes: input.scopes ? [...input.scopes] : audience === "askbridge" ? [...ASKBRIDGE_TOOLS] : agentTools.filter((tool) => !CALL_TOKEN_TOOLS.includes(tool)),
     p_token_hash: hashAgentToken(token),
     p_audience: audience,
   });
@@ -296,4 +323,36 @@ export async function issueAgentToken(
     createdAt: row.created_at,
     token,
   };
+}
+
+export type VoiceCallTokenResult =
+  | { ok: true; token: string; expiresAt: string }
+  | { ok: false; code: "CALL_NOT_FOUND" | "FRONT_DESK_OFF" | "ALREADY_ISSUED" | "UNAVAILABLE" };
+
+/**
+ * Voice desk: mints the agent token for one AI front desk call (service role, issue_voice_call_token()).
+ * Same token model as every agent token (A74): `afat_` + 32 random bytes, only its HMAC stored; this one is
+ * bound to the CallSid and expires. The raw token goes to the voice service once and nowhere else.
+ */
+export async function issueVoiceCallToken(
+  input: { garageId: string; callSid: string; now?: Date },
+  client: SupabaseClient | null = createAdminClient(),
+): Promise<VoiceCallTokenResult> {
+  if (!client) return { ok: false, code: "UNAVAILABLE" };
+  const token = generateAgentToken();
+  const expiresAt = new Date((input.now ?? new Date()).getTime() + VOICE_CALL_TOKEN_TTL_MS).toISOString();
+  const { error } = await client.rpc("issue_voice_call_token", {
+    p_garage_id: input.garageId,
+    p_call_sid: input.callSid,
+    p_token_hash: hashAgentToken(token),
+    p_expires_at: expiresAt,
+  });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("CALL_NOT_FOUND")) return { ok: false, code: "CALL_NOT_FOUND" };
+    if (message.includes("FRONT_DESK_OFF")) return { ok: false, code: "FRONT_DESK_OFF" };
+    if (message.includes("ALREADY_ISSUED") || error.code === "23505") return { ok: false, code: "ALREADY_ISSUED" };
+    return { ok: false, code: "UNAVAILABLE" };
+  }
+  return { ok: true, token, expiresAt };
 }

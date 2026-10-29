@@ -31,6 +31,7 @@ import { POST as garageProfile } from "@/app/api/agent/v1/garage_profile/route";
 import { POST as getBooking } from "@/app/api/agent/v1/get_booking/route";
 import { POST as listServices } from "@/app/api/agent/v1/list_services/route";
 import { POST as lookupVehicle } from "@/app/api/agent/v1/lookup_vehicle/route";
+import { POST as logCallSummary } from "@/app/api/agent/v1/log_call_summary/route";
 import { POST as reportUsage } from "@/app/api/agent/v1/report_usage/route";
 import { agentInputSchemas, agentTools, type AgentTool } from "@/lib/agent-api/schemas";
 import { setAgentApiStoreForTests, type AgentApiStore, type AgentCallEntry, type AgentGarageRecord, type AgentTokenRecord, type AiMinutesResult } from "@/lib/agent-api/store";
@@ -49,6 +50,9 @@ const TOKEN = `afat_${"A".repeat(43)}`;
 const NARROW_TOKEN = `afat_${"B".repeat(43)}`;
 const REVOKED_TOKEN = `afat_${"C".repeat(43)}`;
 const SUSPENDED_TOKEN = `afat_${"D".repeat(43)}`;
+const CALL_TOKEN = `afat_${"E".repeat(43)}`;
+const EXPIRED_CALL_TOKEN = `afat_${"F".repeat(43)}`;
+const CALL_SID = "CA0123456789abcdef0123456789abcdef";
 const PRO = { plan: "pro", trialEndsAt: null, planChosen: "pro" } as const;
 const ESSENTIALS = { plan: "essentials", trialEndsAt: null, planChosen: "essentials" } as const;
 
@@ -124,7 +128,13 @@ const store: AgentApiStore = {
     usage.set(key, minutes);
     return { status: "recorded", minutes };
   }),
+  recordCallSummary: vi.fn(async ({ callSid }: { callSid: string }) => {
+    if (summaries.has(callSid)) return false;
+    summaries.add(callSid);
+    return true;
+  }),
 };
+const summaries = new Set<string>();
 const usage = new Map<string, number>();
 
 const services: OnlineService[] = [
@@ -143,6 +153,7 @@ const routes: Record<AgentTool, (request: Request) => Promise<Response>> = {
   get_booking: getBooking,
   garage_profile: garageProfile,
   report_usage: reportUsage,
+  log_call_summary: logCallSummary,
 };
 
 function agentRequest(tool: AgentTool, body: unknown, init: { token?: string | null; contentType?: string; raw?: string } = {}) {
@@ -198,6 +209,7 @@ beforeEach(() => {
   calls.length = 0;
   logLines.length = 0;
   usage.clear();
+  summaries.clear();
   harness.blockedScopes = new Set();
   harness.providerConfigured = true;
   tokens.clear();
@@ -206,6 +218,8 @@ beforeEach(() => {
     tokenRecord(NARROW_TOKEN, { scopes: ["list_services", "garage_profile"] }),
     tokenRecord(REVOKED_TOKEN, { revokedAt: "2026-10-01T00:00:00.000Z" }),
     tokenRecord(SUSPENDED_TOKEN, { garage: { status: "suspended", motEnabled: false, timezone: "Europe/London", plan: PRO } }),
+    tokenRecord(CALL_TOKEN, { callSid: CALL_SID, expiresAt: new Date(Date.now() + 600_000).toISOString() }),
+    tokenRecord(EXPIRED_CALL_TOKEN, { callSid: CALL_SID, expiresAt: new Date(Date.now() - 1_000).toISOString() }),
   ]) tokens.set(record.tokenHash, record);
   engine.listOnlineServices.mockResolvedValue(services);
   engine.getAvailableSlots.mockResolvedValue([
@@ -542,6 +556,30 @@ describe("report_usage", () => {
 
   it("403 FORBIDDEN for a workforce token without the report_usage scope", async () => {
     expect(await call("report_usage", report, { token: NARROW_TOKEN })).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
+  });
+});
+
+describe("log_call_summary (voice desk per-call tokens)", () => {
+  const note = { callSid: CALL_SID, summary: "Sam wants a full service on AB12 CDE next Tuesday; booking request made.", outcome: "booked" };
+
+  it("201 stores the note once, registrations masked; a repeat is 200 with stored false", async () => {
+    expect(await call("log_call_summary", note, { token: CALL_TOKEN })).toMatchObject({ status: 201, body: { callSid: CALL_SID, outcome: "booked", stored: true } });
+    expect(store.recordCallSummary).toHaveBeenCalledWith({ garageId: GARAGE_ID, callSid: CALL_SID, summary: "Sam wants a full service on [reg] next Tuesday; booking request made.", outcome: "booked" });
+    expect(await call("log_call_summary", { ...note, outcome: "message" }, { token: CALL_TOKEN })).toMatchObject({ status: 200, body: { stored: false } });
+  });
+
+  it("403 for a token not minted for this call, 401 once the call token has expired", async () => {
+    expect(await call("log_call_summary", note)).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
+    expect(await call("log_call_summary", { ...note, callSid: "CA0123456789abcdef0123456789abcdee" }, { token: CALL_TOKEN })).toMatchObject({ status: 403, body: { code: "FORBIDDEN" } });
+    expect(await call("list_services", {}, { token: EXPIRED_CALL_TOKEN })).toMatchObject({ status: 401, body: { code: "UNAUTHORIZED" } });
+    expect(store.recordCallSummary).not.toHaveBeenCalled();
+  });
+
+  it("422 for an unknown outcome, an empty or long summary, or a non-CallSid", async () => {
+    for (const body of [{ ...note, outcome: "sold" }, { ...note, summary: "" }, { ...note, summary: "x".repeat(1001) }, { ...note, callSid: "+447700900123" }]) {
+      expect(await call("log_call_summary", body, { token: CALL_TOKEN })).toMatchObject({ status: 422, body: { code: "INVALID_REQUEST" } });
+      expect(requestValidator("log_call_summary")(JSON.parse(JSON.stringify(body))), JSON.stringify(body)).toBe(false);
+    }
   });
 });
 

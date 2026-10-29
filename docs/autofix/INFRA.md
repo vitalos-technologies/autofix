@@ -64,6 +64,8 @@ Without Pro an external scheduler can call `POST /api/jobs/drain` (or `GET /api/
 
 Twilio webhooks (P3.8): `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` on the admin host. Behind a proxy that rewrites the host, set `TWILIO_WEBHOOK_BASE_URL`, otherwise the signature check rebuilds the URL from `X-Forwarded-Proto` and `X-Forwarded-Host` (first value), then `Host`. A number only routes once its `garage_phone_numbers` row has `provider_sid` (A55).
 
+Voice desk (D20, [voice-desk.md](voice-desk.md)): Azure Container App `autofix-voice` in `rg-autofix-superadmin` / `cae-autofix-superadmin` (UK South, scale to zero, image `ghcr.io/vitalos-technologies/autofix-voice`), deployed by Actions > Voice desk deploy. Vercel (Production): `VOICE_RELAY_URL` (`wss://<container host>/relay`) and `VOICE_RELAY_SECRET` (Sensitive), both set by that workflow. Container secrets: `voice-relay-secret` (generated once), `anthropic-api-key` (repository secret `ANTHROPIC_API_KEY`), optional `twilio-auth-token`. Twilio ConversationRelay needs no account setting beyond a number with voice pointed at `/api/webhooks/twilio/voice`.
+
 ## Local development
 
 Everything below runs against the local Supabase CLI stack in Docker (`supabase/config.toml`, project `sobautofix-local-tests`, API on `http://127.0.0.1:54321`). Nothing here touches a hosted project.

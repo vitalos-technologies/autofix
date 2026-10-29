@@ -9,6 +9,7 @@ import {
   agentErrorStatus,
   agentInputSchemas,
   ASKBRIDGE_TOOLS,
+  type AgentCallSummaryReport,
   type AgentUsageReport,
   type AgentBookingStatus,
   type AgentCreatedBooking,
@@ -26,6 +27,7 @@ import { getBookingEngine } from "@/lib/booking-engine";
 import { BookingEngineError } from "@/lib/booking-engine/errors";
 import { MAX_JSON_BYTES } from "@/lib/booking-engine/http";
 import type { OnlineService, Slot } from "@/lib/booking-engine/types";
+import { maskRegistrations } from "@/lib/platform/policy";
 import { hasFeature } from "@/lib/plans/entitlements";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { garageUrl } from "@/lib/tenancy/urls";
@@ -37,7 +39,7 @@ import { formatRegistration } from "@/lib/vehicle/registration";
 // Agent tool API (`POST /api/agent/v1/<tool>`, docs/autofix/agent-api.yaml).
 //
 // Every call: bearer token → HMAC hash → agent_tokens row (constant-time
-// check, not revoked, garage taking bookings) → plan (P5.12: a `workforce`
+// check, not revoked, not expired (voice desk per-call tokens), garage taking bookings) → plan (P5.12: a `workforce`
 // token, the AI front desk, needs Pro: 403 PLAN_REQUIRED; an `askbridge`
 // token, the Essentials website chat, only reads) → tool scope → per-token and
 // per-garage rate limits → strict zod body → tool → one agent_call_log row and
@@ -61,6 +63,7 @@ const TOOL_RATE_LIMITS: Partial<Record<AgentTool, { limit: number; windowSeconds
   create_booking: { limit: 30, windowSeconds: 600, per: "token" },
   get_booking: { limit: 30, windowSeconds: 600, per: "token" },
   report_usage: { limit: 600, windowSeconds: 600, per: "token" },
+  log_call_summary: { limit: 10, windowSeconds: 600, per: "token" },
 };
 
 /** A usage report may be dated at most this far ahead of the server clock. */
@@ -295,6 +298,15 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
     };
     return ok({ usage }, usage.replayed ? 200 : 201);
   },
+
+  // Voice desk: the AI front desk's note on the call this token was minted for. Registrations are masked
+  // (registration privacy): the booking request already carries the car.
+  async log_call_summary(input, { garageId, token }) {
+    if (!token.callSid || token.callSid !== input.callSid) return fail("FORBIDDEN");
+    const stored = await getAgentApiStore().recordCallSummary({ garageId, callSid: input.callSid, summary: maskRegistrations(input.summary), outcome: input.outcome });
+    const report: AgentCallSummaryReport = { callSid: input.callSid, outcome: input.outcome, stored };
+    return ok(report, stored ? 201 : 200);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -317,6 +329,7 @@ async function authenticate(request: Request): Promise<{ token: AgentTokenRecord
     return { error: "UNAVAILABLE" };
   }
   if (!token || !agentTokenHashesMatch(token.tokenHash, hash) || token.revokedAt) return { error: "UNAUTHORIZED" };
+  if (token.expiresAt && Date.parse(token.expiresAt) <= Date.now()) return { error: "UNAUTHORIZED" };
   return { token };
 }
 
