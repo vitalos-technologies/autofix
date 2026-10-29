@@ -25,7 +25,7 @@ const garageTables = ["garages", "garage_domains", "garage_members", "platform_a
 const platformTables = [
   "rate_limit_buckets", "resend_webhook_events", "inbound_email_events", "provider_webhook_events",
   "unmatched_inbound_emails", "admin_profiles", "admin_mfa_policy", "admin_mfa_recovery_codes",
-  "admin_mfa_recovery_sessions", "admin_trusted_devices", "twilio_webhook_events",
+  "admin_mfa_recovery_sessions", "admin_trusted_devices", "twilio_webhook_events", "platform_enquiries",
 ];
 const removedSurfaces = ["content_entries", "content_revisions", "navigation_items", "sale_vehicles", "sale_vehicle_images", "import_article_drafts", "vehicle-sales"];
 const serviceRoleFunctions = [
@@ -273,5 +273,44 @@ describe("scheduling migration invariants (P2.1-P2.3)", () => {
     expect(grants.filter((statement) => /\b(anon|public)\b(?!\.)/.test(statement.replace(/public\.\w+/g, "")))).toEqual([]);
     const policies = schedulingStatements.filter((statement) => /^create policy/i.test(statement));
     expect(policies.filter((statement) => /\bto (anon|public)\b/i.test(statement))).toEqual([]);
+  });
+});
+
+/** Contact page enquiries: a platform table, the super admin's view and its one write function. */
+const platformEnquiriesMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261029003000_platform_enquiries.sql"), "utf8");
+const platformEnquiriesStatements = sqlStatements(platformEnquiriesMigration);
+
+describe("platform enquiries migration invariants", () => {
+  it("creates a platform table without garage_id, RLS on and no policies", () => {
+    const table = platformEnquiriesStatements.find((statement) => statement.startsWith("create table public.platform_enquiries"));
+    expect(table).toBeDefined();
+    expect(table).not.toContain("garage_id");
+    expect(platformEnquiriesMigration).toContain("alter table public.platform_enquiries enable row level security;");
+    expect(platformEnquiriesStatements.filter((statement) => /^create policy/i.test(statement))).toEqual([]);
+  });
+
+  it("lets only the service role read and insert the table", () => {
+    const grants = platformEnquiriesStatements.filter((statement) => /^grant /i.test(statement) && statement.includes("public.platform_enquiries to"));
+    expect(grants).toEqual(["grant select, insert on public.platform_enquiries to service_role"]);
+    expect(platformEnquiriesStatements).toContain("revoke all on public.platform_enquiries from public, anon, authenticated");
+  });
+
+  it("grants the write function and the view to the super admin role only", () => {
+    const signature = "public.platform_update_enquiry(uuid, text, text)";
+    expect(platformEnquiriesStatements.filter((statement) => statement.startsWith(`grant execute on function ${signature}`))).toEqual([
+      `grant execute on function ${signature} to autofix_superadmin`,
+    ]);
+    expect(platformEnquiriesStatements).toContain(`revoke all on function ${signature} from public, anon, authenticated`);
+    expect(platformEnquiriesStatements).toContain("grant select on superadmin.platform_enquiries to autofix_superadmin");
+    const definition = functionDefinition(platformEnquiriesMigration, "platform_update_enquiry");
+    expect(definition).toMatch(/\nvolatile\nsecurity definer\nset search_path = ''\n/);
+    expect(definition).toContain("public.require_platform_admin()");
+    expect(definition).toContain("public.record_platform_action(");
+  });
+
+  it("keeps the IP hash out of the super admin's view", () => {
+    const view = platformEnquiriesStatements.find((statement) => statement.startsWith("create view superadmin.platform_enquiries"));
+    expect(view).toBeDefined();
+    expect(view).not.toContain("ip_hash");
   });
 });
