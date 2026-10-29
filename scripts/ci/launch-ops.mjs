@@ -45,6 +45,8 @@ const MIGRATION_PROBES = [
   // 20261029001300 (askbridge_site_key) only changes functions and settings, which PostgREST can't probe.
   ["20261029001400", "customers?select=offers_consent"],
   ["20261029002000", "calls?select=ai_summary"],
+  ["20261029002100", "platform_calls?select=id"],
+  // 20261029002200 (superadmin_calls) only changes the super admin's views, which PostgREST does not serve.
   ["20261029003000", "platform_enquiries?select=id"],
   // 20261029003100 (booking_page_show_prices) and 20261029003200 (platform_enquiry_retention) only change functions.
   ["20261029003400", "ai_front_desk_numbers?select=garage_id"],
