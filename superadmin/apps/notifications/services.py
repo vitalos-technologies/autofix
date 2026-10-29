@@ -58,10 +58,23 @@ def notify(
     return created
 
 
-def unread_count(user) -> int:
+def unread_count(user, kind: str = "") -> int:
     if not user.is_authenticated:
         return 0
-    return visible_notifications(user).filter(read_at__isnull=True).count()
+    unread = visible_notifications(user).filter(read_at__isnull=True)
+    return (unread.filter(kind=kind) if kind else unread).count()
+
+
+def voicemail_key(call_id) -> str:
+    """The dedupe key of a call's "new voicemail" alert (one per voicemail per person)."""
+    return f"voicemail:{call_id}"
+
+
+def mark_voicemail_read(user, call_id) -> int:
+    """Playing a voicemail reads its alert, so the Calls count only shows voicemails nobody here played."""
+    return Notification.objects.filter(
+        recipient=user, dedupe_key=voicemail_key(call_id), read_at__isnull=True
+    ).update(read_at=timezone.now())
 
 
 def mark_read(user, notification_id: int) -> Notification | None:

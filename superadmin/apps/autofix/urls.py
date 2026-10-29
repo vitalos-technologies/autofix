@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import garages, operations
+from .views import calls, garages, operations
 
 app_name = "autofix"
 
@@ -13,6 +13,9 @@ urlpatterns = [
     path("garages/<str:pk>/plan/", garages.garage_plan, name="garage_plan"),
     path("garages/<str:pk>/view-as-support/", garages.view_as_support, name="view_as_support"),
     path("garages/<str:pk>/bookings/people/", garages.booking_people, name="booking_people"),
+    path("calls/", calls.calls, name="calls"),
+    path("calls/<str:pk>/voicemail/", calls.voicemail_player, name="voicemail"),
+    path("calls/<str:pk>/voicemail.mp3", calls.voicemail_audio, name="voicemail_audio"),
     path("jobs/", operations.jobs, name="jobs"),
     path("jobs/<str:pk>/retry/", operations.job_retry, name="job_retry"),
     path("messaging/", operations.messaging, name="messaging"),

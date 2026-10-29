@@ -5,15 +5,18 @@ Every public function is wrapped in ``db.reads``: a missing or failing Autofix c
 Europe/London (the garages' time zone) and timestamps stay ``timestamptz`` throughout.
 
 Nothing here returns message bodies, phone numbers, email addresses, registrations or job payloads:
-the database views do not carry them (contact details and registrations arrive already masked).
+the database views do not carry them (contact details and registrations arrive already masked). The
+one exception is ``voicemail``: a Twilio recording link, read only by the playback proxy and never
+rendered.
 """
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.db.models import Count, Exists, Max, OuterRef, Q
+from django.db.models import Count, Exists, Max, OuterRef, Q, Subquery
 from django.urls import reverse
 from django.utils import timezone
 
@@ -25,6 +28,7 @@ from .models import (
     GARAGE_STATUSES,
     Booking,
     Call,
+    CallVoicemail,
     Customer,
     Garage,
     GarageAgreement,
@@ -624,6 +628,80 @@ def messaging_summary(now: datetime | None = None, garage_id=None, days: int = 3
         .filter(**({"garage_id": garage_id} if garage_id else {}))
         .count(),
     }
+
+
+# --- Calls -------------------------------------------------------------------------------------
+
+# A text-back's messages row status, as the Calls list shows it.
+TEXT_BACK_LABELS = {
+    "queued": "Sending",
+    "sending": "Sending",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "failed": "Failed",
+}
+NEW_VOICEMAIL_HOURS = 24
+
+
+def clean_call_filters(params) -> dict[str, str]:
+    """``garage`` (a UUID), ``missed`` and ``voicemail`` ("1" or empty). Anything else is dropped."""
+    garage_id = (params.get("garage") or "").strip()
+    try:
+        garage_id = str(uuid.UUID(garage_id)) if garage_id else ""
+    except ValueError:
+        garage_id = ""
+    return {
+        "garage": garage_id,
+        "missed": "1" if params.get("missed") == "1" else "",
+        "voicemail": "1" if params.get("voicemail") == "1" else "",
+    }
+
+
+@reads
+def calls(filters: dict):
+    """Calls across every garage (or one, with ``filters["garage"]``), with the text-back's status.
+
+    Callers arrive masked by the database; the recording link is not on these rows (``voicemail_link``).
+    """
+    text_back = Message.objects.filter(pk=OuterRef("text_back_message_id")).values("status")[:1]
+    queryset = Call.objects.select_related("garage").annotate(text_back_status=Subquery(text_back))
+    if filters.get("garage"):
+        queryset = queryset.filter(garage_id=filters["garage"])
+    if filters.get("missed"):
+        queryset = queryset.filter(missed=True)
+    if filters.get("voicemail"):
+        queryset = queryset.filter(has_voicemail=True)
+    return queryset
+
+
+@reads
+def call_garages() -> list[tuple[str, str]]:
+    """Garages that have had a call, for the Calls filter."""
+    with_calls = Garage.objects.filter(Exists(Call.objects.filter(garage_id=OuterRef("pk"))))
+    return [(str(pk), name) for pk, name in with_calls.order_by("name").values_list("pk", "name")]
+
+
+@reads
+def voicemail(pk) -> tuple[Call, str] | None:
+    """A call with a voicemail and its Twilio recording link, for the playback proxy only."""
+    call = Call.objects.filter(pk=pk, has_voicemail=True).select_related("garage").first()
+    link = CallVoicemail.objects.filter(pk=pk).values_list("voicemail_url", flat=True).first()
+    if call is None or not link:
+        return None
+    return call, link
+
+
+@reads
+def new_voicemails(
+    now: datetime | None = None, hours: int = NEW_VOICEMAIL_HOURS, limit: int = 50
+) -> list[Call]:
+    """Voicemails left in the last ``hours`` hours, newest first (the bell's "new voicemail")."""
+    now = now or timezone.now()
+    return list(
+        Call.objects.filter(has_voicemail=True, created_at__gte=now - timedelta(hours=hours))
+        .select_related("garage")
+        .order_by("-created_at")[:limit]
+    )
 
 
 # --- Domains -----------------------------------------------------------------------------------

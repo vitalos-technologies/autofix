@@ -202,6 +202,11 @@ AUTOFIX_SUPERADMIN_URL = env("AUTOFIX_SUPERADMIN_URL", default=APP_BASE_URL).str
 # Empty: the endpoint answers 503 and reveals nothing. A secret: set only in the platform's store.
 AUTOFIX_STATUS_TOKEN = env("AUTOFIX_STATUS_TOKEN", default="")
 AUTOFIX_TIME_ZONE = "Europe/London"
+# Voicemail playback (Calls): the Twilio account Autofix records voicemails on. Recordings need the
+# account's credentials, so the super admin fetches them server-side; the browser never gets the
+# Twilio link. Empty: playback says it is not configured. Secrets: set only in the platform's store.
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="").strip()
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="").strip()
 # Onboarding counts as stuck after this many hours (Overview, Sign-ups).
 ONBOARDING_STUCK_HOURS = env.int("ONBOARDING_STUCK_HOURS", default=48)
 
@@ -235,6 +240,8 @@ CONTENT_SECURITY_POLICY = {
         "script-src": [SELF, NONCE],
         "style-src": [SELF, NONCE],
         "img-src": [SELF, "data:"],
+        # Voicemails, streamed by the super admin's own proxy (never from Twilio directly).
+        "media-src": [SELF],
         "font-src": [SELF],
         "connect-src": [SELF],
         "manifest-src": [SELF],

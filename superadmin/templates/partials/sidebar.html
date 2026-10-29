@@ -42,6 +42,8 @@
                 <span class="nav-label">{{ entry.item.label }}</span>
                 {% if entry.item.key == "notifications" %}
                   <span hx-get="{% url 'notifications:badge' %}?nav=1" hx-trigger="load, every 60s" hx-swap="innerHTML" class="contents" data-testid="notifications-badge-slot"></span>
+                {% elif entry.item.key == "calls" %}
+                  <span hx-get="{% url 'notifications:badge' %}?nav=calls" hx-trigger="load, every 60s" hx-swap="innerHTML" class="contents" data-testid="calls-badge-slot"></span>
                 {% endif %}
                 <span class="nav-tip" aria-hidden="true">{{ entry.item.label }}</span>
               </a>

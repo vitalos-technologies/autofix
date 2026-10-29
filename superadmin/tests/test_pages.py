@@ -19,7 +19,7 @@ PAGES = [
     ("accounts:settings_tokens", []),
     ("accounts:account", []),
 ]
-OPERATE_PAGES = ["autofix:jobs", "autofix:domains"]
+OPERATE_PAGES = ["autofix:jobs", "autofix:domains", "autofix:calls"]
 SUPERADMIN_PAGES = ["audit:trail", "autofix:platform_audit", "accounts:settings_users"]
 
 
@@ -49,7 +49,7 @@ def test_support_is_refused_superadmin_pages(client_for, support, seeded, name):
     assert client_for(support).get(reverse(name)).status_code == 403
 
 
-TABS = ["overview", "team", "bookings", "domains", "messaging", "plan", "agreements", "audit"]
+TABS = ["overview", "team", "bookings", "domains", "messaging", "calls", "plan", "agreements", "audit"]
 
 
 @pytest.mark.parametrize("tab", TABS)

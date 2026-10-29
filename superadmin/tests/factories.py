@@ -8,6 +8,9 @@ from django.utils import timezone
 
 from apps.autofix import models as m
 
+# The Twilio account the tests configure (settings.TWILIO_ACCOUNT_SID in test_calls.py).
+TWILIO_ACCOUNT = "AC" + "0" * 31 + "1"
+
 DEFAULTS = {
     m.Garage: lambda f: {
         "slug": f"garage-{uuid.uuid4().hex[:6]}",
@@ -80,7 +83,10 @@ DEFAULTS = {
         "status": "delivered",
         "updated_at": f.now,
     },
-    m.Call: lambda f: {"status": "completed", "missed": False},
+    m.Call: lambda f: {"status": "completed", "missed": False, "has_voicemail": False},
+    m.CallVoicemail: lambda f: {
+        "voicemail_url": f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT}/Recordings/RE{uuid.uuid4().hex}"
+    },
     m.GarageAgreement: lambda f: {
         "kind": "dpa",
         "version": "2026-10",
@@ -142,6 +148,18 @@ class AutofixFactory:
 
     def garage(self, **values):
         return self.make(m.Garage, **values)
+
+    def call(self, garage, voicemail_s=None, voicemail_url=None, **values):
+        """A call; with ``voicemail_s`` it has a voicemail and its recording link (as the views show it)."""
+        if voicemail_s is not None:
+            values.update(
+                has_voicemail=True, voicemail_duration_s=voicemail_s, missed=values.get("missed", True)
+            )
+        call = self.make(m.Call, garage=garage, **values)
+        if voicemail_s is not None:
+            link = {"voicemail_url": voicemail_url} if voicemail_url else {}
+            self.make(m.CallVoicemail, id=call.pk, garage=garage, **link)
+        return call
 
     def scenario(self):
         now = self.now

@@ -29,6 +29,8 @@ ADMIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f1")
 GARAGE = uuid.UUID("5a000000-0000-4000-8000-00000000a1f2")
 DOMAIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f3")
 JOB = uuid.UUID("5a000000-0000-4000-8000-00000000a1f4")
+CALL = uuid.UUID("5a000000-0000-4000-8000-00000000a1f5")
+RECORDING = f"https://api.twilio.com/2010-04-01/Accounts/AC{'5' * 32}/Recordings/RE{'5' * 32}"
 
 
 def role():
@@ -60,6 +62,12 @@ def admin_rows():
             "insert into public.jobs (id, kind, garage_id, status, attempts, finished_at, last_error) values "
             "(%s, 'sa.integration', %s, 'failed', 5, now(), 'boom for AB12 CDE')",
             [JOB, GARAGE],
+        )
+        conn.execute(
+            "insert into public.calls (id, garage_id, provider_call_sid, from_number, to_number, status, missed, "
+            "voicemail_url, voicemail_duration_s) values "
+            "(%s, %s, 'CA-sa-integration', '+447700900123', '+441146974393', 'completed', true, %s, 42)",
+            [CALL, GARAGE, RECORDING],
         )
         yield conn
         conn.execute(
@@ -103,6 +111,7 @@ def test_sessions_are_read_only_with_the_superadmin_search_path(admin_rows):
         "reminder_sends",
         "messages",
         "calls",
+        "call_voicemails",
         "garage_agreements",
         "platform_audit_log",
         "platform_impersonations",
@@ -171,6 +180,29 @@ def test_contact_details_and_registrations_arrive_masked(admin_rows):
             )
         }
         assert not {"body", "to_address", "from_address"} & message_cols
+
+
+def test_calls_arrive_masked_and_links_only_in_call_voicemails(admin_rows):
+    with role() as conn:
+        cols = {
+            row[0]
+            for row in conn.execute(
+                "select column_name from information_schema.columns where table_schema = 'superadmin' and table_name = 'calls'"
+            )
+        }
+        assert not {"from_number", "to_number", "voicemail_url", "provider_call_sid"} & cols
+        row = conn.execute(
+            "select caller_masked, has_voicemail, voicemail_duration_s from superadmin.calls where id = %s",
+            [CALL],
+        ).fetchone()
+        assert row == ("07••• •••123", True, 42)
+
+
+def test_call_selectors_read_through_the_role(live):
+    rows = list(selectors.calls({"garage": str(GARAGE)}))
+    assert [(row.caller_masked, row.has_voicemail) for row in rows] == [("07••• •••123", True)]
+    call, link = selectors.voicemail(CALL)
+    assert call.garage.name == "SA Integration Garage" and link == RECORDING
 
 
 def test_selectors_read_through_the_role(live):

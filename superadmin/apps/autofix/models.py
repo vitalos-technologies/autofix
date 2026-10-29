@@ -361,9 +361,25 @@ class Call(AutofixModel):
     text_back_message_id = models.UUIDField(null=True, blank=True)
     handled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField()
+    # 20261029001300_superadmin_calls.sql: masked like the garage app (07••• •••123); null when withheld.
+    caller_masked = models.TextField(null=True, blank=True)
+    voicemail_duration_s = models.IntegerField(null=True, blank=True)
+    has_voicemail = models.BooleanField(default=False)
 
     class Meta(AutofixModel.Meta):
         db_table = "calls"
+        ordering = ["-created_at", "id"]
+
+
+class CallVoicemail(AutofixModel):
+    """A call's Twilio recording link. Read only by the voicemail proxy (``voicemail.py``), never rendered."""
+
+    id = models.UUIDField(primary_key=True)
+    garage = _garage_fk("+")
+    voicemail_url = models.TextField()
+
+    class Meta(AutofixModel.Meta):
+        db_table = "call_voicemails"
 
 
 class GarageAgreement(AutofixModel):

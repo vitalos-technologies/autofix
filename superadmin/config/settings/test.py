@@ -37,6 +37,8 @@ STORAGES = {
 # No status token or external URLs unless a test sets them (a developer's .env must not leak in).
 # Empty: the status endpoint is off.
 AUTOFIX_STATUS_TOKEN = ""  # noqa: S105  # nosec B105
+TWILIO_ACCOUNT_SID = ""
+TWILIO_AUTH_TOKEN = ""  # noqa: S105  # nosec B105
 AUTOFIX_APP_URL = "https://autofix.example.test"
 AUTOFIX_SUPERADMIN_URL = "https://superadmin.autofix.example.test"
 APP_ENVIRONMENT = "test"
