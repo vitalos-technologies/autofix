@@ -150,7 +150,7 @@ export function agentService(service: OnlineService): AgentService {
   };
 }
 
-/** The `garage_profile` response for a garage record. Shared with the Askbridge knowledge sync (P4.6). */
+/** The `garage_profile` response for a garage record. */
 export function agentGarageProfile(garage: AgentGarageRecord): AgentGarageProfile {
   return {
     garage: {

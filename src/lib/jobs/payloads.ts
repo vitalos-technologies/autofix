@@ -20,8 +20,6 @@ export const domainsCheckPayload = z.object({}).strict();
 /** P3.11: enrich a garage's imported vehicles (optionally one import's). */
 export const customersEnrichPayload = z.object({ garageId: uuid.optional(), importId: uuid.optional() }).strict();
 export const retentionPayload = z.object({ garageId: uuid.optional() }).strict();
-/** P4.6: one garage's knowledge to Askbridge (queued by SQL triggers). */
-export const askbridgeSyncPayload = z.object({ garageId: uuid }).strict();
 export const notificationsBookingPayload = z
   .object({
     type: z.enum(["created", "confirmed", "rescheduled", "cancelled"]),

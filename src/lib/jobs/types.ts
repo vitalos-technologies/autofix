@@ -12,7 +12,6 @@ export const JOB_KINDS = [
   "notifications.booking",
   "calls.text_back",
   "messages.reply",
-  "askbridge.sync",
   "domains.check",
   "retention",
   "platform.close_impersonations",

@@ -2,7 +2,6 @@ import "server-only";
 
 import { callsTextBackHandler } from "./handlers/calls-text-back";
 import { campaignsSendHandler } from "./handlers/campaigns-send";
-import { askbridgeSyncHandler } from "./handlers/askbridge-sync";
 import { customersEnrichHandler } from "./handlers/customers-enrich";
 import { domainsCheckHandler } from "./handlers/domains-check";
 import { messagesReplyHandler } from "./handlers/messages-reply";
@@ -29,7 +28,6 @@ const HANDLERS: Record<JobKind, { handler: JobHandler; timeoutMs: number }> = {
   "notifications.booking": { handler: notificationsBookingHandler, timeoutMs: 15_000 },
   "calls.text_back": { handler: callsTextBackHandler, timeoutMs: 12_000 },
   "messages.reply": { handler: messagesReplyHandler, timeoutMs: 12_000 },
-  "askbridge.sync": { handler: askbridgeSyncHandler, timeoutMs: 12_000 },
   "domains.check": { handler: domainsCheckHandler, timeoutMs: 18_000 },
   retention: { handler: retentionHandler, timeoutMs: 18_000 },
   "platform.close_impersonations": { handler: platformCloseImpersonationsHandler, timeoutMs: 10_000 },

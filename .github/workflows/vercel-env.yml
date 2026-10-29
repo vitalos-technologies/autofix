@@ -36,7 +36,6 @@ jobs:
           VERCEL_TARGETS: ${{ inputs.targets }}
           # Secrets (Vercel "sensitive")
           SECRET__AGENT_TOKEN_PEPPER: ${{ secrets.AGENT_TOKEN_PEPPER }}
-          SECRET__ASKBRIDGE_WEBHOOK_SECRET: ${{ secrets.ASKBRIDGE_WEBHOOK_SECRET }}
           SECRET__BOOKING_MANAGEMENT_SECRET: ${{ secrets.BOOKING_MANAGEMENT_SECRET }}
           SECRET__BOOKING_STATE_SECRET: ${{ secrets.BOOKING_STATE_SECRET }}
           SECRET__CLOUDFLARE_EMAIL_WEBHOOK_SECRET: ${{ secrets.CLOUDFLARE_EMAIL_WEBHOOK_SECRET }}
@@ -70,7 +69,6 @@ jobs:
           SECRET__VEHICLE_FACTS_PEPPER: ${{ secrets.VEHICLE_FACTS_PEPPER }}
           SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           # Variables (Vercel "encrypted")
-          VAR__ASKBRIDGE_SYNC_URL: ${{ vars.ASKBRIDGE_SYNC_URL }}
           # Stripe test mode for Autofix's own billing and garage payments (Temitope, 29 Oct 2026; Connect on).
           # Run Launch ops stripe-setup first: it puts the price ids and webhook secrets in Vercel.
           VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER || 'stripe' }}

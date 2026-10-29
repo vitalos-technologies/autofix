@@ -4,19 +4,21 @@
  *
  * - Admin host (and 404s): `X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`.
  * - Garage booking host: no `X-Frame-Options`; a CSP whose `frame-ancestors` lists the sites the
- *   garage allowed (`garages.settings.embedOrigins`), and which lets the Askbridge widget's origin
- *   load scripts, frames and connections only when the garage has the widget on.
+ *   garage allowed (`garages.settings.embedOrigins`), and which lets the Askbridge loader's origin
+ *   load scripts and take connections only when the garage has the chat on. The loader fetches its
+ *   panel and calls its API on that same origin; its only frame and extra script are Turnstile's,
+ *   which every booking page already allows, and its logo is an https image.
  *
  * Pure (no I/O) so every shape is unit tested.
  */
 
-/** Cloudflare Turnstile (booking form) loads its script and challenge frame from here. */
+/** Cloudflare Turnstile (booking form and the Askbridge chat) loads its script and challenge frame from here. */
 const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
 export type BookingSiteHeaderInput = {
   /** Validated https origins (see `embedOriginsFromSettings`). */
   embedOrigins?: readonly string[];
-  /** Origin of the Askbridge widget script when this garage has it on; otherwise null. */
+  /** Origin of the Askbridge loader (and its API) when this garage has the chat on; otherwise null. */
   widgetOrigin?: string | null;
   /** `next dev` needs eval and its HMR websocket. */
   dev?: boolean;
@@ -42,13 +44,13 @@ export function bookingSiteCsp({ embedOrigins = [], widgetOrigin = null, dev = f
     "default-src 'self'",
     `script-src ${sources(["'self'", "'unsafe-inline'"], dev ? ["'unsafe-eval'"] : [], [TURNSTILE_ORIGIN], widget)}`,
     "style-src 'self' 'unsafe-inline'",
-    // Garage logos live in Supabase Storage; the widget may show its own images.
+    // Garage logos live in Supabase Storage; the Askbridge launcher shows the workspace logo (https).
     `img-src ${sources(["'self'", "data:", "blob:", "https:"], [storageOrigin])}`,
     // Health check videos (P5.3) play from short-lived signed Supabase Storage URLs.
     `media-src ${sources(["'self'", "blob:", "https:"], [storageOrigin])}`,
     "font-src 'self' data:",
     `connect-src ${sources(["'self'", TURNSTILE_ORIGIN], widget, dev ? ["ws:", "wss:"] : [])}`,
-    `frame-src ${sources(["'self'", TURNSTILE_ORIGIN], widget)}`,
+    `frame-src ${sources(["'self'", TURNSTILE_ORIGIN])}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

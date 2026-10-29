@@ -14,7 +14,7 @@ import {
   textLinkClass,
 } from "@/components/admin-ui";
 import { garageInitials } from "@/components/book";
-import { askbridgeFromSettings, askbridgeScriptUrl } from "@/lib/askbridge/config";
+import { askbridgeAllowedOrigins, askbridgeFromSettings, askbridgeScriptUrl } from "@/lib/askbridge/config";
 import { accentForWhiteText } from "@/lib/branding/accent";
 import { checkAvailableInMs, dnsRecordsForDisplay, failedStepFor, isDomainInProgress } from "@/lib/booking-page/domain-view";
 import { getCustomDomain } from "@/lib/booking-page/domains-server";
@@ -88,6 +88,8 @@ export default async function BookingPageSettings({ searchParams }: PageProps) {
   const freeHost = freeUrl.replace(/^https?:\/\//, "");
   const bookingUrl = garageBaseUrl({ slug: garage.slug, customDomain: garage.customDomain });
   const qr = qrSvg(`${bookingUrl}/`, { title: `QR code for ${bookingUrl.replace(/^https?:\/\//, "")}` });
+  // Askbridge only loads on exact allowed origins: the free link, and the own address once it is connected.
+  const askbridgeSites = askbridgeAllowedOrigins(freeUrl, domain?.hostname);
   const records = domain ? dnsRecordsForDisplay(domain, getDomainCnameTarget()) : [];
   const domainLive = domain?.status === "active";
   const waitMinutes = domain ? Math.ceil(checkAvailableInMs(domain.lastCheckedAt) / 60_000) : 0;
@@ -225,10 +227,30 @@ export default async function BookingPageSettings({ searchParams }: PageProps) {
 
           <Panel id="askbridge" title="Askbridge chat" actions={askbridge.enabled ? <Badge tone="success">On</Badge> : <Badge tone="muted">Off</Badge>}>
             <p className="m-0 text-[14px] leading-snug text-grey-700">
-              An AI front desk on your booking page. It answers questions from your services, prices, opening hours and FAQs, and sends customers to book here.
+              An AI chat on your booking page. It answers from what you give it in Askbridge, such as your website and FAQs.
             </p>
-            {!widgetAvailable ? <SetupNotice>Askbridge isn&apos;t connected to Autofix yet. You can save your widget ID now; the chat appears once it is.</SetupNotice> : null}
-            <AskbridgeForm enabled={askbridge.enabled} widgetId={askbridge.widgetId} canEdit={canEdit} />
+            <ol className="m-0 flex list-decimal flex-col gap-2 pl-5 text-[14px] leading-snug text-grey-700">
+              <li>
+                Create a workspace at{" "}
+                <a href="https://askbridge.vitalos.co.uk/" className={textLinkClass} target="_blank" rel="noreferrer">
+                  askbridge.vitalos.co.uk
+                </a>
+                .
+              </li>
+              <li>
+                Add {askbridgeSites.length === 1 ? "your booking page address" : "your booking page addresses"} as allowed websites:
+                <ul className="m-0 mt-1.5 flex list-none flex-col gap-1.5 p-0">
+                  {askbridgeSites.map((origin) => (
+                    <li key={origin}>
+                      <code className="font-mono text-[13px] font-medium break-all text-navy-950">{origin}</code>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+              <li>Paste your site key below.</li>
+            </ol>
+            {!widgetAvailable ? <SetupNotice>The chat can&apos;t load on booking pages right now. You can save your site key; the chat appears once we&apos;ve fixed it.</SetupNotice> : null}
+            <AskbridgeForm enabled={askbridge.enabled} siteKey={askbridge.siteKey} canEdit={canEdit} />
           </Panel>
         </aside>
       </div>

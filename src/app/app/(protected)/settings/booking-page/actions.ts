@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { parseAskbridgeWidgetId } from "@/lib/askbridge/config";
+import { parseAskbridgeSiteKey } from "@/lib/askbridge/config";
 import { parseEmbedOrigins } from "@/lib/booking-page/embed-origins";
 import { checkCustomDomainNow, connectCustomDomain, removeCustomDomain, retryCustomDomain, type CheckNowResult } from "@/lib/booking-page/domains-server";
-import { auditSetupChange, NOT_ALLOWED_MESSAGES, requireSetupContext, roleAllows, stateFor, syncAskbridgeAfterResponse } from "@/lib/settings/server";
+import { auditSetupChange, NOT_ALLOWED_MESSAGES, requireSetupContext, roleAllows, stateFor } from "@/lib/settings/server";
 import type { SetupFormState } from "@/lib/settings/setup";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { AdminContext } from "@/lib/tenancy/admin";
@@ -103,28 +103,28 @@ export async function saveEmbedOriginsAction(previous: SetupFormState<"origins">
   });
 }
 
-export async function saveAskbridgeAction(previous: SetupFormState<"widgetId">, formData: FormData): Promise<SetupFormState<"widgetId">> {
+export async function saveAskbridgeAction(previous: SetupFormState<"siteKey">, formData: FormData): Promise<SetupFormState<"siteKey">> {
   const admin = await requireSetupContext(PATH);
   if (!roleAllows(admin, "owner")) return stateFor(previous, { status: "error", message: NOT_ALLOWED_MESSAGES.owner });
   const enabled = formData.get("enabled") === "on";
-  const rawId = String(formData.get("widgetId") ?? "").trim();
-  const widgetId = rawId ? parseAskbridgeWidgetId(rawId) : null;
-  if (rawId && !widgetId) {
-    const message = "Enter the widget ID exactly as Askbridge shows it (letters, numbers, _ and -).";
-    return stateFor(previous, { status: "error", message, fieldErrors: { widgetId: message } });
+  const rawKey = String(formData.get("siteKey") ?? "").trim();
+  const siteKey = rawKey ? parseAskbridgeSiteKey(rawKey) : null;
+  if (rawKey && !siteKey) {
+    const message = "That isn't an Askbridge site key. Paste only the key: pk_ followed by 32 letters and numbers.";
+    return stateFor(previous, { status: "error", message, fieldErrors: { siteKey: message } });
   }
-  if (enabled && !widgetId) {
-    const message = "Enter your Askbridge widget ID to turn the chat on.";
-    return stateFor(previous, { status: "error", message, fieldErrors: { widgetId: message } });
+  if (enabled && !siteKey) {
+    const message = "Paste your Askbridge site key to turn the chat on.";
+    return stateFor(previous, { status: "error", message, fieldErrors: { siteKey: message } });
   }
 
-  const { error } = await admin.client.rpc("set_booking_page_settings", { p_embed_origins: null, p_askbridge: { enabled, widgetId } });
+  const { error } = await admin.client.rpc("set_booking_page_settings", { p_embed_origins: null, p_askbridge: { enabled, siteKey } });
   if (error) return stateFor(previous, { status: "error", message: settingsProblem(error) });
-  await auditSetupChange(admin, enabled ? "askbridge.enabled" : "askbridge.disabled", "garage", admin.garage.id, { widgetId });
+  // The site key is public (it is in the booking page's HTML), so the audit entry may hold it.
+  await auditSetupChange(admin, enabled ? "askbridge.enabled" : "askbridge.disabled", "garage", admin.garage.id, { siteKey });
   afterBookingPageChange(admin);
-  syncAskbridgeAfterResponse();
   return stateFor(previous, {
     status: "saved",
-    message: enabled ? "Saved. The Askbridge chat shows on your booking page, and we send it your services and opening hours." : "Saved. The Askbridge chat is off.",
+    message: enabled ? "Saved. The Askbridge chat is on for your booking page." : "Saved. The Askbridge chat is off.",
   });
 }
