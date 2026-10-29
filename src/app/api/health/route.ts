@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAskbridgeEnvironmentReadiness, getBookingEnvironmentReadiness, getEnvironmentReadiness } from "@/lib/env";
+import { getTwilioNumbersReadiness } from "@/lib/messaging/twilio-numbers";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getVehicleLookupReadiness } from "@/lib/vehicle/configured-provider";
 
@@ -38,6 +39,8 @@ export async function GET() {
         // Optional integration (P4.6): never counted as missing.
         askbridge: getAskbridgeEnvironmentReadiness().ready ? "configured" : "not_configured",
         bookingManagement: Boolean(process.env.BOOKING_MANAGEMENT_SECRET) ? "configured" : "configuration_required",
+        // D22, optional: whether the daily step can buy Twilio numbers here (operational, mock or configuration_required).
+        twilioNumbers: getTwilioNumbersReadiness().status,
         // Source names only; never values or variable names.
         vehicleLookup: { status: vehicleLookup.status, provider: vehicleLookup.provider, sources: vehicleLookup.sources, cache: vehicleLookup.cache },
       },

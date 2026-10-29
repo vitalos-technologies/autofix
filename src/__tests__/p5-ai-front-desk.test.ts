@@ -122,7 +122,7 @@ describe("settings states", () => {
     expect(voiceDeskStatus(ready)).toMatchObject({ tone: "success", label: "Answering" });
     expect(voiceDeskStatus({ ...ready, enabled: false }).label).toBe("Off");
     expect(voiceDeskStatus({ ...ready, serviceConfigured: false }).label).toBe("Waiting for Vitalos");
-    expect(voiceDeskStatus({ ...ready, hasNumber: false }).label).toBe("No Autofix number");
+    expect(voiceDeskStatus({ ...ready, hasNumber: false }).label).toBe("No number yet");
     expect(voiceDeskStatus({ ...ready, overAllowance: true }).label).toBe("Allowance used");
   });
 });
