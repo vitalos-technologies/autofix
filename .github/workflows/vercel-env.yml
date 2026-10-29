@@ -77,8 +77,9 @@ jobs:
           VAR__DVSA_MOT_TOKEN_URL: ${{ vars.DVSA_MOT_TOKEN_URL }}
           VAR__ENQUIRY_NOTIFICATION_EMAIL: ${{ vars.ENQUIRY_NOTIFICATION_EMAIL }}
           VAR__ENQUIRY_REPLY_DOMAIN: ${{ vars.ENQUIRY_REPLY_DOMAIN }}
-          # The legal copy is v1.0, approved by Temitope on 29 Oct 2026.
-          VAR__LEGAL_COPY_APPROVED: ${{ vars.LEGAL_COPY_APPROVED || 'true' }}
+          # The legal copy is v1.0, approved by Temitope on 29 Oct 2026 (D21). The repository variable
+          # LEGAL_COPY_APPROVED (false) predates that approval, so it is not read; the variable can be deleted.
+          VAR__LEGAL_COPY_APPROVED: "true"
           # live: real texts and emails (Temitope, 29 Oct 2026). A repository variable overrides it.
           VAR__MESSAGING_MODE: ${{ vars.MESSAGING_MODE || 'live' }}
           VAR__NEXT_PUBLIC_ADMIN_HOST: ${{ vars.NEXT_PUBLIC_ADMIN_HOST }}
