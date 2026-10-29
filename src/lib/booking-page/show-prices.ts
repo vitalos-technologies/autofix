@@ -1,7 +1,8 @@
 // "Show prices on my booking page" (Temitope, 29 Oct 2026): `garages.settings.showPrices`, written only by
 // set_booking_page_settings(p_show_prices) (20261029003100_booking_page_show_prices.sql). Pure and client-safe.
 //
-// Off hides service prices wherever the booking site lists services (the service step and GET /api/services).
+// Off hides service prices wherever the booking site lists services (the service step and GET /api/services), and
+// from AI assistants: the agent API's list_services then reads "Price on quote" (AI front desk, Askbridge).
 // Booking confirmations, the manage page and booking emails and texts carry no service price at all. Amounts the
 // customer pays or agrees to always show: deposits (P5.4), payment links, service plan Direct Debits and health
 // check approvals.
