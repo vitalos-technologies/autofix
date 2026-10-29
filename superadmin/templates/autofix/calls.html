@@ -3,15 +3,15 @@
 {% block title %}Calls · Autofix Super Admin{% endblock %}
 {% block content %}
   <h1>Calls</h1>
-  <p class="muted mt-1 text-sm">Calls to every garage's Autofix number, newest first. Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
+  <p class="muted mt-1 text-sm">Calls to every garage's Autofix number and to Autofix's own line, newest first. Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
 
   <form method="get" action="{% url 'autofix:calls' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
         hx-get="{% url 'autofix:calls' %}" hx-trigger="change" hx-target="#call-results" hx-swap="outerHTML" hx-push-url="true"
         data-testid="call-filters">
     <div class="sm:col-span-2">
-      <label class="field-label" for="f-garage">Garage</label>
+      <label class="field-label" for="f-garage">Garage or line</label>
       <select id="f-garage" name="garage" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
-        <option value="">All garages</option>
+        <option value="">All garages and lines</option>
         {% for key, name in garages %}<option value="{{ key }}" {% if key == filters.garage %}selected{% endif %}>{{ name }}</option>{% endfor %}
       </select>
     </div>

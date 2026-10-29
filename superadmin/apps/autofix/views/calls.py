@@ -1,4 +1,5 @@
-"""Calls and voicemails: every garage's calls, the garage Calls tab, and audited voicemail playback.
+"""Calls and voicemails: every garage's calls and Autofix's own line (A420), the garage Calls tab, and
+audited voicemail playback.
 
 SuperAdmin and Support only (``can_support``): callers are masked by the database, but who called a
 garage and what they said is still the garage's customer data. Finance sees neither page nor tab.
@@ -93,7 +94,8 @@ def _row(csrf_input, show_garage: bool):
             )
         else:
             heard = NO_VOICEMAIL
-        if not call.missed:
+        if not call.missed or call.is_platform:
+            # Autofix's own line has no SMS sender, so there is never a text-back (A420).
             text_back = "—"
         elif call.text_back_status:
             label = selectors.TEXT_BACK_LABELS.get(call.text_back_status, call.text_back_status.title())
@@ -101,7 +103,16 @@ def _row(csrf_input, show_garage: bool):
         else:
             text_back = NOT_SENT
         cells = [when.strftime("%a %d %b %H:%M")]
-        if show_garage:
+        if show_garage and call.is_platform:
+            cells.append(
+                format_html(
+                    '<a class="text-link hover:underline" href="{}?garage={}" data-testid="platform-line">{}</a>',
+                    reverse("autofix:calls"),
+                    selectors.PLATFORM_LINE,
+                    call.line_name,
+                )
+            )
+        elif show_garage:
             cells.append(
                 format_html(
                     '<a class="text-link hover:underline" href="{}?tab=calls">{}</a>',

@@ -218,7 +218,7 @@ def record_voicemail_played(request, call: Call) -> None:
         request=request,
         entity_type="autofix.call",
         entity_id=str(call.pk),
-        summary=f"{call.garage.name}: voicemail from {timezone.localtime(call.created_at):%d %b %Y %H:%M}",
-        garage=str(call.garage_id),
+        summary=f"{call.line_name}: voicemail from {timezone.localtime(call.created_at):%d %b %Y %H:%M}",
+        line="platform" if call.is_platform else str(call.garage_id),
         seconds=call.voicemail_duration_s,
     )

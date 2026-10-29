@@ -30,6 +30,7 @@ GARAGE = uuid.UUID("5a000000-0000-4000-8000-00000000a1f2")
 DOMAIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f3")
 JOB = uuid.UUID("5a000000-0000-4000-8000-00000000a1f4")
 CALL = uuid.UUID("5a000000-0000-4000-8000-00000000a1f5")
+PLATFORM_CALL = uuid.UUID("5a000000-0000-4000-8000-00000000a1f6")
 RECORDING = f"https://api.twilio.com/2010-04-01/Accounts/AC{'5' * 32}/Recordings/RE{'5' * 32}"
 
 
@@ -69,7 +70,14 @@ def admin_rows():
             "(%s, %s, 'CA-sa-integration', '+447700900123', '+441146974393', 'completed', true, %s, 42)",
             [CALL, GARAGE, RECORDING],
         )
+        conn.execute(
+            "insert into public.platform_calls (id, provider_call_sid, from_number, to_number, status, "
+            "voicemail_url, voicemail_duration_s) values "
+            "(%s, 'CA-sa-integration-platform', '+447700900777', '+441146974393', 'completed', %s, 31)",
+            [PLATFORM_CALL, RECORDING.replace("RE" + "5" * 32, "RE" + "6" * 32)],
+        )
         yield conn
+        conn.execute("delete from public.platform_calls where id = %s", [PLATFORM_CALL])
         conn.execute(
             "delete from public.jobs where garage_id = %s or kind = 'domains.check' and dedupe_key like 'domains.check:platform:%%'",
             [GARAGE],
@@ -203,6 +211,16 @@ def test_call_selectors_read_through_the_role(live):
     assert [(row.caller_masked, row.has_voicemail) for row in rows] == [("07••• •••123", True)]
     call, link = selectors.voicemail(CALL)
     assert call.garage.name == "SA Integration Garage" and link == RECORDING
+    platform = [row for row in selectors.calls({"garage": "platform"}) if row.pk == PLATFORM_CALL]
+    assert [(row.caller_masked, row.garage_id, row.line_name) for row in platform] == [
+        ("07••• •••777", None, "Autofix (platform line)")
+    ]
+    assert selectors.voicemail(PLATFORM_CALL)[1].endswith("RE" + "6" * 32)
+
+
+def test_role_cannot_read_platform_calls_directly(admin_rows):
+    with role() as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+        conn.execute("select 1 from public.platform_calls limit 1")
 
 
 def test_selectors_read_through_the_role(live):

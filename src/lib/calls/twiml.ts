@@ -50,8 +50,17 @@ export function dialTwiml(input: { number: string; actionUrl: string; timeoutSec
  * depends on the rule, the number and opt-outs. A caller who records nothing hears the goodbye.
  */
 export function voicemailTwiml(input: { garageName: string; recordedUrl: string; recordingStatusUrl: string }) {
+  return recordTwiml(`Sorry, ${input.garageName} can't take your call right now. Please leave a message after the tone and we'll get back to you.`, input);
+}
+
+/** Autofix's own line (A420): the greeting in Autofix's name, then the same voicemail. */
+export function platformVoicemailTwiml(input: { lineName: string; recordedUrl: string; recordingStatusUrl: string }) {
+  return recordTwiml(`Thanks for calling ${input.lineName}. We can't take your call right now. Please leave a message after the tone and we'll get back to you.`, input);
+}
+
+function recordTwiml(greeting: string, input: { recordedUrl: string; recordingStatusUrl: string }) {
   return [
-    say(`Sorry, ${input.garageName} can't take your call right now. Please leave a message after the tone and we'll get back to you.`),
+    say(greeting),
     `<Record maxLength="${VOICEMAIL_MAX_SECONDS}" timeout="5" playBeep="true" trim="trim-silence" action="${escapeXml(input.recordedUrl)}" method="POST"`
       + ` recordingStatusCallback="${escapeXml(input.recordingStatusUrl)}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>`,
     say("We didn't get a message. Goodbye."),

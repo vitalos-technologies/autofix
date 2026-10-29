@@ -51,14 +51,17 @@ class Command(BaseCommand):
             )
         calls_url = reverse("autofix:calls")
         for call in voicemails:
-            # Names the garage and when, never the caller.
+            # Names the garage (or Autofix's own line) and when, never the caller.
             left = timezone.localtime(call.created_at)
+            line = selectors.PLATFORM_LINE if call.is_platform else call.garage_id
             created += notify(
                 recipients,
                 Notification.Kind.VOICEMAIL,
-                title=f"New voicemail at {call.garage.name}",
+                title=f"New voicemail on {call.line_name}"
+                if call.is_platform
+                else f"New voicemail at {call.line_name}",
                 body=f"{call.voicemail_duration_s or 0} seconds, left {left:%a %d %b %H:%M}",
-                url=f"{calls_url}?garage={call.garage_id}&voicemail=1",
+                url=f"{calls_url}?garage={line}&voicemail=1",
                 dedupe_key=voicemail_key(call.pk),
             )
         self.stdout.write(

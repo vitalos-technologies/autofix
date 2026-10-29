@@ -83,7 +83,7 @@ DEFAULTS = {
         "status": "delivered",
         "updated_at": f.now,
     },
-    m.Call: lambda f: {"status": "completed", "missed": False, "has_voicemail": False},
+    m.Call: lambda f: {"status": "completed", "missed": False, "has_voicemail": False, "is_platform": False},
     m.CallVoicemail: lambda f: {
         "voicemail_url": f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT}/Recordings/RE{uuid.uuid4().hex}"
     },
@@ -150,7 +150,9 @@ class AutofixFactory:
         return self.make(m.Garage, **values)
 
     def call(self, garage, voicemail_s=None, voicemail_url=None, **values):
-        """A call; with ``voicemail_s`` it has a voicemail and its recording link (as the views show it)."""
+        """A call; with ``voicemail_s`` it has a voicemail and its recording link (as the views show it).
+
+        ``garage=None, is_platform=True`` is a call to Autofix's own line (A420)."""
         if voicemail_s is not None:
             values.update(
                 has_voicemail=True, voicemail_duration_s=voicemail_s, missed=values.get("missed", True)

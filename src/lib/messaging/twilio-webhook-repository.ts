@@ -6,7 +6,7 @@ import { databaseError } from "@/lib/jobs/types";
 import type { DeliveryStatus } from "./channel";
 import { toE164UK } from "./phone";
 import { isLaterStatus } from "./twilio";
-import type { CallRecord, KeywordResult, TwilioWebhookRepo } from "./twilio-webhooks";
+import type { CallRecord, KeywordResult, PlatformCallRecord, TwilioWebhookRepo } from "./twilio-webhooks";
 
 // Service-role storage for the Twilio webhooks. Garage-scoped writes name the
 // garage the number routed to; Twilio's message and call ids are unique
@@ -178,6 +178,35 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
       return { outcome: "updated" as const, callId: row.id };
     },
 
+    async recordPlatformCall(call: PlatformCallRecord) {
+      const existing = await db.from("platform_calls").select("id,status,duration_s").eq("provider_call_sid", call.callSid).maybeSingle();
+      if (existing.error) throw databaseError("platform_calls.by_sid", existing.error);
+      const row = existing.data as { id: string; status: string; duration_s: number | null } | null;
+
+      if (!row) {
+        const inserted = await db.from("platform_calls").insert({
+          provider_call_sid: call.callSid,
+          from_number: call.from,
+          to_number: call.to,
+          status: call.status,
+          duration_s: call.durationSeconds,
+        });
+        if (!inserted.error) return { outcome: "created" as const };
+        if (inserted.error.code !== "23505") throw databaseError("platform_calls.insert", inserted.error);
+        // Two callbacks raced: fall through to an update of the row the other one created.
+        return this.recordPlatformCall(call);
+      }
+
+      const forward = (CALL_RANK[call.status] ?? 0) > (CALL_RANK[row.status] ?? 0);
+      const patch: Record<string, unknown> = {};
+      if (forward) patch.status = call.status;
+      if (call.durationSeconds !== null && call.durationSeconds !== row.duration_s) patch.duration_s = call.durationSeconds;
+      if (Object.keys(patch).length === 0) return { outcome: "unchanged" as const };
+      const updated = await db.from("platform_calls").update(patch).eq("id", row.id);
+      if (updated.error) throw databaseError("platform_calls.update", updated.error);
+      return { outcome: "updated" as const };
+    },
+
     async findDialTarget(garageId, calledNumber) {
       const { data, error } = await db
         .from("garage_phone_numbers")
@@ -226,7 +255,15 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
         .eq("provider_call_sid", callSid)
         .select("id");
       if (error) throw databaseError("calls.voicemail", error);
-      return (data ?? []).length > 0;
+      if ((data ?? []).length > 0) return true;
+      // Not a garage call: Autofix's own line (A420).
+      const platform = await db
+        .from("platform_calls")
+        .update({ voicemail_url: voicemail.url, voicemail_duration_s: voicemail.durationSeconds })
+        .eq("provider_call_sid", callSid)
+        .select("id");
+      if (platform.error) throw databaseError("platform_calls.voicemail", platform.error);
+      return (platform.data ?? []).length > 0;
     },
 
     async aiFrontDeskHandOff(garageId) {

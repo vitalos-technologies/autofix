@@ -384,3 +384,67 @@ def test_calls_badge_counts_unplayed_voicemails_and_playing_reads_them(client_fo
     client.get(audio_url(player(client, phone["voicemail"])))
     assert client.get(reverse("notifications:badge") + "?nav=calls").content.decode().strip() == ""
     assert not Notification.objects.filter(recipient=support, read_at__isnull=True, kind="voicemail").exists()
+
+
+# --- Autofix's own line (A420) -----------------------------------------------------------------
+
+
+@pytest.fixture
+def platform_call(af, phone):
+    return af.call(
+        None,
+        is_platform=True,
+        voicemail_s=31,
+        caller_masked="07••• •••777",
+        created_at=af.now - timedelta(minutes=1),
+    )
+
+
+def test_platform_line_calls_are_listed_as_autofix_without_a_text_back(client_for, support, platform_call):
+    html = client_for(support).get(reverse("autofix:calls")).content.decode()
+    table = html.split('data-testid="data-table"')[1]
+    row = next(row for row in table.split("<tr>") if "07••• •••777" in row).split("</tr>")[0]
+    assert (
+        "Autofix (platform line)" in row
+        and 'data-testid="platform-line"' in row
+        and "?garage=platform" in row
+    )
+    assert "Not sent" not in row and "Missed" in row and "31 s" in row
+    # Newest first: a minute old, so before the voicemail from five minutes ago.
+    assert table.index("07••• •••777") < table.index("07••• •••123")
+
+
+def test_platform_line_filter(client_for, support, seeded, platform_call):
+    client = client_for(support)
+    html = client.get(f"{reverse('autofix:calls')}?garage=platform").content.decode()
+    table = html.split('data-testid="data-table"')[1]
+    assert "07••• •••777" in table and "07••• •••123" not in table and "01••• •••789" not in table
+    assert '<option value="platform" selected>Autofix (platform line)</option>' in html
+    by_garage = client.get(f"{reverse('autofix:calls')}?garage={seeded['hartley'].pk}").content.decode()
+    assert "07••• •••777" not in by_garage.split('data-testid="data-table"')[1]
+
+
+def test_garage_tabs_never_show_platform_line_calls(client_for, support, seeded, platform_call):
+    garage = seeded["hartley"]
+    tab = client_for(support).get(reverse("autofix:garage_tab", args=[garage.pk, "calls"]), **HX)
+    assert "07••• •••777" not in tab.content.decode()
+    # Messaging counts garage calls only: four at Hartley (the scenario's and three here), one at Demo B.
+    assert selectors.garage_messaging(garage)["calls"]["total"] == 4
+    assert selectors.messaging_summary()["calls"]["total"] == 5
+
+
+def test_platform_line_voicemail_plays_and_is_audited(client_for, support, platform_call, upstream):
+    client = client_for(support)
+    response = client.get(audio_url(player(client, platform_call)))
+    assert response.status_code == 200 and b"".join(response.streaming_content) == MP3
+    event = AuditEvent.objects.get(action="autofix.voicemail_played")
+    assert event.entity_id == str(platform_call.pk) and event.summary.startswith("Autofix (platform line)")
+    assert event.metadata["line"] == "platform"
+
+
+def test_platform_line_voicemails_raise_alerts(support, finance, platform_call):
+    scan()
+    alert = Notification.objects.get(recipient=support, dedupe_key=f"voicemail:{platform_call.pk}")
+    assert alert.title == "New voicemail on Autofix (platform line)" and "31 seconds" in alert.body
+    assert alert.url == "/calls/?garage=platform&voicemail=1"
+    assert not Notification.objects.filter(recipient=finance, kind="voicemail").exists()
