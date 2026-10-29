@@ -50,15 +50,15 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
     async findGarageByNumber(number) {
       const { data, error } = await db
         .from("garage_phone_numbers")
-        .select("garage_id,purpose,garages!inner(name)")
+        .select("garage_id,purpose,ring_garage_first,garages!inner(name)")
         .eq("number", number)
         .not("provider_sid", "is", null)
         .maybeSingle();
       if (error) throw databaseError("garage_phone_numbers.route", error);
       if (!data) return null;
-      const row = data as { garage_id: string; purpose: string; garages: { name: string } | { name: string }[] };
+      const row = data as { garage_id: string; purpose: string; ring_garage_first?: boolean | null; garages: { name: string } | { name: string }[] };
       const garage = Array.isArray(row.garages) ? row.garages[0] : row.garages;
-      return { garageId: row.garage_id, purpose: row.purpose, garageName: garage?.name ?? "The garage" };
+      return { garageId: row.garage_id, purpose: row.purpose, garageName: garage?.name ?? "The garage", ringGarageFirst: row.ring_garage_first !== false };
     },
 
     async findCustomerId(garageId, phone) {
