@@ -96,6 +96,17 @@ DEFAULTS = {
         "entity_id": "x",
         "detail": {"from": "active", "to": "suspended"},
     },
+    m.PlatformEnquiry: lambda f: {
+        "name": "Priya Shah",
+        "email": "priya@example.test",
+        "phone": "07700 900123",
+        "garage_name": "Shah Motors",
+        "topic": "sales",
+        "message": "We would like a demo for our two sites.",
+        "status": "new",
+        "received_at": f.now,
+        "updated_at": f.now,
+    },
     m.PlatformImpersonation: lambda f: {
         "admin_user_id": uuid.uuid4(),
         "admin_name": "Platform Admin",

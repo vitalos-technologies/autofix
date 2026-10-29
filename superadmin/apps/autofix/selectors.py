@@ -5,7 +5,9 @@ Every public function is wrapped in ``db.reads``: a missing or failing Autofix c
 Europe/London (the garages' time zone) and timestamps stay ``timestamptz`` throughout.
 
 Nothing here returns message bodies, phone numbers, email addresses, registrations or job payloads:
-the database views do not carry them (contact details and registrations arrive already masked).
+the database views do not carry them (contact details and registrations arrive already masked). The one
+exception is contact page enquiries (``enquiry``), sent to Vitalos itself: staff need the sender's
+details to reply, so the view carries them and only SuperAdmin and Support pages read them.
 """
 
 from dataclasses import dataclass, field
@@ -22,6 +24,8 @@ from apps.core.kpi import Kpi
 from . import plans
 from .db import reads
 from .models import (
+    ENQUIRY_STATUSES,
+    ENQUIRY_TOPICS,
     GARAGE_STATUSES,
     Booking,
     Call,
@@ -35,6 +39,7 @@ from .models import (
     Message,
     PlatformAdmin,
     PlatformAuditEntry,
+    PlatformEnquiry,
     PlatformImpersonation,
     ReminderSend,
     Resource,
@@ -762,3 +767,67 @@ def status_snapshot(now: datetime | None = None) -> dict:
         "subscriptions": subscription_counts.__wrapped__(),
         "attention": attention_items.__wrapped__(now=now, limit=50),
     }
+
+
+# --- Enquiries (contact page) ------------------------------------------------------------------
+
+ENQUIRY_STATUS_LABELS = dict(ENQUIRY_STATUSES)
+ENQUIRY_TOPIC_LABELS = dict(ENQUIRY_TOPICS)
+ENQUIRY_ACTIONS = ("platform.enquiry_status_changed", "platform.enquiry_notes_changed")
+
+
+def clean_enquiry_filters(params) -> dict[str, str]:
+    filters = {key: (params.get(key) or "").strip()[:40] for key in ("status", "topic")}
+    if filters["status"] not in ENQUIRY_STATUS_LABELS:
+        filters["status"] = ""
+    if filters["topic"] not in ENQUIRY_TOPIC_LABELS:
+        filters["topic"] = ""
+    return filters
+
+
+@reads
+def enquiries(filters: dict):
+    """Newest first. The list shows who, about what and where it stands; contact details are on the detail page."""
+    queryset = PlatformEnquiry.objects.only(
+        "id", "name", "garage_name", "topic", "status", "received_at", "handled_by_name", "updated_at"
+    )
+    if filters.get("status"):
+        queryset = queryset.filter(status=filters["status"])
+    if filters.get("topic"):
+        queryset = queryset.filter(topic=filters["topic"])
+    return queryset
+
+
+@reads
+def enquiry_counts() -> dict[str, int]:
+    rows = dict(
+        PlatformEnquiry.objects.values_list("status")
+        .annotate(total=Count("id"))
+        .values_list("status", "total")
+    )
+    return {key: rows.get(key, 0) for key in ENQUIRY_STATUS_LABELS}
+
+
+@reads
+def enquiry(pk) -> PlatformEnquiry | None:
+    return PlatformEnquiry.objects.filter(pk=pk).first()
+
+
+@reads
+def enquiry_history(pk) -> list[PlatformAuditEntry]:
+    """Status and notes changes from Autofix's platform log (notes by length only, never their text)."""
+    return list(
+        PlatformAuditEntry.objects.filter(
+            entity_type="platform_enquiry", entity_id=str(pk), action__in=ENQUIRY_ACTIONS
+        ).order_by("-created_at", "-id")[:50]
+    )
+
+
+@reads
+def find_enquiries(query: str, limit: int = 6) -> list[PlatformEnquiry]:
+    """Command palette: by sender or garage name (never by email, so addresses stay out of search URLs)."""
+    return list(
+        PlatformEnquiry.objects.filter(Q(name__icontains=query) | Q(garage_name__icontains=query)).only(
+            "id", "name", "garage_name", "topic", "status", "received_at"
+        )[:limit]
+    )

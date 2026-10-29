@@ -213,6 +213,10 @@ _TONES = {
     # alerts
     "critical": "red",
     "warning": "amber",
+    # contact page enquiries
+    "enquiry_new": "amber",
+    "enquiry_in_progress": "sky",
+    "enquiry_closed": "slate",
 }
 
 

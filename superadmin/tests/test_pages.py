@@ -19,7 +19,7 @@ PAGES = [
     ("accounts:settings_tokens", []),
     ("accounts:account", []),
 ]
-OPERATE_PAGES = ["autofix:jobs", "autofix:domains"]
+OPERATE_PAGES = ["autofix:jobs", "autofix:domains", "autofix:enquiries"]
 SUPERADMIN_PAGES = ["audit:trail", "autofix:platform_audit", "accounts:settings_users"]
 
 

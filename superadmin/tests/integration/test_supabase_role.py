@@ -29,6 +29,7 @@ ADMIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f1")
 GARAGE = uuid.UUID("5a000000-0000-4000-8000-00000000a1f2")
 DOMAIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f3")
 JOB = uuid.UUID("5a000000-0000-4000-8000-00000000a1f4")
+ENQUIRY = uuid.UUID("5a000000-0000-4000-8000-00000000a1f5")
 
 
 def role():
@@ -61,7 +62,14 @@ def admin_rows():
             "(%s, 'sa.integration', %s, 'failed', 5, now(), 'boom for AB12 CDE')",
             [JOB, GARAGE],
         )
+        conn.execute(
+            "insert into public.platform_enquiries (id, name, email, phone, garage_name, topic, message) values "
+            "(%s, 'SA Integration Sender', 'sender@sa-integration.example', '07700 900555', 'SA Motors', 'sales', "
+            "'Integration test enquiry about a demo.')",
+            [ENQUIRY],
+        )
         yield conn
+        conn.execute("delete from public.platform_enquiries where id = %s", [ENQUIRY])
         conn.execute(
             "delete from public.jobs where garage_id = %s or kind = 'domains.check' and dedupe_key like 'domains.check:platform:%%'",
             [GARAGE],
@@ -106,6 +114,7 @@ def test_sessions_are_read_only_with_the_superadmin_search_path(admin_rows):
         "garage_agreements",
         "platform_audit_log",
         "platform_impersonations",
+        "platform_enquiries",
     ],
 )
 def test_role_reads_every_view(admin_rows, view):
@@ -114,7 +123,8 @@ def test_role_reads_every_view(admin_rows, view):
 
 
 @pytest.mark.parametrize(
-    "table", ["garages", "customers", "bookings", "messages", "jobs", "platform_audit_log"]
+    "table",
+    ["garages", "customers", "bookings", "messages", "jobs", "platform_audit_log", "platform_enquiries"],
 )
 def test_role_cannot_read_public_tables(admin_rows, table):
     with role() as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -265,3 +275,61 @@ def test_garages_view_reads_the_d17_trial_and_chosen_plan(admin_rows):
             "select trial_ends_at, plan_chosen from superadmin.garages where id = %s", [GARAGE]
         ).fetchone()
     assert ends.year == 2030 and chosen == "pro"
+
+
+def test_enquiries_view_has_the_sender_but_no_ip_hash(admin_rows):
+    with role() as conn:
+        cols = {
+            row[0]
+            for row in conn.execute(
+                "select column_name from information_schema.columns where table_schema = 'superadmin' and table_name = 'platform_enquiries'"
+            )
+        }
+        assert {"name", "email", "phone", "message", "status", "notes", "handled_by_name"} <= cols
+        assert "ip_hash" not in cols
+
+
+def test_enquiry_change_goes_through_platform_update_enquiry(live, admin_rows):
+    enquiry = selectors.enquiry(ENQUIRY)
+    assert enquiry.status == "new" and enquiry.email == "sender@sa-integration.example"
+    result = db.call_platform_function(
+        "platform_update_enquiry",
+        [str(ENQUIRY), "in_progress", "Called back about the demo."],
+        actor_id=ADMIN,
+    )
+    assert result["status"] == "in_progress" and result["notes"] == "Called back about the demo."
+    enquiry = selectors.enquiry(ENQUIRY)
+    assert enquiry.status == "in_progress" and enquiry.handled_by == ADMIN
+    actions = [
+        row[0]
+        for row in admin_rows.execute(
+            "select action from public.platform_audit_log where entity_type = 'platform_enquiry' and entity_id = %s order by id",
+            [str(ENQUIRY)],
+        )
+    ]
+    assert actions == ["platform.enquiry_status_changed", "platform.enquiry_notes_changed"]
+    assert [entry.action for entry in selectors.enquiry_history(ENQUIRY)] == list(reversed(actions))
+
+
+def test_enquiry_changes_are_refused_for_a_non_admin_and_for_nothing_to_change(live, admin_rows):
+    with pytest.raises(db.PlatformError) as error:
+        db.call_platform_function(
+            "platform_update_enquiry", [str(ENQUIRY), "closed", None], actor_id=uuid.uuid4()
+        )
+    assert error.value.code == "PLATFORM_ADMIN_REQUIRED"
+    with pytest.raises(db.PlatformError) as error:
+        db.call_platform_function("platform_update_enquiry", [str(ENQUIRY), None, None], actor_id=ADMIN)
+    assert error.value.code == "NOTHING_TO_CHANGE"
+
+
+def test_role_cannot_write_enquiries_directly(admin_rows):
+    with role() as conn:
+        writable = conn.execute(
+            "select has_table_privilege('superadmin.platform_enquiries', 'insert,update,delete')"
+        ).fetchone()[0]
+        assert writable is False
+        conn.autocommit = False
+        conn.execute("set transaction read write")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            conn.execute("update public.platform_enquiries set status = 'closed'")
+        conn.rollback()

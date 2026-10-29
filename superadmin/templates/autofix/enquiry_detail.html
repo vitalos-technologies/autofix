@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Enquiry from {{ enquiry.name }} · Autofix Super Admin{% endblock %}
+{% block breadcrumbs %}
+  <li class="muted hidden sm:block"><a href="{% url 'autofix:enquiries' %}" class="hover:underline">Enquiries</a></li>
+  <li class="muted hidden sm:block" aria-hidden="true">/</li>
+  <li class="truncate font-medium" aria-current="page">{{ enquiry.name }}</li>
+{% endblock %}
+{% block content %}
+  <div class="min-w-0">
+    <p class="text-sm"><a href="{% url 'autofix:enquiries' %}" class="text-link inline-flex min-h-11 items-center hover:underline sm:hidden">Back to enquiries</a></p>
+    <h1 class="break-words">{{ enquiry.name }}</h1>
+    <p class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+      <span class="{{ "enquiry_"|add:enquiry.status|badge_class }}" data-testid="enquiry-status">{{ enquiry.get_status_display }}</span>
+      <span class="{{ "topic"|badge_class }}">{{ enquiry.get_topic_display }}</span>
+      <span class="muted text-xs">Received {{ enquiry.received_at|date:"j M Y H:i" }}</span>
+      {% if enquiry.handled_by_name %}<span class="muted text-xs">· Last handled by {{ enquiry.handled_by_name }}</span>{% endif %}
+    </p>
+  </div>
+
+  <div class="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+    <div class="grid content-start gap-6">
+      <section class="card p-4 sm:p-5" aria-labelledby="message-heading" data-testid="enquiry-message">
+        <h2 id="message-heading" class="text-xl">Message</h2>
+        <p class="mt-3 text-sm leading-6 break-words whitespace-pre-wrap">{{ enquiry.message }}</p>
+      </section>
+      <section class="card p-4 sm:p-5" aria-labelledby="contact-heading" data-testid="enquiry-contact">
+        <h2 id="contact-heading" class="text-xl">Contact</h2>
+        <p class="muted text-xs">Opening this page is recorded in the audit trail.</p>
+        <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="flex flex-wrap justify-between gap-2 py-2"><dt class="muted">Email</dt><dd class="min-w-0 break-all"><a class="text-link inline-flex min-h-11 items-center hover:underline" href="mailto:{{ enquiry.email }}">{{ enquiry.email }}</a></dd></div>
+          <div class="flex flex-wrap justify-between gap-2 py-2"><dt class="muted">Phone</dt><dd>{% if enquiry.phone %}<a class="text-link inline-flex min-h-11 items-center hover:underline" href="tel:{{ enquiry.phone|cut:" " }}">{{ enquiry.phone }}</a>{% else %}—{% endif %}</dd></div>
+          <div class="flex flex-wrap justify-between gap-2 py-2"><dt class="muted">Garage</dt><dd class="break-words">{{ enquiry.garage_name|default:"—" }}</dd></div>
+          <div class="flex flex-wrap justify-between gap-2 py-2"><dt class="muted">Topic</dt><dd>{{ enquiry.get_topic_display }}</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <div class="grid content-start gap-6">
+      <section class="card p-4 sm:p-5" aria-labelledby="handling-heading">
+        <h2 id="handling-heading" class="text-xl">Status and notes</h2>
+        {% if user.autofix_admin_id %}
+          <form method="post" action="{% url 'autofix:enquiry_update' enquiry.pk %}" class="mt-4" novalidate data-testid="enquiry-form">
+            {% csrf_token %}
+            {% include "partials/form_fields.html" %}
+            <button type="submit" class="btn btn-primary mt-4">Save</button>
+          </form>
+        {% else %}
+          <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Your account is not linked to an Autofix platform admin, so changes are off. A SuperAdmin links it in Settings → Users.</p>
+          {% if enquiry.notes %}<p class="mt-4 text-sm font-medium">Internal notes</p><p class="mt-1 text-sm break-words whitespace-pre-wrap">{{ enquiry.notes }}</p>{% endif %}
+        {% endif %}
+      </section>
+      <section class="card p-4 sm:p-5" aria-labelledby="history-heading" data-testid="enquiry-history">
+        <h2 id="history-heading" class="text-xl">History</h2>
+        <p class="muted text-xs">From Autofix's platform log.</p>
+        {% if history is None %}
+          <p class="muted mt-3 text-sm">The history could not be read just now.</p>
+        {% else %}
+          <ul class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            {% for entry in history %}
+              <li class="py-2"><span class="font-medium">{{ entry.text }}</span><span class="muted block text-xs">{{ entry.when|date:"j M Y H:i" }} · {{ entry.actor }}</span></li>
+            {% empty %}<li class="muted py-2">No changes yet.</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+{% endblock %}

@@ -9,7 +9,7 @@ the database. Django never creates, migrates or writes these tables:
 - the database role holds SELECT on the views only.
 
 Writes go through the platform SQL functions in ``apps.autofix.db`` (plan and status, job retry,
-domain re-check), never through the ORM. Nothing here touches bookings except to read them.
+domain re-check, enquiry status and notes), never through the ORM. Nothing here touches bookings except to read them.
 """
 
 from django.db import models
@@ -414,3 +414,43 @@ class PlatformImpersonation(AutofixModel):
     class Meta(AutofixModel.Meta):
         db_table = "platform_impersonations"
         ordering = ["-started_at"]
+
+
+ENQUIRY_STATUSES = [("new", "New"), ("in_progress", "In progress"), ("closed", "Closed")]
+ENQUIRY_TOPICS = [
+    ("general", "General question"),
+    ("sales", "Sales or a demo"),
+    ("support", "Support"),
+    ("partnership", "Partnership"),
+]
+
+
+class PlatformEnquiry(AutofixModel):
+    """A contact page enquiry to Vitalos (``superadmin.platform_enquiries``, migration
+    ``20261029003000_platform_enquiries.sql``). A platform row: no garage. Contact details arrive
+    unmasked because staff reply to them; only SuperAdmin and Support see them, and each detail view is
+    audited. Status and notes change only through ``platform_update_enquiry``.
+    """
+
+    id = models.UUIDField(primary_key=True)
+    name = models.TextField()
+    email = models.TextField()
+    phone = models.TextField(null=True, blank=True)
+    garage_name = models.TextField(null=True, blank=True)
+    topic = models.TextField(choices=ENQUIRY_TOPICS)
+    message = models.TextField()
+    status = models.TextField(choices=ENQUIRY_STATUSES, default="new")
+    received_at = models.DateTimeField()
+    handled_by = models.UUIDField(null=True, blank=True)
+    handled_by_name = models.TextField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    updated_at = models.DateTimeField()
+
+    class Meta(AutofixModel.Meta):
+        db_table = "platform_enquiries"
+        ordering = ["-received_at", "-id"]
+        verbose_name = "enquiry"
+        verbose_name_plural = "enquiries"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_topic_display()})"
