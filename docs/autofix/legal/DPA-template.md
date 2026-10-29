@@ -1,4 +1,4 @@
-# Data Processing Agreement (v1.0)
+# Data Processing Agreement (v1.1)
 
 Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Accepted on [date] by [name, role].
 
@@ -41,7 +41,7 @@ Vitalos keeps appropriate technical and organisational measures in place (Annex 
 
 ## 7. Sub-processors
 
-7.1 The Garage gives general authorisation for the sub-processors in Annex B. Vitalos will give at least 30 days' notice of a new or replacement sub-processor, and the Garage may object on reasonable grounds.
+7.1 The Garage gives general authorisation for Vitalos to use sub-processors to provide Autofix. Vitalos keeps a current list of them and gives it to the Garage on request. Vitalos will give at least 30 days' notice of a new or replacement sub-processor, and the Garage may object on reasonable grounds.
 
 7.2 Vitalos puts equivalent data protection terms in place with each sub-processor and stays responsible for them.
 
@@ -74,21 +74,3 @@ Vitalos provides the information needed to show compliance with this agreement a
 - Registrations kept out of URLs and analytics; booking-management tokens stored as hashes.
 - Daily backups; error monitoring; access logs; least-privilege access for Vitalos staff, with impersonation logged.
 - Retention: cancelled and no-show bookings anonymised after 24 months; message bodies after 12 months.
-
-## Annex B: Sub-processors
-
-| Sub-processor | Purpose | Location |
-| --- | --- | --- |
-| Supabase | Database, authentication, file storage | London, UK (provider is US-based) |
-| Vercel | Application hosting and delivery | Global edge network (US-based) |
-| Cloudflare | DNS | Global (US-based) |
-| Resend | Transactional email | US / EU |
-| Twilio | SMS, WhatsApp, voice | US / global |
-| Sentry | Error monitoring (scrubbed) | US / EU |
-| Vehicle Data Global | Vehicle details lookup | UK |
-| Anthropic | AI processing for the optional AI front desk, only when the Garage turns it on | US |
-| Stripe | Subscription billing, and the Garage's payments when it turns them on (deposits, invoices, Direct Debit) | US / EU |
-| Microsoft Azure | Hosting of Vitalos's internal support tools (super admin) | UK South (provider is US-based) |
-| Google | Business name and address lookup when a garage signs up (no customer data) | Global (US-based) |
-
-DVLA and DVSA provide vehicle and MOT data as public bodies under their own terms; registrations are sent to them for lookups.

@@ -72,7 +72,7 @@ describe("renderDpa", () => {
     const dpa = renderDpa(garage);
     const texts = blockTexts(dpa.blocks);
     expect(dpa.version).toBe(DPA_VERSION);
-    expect(DPA_VERSION).toBe("1.0");
+    expect(DPA_VERSION).toBe("1.1");
     expect(dpa.draftNote).toBeNull();
     expect(texts[0]).toBe(
       'Between **Hartley Road Motors Ltd** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Not yet accepted.',
