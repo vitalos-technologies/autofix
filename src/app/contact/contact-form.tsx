@@ -48,6 +48,7 @@ export function ContactForm({ copy }: { copy: ContactFormCopy }) {
   const onToken = useCallback((token: string) => setTurnstile(token), []);
   const formRef = useRef<HTMLFormElement>(null);
   const thanksRef = useRef<HTMLHeadingElement>(null);
+  const thanksPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!attempt) return;
@@ -55,7 +56,10 @@ export function ContactForm({ copy }: { copy: ContactFormCopy }) {
   }, [attempt]);
 
   useEffect(() => {
-    if (sentTo) thanksRef.current?.focus();
+    if (!sentTo) return;
+    // The form is much taller than the thank-you: bring the panel into view, then move focus to it.
+    thanksPanelRef.current?.scrollIntoView?.({ block: "start" });
+    thanksRef.current?.focus({ preventScroll: true });
   }, [sentTo]);
 
   function update(field: keyof Values, value: string) {
@@ -103,7 +107,7 @@ export function ContactForm({ copy }: { copy: ContactFormCopy }) {
 
   if (sentTo) {
     return (
-      <div role="status" className="rounded-hero border border-grey-200 bg-white p-6 shadow-[0_20px_44px_-30px_rgba(7,17,39,0.35)] md:p-8" data-testid="contact-thanks">
+      <div ref={thanksPanelRef} role="status" className="scroll-mt-24 rounded-hero border border-grey-200 bg-white p-6 shadow-[0_20px_44px_-30px_rgba(7,17,39,0.35)] md:p-8" data-testid="contact-thanks">
         <span className="grid size-12 place-items-center rounded-full bg-success-bg text-success-ink" aria-hidden="true">
           <CircleCheck size={26} />
         </span>
