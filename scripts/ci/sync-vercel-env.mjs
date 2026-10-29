@@ -50,6 +50,10 @@ const unset = [...new Set(Object.keys(process.env)
   .map((name) => name.replace(/^(SECRET|VAR)__/, "")))].filter((key) => !byKey.has(key)).sort();
 if (unset.length) console.log(`not set in GitHub (skipped): ${unset.join(", ")}`);
 
+// Modes and plan settings are not secret: show their values so the log says what production runs.
+const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE)$/;
+for (const [key, { value, type }] of byKey) if (type === "encrypted" && SHOWN.test(key)) console.log(`value ${key}=${value}`);
+
 // Stripe is test mode only (DECISIONS D17, P5.2/P5.4): a live key never reaches Vercel.
 const stripeKey = byKey.get("STRIPE_SECRET_KEY");
 if (stripeKey && !/^(sk|rk)_test_/.test(stripeKey.value)) {
