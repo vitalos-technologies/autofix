@@ -213,7 +213,7 @@ Autofix doesn't build its own AI. It exposes a small, garage-scoped tool API tha
 | `get_booking` | Status by reference plus registration | Read only |
 | `garage_profile` | Hours, address, policies, FAQs | Read only |
 
-**Askbridge** sits on booking pages as the chat widget. Its knowledge (profile, services, FAQs) is pushed from Autofix by webhook whenever a garage edits them. A chat that ends in a booking deep-links into the booking flow with the car filled in.
+**Askbridge** sits on booking pages as the chat widget. Each garage uses its own Askbridge workspace and pastes its site key into Autofix; Askbridge learns by crawling the garage's website, and Autofix sends it nothing ([askbridge.md](askbridge.md)). Customers book through the booking flow as usual.
 
 **Guardrails**: no diagnosis or repair advice beyond the garage's own FAQ, always offer a human callback, per-garage on/off switch, and transcripts stored in `messages`.
 

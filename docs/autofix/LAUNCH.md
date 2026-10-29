@@ -97,9 +97,7 @@ The app's own random secrets (`CRON_SECRET`, `BOOKING_MANAGEMENT_SECRET`, `BOOKI
 | `SENTRY_DSN` | Sentry project `autofix` → Client Keys | No (DSN is not a secret, keep it out of git anyway) | Recommended |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | source-map upload at build (token **Sensitive**) | Partly | Recommended |
 | `GOOGLE_PLACES_API_KEY` | Google Cloud, Places API, restricted to the server | **Sensitive** | For sign-up autofill (P4.4) |
-| `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` | Askbridge widget script (https), from Askbridge | No | When the Askbridge chat goes live (P4.6) |
-| `ASKBRIDGE_SYNC_URL` | Askbridge knowledge endpoint (https) | **Sensitive** | When the Askbridge chat goes live |
-| `ASKBRIDGE_WEBHOOK_SECRET` | 32+ random chars, shared with Askbridge (signs knowledge syncs) | **Sensitive** | When the Askbridge chat goes live |
+| `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` | Askbridge loader override (https); unset uses `https://askbridge.vitalos.co.uk/widget/v1/askbridge.js` | No | No (P4.6; garages paste their own site key) |
 
 ### Plans and payments (Stripe, test mode)
 
