@@ -25,7 +25,7 @@ const MIGRATION_PROBES = [
   ["20261028000400", "garage_invites?select=id"],
   ["20261028000500", "platform_impersonations?select=id"],
   ["20261028001000", "reminder_rules?select=id"],
-  ["20261028002000", "twilio_webhook_events?select=id"],
+  ["20261028002000", "twilio_webhook_events?select=event_key"],
   ["20261028002100", "calls?select=dial_status"],
   ["20261028003000", "messages?select=read_at"],
   // 20261028004000 (superadmin_role) only adds a database role, which PostgREST can't see.
@@ -343,7 +343,9 @@ async function supabase() {
     const absent = [];
     for (const [version, probe] of MIGRATION_PROBES) {
       const result = await call(`https://${ref}.supabase.co/rest/v1/${probe}&limit=0`, { headers: keyHeaders });
-      (result.ok ? found : absent).push(`${version} (${probe.split("?")[0]})`);
+      // A missing table is a 404; anything else (a wrong column, a refused key) says why, so a bad probe shows.
+      if (result.ok) found.push(`${version} (${probe.split("?")[0]})`);
+      else absent.push(`${version} (${probe.split("?")[0]})${result.status === 404 ? "" : `: ${errorText(result)}`}`);
     }
     console.log(`  migration tables/columns present: ${found.length}/${MIGRATION_PROBES.length}`);
     for (const entry of absent) console.log(`    missing ${entry}`);
