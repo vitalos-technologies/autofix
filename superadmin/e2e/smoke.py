@@ -38,6 +38,7 @@ PAGES = [
     ("signups", "/signups/", "Sign-ups and onboarding"),
     ("domains", "/domains/", "Domains"),
     ("messaging", "/messaging/", "Messaging"),
+    ("calls", "/calls/", "Calls"),
     ("jobs", "/jobs/", "Jobs"),
     ("activity", "/activity/", "Activity"),
     ("audit", "/audit/", "Audit"),
@@ -53,7 +54,7 @@ PAGES = [
     ("api-docs", "/api/docs/", None),
     ("enquiries", "/enquiries/", "Enquiries"),
 ]
-TABS = ["overview", "team", "bookings", "domains", "messaging", "plan", "agreements", "audit"]
+TABS = ["overview", "team", "bookings", "domains", "messaging", "calls", "plan", "agreements", "audit"]
 WIDTHS = {"1440": {"width": 1440, "height": 900}, "390": {"width": 390, "height": 844}}
 
 

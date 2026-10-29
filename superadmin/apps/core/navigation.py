@@ -64,6 +64,15 @@ NAV_ITEMS = (
     ),
     NavItem("messaging", "Messaging", "autofix:messaging", "chat", "Garages", ("/messaging",)),
     NavItem(
+        "calls",
+        "Calls",
+        "autofix:calls",
+        "phone",
+        "Garages",
+        ("/calls",),
+        permission="apps.accounts.roles.can_support",
+    ),
+    NavItem(
         "jobs",
         "Jobs",
         "autofix:jobs",

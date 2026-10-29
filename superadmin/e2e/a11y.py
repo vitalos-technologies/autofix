@@ -25,6 +25,7 @@ PAGES = [
     "/signups/",
     "/domains/",
     "/messaging/",
+    "/calls/",
     "/jobs/",
     "/activity/",
     "/audit/",
@@ -39,7 +40,7 @@ PAGES = [
     "/help/",
     "/system/health/",
 ]
-GARAGE_TABS = ["overview", "team", "bookings", "domains", "messaging", "plan", "agreements", "audit"]
+GARAGE_TABS = ["overview", "team", "bookings", "domains", "messaging", "calls", "plan", "agreements", "audit"]
 VIEWPORTS = {"1440": {"width": 1440, "height": 900}, "390": {"width": 390, "height": 844}}
 TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
 

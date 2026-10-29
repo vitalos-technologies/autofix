@@ -10,6 +10,7 @@ from apps.core.htmx import changed_response
 
 from . import services
 from .forms import PreferenceForm
+from .models import Notification
 
 
 def _attention_items(user):
@@ -52,8 +53,17 @@ def attention(request):
 @login_required
 @require_GET
 def badge(request):
-    """Polled by the bell every 60 seconds; ``?nav=1`` returns the sidebar's count pill instead."""
-    template = "notifications/_nav_badge.html" if request.GET.get("nav") else "notifications/_bell.html"
+    """Polled by the bell every 60 seconds; ``?nav=1`` returns the sidebar's count pill instead, and
+    ``?nav=calls`` the Calls item's count of unread "new voicemail" alerts."""
+    nav = request.GET.get("nav")
+    if nav == "calls":
+        context = {
+            "unread_count": services.unread_count(request.user, Notification.Kind.VOICEMAIL),
+            "badge_id": "calls-badge",
+            "badge_label": "new voicemails",
+        }
+        return render(request, "notifications/_nav_badge.html", context)
+    template = "notifications/_nav_badge.html" if nav else "notifications/_bell.html"
     return render(request, template, {"unread_count": services.unread_count(request.user)})
 
 

@@ -10,6 +10,7 @@ class Notification(models.Model):
         DOMAIN_FAILED = "domain_failed", "Custom domain failed verification"
         ONBOARDING_STUCK = "onboarding_stuck", "Garage onboarding stuck"
         MESSAGING_FAILED = "messaging_failed", "Messages failing"
+        VOICEMAIL = "voicemail", "New voicemail"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
@@ -52,6 +53,7 @@ class NotificationPreference(models.Model):
     domain_failures = models.BooleanField(default=True, verbose_name="Custom domains failing verification")
     onboarding_stuck = models.BooleanField(default=True, verbose_name="Onboarding stuck over 48 hours")
     messaging_failures = models.BooleanField(default=True, verbose_name="Text and email failures")
+    voicemails = models.BooleanField(default=True, verbose_name="New voicemails at a garage")
     updated_at = models.DateTimeField(auto_now=True)
 
     KIND_FIELDS = {
@@ -59,6 +61,7 @@ class NotificationPreference(models.Model):
         Notification.Kind.DOMAIN_FAILED: "domain_failures",
         Notification.Kind.ONBOARDING_STUCK: "onboarding_stuck",
         Notification.Kind.MESSAGING_FAILED: "messaging_failures",
+        Notification.Kind.VOICEMAIL: "voicemails",
     }
 
     def __str__(self):

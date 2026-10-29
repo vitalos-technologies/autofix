@@ -1,0 +1,15 @@
+{% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
+<div data-testid="tab-calls">
+  <form method="get" action="{% url 'autofix:garage' garage.pk %}" class="flex flex-wrap items-center gap-x-4"
+        hx-get="{% url 'autofix:garage' garage.pk %}" hx-trigger="change" hx-target="#call-results" hx-swap="outerHTML" hx-push-url="true"
+        data-testid="garage-call-filters">
+    <input type="hidden" name="tab" value="calls">
+    <input type="hidden" name="density" value="{{ density }}">
+    <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="missed" value="1" {% if call_filters.missed %}checked{% endif %} class="h-5 w-5 rounded border-slate-300"> Missed only</label>
+    <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="voicemail" value="1" {% if call_filters.voicemail %}checked{% endif %} class="h-5 w-5 rounded border-slate-300"> Has voicemail</label>
+    <noscript><button type="submit" class="btn btn-secondary btn-sm">Filter</button></noscript>
+  </form>
+  <p class="muted mb-3 text-xs">Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
+  {% include "partials/data_table.html" with table=calls_table %}
+</div>
+{% endif %}

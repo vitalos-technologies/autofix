@@ -9,7 +9,7 @@ Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (stand
 Two databases:
 
 - `default`: the super admin's own PostgreSQL 17 (users, OTP devices, sessions, axes, history, notifications, audit trail).
-- `autofix`: Autofix's Supabase Postgres as the least-privilege role `autofix_superadmin` ([migration](../supabase/migrations/20261028004000_superadmin_role.sql)). It reads only schema `superadmin`, a set of views carrying the columns this app shows, with phones, emails and registrations masked in the database and no message bodies, payloads or token hashes. The one exception is `superadmin.platform_enquiries` ([migration](../supabase/migrations/20261029003000_platform_enquiries.sql)): contact page enquiries were sent to Vitalos itself, so the sender's name, email, phone and message arrive unmasked (no IP hash) and only SuperAdmin and Support pages read them. Sessions start read-only.
+- `autofix`: Autofix's Supabase Postgres as the least-privilege role `autofix_superadmin` ([migration](../supabase/migrations/20261028004000_superadmin_role.sql)). It reads only schema `superadmin`, a set of views carrying the columns this app shows, with phones, emails and registrations masked in the database and no message bodies, payloads or token hashes. Sessions start read-only. Callers on `superadmin.calls` are masked as the garage app shows them, and it also carries calls to Autofix's own line (`platform_calls`, no garage); voicemail recording links are only in `superadmin.call_voicemails`, which only the playback proxy reads ([migration](../supabase/migrations/20261029002200_superadmin_calls.sql)). The one exception is `superadmin.platform_enquiries` ([migration](../supabase/migrations/20261029003000_platform_enquiries.sql)): contact page enquiries were sent to Vitalos itself, so the sender's name, email, phone and message arrive unmasked (no IP hash) and only SuperAdmin and Support pages read them.
 
 Writes never bypass Autofix's rules. The role may call four functions and nothing else: `platform_update_garage` (plan, status), `platform_retry_job`, `platform_request_domains_check` and `platform_update_enquiry` (an enquiry's status and internal notes; granted to this role only). Each runs in a read-write transaction as the signed-in person's **linked Autofix platform admin** (Settings → Users), after Django has checked their role, their TOTP and a 5–500 character reason (enquiries take a status and notes instead of a reason); the function checks the platform admin again and writes Autofix's `platform_audit_log` and, for a garage, the garage's own audit log. Nothing touches bookings. `AutofixRouter` never migrates or writes the `autofix` alias, the models refuse writes, and `migrate --database autofix` is refused.
 
@@ -22,7 +22,7 @@ The app lives on the Autofix app's host, at `/superadmin` (D18). `src/proxy.ts` 
 - **Proxy gate.** With `SUPERADMIN_PROXY_SECRET` set, every request must carry it in `x-autofix-superadmin-proxy` (constant-time check) or gets a bare 404. `/healthz/` is the only exception. `config/wsgi.py` also 404s anything outside `SUPERADMIN_PATH_PREFIX`.
 - **Proxy headers.** Only behind the gate: client IP from `x-autofix-superadmin-client-ip` (lockouts, audit), public host from `x-autofix-superadmin-host` (CSRF). The proxy strips browser-sent copies.
 - **Cookies.** `__Secure-afsa_session` and `__Secure-afsa_csrftoken`, `Path=/superadmin/`, `HttpOnly`, `Secure`, `SameSite=Strict`; the theme and sidebar preferences are `afsa_theme`/`afsa_sidebar` on the same path. The proxy forwards only `afsa_*` cookies, so Autofix's Supabase session never reaches this app.
-- **Step-up.** TOTP for every role (`OTP_REQUIRED_FOR_ALL`), plus a fresh authenticator code (`AUTOFIX_STEP_UP`) with every plan/status change, bulk status change, job retry, domain re-check, enquiry status or notes change, customer-details view, View as support, user change and API token.
+- **Step-up.** TOTP for every role (`OTP_REQUIRED_FOR_ALL`), plus a fresh authenticator code (`AUTOFIX_STEP_UP`) with every plan/status change, bulk status change, job retry, domain re-check, enquiry status or notes change, customer-details view, voicemail playback, View as support, user change and API token.
 - **Headers.** Strict nonce CSP, `frame-ancestors 'none'`, `X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store`. Next.js adds none of its own under `/superadmin`.
 
 Locally the app runs at the root of `http://localhost:8000` (prefix empty, no secret). To try path mode through Next.js: set `SUPERADMIN_PATH_PREFIX=/superadmin` and a `SUPERADMIN_PROXY_SECRET` here, `SUPERADMIN_ORIGIN=http://localhost:8000` and the same secret in the repo's `.env.local`, and open `http://localhost:3000/superadmin/`.
@@ -40,6 +40,7 @@ Locally the app runs at the root of `http://localhost:8000` (prefix empty, no se
 | `/enquiries/<id>/` | The sender's email, phone, garage and message (each opening audited), status (New, In progress, Closed) and internal notes changed through `platform_update_enquiry` with a fresh authenticator code, and the history from Autofix's platform log (notes by length only) |
 | `/jobs/` | Queue counts by kind and status, oldest due job, expired locks, the 20 latest failures (errors masked) with Retry, reminders skipped or failed per garage |
 | `/messaging/` | Delivery and failure rates by channel, failures by error code, opt-outs (STOP), consented customers, quiet-hour compliance (09:00–19:00 Mon–Sat, garage time zone), missed calls and text-backs |
+| `/calls/` | SuperAdmin and Support. Every garage's calls and Autofix's own line ("Autofix (platform line)", DECISIONS A420), newest first: garage, caller (masked as the garage app shows it, 07••• •••123), time, answered or missed, voicemail length, text-back status. Filters: garage or the platform line, missed only, has voicemail. The sidebar count is your unread "new voicemail" alerts. The same list is the garage's **Calls** tab. See "Voicemail playback" |
 | `/domains/` | Every domain and its verification state; Re-check queues Autofix's own `domains.check` job |
 | `/signups/` | Sign-up and onboarding funnel (7, 30, 90 days or all time), sign-ups per week, garages stuck in onboarding, latest sign-ups |
 | `/audit/`, `/audit/autofix/` | Append-only trails with filters and CSV export: this app's (sign-ins, roles, hand-offs, personal-data views, changes; IP addresses) and Autofix's platform log. SuperAdmin only |
@@ -54,7 +55,17 @@ Locally the app runs at the root of `http://localhost:8000` (prefix empty, no se
 | `/django-admin/` | Verified Django superusers only |
 | `/healthz/` | Liveness and database probe |
 
-Roles: **SuperAdmin** (everything), **Support** (read-only plus audited customer details, View as support and handling enquiries), **Finance** (plans, statuses, sign-ups and counts; no personal data, no changes, no enquiries). The command palette (Ctrl/⌘ K) and the live search find pages, garages and domains, and for SuperAdmin and Support enquiries by sender or garage name (never by email).
+Roles: **SuperAdmin** (everything), **Support** (read-only plus audited customer details, Calls and voicemail playback, View as support and handling enquiries), **Finance** (plans, statuses, sign-ups and counts; no personal data, no Calls, no changes, no enquiries). The command palette (Ctrl/⌘ K) and the live search find pages, garages and domains, and for SuperAdmin and Support enquiries by sender or garage name (never by email).
+
+### Voicemail playback
+
+Autofix stores each voicemail as a Twilio recording link, which needs the Twilio account's credentials to play. The super admin plays it the way the garage app's `/api/admin/calls/{id}/voicemail` does, and the browser never sees a Twilio link or credential:
+
+1. **Play** (SuperAdmin or Support) posts a fresh authenticator code. The answer is a player whose source is `/calls/<id>/voicemail.mp3?ticket=…`, a ticket signed for that person and that call, valid for 10 minutes.
+2. That URL checks the role and the ticket, reads the link from `superadmin.call_voicemails`, accepts it only if it passes `isTwilioRecordingUrl` and is the configured account's own recording, fetches the MP3 from Twilio with `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` (https only; a redirect off `api.twilio.com` drops the credentials) and streams it back with `Cache-Control: private, no-store`.
+3. Each playback writes `autofix.voicemail_played` to the audit trail (garage and call, never the caller) and marks that voicemail's alert read.
+
+Without the two Twilio variables, Calls still works and Play says playback is not set up. `notify_attention` turns voicemails from the last 24 hours into one "New voicemail at <garage>" (or "on Autofix (platform line)") alert per person (SuperAdmin and Support; Settings → Notifications can turn them off).
 
 Screenshots of every page at 1440 and 390 pixels: [docs/screenshots/](docs/screenshots/) (from `e2e/smoke.py` against the production image and local Supabase demo data).
 
@@ -159,12 +170,12 @@ Never paste these values into a chat. Each goes straight into GitHub at **github
    az containerapp exec -g rg-autofix-superadmin -n autofix-superadmin --command "python manage.py issue_setup_link"
    ```
 
-Re-run **Super Admin deploy** for each new version. It keeps every secret and password.
+Re-run **Super Admin deploy** for each new version. It keeps every secret and password. Voicemail playback uses the repository secrets `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` (the ones the Vercel sync already uses); when either is missing, the deploy leaves them out and playback says it is not set up.
 
 ## Management commands
 
 - `create_superadmin [--email EMAIL] [--password]` creates the bootstrap SuperAdmin if it is missing and otherwise leaves the account unchanged. The password is read **only** from `$BOOTSTRAP_ADMIN_PASSWORD`; `--password` resets an existing account's password from it.
 - `create_owner` creates or confirms the primary owner (`$PRIMARY_OWNER_EMAIL`) with no password. Only the owner grants or revokes SuperAdmin.
 - `issue_setup_link --email EMAIL` prints a single-use set-password link, valid for 30 minutes, to the terminal only. This app sends no email.
-- `notify_attention` turns Autofix items needing attention into bell notifications for SuperAdmin and Support (once per problem per person). Schedule it every 5 minutes.
+- `notify_attention` turns Autofix items needing attention, and voicemails left in the last 24 hours, into bell notifications for SuperAdmin and Support (once per problem or voicemail per person). Schedule it every 5 minutes.
 - `migrate` refuses `--database autofix`: Autofix's schema belongs to `supabase/migrations/`.

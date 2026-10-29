@@ -353,6 +353,32 @@ async function twilioNumber() {
   // Calls answered by another app stay with it; a TwiML Bin or nothing (Twilio's own hosts) can be taken over.
   if (voiceHost && voiceHost !== ours && !voiceHost.endsWith("twilio.com")) return fail(`${lastFour(wanted)}: its calls go to ${voiceHost}; left alone`);
 
+  // garage "platform": the number is the product's own line (A420, AUTOFIX_PLATFORM_VOICE_NUMBERS), so any garage
+  // routing for it is removed and its calls still point at the voice webhook, which answers it as the platform line.
+  if (slug === "platform") {
+    const routed = await call(`${rest}/garage_phone_numbers?select=id,garage_id&number=eq.${encodeURIComponent(wanted)}`, { headers: db });
+    if (!routed.ok) return fail(`garage_phone_numbers: ${errorText(routed)}`);
+    const count = (routed.body ?? []).length;
+    console.log(`  ${lastFour(wanted)}: platform line; voice=${voiceHost ?? "none"}; garage routing rows: ${count}`);
+    if (!apply) {
+      console.log(`  would ${count ? `remove ${count} garage routing row(s), ` : ""}point its calls and call status at ${voice}`);
+    } else {
+      if (count) {
+        const removed = await call(`${rest}/garage_phone_numbers?number=eq.${encodeURIComponent(wanted)}`, { method: "DELETE", headers: db });
+        if (!removed.ok) return fail(`removing the garage routing of ${lastFour(wanted)}: ${errorText(removed)}`);
+        console.log(`  ${lastFour(wanted)}: garage routing removed`);
+      }
+      const pointed = await call(
+        `https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers/${number.sid}.json`,
+        form({ VoiceUrl: voice, VoiceMethod: "POST", StatusCallback: voice, StatusCallbackMethod: "POST" }),
+      );
+      if (!pointed.ok) return fail(`${lastFour(wanted)} voice: ${errorText(pointed)}`);
+      console.log(`  ${lastFour(wanted)}: calls and call status point at ${ours}`);
+    }
+    console.log("  It is answered as the platform line only while AUTOFIX_PLATFORM_VOICE_NUMBERS lists it (Sync Vercel env).");
+    return;
+  }
+
   // A UK landline (01/02/03) takes calls but not texts: it routes calls (and the AI front desk) only, with
   // purpose forwarding, and stays out of the Messaging Service (Twilio refuses it there: 21715).
   const canText = number.capabilities?.sms !== false;

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Calls · Autofix Super Admin{% endblock %}
+{% block content %}
+  <h1>Calls</h1>
+  <p class="muted mt-1 text-sm">Calls to every garage's Autofix number and to Autofix's own line, newest first. Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
+
+  <form method="get" action="{% url 'autofix:calls' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
+        hx-get="{% url 'autofix:calls' %}" hx-trigger="change" hx-target="#call-results" hx-swap="outerHTML" hx-push-url="true"
+        data-testid="call-filters">
+    <div class="sm:col-span-2">
+      <label class="field-label" for="f-garage">Garage or line</label>
+      <select id="f-garage" name="garage" class="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900">
+        <option value="">All garages and lines</option>
+        {% for key, name in garages %}<option value="{{ key }}" {% if key == filters.garage %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </div>
+    <fieldset class="flex flex-wrap gap-x-4">
+      <legend class="sr-only">Show only</legend>
+      <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="missed" value="1" {% if filters.missed %}checked{% endif %} class="h-5 w-5 rounded border-slate-300" data-testid="filter-missed"> Missed only</label>
+      <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="voicemail" value="1" {% if filters.voicemail %}checked{% endif %} class="h-5 w-5 rounded border-slate-300" data-testid="filter-voicemail"> Has voicemail</label>
+    </fieldset>
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if dir %}<input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <input type="hidden" name="density" value="{{ density }}">
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{% url 'autofix:calls' %}" class="btn btn-ghost">Clear</a>
+    </div>
+  </form>
+
+  <div class="mt-4">{% include "partials/data_table.html" %}</div>
+{% endblock %}

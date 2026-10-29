@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("autofix", "0001_initial"),
+        ("autofix", "0002_call_voicemails"),
     ]
 
     operations = [

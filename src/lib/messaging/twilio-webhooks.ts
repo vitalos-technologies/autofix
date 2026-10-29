@@ -1,7 +1,8 @@
 import "server-only";
 
 import { parseVoiceRelayTarget, relayConnectUrl, type VoiceRelayTarget } from "@/lib/ai-front-desk/voice-relay";
-import { afterRecordingTwiml, aiDeskTwiml, dialTwiml, isTwilioRecordingUrl, isVoiceStep, MISSED_DIAL_STATUSES, voicemailTwiml, voiceStepUrl, type VoiceStep } from "@/lib/calls/twiml";
+import { PLATFORM_LINE_NAME, platformVoiceNumbers } from "@/lib/calls/platform-line";
+import { afterRecordingTwiml, aiDeskTwiml, dialTwiml, isTwilioRecordingUrl, isVoiceStep, MISSED_DIAL_STATUSES, platformVoicemailTwiml, voicemailTwiml, voiceStepUrl, type VoiceStep } from "@/lib/calls/twiml";
 import { getPlansConfig } from "@/lib/plans/config";
 import { createJobLogger } from "@/lib/jobs/log";
 import { safeErrorCode, type JobKind, type JobLogger } from "@/lib/jobs/types";
@@ -46,6 +47,10 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 //   gets the voicemail. Without the voice service configured
 //   (VOICE_RELAY_URL, VOICE_RELAY_SECRET), or if the check fails, the flow
 //   above is unchanged (src/lib/ai-front-desk/hand-off.ts).
+// - voice, Autofix's own line (A420): a number in AUTOFIX_PLATFORM_VOICE_NUMBERS
+//   belongs to no garage. The call is logged in `platform_calls` (which no
+//   garage can read), greeted in Autofix's name and sent to the voicemail: no
+//   ring-through, no text-back, no AI front desk (src/lib/calls/platform-line.ts).
 // Logs carry ids, kinds and outcome codes only: never numbers or bodies.
 
 export type TwilioWebhookKind = "sms" | "whatsapp" | "status" | "voice";
@@ -70,6 +75,15 @@ export type CallRecord = {
   status: string;
   durationSeconds: number | null;
   missed: boolean;
+};
+
+/** A call to Autofix's own line (A420): no garage, so no dial outcome and no text-back. */
+export type PlatformCallRecord = {
+  callSid: string;
+  from: string | null;
+  to: string;
+  status: string;
+  durationSeconds: number | null;
 };
 
 export type DialOutcome = { dialStatus: string; missed: boolean; durationSeconds: number | null };
@@ -97,7 +111,9 @@ export interface TwilioWebhookRepo {
   /** Whether this caller rang this garage in the last `withinMs` on another call (a forward that came back to us). */
   callerRangRecently(garageId: string, from: string, callSid: string, withinMs: number): Promise<boolean>;
   recordDialOutcome(garageId: string, callSid: string, outcome: DialOutcome): Promise<{ callId: string | null }>;
-  /** Stores the voicemail link on the call (by CallSid, unique across garages); false when there is no such call. */
+  /** A420: inserts a call to Autofix's own line in `platform_calls`, or moves its status forward. */
+  recordPlatformCall(call: PlatformCallRecord): Promise<{ outcome: "created" | "updated" | "unchanged" }>;
+  /** Stores the voicemail link on the call by CallSid (unique across garages), in `calls` or else `platform_calls`; false when there is no such call. */
   recordVoicemail(callSid: string, voicemail: { url: string; durationSeconds: number | null }): Promise<boolean>;
   queueTextBack(garageId: string, callId: string): Promise<void>;
   /** P5.12: hand this missed call to the AI front desk (ai_front_desk_voice_ready(), minutes under `allowance`)? Absent means never. */
@@ -118,6 +134,8 @@ export type TwilioWebhookDeps = {
   voiceRelayTarget?: VoiceRelayTarget | null;
   /** Wakes the voice service (GET its health URL) after the response, while the disclosure plays. */
   prewarm?: (url: string) => Promise<unknown>;
+  /** A420: Autofix's own numbers; undefined reads AUTOFIX_PLATFORM_VOICE_NUMBERS from `env` (or process.env). */
+  platformVoiceNumbers?: ReadonlySet<string>;
 };
 
 /** `prewarm`: a URL to fetch after the response (the voice service's health check). */
@@ -218,7 +236,7 @@ function seconds(raw: string | undefined, max: number) {
 const FORWARD_LOOP_WINDOW_MS = 2 * 60 * 1000;
 const DIAL_STATUSES = new Set(["completed", "answered", "busy", "no-answer", "failed", "canceled"]);
 
-type VoiceContext = { signedUrl: string; step: VoiceStep | null; relay: VoiceRelayTarget | null; aiMinutesAllowance: number | null };
+type VoiceContext = { signedUrl: string; step: VoiceStep | null; relay: VoiceRelayTarget | null; aiMinutesAllowance: number | null; platformNumbers: ReadonlySet<string> };
 
 function voicemail(routed: RoutedNumber, context: VoiceContext) {
   return twimlResponse(voicemailTwiml({
@@ -257,6 +275,7 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
 
   const to = stripWhatsApp(form.To);
   if (!isE164(to)) return null;
+  if (context.platformNumbers.has(to)) return platformVoice(form, repo, callSid, to, context);
   if (context.step === "dial") return dialFinished(form, repo, callSid, to, context);
   if (context.step === "relay") return relayFinished(form, repo, callSid, to, context);
 
@@ -302,6 +321,39 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
   // A repeated request (Twilio retrying a slow answer) gets the same TwiML, without the writes.
   if (!claimed) return { ...(await answer(false)), outcome: "duplicate", queued: undefined };
   return withEvent(repo, eventKey, () => answer(true));
+}
+
+/**
+ * A420: a call to Autofix's own line. Logged in `platform_calls`, greeted in Autofix's name, then the
+ * voicemail (the recording steps are shared with garage calls). Nothing rings and nothing is texted.
+ */
+async function platformVoice(form: Record<string, string>, repo: TwilioWebhookRepo, callSid: string, to: string, context: VoiceContext): Promise<Outcome> {
+  // We never dial out or hand off on this line, so a dial or relay step is not ours: end the call.
+  if (context.step) return { status: "ignored", outcome: "platform_step_unexpected", response: twimlResponse("<Hangup/>") };
+  const rawStatus = form.CallStatus?.trim().toLowerCase() || "ringing";
+  const callStatus = CALL_STATUSES.has(rawStatus) ? rawStatus : "ringing";
+  const live = LIVE_CALL_STATUSES.has(callStatus);
+  const eventKey = `voice:${callSid}:${callStatus}`;
+  const claimed = await repo.claimEvent(eventKey, "voice", callSid);
+  const response = live
+    ? twimlResponse(platformVoicemailTwiml({
+      lineName: PLATFORM_LINE_NAME,
+      recordedUrl: voiceStepUrl(context.signedUrl, "recorded"),
+      recordingStatusUrl: voiceStepUrl(context.signedUrl, "recording"),
+    }))
+    : twimlResponse();
+  const outcome = live ? "platform_call_voicemail" : "platform_call_status";
+  if (!claimed) return { status: "processed", outcome: "duplicate", response };
+  return withEvent(repo, eventKey, async () => {
+    await repo.recordPlatformCall({
+      callSid,
+      from: callerNumber(form.From),
+      to,
+      status: callStatus,
+      durationSeconds: live ? null : seconds(form.CallDuration, 86_400),
+    });
+    return { status: "processed", outcome, response };
+  });
 }
 
 /** `?step=dial`: how ringing the garage's own phone went (DialCallStatus). */
@@ -435,6 +487,7 @@ export async function handleTwilioWebhook(request: Request, kind: TwilioWebhookK
         step: isVoiceStep(step) ? step : null,
         relay,
         aiMinutesAllowance: getPlansConfig(env).pro.aiMinutesAllowance,
+        platformNumbers: deps.platformVoiceNumbers ?? platformVoiceNumbers(env),
       });
     } else {
       outcome = kind === "status" ? await status(verified.form, repo) : await inbound(verified.form, kind, repo);

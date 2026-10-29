@@ -132,6 +132,9 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           SENTRY_DSN: ${{ secrets.SUPERADMIN_SENTRY_DSN }}
+          # The account Autofix records voicemails on (the same secrets the Vercel sync uses).
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           DB_ENV_FILE: ${{ runner.temp }}/db.env
           DEPLOY_OUT_FILE: ${{ runner.temp }}/deploy.env
         run: superadmin/deploy/azure/deploy.sh apply

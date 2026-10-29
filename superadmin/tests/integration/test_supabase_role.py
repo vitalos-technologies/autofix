@@ -29,7 +29,10 @@ ADMIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f1")
 GARAGE = uuid.UUID("5a000000-0000-4000-8000-00000000a1f2")
 DOMAIN = uuid.UUID("5a000000-0000-4000-8000-00000000a1f3")
 JOB = uuid.UUID("5a000000-0000-4000-8000-00000000a1f4")
-ENQUIRY = uuid.UUID("5a000000-0000-4000-8000-00000000a1f5")
+CALL = uuid.UUID("5a000000-0000-4000-8000-00000000a1f5")
+PLATFORM_CALL = uuid.UUID("5a000000-0000-4000-8000-00000000a1f6")
+RECORDING = f"https://api.twilio.com/2010-04-01/Accounts/AC{'5' * 32}/Recordings/RE{'5' * 32}"
+ENQUIRY = uuid.UUID("5a000000-0000-4000-8000-00000000a1f7")
 
 
 def role():
@@ -63,6 +66,18 @@ def admin_rows():
             [JOB, GARAGE],
         )
         conn.execute(
+            "insert into public.calls (id, garage_id, provider_call_sid, from_number, to_number, status, missed, "
+            "voicemail_url, voicemail_duration_s) values "
+            "(%s, %s, 'CA-sa-integration', '+447700900123', '+441146974393', 'completed', true, %s, 42)",
+            [CALL, GARAGE, RECORDING],
+        )
+        conn.execute(
+            "insert into public.platform_calls (id, provider_call_sid, from_number, to_number, status, "
+            "voicemail_url, voicemail_duration_s) values "
+            "(%s, 'CA-sa-integration-platform', '+447700900777', '+441146974393', 'completed', %s, 31)",
+            [PLATFORM_CALL, RECORDING.replace("RE" + "5" * 32, "RE" + "6" * 32)],
+        )
+        conn.execute(
             "insert into public.platform_enquiries (id, name, email, phone, garage_name, topic, message) values "
             "(%s, 'SA Integration Sender', 'sender@sa-integration.example', '07700 900555', 'SA Motors', 'sales', "
             "'Integration test enquiry about a demo.')",
@@ -70,6 +85,7 @@ def admin_rows():
         )
         yield conn
         conn.execute("delete from public.platform_enquiries where id = %s", [ENQUIRY])
+        conn.execute("delete from public.platform_calls where id = %s", [PLATFORM_CALL])
         conn.execute(
             "delete from public.jobs where garage_id = %s or kind = 'domains.check' and dedupe_key like 'domains.check:platform:%%'",
             [GARAGE],
@@ -111,6 +127,7 @@ def test_sessions_are_read_only_with_the_superadmin_search_path(admin_rows):
         "reminder_sends",
         "messages",
         "calls",
+        "call_voicemails",
         "garage_agreements",
         "platform_audit_log",
         "platform_impersonations",
@@ -181,6 +198,39 @@ def test_contact_details_and_registrations_arrive_masked(admin_rows):
             )
         }
         assert not {"body", "to_address", "from_address"} & message_cols
+
+
+def test_calls_arrive_masked_and_links_only_in_call_voicemails(admin_rows):
+    with role() as conn:
+        cols = {
+            row[0]
+            for row in conn.execute(
+                "select column_name from information_schema.columns where table_schema = 'superadmin' and table_name = 'calls'"
+            )
+        }
+        assert not {"from_number", "to_number", "voicemail_url", "provider_call_sid"} & cols
+        row = conn.execute(
+            "select caller_masked, has_voicemail, voicemail_duration_s from superadmin.calls where id = %s",
+            [CALL],
+        ).fetchone()
+        assert row == ("07••• •••123", True, 42)
+
+
+def test_call_selectors_read_through_the_role(live):
+    rows = list(selectors.calls({"garage": str(GARAGE)}))
+    assert [(row.caller_masked, row.has_voicemail) for row in rows] == [("07••• •••123", True)]
+    call, link = selectors.voicemail(CALL)
+    assert call.garage.name == "SA Integration Garage" and link == RECORDING
+    platform = [row for row in selectors.calls({"garage": "platform"}) if row.pk == PLATFORM_CALL]
+    assert [(row.caller_masked, row.garage_id, row.line_name) for row in platform] == [
+        ("07••• •••777", None, "Autofix (platform line)")
+    ]
+    assert selectors.voicemail(PLATFORM_CALL)[1].endswith("RE" + "6" * 32)
+
+
+def test_role_cannot_read_platform_calls_directly(admin_rows):
+    with role() as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+        conn.execute("select 1 from public.platform_calls limit 1")
 
 
 def test_selectors_read_through_the_role(live):

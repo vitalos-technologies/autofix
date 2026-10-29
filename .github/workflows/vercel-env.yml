@@ -69,6 +69,8 @@ jobs:
           SECRET__VEHICLE_FACTS_PEPPER: ${{ secrets.VEHICLE_FACTS_PEPPER }}
           SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           # Variables (Vercel "encrypted")
+          # Pitline's own line (A420, D22: Temitope, 29 Oct 2026, "only on pitline"): answered in the product's name, voicemail only.
+          VAR__AUTOFIX_PLATFORM_VOICE_NUMBERS: ${{ vars.AUTOFIX_PLATFORM_VOICE_NUMBERS || '+441146974393' }}
           # Stripe test mode for Autofix's own billing and garage payments (Temitope, 29 Oct 2026; Connect on).
           # Run Launch ops stripe-setup first: it puts the price ids and webhook secrets in Vercel.
           VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER || 'stripe' }}
@@ -101,7 +103,7 @@ jobs:
           VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES || '200' }}
           VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE || '1500' }}
           VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE || '4' }}
-          # Contact page enquiries (/contact) are emailed here. Default: the super admin owner's address (A423). A
+          # Contact page enquiries (/contact) are emailed here. Default: the super admin owner's address (A425). A
           # repository variable overrides it; the app sends nothing while it is empty.
           VAR__PLATFORM_ENQUIRY_EMAIL: ${{ vars.PLATFORM_ENQUIRY_EMAIL || 'temitope.agbola@vitalos.co.uk' }}
           VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}

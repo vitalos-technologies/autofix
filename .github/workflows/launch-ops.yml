@@ -31,7 +31,7 @@ on:
         type: string
         default: ""
       garage:
-        description: "twilio-number: the garage's slug (e.g. doncaster-auto)"
+        description: "twilio-number: the garage's slug (e.g. doncaster-auto), or platform for the product's own line"
         type: string
         default: ""
 
