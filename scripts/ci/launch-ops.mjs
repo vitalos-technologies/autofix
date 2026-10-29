@@ -46,6 +46,7 @@ const MIGRATION_PROBES = [
   ["20261029001400", "customers?select=offers_consent"],
   ["20261029002000", "calls?select=ai_summary"],
   ["20261029003000", "platform_enquiries?select=id"],
+  // 20261029003100 (booking_page_show_prices) and 20261029003200 (platform_enquiry_retention) only change functions.
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
@@ -525,6 +526,9 @@ async function resendDomain() {
   if (!found) {
     if (!apply) {
       console.log(`  ${domain}: not in Resend (would add, region eu-west-1)`);
+      // Domain names only (not secret): shows whether the key is for another Resend team or the domain was removed.
+      const names = (list.body?.data ?? []).map((entry) => `${entry.name} (${entry.status})`);
+      console.log(`  domains this key can see: ${names.length ? names.join(", ") : "none"}`);
       return;
     }
     const created = await call("https://api.resend.com/domains", { method: "POST", headers, body: JSON.stringify({ name: domain, region: "eu-west-1" }) });

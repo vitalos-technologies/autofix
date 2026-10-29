@@ -8,10 +8,11 @@ import { databaseError, type JobHandler } from "../types";
 // `retention` (daily; replaces SOB's /api/cron/retention). Without a garage:
 // one job per garage (every garage, cancelled ones too: the limits apply to
 // whatever data a garage still holds, A24), then platform housekeeping that
-// holds no personal data: vehicle_facts rows older than 30 days (the cache
-// is only trusted for 24 hours) and finished jobs older than 14 days; and
-// Autofix's own line, apply_platform_call_retention() (voicemail links after
-// 12 months, A420). With a
+// holds no garage data: vehicle_facts rows older than 30 days (the cache is
+// only trusted for 24 hours), finished jobs older than 14 days, the product's
+// own line's voicemail links after 12 months (apply_platform_call_retention(),
+// A420) and contact page enquiries last changed over 24 months ago
+// (apply_platform_enquiry_retention(), A430). With a
 // garage: apply_enquiry_retention() (bookings, enquiries, customers) and
 // apply_message_retention() (message bodies, reminder bodies, voicemail
 // links after 12 months, A57).
@@ -46,6 +47,8 @@ export const retentionHandler: JobHandler = async (payload, context) => {
 
     const platformCalls = await context.db.rpc("apply_platform_call_retention");
     if (platformCalls.error) throw databaseError("apply_platform_call_retention", platformCalls.error);
+    const enquiries = await context.db.rpc("apply_platform_enquiry_retention");
+    if (enquiries.error) throw databaseError("apply_platform_enquiry_retention", enquiries.error);
 
     return {
       outcome: "fanned_out",
@@ -54,6 +57,7 @@ export const retentionHandler: JobHandler = async (payload, context) => {
         vehicle_facts: facts.count ?? 0,
         jobs: jobs.count ?? 0,
         platform_voicemails_cleared: typeof platformCalls.data === "number" ? platformCalls.data : 0,
+        platform_enquiries: typeof enquiries.data === "number" ? enquiries.data : 0,
       },
     };
   }
