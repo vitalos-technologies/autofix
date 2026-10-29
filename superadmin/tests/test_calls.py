@@ -212,7 +212,9 @@ def test_audio_streams_through_the_proxy_with_credentials_and_is_audited(
     event = AuditEvent.objects.get(action="autofix.voicemail_played")
     assert event.entity_type == "autofix.call" and event.entity_id == str(call.pk)
     assert event.actor == support and "Hartley Road Motors" in event.summary
-    assert "07" not in event.summary and "twilio" not in str(event.metadata).lower()
+    # No caller number, masked or full. ("07" alone would also match the time in the summary, e.g. 22:07.)
+    assert "•••" not in event.summary and "+44" not in event.summary
+    assert "twilio" not in str(event.metadata).lower()
     client.get(audio_url(player(client, call)))
     assert AuditEvent.objects.filter(action="autofix.voicemail_played").count() == 2
 
