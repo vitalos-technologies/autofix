@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -10,7 +11,7 @@ import { cleanPlacesQuery, createGooglePlacesProvider, createMockPlacesProvider,
 import { PlacesLookupError } from "@/lib/places/types";
 import { generateInviteToken, hashInviteToken, inviteUrl, isInviteToken } from "@/lib/signup/invite-token";
 import { createGaragePayload, parseAccountForm, parseGarageDetails, parseGarageForm, parseInviteForm, parseOpeningHours, parseSlug } from "@/lib/signup/schema";
-import { createGarageError } from "@/lib/signup/server";
+import { availableSlugs, createGarageError } from "@/lib/signup/server";
 import { slugAlternatives, slugify, slugProblem } from "@/lib/signup/slug";
 import { composeInviteEmail } from "@/lib/team/server";
 import { RESERVED_SLUGS } from "@/lib/tenancy/hosts";
@@ -50,6 +51,29 @@ describe("booking link slugs", () => {
     expect(slugAlternatives("kingsway-autocare", "Doncaster")).toEqual(["kingsway-autocare-doncaster", "kingsway-autocare-2", "kingsway-autocare-3"]);
     expect(slugAlternatives("a".repeat(40))).toEqual([`${"a".repeat(37)}-2`, `${"a".repeat(37)}-3`]);
     for (const candidate of slugAlternatives("station-road-garage", "Sutton-in-Ashfield")) expect(slugProblem(candidate)).toBeNull();
+  });
+
+  it("looks a link and its alternatives up in one query", async () => {
+    const queries: Array<{ table: string; column: string; values: string[] }> = [];
+    const service = {
+      from: (table: string) => ({
+        select: () => ({
+          in: async (column: string, values: string[]) => {
+            queries.push({ table, column, values });
+            return { data: [{ slug: "kingsway-autocare" }, { slug: "kingsway-autocare-2" }], error: null };
+          },
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const asked = ["kingsway-autocare", "kingsway-autocare-doncaster", "kingsway-autocare-2", "admin", "kingsway-autocare-3", "kingsway-autocare-doncaster"];
+    await expect(availableSlugs(asked, service)).resolves.toEqual(["kingsway-autocare-doncaster", "kingsway-autocare-3"]);
+    // Malformed and reserved links never reach the database.
+    expect(queries).toEqual([{ table: "garages", column: "slug", values: ["kingsway-autocare", "kingsway-autocare-doncaster", "kingsway-autocare-2", "kingsway-autocare-3"] }]);
+
+    const failing = { from: () => ({ select: () => ({ in: async () => ({ data: null, error: { message: "unavailable" } }) }) }) } as unknown as SupabaseClient;
+    await expect(availableSlugs(["kingsway-autocare"], failing)).resolves.toBeNull();
+    await expect(availableSlugs(["kingsway-autocare"], null)).resolves.toBeNull();
+    await expect(availableSlugs(["admin", "ab"], null)).resolves.toEqual([]);
   });
 
   it("keeps the database's reserved list equal to RESERVED_SLUGS", () => {
