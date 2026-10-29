@@ -165,7 +165,7 @@
     @apply min-h-11 px-2.5 py-1 text-xs md:min-h-9;
   }
   .text-link {
-    @apply text-cobalt-600 underline-offset-2 dark:text-cobalt-300;
+    @apply text-cobalt-700 underline-offset-2 dark:text-cobalt-300;
   }
   .input-sm {
     @apply block min-h-11 w-40 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs md:min-h-9
