@@ -22,14 +22,14 @@ export function textToHtml(value: string) {
 export function detailCard(details: Detail[]) {
   const rows = details.filter((detail) => detail.value).map(({ label, value }) => `
     <tr>
-      <td style="padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;line-height:18px;text-transform:uppercase;letter-spacing:.5px;vertical-align:top;width:38%;">${escapeHtml(label)}</td>
+      <td style="padding:10px 12px;color:#475569;font-size:12px;font-weight:700;line-height:18px;text-transform:uppercase;letter-spacing:.5px;vertical-align:top;width:38%;">${escapeHtml(label)}</td>
       <td style="padding:10px 12px;color:#0f2747;font-size:15px;font-weight:700;line-height:21px;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;">${escapeHtml(value)}</td>
     </tr>`).join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:12px;background:#F8FAFC;border-collapse:separate;overflow:hidden;">${rows}</table>`;
 }
 
 export function notice(title: string, copy: string, brand?: Pick<EmailBrand, "accent">) {
-  return `<div style="margin:22px 0;padding:16px 18px;border-left:4px solid ${escapeHtml(brand?.accent ?? "#155fba")};background:#F8FAFC;color:#0f2747;font-size:15px;line-height:22px;"><strong>${escapeHtml(title)}</strong><br><span style="color:#64748b;">${escapeHtml(copy)}</span></div>`;
+  return `<div style="margin:22px 0;padding:16px 18px;border-left:4px solid ${escapeHtml(brand?.accent ?? "#155fba")};background:#F8FAFC;color:#0f2747;font-size:15px;line-height:22px;"><strong>${escapeHtml(title)}</strong><br><span style="color:#475569;">${escapeHtml(copy)}</span></div>`;
 }
 
 /** "Sent by Pitline on behalf of Hartley Road Motors" (garage mail only). */
@@ -93,8 +93,8 @@ export function emailLayout(input: {
   const tone = tones[input.tone ?? "info"];
   const button = input.cta ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 18px;"><tr><td align="center"><a href="${escapeHtml(input.cta.url)}" style="display:block;box-sizing:border-box;max-width:320px;min-height:46px;padding:13px 22px;border-radius:12px;background:${accent};color:#FFFFFF;font-size:16px;font-weight:700;line-height:20px;text-align:center;text-decoration:none;">${escapeHtml(input.cta.label)}</a></td></tr></table>` : "";
   const secondaryButtons = input.secondaryCtas?.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr><td align="center">${input.secondaryCtas.map((cta) => `<a href="${escapeHtml(cta.url)}" style="display:inline-block;box-sizing:border-box;min-height:42px;margin:4px;padding:10px 14px;border:1px solid ${accent};border-radius:10px;color:${accent};font-size:14px;font-weight:700;line-height:20px;text-decoration:none;">${escapeHtml(cta.label)}</a>`).join("")}</td></tr></table>` : "";
-  const intro = input.intro ? `<p style="margin:0 0 24px;color:#64748b;font-size:16px;line-height:25px;">${escapeHtml(input.intro)}</p>` : "";
-  const afterCta = input.afterCta ? `<p style="margin:0;color:#64748b;font-size:14px;line-height:22px;">${escapeHtml(input.afterCta)}</p>` : "";
+  const intro = input.intro ? `<p style="margin:0 0 24px;color:#475569;font-size:16px;line-height:25px;">${escapeHtml(input.intro)}</p>` : "";
+  const afterCta = input.afterCta ? `<p style="margin:0;color:#475569;font-size:14px;line-height:22px;">${escapeHtml(input.afterCta)}</p>` : "";
   return `<!doctype html>
 <html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>${escapeHtml(input.title)}</title>
 <style>@media only screen and (max-width:620px){.email-shell{width:100%!important}.email-body{padding:28px 20px!important}.email-header{padding:22px 20px!important}.email-footer{padding:24px 20px!important}h1{font-size:27px!important;line-height:33px!important}a{overflow-wrap:anywhere}}@media (prefers-color-scheme:dark){.email-page{background:#111827!important}.email-card{background:#FFFFFF!important}.email-body{color:#0f2747!important}}</style></head>

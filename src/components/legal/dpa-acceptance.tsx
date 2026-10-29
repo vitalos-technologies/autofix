@@ -23,7 +23,7 @@ export function DpaAcceptance({ garage, status, canAccept }: DpaAcceptanceProps)
     <section aria-labelledby="dpa-heading" className="grid gap-4">
       <div>
         <h2 id="dpa-heading" className="text-2xl font-bold text-[#0f2747]">{document.title}</h2>
-        <p className="mt-1 text-sm text-[#64748b]">Version {document.version}</p>
+        <p className="mt-1 text-sm text-[#475569]">Version {document.version}</p>
       </div>
       <DraftFlag document={document} />
       {status.current ? (
@@ -43,7 +43,7 @@ export function DpaAcceptance({ garage, status, canAccept }: DpaAcceptanceProps)
       {status.history.some((record) => record.version !== status.currentVersion) ? (
         <div>
           <h3 className="text-base font-bold text-[#0f2747]">Earlier versions</h3>
-          <ul className="mt-2 grid gap-1 text-sm text-[#64748b]">
+          <ul className="mt-2 grid gap-1 text-sm text-[#475569]">
             {status.history
               .filter((record) => record.version !== status.currentVersion)
               .map((record) => (

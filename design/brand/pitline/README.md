@@ -34,7 +34,7 @@ Clear space: leave at least the height of the A on every side. The files are tri
 | Electric Blue | `#2563EB` | Primary action, links |
 | Signal Orange | `#F97316` | Main call to action, highlights, focus on Navy |
 | Signal Orange 600 | `#EA580C` | Focus rings on light surfaces (3.6:1; `#F97316` on white is 2.8:1) |
-| Steel Gray | `#64748B` | Secondary text, UI |
+| Steel Gray | `#64748B` | Borders, icons, UI. Secondary text uses slate-600 `#475569`, since Steel Gray on Light Gray is 3.9:1 |
 | Light Gray | `#E2E8F0` | Surfaces, borders |
 | White | `#FFFFFF` | Page background |
 

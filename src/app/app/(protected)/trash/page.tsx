@@ -25,7 +25,7 @@ export default async function AdminTrashPage() {
 
   return <>
     <div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-700"><Trash2 size={23} /></span><div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Recovery area</p><h1 className="mt-1 text-4xl font-extrabold text-[#0f2747]">Trash</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-grey-600">Restore records to their original CMS list or permanently remove eligible records. Items remain recoverable until permanent deletion.</p></div></div>
-    <p className="mt-6 text-sm font-bold text-[#64748b]">{total} trashed {total === 1 ? "item" : "items"}</p>
+    <p className="mt-6 text-sm font-bold text-[#475569]">{total} trashed {total === 1 ? "item" : "items"}</p>
     <div className="mt-2 grid gap-8">
       {sections.map((section) => <section key={section.entity} aria-labelledby={`trash-${section.entity}`}>
         <div className="flex items-end justify-between gap-4"><div><h2 id={`trash-${section.entity}`} className="text-2xl font-extrabold text-[#0f2747]">{section.label}</h2>{section.note && <p className="mt-1 max-w-3xl text-xs leading-5 text-amber-800">{section.note}</p>}</div><span className="text-sm font-bold text-grey-600">{section.items.length}</span></div>

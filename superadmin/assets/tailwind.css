@@ -68,8 +68,9 @@
   --color-slate-100: #f1f5f9;
   --color-slate-200: #e2e8f0;
   --color-slate-300: #cbd5e1;
-  /* Muted text (Steel Gray): 4.8:1 on white and 4.6:1 on off-white. */
-  --color-slate-500: #64748b;
+  /* Muted text: 6.4:1 on white, 5.2:1 on slate-200 (Steel Gray #64748b is under 4.5:1 on the grey
+     surfaces, so it is not used for text). */
+  --color-slate-500: #526072;
   --color-slate-600: #475569;
   --color-slate-700: #334155;
   --color-slate-800: #1c3557;

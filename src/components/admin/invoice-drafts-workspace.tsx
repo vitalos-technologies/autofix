@@ -29,12 +29,12 @@ export function InvoiceDraftsWorkspace({ header, children, drafts }: { header: R
       {isOpen && <aside id="invoice-drafts-panel" aria-label="Draft invoices" className="mt-6 rounded-2xl border border-[#BCD6F6] bg-[#F6FAFF] p-4 shadow-lg xl:sticky xl:top-6">
         <div className="flex items-center justify-between gap-3 border-b border-[#D7E5F5] pb-3">
           <div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Saved work</p><h2 className="mt-1 text-xl font-extrabold text-[#0f2747]">Draft invoices</h2></div>
-          <button type="button" onClick={() => setIsOpen(false)} aria-label="Close draft invoices" className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#CBD5E1] bg-white text-[#64748b] transition hover:border-[#2563EB] hover:text-accent"><X size={18} aria-hidden="true" /></button>
+          <button type="button" onClick={() => setIsOpen(false)} aria-label="Close draft invoices" className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#CBD5E1] bg-white text-[#475569] transition hover:border-[#2563EB] hover:text-accent"><X size={18} aria-hidden="true" /></button>
         </div>
         {drafts.length ? <div className="mt-3 grid max-h-[65vh] gap-3 overflow-y-auto pr-1">
           {drafts.map((draft) => <article key={draft.id} className="rounded-xl border border-[#DCE7F2] bg-white p-4">
             <h3 className="font-extrabold text-[#0f2747]">{draft.customerName}</h3>
-            <p className="mt-1 text-sm font-semibold text-[#64748b]">{draft.serviceName}</p>
+            <p className="mt-1 text-sm font-semibold text-[#475569]">{draft.serviceName}</p>
             <p className="mt-1 text-xs text-grey-600">{draft.vehicleLabel}</p>
             <div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs text-grey-600">Updated {draft.updatedLabel}</span><AdminLoadingLink href={`/app/invoices/${draft.id}/edit`} className="inline-flex min-h-9 items-center rounded-lg bg-[#2563EB] px-3 text-xs font-extrabold text-white hover:bg-[#145EBA]" loadingTitle="Opening draft" loadingDescription="Please wait while the draft invoice opens.">Resume</AdminLoadingLink></div>
           </article>)}

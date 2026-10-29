@@ -77,8 +77,8 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
             <p className="text-xs font-extrabold tracking-widest text-accent uppercase">{formatType(enquiry.type)} enquiry</p>
             <h1 className="mt-2 text-3xl font-extrabold text-[#0f2747]">{customer?.name || "Customer enquiry"}</h1>
             {vehicleSummary && <p className="mt-3 font-bold text-[#0f2747]">{vehicleSummary}</p>}
-            {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#64748b] uppercase">{enquiry.vehicles.registration}</p>}
-            {enquiry.location_postcode && <p className="mt-2 text-sm text-[#64748b]">Location: {enquiry.location_postcode}</p>}
+            {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#475569] uppercase">{enquiry.vehicles.registration}</p>}
+            {enquiry.location_postcode && <p className="mt-2 text-sm text-[#475569]">Location: {enquiry.location_postcode}</p>}
           </div>
           <form action={updateEnquiryStatus} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={enquiry.id} />
@@ -147,7 +147,7 @@ function ThreadMessage({ message, garageName }: { message: MessageRow; garageNam
             <time className="text-[0.7rem] leading-4 text-grey-600" dateTime={message.created_at}>{formatDate(message.created_at)}</time>
           </div>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-5 text-[#263446]">{message.text_body}</p>
-          {(outbound || message.delivery_status === "failed") && <p className={`mt-1.5 text-[0.65rem] font-bold uppercase tracking-wide ${message.delivery_status === "failed" || message.delivery_status === "bounced" ? "text-red-700" : "text-[#64748b]"}`}>{deliveryLabel(message.delivery_status)}</p>}
+          {(outbound || message.delivery_status === "failed") && <p className={`mt-1.5 text-[0.65rem] font-bold uppercase tracking-wide ${message.delivery_status === "failed" || message.delivery_status === "bounced" ? "text-red-700" : "text-[#475569]"}`}>{deliveryLabel(message.delivery_status)}</p>}
         </div>
       </div>
     </article>

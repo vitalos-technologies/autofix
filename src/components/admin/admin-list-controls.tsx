@@ -17,7 +17,7 @@ export function AdminListFilters({ action, query, status, statusOptions, placeho
         </select>
       </label>
       <button className="min-h-11 rounded-xl bg-[#2563EB] px-5 text-sm font-extrabold text-white transition hover:bg-[#155FBD]">Apply filters</button>
-      {(query || status || Object.values(additionalParams).some(Boolean)) && <Link href={action} className="grid min-h-11 place-items-center rounded-xl border border-[#CBD5E1] px-4 text-sm font-bold text-[#64748b] hover:bg-[#F8FAFC]">Clear</Link>}
+      {(query || status || Object.values(additionalParams).some(Boolean)) && <Link href={action} className="grid min-h-11 place-items-center rounded-xl border border-[#CBD5E1] px-4 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC]">Clear</Link>}
     </form>
   );
 }

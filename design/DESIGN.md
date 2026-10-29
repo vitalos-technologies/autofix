@@ -27,7 +27,7 @@ All names, cars, prices and figures in the screens are sample data. Never hard-c
 
 ### Colour
 
-Brand kit palette (D22): Navy `#0f2747` (brand, headings, dark surfaces), Electric Blue `#2563eb` (primary action, links), Signal Orange `#f97316` (the main call to action, highlights; focus rings use `#ea580c` on light surfaces for 3:1), Steel Gray `#64748b` (secondary text, UI), Light Gray `#e2e8f0` (surfaces, borders), White. In CSS: `--pitline-*`, Tailwind `brand-navy`, `brand-blue`, `brand-orange`, `brand-steel`, `brand-light`, `focus`. White text on Signal Orange is 2.8:1, so text on orange is Navy (5.4:1).
+Brand kit palette (D22): Navy `#0f2747` (brand, headings, dark surfaces), Electric Blue `#2563eb` (primary action, links), Signal Orange `#f97316` (the main call to action, highlights; focus rings use `#ea580c` on light surfaces for 3:1), Steel Gray `#64748b` (borders, icons, UI; not text on grey surfaces), Light Gray `#e2e8f0` (surfaces, borders), White. In CSS: `--pitline-*`, Tailwind `brand-navy`, `brand-blue`, `brand-orange`, `brand-steel`, `brand-light`, `focus`. White text on Signal Orange is 2.8:1, so text on orange is Navy (5.4:1).
 
 Logo placement: the garage admin (`/app`, onboarding, sign-in) uses the Navy monochrome logo on a white sidebar; the Django super admin uses the reversed logo on Navy (stacked on sign-in and in the expanded sidebar, the mark alone when collapsed); everything else (marketing, emails, "Powered by" on booking pages, the social card) uses the primary colour logo. Icons come from the brand app icon.
 
@@ -44,8 +44,8 @@ Logo placement: the garage admin (`/app`, onboarding, sign-in) uses the Navy mon
 | `--grey-100` | `#f1f5f9` | Neutral chips |
 | `--grey-200` | `#e2e8f0` | Card borders, dividers |
 | `--grey-300` | `#cbd5e1` | Input and secondary button borders |
-| `--grey-600` | `#64748b` | Secondary text (4.8:1 on white) |
-| `--grey-700` | `#475569` | Body text on light chips |
+| `--grey-600` | `#475569` | Secondary text (7.6:1 on white, 6.2:1 on `--grey-200`). Steel Gray `#64748b` is for borders and icons only: as text it is 3.9:1 on `--grey-200` |
+| `--grey-700` | `#334155` | Body text on light chips |
 | `--grey-800` | `#1e293b` | Body text |
 | `--success-600` / `--success-bg` / `--success-ink` | `#16a34a` / `#e7f6ec` / `#166534` | Ready, booked, confirmed |
 | `--warning-bg` / `--warning-ink` | `#fdf1d3` / `#6e4a06` | Waiting parts, pending |

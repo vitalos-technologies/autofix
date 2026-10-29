@@ -35,14 +35,14 @@ export function renderStatementEmail(garage: StatementEmailGarage, detail: State
     .map((line) => {
       const reg = line.registration ? formatRegistration(line.registration) : "";
       return `<tr>
-        <td style="padding:8px 10px;border-top:1px solid #E2E8F0;font-size:13px;line-height:18px;color:#0f2747;">${escapeHtml(line.invoiceNumber ?? "")}<br><span style="color:#64748b;">${escapeHtml(line.issueDate ? longDate(line.issueDate) : "")}</span></td>
-        <td style="padding:8px 10px;border-top:1px solid #E2E8F0;font-size:13px;line-height:18px;color:#0f2747;">${escapeHtml(reg)}${line.poNumber ? `<br><span style="color:#64748b;">PO ${escapeHtml(line.poNumber)}</span>` : ""}</td>
+        <td style="padding:8px 10px;border-top:1px solid #E2E8F0;font-size:13px;line-height:18px;color:#0f2747;">${escapeHtml(line.invoiceNumber ?? "")}<br><span style="color:#475569;">${escapeHtml(line.issueDate ? longDate(line.issueDate) : "")}</span></td>
+        <td style="padding:8px 10px;border-top:1px solid #E2E8F0;font-size:13px;line-height:18px;color:#0f2747;">${escapeHtml(reg)}${line.poNumber ? `<br><span style="color:#475569;">PO ${escapeHtml(line.poNumber)}</span>` : ""}</td>
         <td style="padding:8px 10px;border-top:1px solid #E2E8F0;font-size:13px;line-height:18px;color:#0f2747;text-align:right;white-space:nowrap;">${escapeHtml(formatPounds(line.totalPence))}</td>
       </tr>`;
     })
     .join("");
   const table = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;border:1px solid #E2E8F0;border-radius:12px;border-collapse:separate;overflow:hidden;">
-    <tr><th align="left" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#64748b;">Invoice</th><th align="left" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#64748b;">Vehicle</th><th align="right" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#64748b;">Amount</th></tr>
+    <tr><th align="left" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#475569;">Invoice</th><th align="left" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#475569;">Vehicle</th><th align="right" style="padding:8px 10px;background:#F8FAFC;font-size:12px;color:#475569;">Amount</th></tr>
     ${rows}
     <tr><td colspan="2" style="padding:10px;border-top:2px solid #0f2747;font-size:14px;font-weight:700;color:#0f2747;">Total</td><td style="padding:10px;border-top:2px solid #0f2747;font-size:14px;font-weight:700;color:#0f2747;text-align:right;white-space:nowrap;">${escapeHtml(formatPounds(totals.total))}</td></tr>
     <tr><td colspan="2" style="padding:10px;font-size:14px;font-weight:700;color:#0f2747;">Balance due</td><td style="padding:10px;font-size:14px;font-weight:700;color:#0f2747;text-align:right;white-space:nowrap;">${escapeHtml(formatPounds(totals.balance))}</td></tr>

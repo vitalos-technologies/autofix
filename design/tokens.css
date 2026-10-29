@@ -21,8 +21,10 @@
   --grey-100: #f1f5f9;
   --grey-200: #e2e8f0;
   --grey-300: #cbd5e1;
-  --grey-600: #64748b;
-  --grey-700: #475569;
+  /* Secondary text: slate-600, 6.2:1 even on --grey-200 (Steel Gray #64748b is 3.9:1 there, so it stays
+     for borders and icons). */
+  --grey-600: #475569;
+  --grey-700: #334155;
   --grey-800: #1e293b;
 
   --success-600: #16a34a;

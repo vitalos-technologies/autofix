@@ -45,7 +45,7 @@ export function ManageCancel({ summary, garageName }: ManageCancelProps) {
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             aria-describedby="cancel-reason-hint"
-            className="min-h-[96px] w-full resize-y rounded-input border border-grey-300 bg-white px-3.5 py-3 font-sans text-[16px] leading-normal text-navy-950 placeholder:text-[#64748b] focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none"
+            className="min-h-[96px] w-full resize-y rounded-input border border-grey-300 bg-white px-3.5 py-3 font-sans text-[16px] leading-normal text-navy-950 placeholder:text-[#475569] focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none"
           />
           <p id="cancel-reason-hint" className="m-0 text-[13px] text-grey-600">
             It helps {garageName} plan their day.

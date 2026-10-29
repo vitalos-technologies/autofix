@@ -80,7 +80,7 @@ const SLOTS_BST: TimeSlot[] = [
 
 /* Text inputs are page markup (not in the component list); shown here so Book 4 can be compared. */
 const GALLERY_INPUT =
-  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#64748b] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
+  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#475569] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
 
 const ACCENTS = [...ACCENT_PALETTE.map((value) => ({ value, label: value })), { value: "#ffcc00", label: "#ffcc00 (darkened)" }];
 

@@ -32,7 +32,7 @@ export function LoginForm({ resetComplete = false }: { resetComplete?: boolean }
       </label>
       {resetComplete && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800" role="status">Password updated. Sign in with your new password.</p>}
       {state.message && (
-        <p className="rounded-lg bg-[#F8FAFC] p-3 text-sm text-[#64748b]" role="alert">
+        <p className="rounded-lg bg-[#F8FAFC] p-3 text-sm text-[#475569]" role="alert">
           {state.message}
         </p>
       )}

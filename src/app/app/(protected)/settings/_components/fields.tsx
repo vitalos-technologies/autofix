@@ -7,7 +7,7 @@ import type { SetupFormState } from "@/lib/settings/setup";
 // 46px inputs, 12px radius, #cbd5e1 border, 14px semibold labels). Server-compatible.
 
 export const inputClass = cn(
-  "h-[46px] w-full min-w-0 rounded-input border bg-white px-3.5 font-sans text-[15px] text-navy-950 placeholder:text-[#64748b]",
+  "h-[46px] w-full min-w-0 rounded-input border bg-white px-3.5 font-sans text-[15px] text-navy-950 placeholder:text-[#475569]",
   "focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none",
   "disabled:cursor-not-allowed disabled:bg-grey-50 disabled:text-grey-700",
 );

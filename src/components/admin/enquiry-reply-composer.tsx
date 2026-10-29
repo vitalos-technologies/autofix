@@ -29,8 +29,8 @@ export function EnquiryReplyComposer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="composer-heading" className="text-xl font-extrabold text-[#0f2747]">Write a message</h2>
         <div className="inline-flex rounded-xl bg-[#F1F5F9] p-1" aria-label="Message type">
-          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-accent shadow-sm" : "text-[#64748b]"}`}>Reply to customer</button>
-          <button type="button" onClick={() => setMode("note")} aria-pressed={mode === "note"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "note" ? "bg-amber-100 text-amber-950 shadow-sm" : "text-[#64748b]"}`}>Internal note</button>
+          <button type="button" onClick={() => setMode("reply")} aria-pressed={mode === "reply"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "reply" ? "bg-white text-accent shadow-sm" : "text-[#475569]"}`}>Reply to customer</button>
+          <button type="button" onClick={() => setMode("note")} aria-pressed={mode === "note"} className={`min-h-10 rounded-lg px-3 text-sm font-bold ${mode === "note" ? "bg-amber-100 text-amber-950 shadow-sm" : "text-[#475569]"}`}>Internal note</button>
         </div>
       </div>
 
@@ -38,7 +38,7 @@ export function EnquiryReplyComposer({
         <form action={submitReply} className="mt-4">
           <input type="hidden" name="enquiryId" value={enquiryId} />
           <input type="hidden" name="clientRequestId" value={replyState.clientRequestId} />
-          <p className="text-sm text-[#64748b]">To: <span className="font-bold text-[#0f2747]">{customerEmail || "No customer email available"}</span></p>
+          <p className="text-sm text-[#475569]">To: <span className="font-bold text-[#0f2747]">{customerEmail || "No customer email available"}</span></p>
           <label htmlFor="reply-body" className="sr-only">Reply to customer</label>
           <textarea id="reply-body" name="body" key={replyState.clientRequestId} defaultValue={replyState.draft} required maxLength={20000} rows={7} disabled={!customerEmail || pending} className="mt-3 w-full resize-y rounded-xl border border-[#C9D4DF] px-4 py-3 leading-7 text-[#0f2747] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 disabled:bg-[#F8FAFC]" placeholder="Write your reply..." />
           <ComposerFooter state={replyState} pending={pending} disabled={!customerEmail} label="Send reply" />

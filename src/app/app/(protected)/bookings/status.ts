@@ -19,7 +19,7 @@ const tones: Record<BookingStatus, string> = {
   in_progress: "bg-[#EFF6FF] text-[#1D4ED8]",
   waiting_parts: "bg-amber-100 text-amber-900",
   ready: "bg-green-100 text-green-800",
-  collected: "bg-[#E2E8F0] text-[#64748b]",
+  collected: "bg-[#E2E8F0] text-[#475569]",
   cancelled: "bg-red-100 text-red-800",
   no_show: "bg-red-100 text-red-800",
 };
@@ -30,5 +30,5 @@ export function bookingStatusLabel(status: BookingStatus) {
 
 /** Badge colours; every pair passes 4.5:1. */
 export function bookingStatusTone(status: BookingStatus) {
-  return tones[status] ?? "bg-[#E2E8F0] text-[#64748b]";
+  return tones[status] ?? "bg-[#E2E8F0] text-[#475569]";
 }

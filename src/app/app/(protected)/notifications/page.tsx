@@ -129,7 +129,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-extrabold text-[#0f2747]">Notification centre</h1>
-          <p className="mt-2 max-w-2xl text-[#64748b]">New bookings, customer requests, unread replies and operational issues that need attention.</p>
+          <p className="mt-2 max-w-2xl text-[#475569]">New bookings, customer requests, unread replies and operational issues that need attention.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Link href="/app/bookings" className="rounded-xl bg-[#0f2747] px-4 py-3 text-sm font-bold text-white">View bookings</Link><Link href="/app/enquiries" className="rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm font-bold text-[#0f2747]">View enquiries</Link></div>
       </div>
@@ -154,7 +154,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             <tr key={alert.key} className="border-t border-[#E2E8F0] hover:bg-[#FAFCFE]">
               <td className="px-5 py-4"><p className="font-bold capitalize text-[#0f2747]">{alert.title}</p><p className="mt-1 text-xs text-grey-600">{alert.subtitle} · {formatDate(alert.createdAt)}</p></td>
               <td className="px-5 py-4 font-bold text-[#0f2747]">{alert.customer}</td>
-              <td className="px-5 py-4 text-[#64748b]">{alert.reason}</td>
+              <td className="px-5 py-4 text-[#475569]">{alert.reason}</td>
               <td className="px-5 py-4"><div className="flex flex-wrap gap-2">{alert.badges.map((badge) => <StatusBadge key={`${badge.label}:${badge.tone || "default"}`} label={badge.label} danger={badge.tone === "danger"} pending={badge.tone === "pending"} />)}</div></td>
               <td className="px-5 py-4 text-right"><Link href={alert.href} className="inline-flex min-h-10 items-center whitespace-nowrap font-bold text-accent hover:underline">Open {alert.kind}</Link></td>
             </tr>
