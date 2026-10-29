@@ -47,6 +47,7 @@ const MIGRATION_PROBES = [
   ["20261029002000", "calls?select=ai_summary"],
   ["20261029003000", "platform_enquiries?select=id"],
   // 20261029003100 (booking_page_show_prices) and 20261029003200 (platform_enquiry_retention) only change functions.
+  ["20261029003400", "ai_front_desk_numbers?select=garage_id"],
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
