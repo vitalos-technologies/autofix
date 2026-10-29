@@ -339,6 +339,16 @@ describe("numbers.provision never touches Autofix's own line (A420)", () => {
     expect(store.routing.get(PLATFORM_LINE)).toEqual({ garageId: GARAGE_A, sid: PLATFORM_SID, ringGarageFirst: true });
   });
 
+  it("never buys for a garage whose number on record is the platform line: it waits for Vitalos", async () => {
+    const client = fullAccount();
+    const store = memoryRepo([sheffieldGarage]);
+    store.states.set(GARAGE_A, { status: "ready", reason: null, number: PLATFORM_LINE, providerSid: PLATFORM_SID });
+    const summary = await provisionNumbers({ client, repo: store.repo, config: config(), scope: { kind: "garage", garageId: GARAGE_A } });
+    expect(summary).toMatchObject({ bought: 0, failed: 1 });
+    expect(store.states.get(GARAGE_A)).toMatchObject({ status: "failed", reason: "already_provisioned", providerSid: PLATFORM_SID });
+    expect(client.state.calls).toEqual([]);
+  });
+
   it("does not adopt it as a garage's desk number either", async () => {
     const client = fullAccount({ owned: [{ ...platformLine, friendlyName: deskNumberName(GARAGE_A) }] });
     const store = memoryRepo([sheffieldGarage]);

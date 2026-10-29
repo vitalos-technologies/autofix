@@ -396,8 +396,11 @@ export async function provisionNumbers(input: ProvisionInput): Promise<Provision
   for (const garage of due) {
     if (garage.routedNumber && garage.routedSid && !isPlatform(garage.routedNumber) && PN_SID.test(garage.routedSid)) {
       await run.attach(garage, garage.routedNumber, garage.routedSid, null);
-    } else if (garage.providerSid && garage.number && !isPlatform(garage.number)) {
-      await run.attach(garage, garage.number, garage.providerSid, false);
+    } else if (garage.providerSid) {
+      // A number is on record for this garage: route it again, never buy a second (A434). One that cannot be
+      // routed (Autofix's own line, or no number) waits for Vitalos with a reason.
+      if (garage.number && !isPlatform(garage.number)) await run.attach(garage, garage.number, garage.providerSid, false);
+      else await run.setStatus([garage], "failed", "already_provisioned");
     } else {
       needNumber.push(garage);
     }
