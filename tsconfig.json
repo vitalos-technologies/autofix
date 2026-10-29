@@ -41,6 +41,7 @@
   "exclude": [
     "node_modules",
     "superadmin",
+    "services",
     "test-results",
     "playwright-report",
     ".lighthouseci",

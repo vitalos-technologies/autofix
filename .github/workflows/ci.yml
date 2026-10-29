@@ -42,6 +42,30 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # The voice service (services/voice) is its own package: typecheck, tests and build.
+  voice-service:
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","autofix"]') }}
+    # Never run code from forks on the self-hosted VM.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/voice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: services/voice/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - run: bash -n deploy/azure/deploy.sh && deploy/azure/deploy.sh --dry-run
+
   # pgTAP, the PostgREST suites (incl. the Gate 1 tenancy suite), the demo seed, the host-routing
   # smoke and the invoice PDF access tests.
   database-tests:
