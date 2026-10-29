@@ -21,6 +21,7 @@ PAGES = [
     "/login/",
     "/",
     "/garages/",
+    "/enquiries/",
     "/signups/",
     "/domains/",
     "/messaging/",

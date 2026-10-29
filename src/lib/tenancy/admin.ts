@@ -181,24 +181,26 @@ const loadAdminIdentity = cache(async () => {
   if (impersonated === null) return null;
   const impersonation = impersonated?.session ?? null;
 
-  // While impersonating, the impersonated garage is the only one, read as owner (read-only).
-  const memberships = impersonation
-    ? [{ garageId: impersonation.garageId, name: impersonation.garageName, role: "owner" as const }]
-    : await loadMemberships(base, user.id);
+  // The profile, MFA state and MFA policy do not depend on the selected garage, so they load alongside
+  // the memberships (one round trip fewer on every admin page and action).
+  const service = createAdminClient();
+  const [memberships, { data: profileRow }, { data: assurance, error: assuranceError }, mandatoryMfa] = await Promise.all([
+    // While impersonating, the impersonated garage is the only one, read as owner (read-only).
+    impersonation
+      ? [{ garageId: impersonation.garageId, name: impersonation.garageName, role: "owner" as const }]
+      : loadMemberships(base, user.id),
+    base.from("admin_profiles").select("user_id,display_name").eq("user_id", user.id).maybeSingle(),
+    base.auth.mfa.getAuthenticatorAssuranceLevel(),
+    isMandatoryAdminMfaEnabled(service),
+  ]);
   const selected = selectGarage(memberships, impersonation ? impersonation.garageId : cookieStore.get(GARAGE_COOKIE)?.value);
   if (!selected) return null;
 
   const client = await createGarageClient(selected.garageId);
   if (!client) return null;
-  const [{ data: garageRow, error: garageError }, { data: profileRow }, { data: assurance, error: assuranceError }] = await Promise.all([
-    client.from("garages").select(GARAGE_SELECT).eq("id", selected.garageId).maybeSingle(),
-    base.from("admin_profiles").select("user_id,display_name").eq("user_id", user.id).maybeSingle(),
-    base.auth.mfa.getAuthenticatorAssuranceLevel(),
-  ]);
+  const { data: garageRow, error: garageError } = await client.from("garages").select(GARAGE_SELECT).eq("id", selected.garageId).maybeSingle();
   if (garageError || !garageRow || assuranceError || !assurance) return null;
 
-  const service = createAdminClient();
-  const mandatoryMfa = await isMandatoryAdminMfaEnabled(service);
   const trustedDeviceToken = cookieStore.get(TRUSTED_DEVICE_COOKIE)?.value;
   return {
     user,

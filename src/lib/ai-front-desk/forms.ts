@@ -22,7 +22,7 @@ export function parseTokenName(value: unknown): { ok: true; name: string } | { o
 
 /** Flash messages for the page's redirects (`?done=` / `?error=` codes, never free text). */
 export const AI_FRONT_DESK_MESSAGES: Record<string, string> = {
-  "done:enabled": "The AI front desk is on. Missed calls go to it once Workforce is connected.",
+  "done:enabled": "The AI front desk is on. It answers missed calls to your Autofix number.",
   "done:disabled": "The AI front desk is off. Missed calls get your voicemail and a text back.",
   "done:revoked": "Token revoked. Anything using it is refused straight away.",
   "done:already_revoked": "That token was already revoked.",

@@ -2,10 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { requiredBookingVariables, requiredProductionVariables } from "@/lib/env";
 
-const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Array<{ path: string; schedule: string }> };
+const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { regions?: string[]; crons?: Array<{ path: string; schedule: string }> };
 const envExample = readFileSync(".env.example", "utf8");
 
 describe("production deployment configuration", () => {
+  it("runs functions in London, next to the Supabase project (eu-west-2)", () => {
+    // Vercel's default, iad1 (Washington, D.C.), put every Supabase call on a transatlantic round trip
+    // (about 125 ms each, measured 29 Oct 2026). Hobby allows one region.
+    expect(vercel.regions).toEqual(["lhr1"]);
+  });
+
   it("uses one daily cron on Vercel Hobby, inside the reminders send window", () => {
     // 11:00 UTC is 11:00 (GMT) or 12:00 (BST) in London: after the 10:00 reminder time, inside
     // 09:00–19:00, and Hobby's within-the-hour start still lands before 13:00.

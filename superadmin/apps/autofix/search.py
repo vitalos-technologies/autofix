@@ -1,7 +1,10 @@
-"""Command palette and live search: garages by name or slug, and custom domains by hostname."""
+"""Command palette and live search: garages by name or slug, custom domains by hostname and, for
+SuperAdmin and Support, contact page enquiries by sender or garage name."""
 
 from django.urls import reverse
+from django.utils import timezone
 
+from apps.accounts.roles import can_handle_enquiries
 from apps.core.palette import PaletteResult
 
 from . import selectors
@@ -50,3 +53,23 @@ def palette_results(user, query: str) -> list[PaletteResult]:
         for domain in domains
     ]
     return results
+
+
+def enquiry_results(user, query: str) -> list[PaletteResult]:
+    """Enquiries for SuperAdmin and Support only; the hint carries topic, status and date, no contact details."""
+    if len(query) < 2 or not can_handle_enquiries(user):
+        return []
+    try:
+        found = selectors.find_enquiries(query, LIMIT)
+    except AutofixUnavailable:
+        return []
+    return [
+        PaletteResult(
+            "Enquiries",
+            enquiry.name,
+            reverse("autofix:enquiry", args=[enquiry.pk]),
+            f"{enquiry.get_topic_display()} · {enquiry.get_status_display()} · {timezone.localtime(enquiry.received_at):%d %b}",
+            "inbox",
+        )
+        for enquiry in found
+    ]

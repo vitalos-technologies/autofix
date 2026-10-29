@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { formatRegistrationDisplay } from "@/components/book";
 import { readBookingDraft } from "@/lib/booking-engine/state";
 import { loadBookingServices } from "@/lib/booking-flow/server";
+import { garageShowsPrices } from "@/lib/booking-page/show-prices";
 import { redirectForStep } from "@/lib/booking-flow/steps";
 import { vehicleName } from "@/lib/booking-flow/vehicle";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
@@ -41,15 +42,18 @@ export default async function ServicePage({ params }: { params: Promise<{ garage
     );
   }
 
+  // A garage that hides prices sends none to the browser: the client props carry no price.
+  const showPrices = garageShowsPrices(garage);
   return (
     <BookingScreen garage={garage} step={2} subtitle={subtitle} back={back}>
       <ServiceStep
+        showPrices={showPrices}
         services={services.map(({ id, name, description, durationMin, pricePence, priceMode, locationMode }) => ({
           id,
           name,
           description,
           durationMin,
-          pricePence,
+          pricePence: showPrices ? pricePence : null,
           priceMode,
           locationMode,
         }))}

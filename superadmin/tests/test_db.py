@@ -8,11 +8,12 @@ from django.db import DatabaseError
 from apps.autofix import db
 
 
-def test_only_the_three_platform_functions_are_allowed():
+def test_only_the_four_platform_functions_are_allowed():
     assert set(db.PLATFORM_FUNCTIONS) == {
         "platform_update_garage",
         "platform_retry_job",
         "platform_request_domains_check",
+        "platform_update_enquiry",
     }
     for name in ("enqueue_job", "create_booking", "platform_start_impersonation", "x; drop table jobs"):
         with pytest.raises(ValueError):

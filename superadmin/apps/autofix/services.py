@@ -7,6 +7,7 @@ our own append-only audit event. Nothing writes to Autofix tables directly, and 
 bookings (bookings are created only through Autofix's ``create_booking()``).
 """
 
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -14,12 +15,12 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 
-from apps.accounts.roles import can_change_autofix, can_support
+from apps.accounts.roles import can_change_autofix, can_handle_enquiries, can_support
 from apps.audit.services import record
 
 from . import db
 from . import plans as plan_rules
-from .models import GARAGE_STATUSES, Call, Garage, GarageDomain, Job
+from .models import ENQUIRY_STATUSES, GARAGE_STATUSES, Call, Garage, GarageDomain, Job, PlatformEnquiry
 from .redact import clean_reason
 
 REASON_HELP = "Give a reason of 5 to 500 characters. It is logged and shown to the garage's owners."
@@ -33,7 +34,10 @@ FRIENDLY_ERRORS = {
     "DOMAIN_NOT_FOUND": "That domain could not be found.",
     "DOMAIN_NOT_CHECKABLE": "Only custom domains waiting for DNS or verification can be re-checked.",
     "NOT_CONFIGURED": "Autofix data is not connected.",
+    "ENQUIRY_NOT_FOUND": "That enquiry could not be found.",
+    "INVALID_NOTES": "Notes can be up to 5,000 characters.",
 }
+NOTES_MAX = 5000
 
 
 @dataclass(frozen=True)
@@ -43,10 +47,11 @@ class Outcome:
     detail: dict | None = None
 
 
-def _require_writer(request) -> uuid.UUID:
-    """SuperAdmin, verified with TOTP in this session, linked to an Autofix platform admin."""
+def _require_writer(request, allowed=can_change_autofix) -> uuid.UUID:
+    """SuperAdmin (or whoever ``allowed`` admits), verified with TOTP in this session, linked to an
+    Autofix platform admin."""
     user = request.user
-    if not can_change_autofix(user):
+    if not allowed(user):
         raise PermissionDenied
     is_verified = getattr(user, "is_verified", None)
     if not (is_verified and is_verified()):
@@ -221,4 +226,86 @@ def record_voicemail_played(request, call: Call) -> None:
         summary=f"{call.line_name}: voicemail from {timezone.localtime(call.created_at):%d %b %Y %H:%M}",
         line="platform" if call.is_platform else str(call.garage_id),
         seconds=call.voicemail_duration_s,
+    )
+
+
+# --- Enquiries (contact page) ------------------------------------------------------------------
+
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _enquiry_ref(enquiry: PlatformEnquiry) -> str:
+    """How our audit trail names an enquiry: short id and topic, never the sender's details."""
+    return f"Enquiry {str(enquiry.pk)[:8]} ({enquiry.get_topic_display()})"
+
+
+def clean_notes(value) -> str:
+    """Line endings normalised, control characters (bar tab and newline) dropped, trimmed."""
+    if not isinstance(value, str):
+        return ""
+    return _CONTROL.sub("", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+
+
+def update_enquiry(request, enquiry: PlatformEnquiry, *, status: str, notes) -> Outcome:
+    """Status and/or internal notes through ``platform_update_enquiry`` (one Autofix audit row per change).
+
+    SuperAdmin and Support, with a verified second factor and a linked Autofix platform admin. Our own
+    audit event records what changed, never the notes' text.
+    """
+    actor = _require_writer(request, can_handle_enquiries)
+    statuses = dict(ENQUIRY_STATUSES)
+    if status not in statuses:
+        raise ValidationError("Choose a status.")
+    cleaned = clean_notes(notes)
+    if len(cleaned) > NOTES_MAX:
+        raise ValidationError(FRIENDLY_ERRORS["INVALID_NOTES"])
+    new_status = status if status != enquiry.status else None
+    notes_changed = cleaned != (enquiry.notes or "")
+    if new_status is None and not notes_changed:
+        raise ValidationError("Change the status or the notes first.")
+    try:
+        result = db.call_platform_function(
+            "platform_update_enquiry",
+            [str(enquiry.pk), new_status, cleaned if notes_changed else None],
+            actor_id=actor,
+        )
+    except db.PlatformError as error:
+        record(
+            "autofix.enquiry_update_refused",
+            request=request,
+            entity_type="autofix.platform_enquiry",
+            entity_id=str(enquiry.pk),
+            summary=f"{_enquiry_ref(enquiry)}: refused ({error.code})",
+            code=error.code,
+        )
+        return Outcome(False, _friendly(error))
+    changes = []
+    if new_status:
+        changes.append(f"status {statuses[enquiry.status]} → {statuses[new_status]}")
+    if notes_changed:
+        changes.append("notes cleared" if not cleaned else "notes updated")
+    record(
+        "autofix.enquiry_updated",
+        request=request,
+        entity_type="autofix.platform_enquiry",
+        entity_id=str(enquiry.pk),
+        summary=f"{_enquiry_ref(enquiry)}: {', '.join(changes)}",
+        status=new_status,
+        notes_changed=notes_changed,
+        notes_length=len(cleaned),
+        autofix_admin=str(actor),
+    )
+    return Outcome(True, f"Saved: {', '.join(changes)}.", result)
+
+
+def record_enquiry_view(request, enquiry: PlatformEnquiry) -> None:
+    """Each opening of an enquiry (the sender's contact details) is audited."""
+    if not can_handle_enquiries(request.user):
+        raise PermissionDenied
+    record(
+        "autofix.enquiry_viewed",
+        request=request,
+        entity_type="autofix.platform_enquiry",
+        entity_id=str(enquiry.pk),
+        summary=_enquiry_ref(enquiry),
     )

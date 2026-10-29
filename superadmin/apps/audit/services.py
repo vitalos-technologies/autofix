@@ -35,6 +35,10 @@ ACTIONS = {
     "autofix.view_as_support": "Handed off to View as support",
     "autofix.personal_data_viewed": "Viewed customer details on a garage's bookings",
     "autofix.voicemail_played": "Played a garage's voicemail",
+    # Contact page enquiries. Summaries carry the enquiry's short id and topic, never the sender's details.
+    "autofix.enquiry_viewed": "Opened a contact page enquiry",
+    "autofix.enquiry_updated": "Changed an enquiry's status or notes",
+    "autofix.enquiry_update_refused": "Tried to change an enquiry (refused by Autofix)",
 }
 
 

@@ -36,6 +36,20 @@ export async function checkSlugAvailability(slug: string, service: SupabaseClien
   return { status: data ? "taken" : "available" };
 }
 
+/**
+ * Which of `slugs` can be claimed right now, in one query (same rules as `checkSlugAvailability`),
+ * in the order given. Null when the lookup cannot be made.
+ */
+export async function availableSlugs(slugs: string[], service: SupabaseClient | null = createAdminClient()): Promise<string[] | null> {
+  const candidates = [...new Set(slugs)].filter((slug) => !slugProblem(slug));
+  if (!candidates.length) return [];
+  if (!service) return null;
+  const { data, error } = await service.from("garages").select("slug").in("slug", candidates);
+  if (error) return null;
+  const taken = new Set((data ?? []).map((row: { slug: string }) => row.slug));
+  return candidates.filter((slug) => !taken.has(slug));
+}
+
 export type CreateGarageResult =
   | { ok: true; garageId: string; slug: string }
   | { ok: false; code: "SLUG_TAKEN" | "SLUG_RESERVED" | "EMAIL_NOT_CONFIRMED" | "GARAGE_LIMIT_REACHED" | "INVALID_GARAGE" | "UNAVAILABLE"; field?: string };

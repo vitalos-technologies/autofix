@@ -7,6 +7,7 @@ import { Badge, PageHeader, Panel, textLinkClass } from "@/components/admin-ui";
 import { ServiceDepositPanel } from "@/components/payments/panels";
 import { formatDuration, formatServicePrice } from "@/components/book";
 import { CollectionDeliverySetting } from "@/components/courtesy/collection-setting";
+import { garageShowsPrices } from "@/lib/booking-page/show-prices";
 import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { ReadOnlyNotice } from "../../_components/setup-nav";
@@ -34,7 +35,7 @@ export default async function EditServicePage({ params, searchParams }: PageProp
       </Link>
       <PageHeader eyebrow="Services & prices" title={canEdit ? `Edit ${service.name}` : service.name} />
       {canEdit ? (
-        <ServiceForm initial={service} motEnabled={admin.garage.motEnabled} garageName={admin.garage.name} />
+        <ServiceForm initial={service} motEnabled={admin.garage.motEnabled} garageName={admin.garage.name} showPrices={garageShowsPrices(admin.garage)} />
       ) : (
         <>
           <ReadOnlyNotice level="manage" />

@@ -2,7 +2,6 @@
  * Sign-up and onboarding validation (P4.4). Client-safe and pure: the wizard shows these messages
  * as the owner types, and the server actions run the same parsers before anything is written.
  */
-import { z } from "zod";
 import { normaliseUkPostcode } from "@/lib/booking-flow/copy";
 import { toE164UK } from "@/lib/messaging/phone";
 import { placeWebsite } from "@/lib/places/map";
@@ -25,7 +24,16 @@ function value(form: FormData | Record<string, unknown>, key: string): string {
 export type AccountField = "name" | "email" | "password";
 export type AccountInput = { name: string; email: string; password: string };
 
-const emailSchema = z.email();
+/**
+ * zod's email pattern (`z.email()`), copied: this module also runs in the browser, and importing zod
+ * for one check added 64 KB gzipped to the sign-up pages. A test keeps it equal to zod's.
+ */
+export const EMAIL_PATTERN = /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
+
+/** Exactly `z.email().safeParse(value).success` for a string. */
+function isEmail(value: string) {
+  return EMAIL_PATTERN.test(value);
+}
 
 export function parseAccountForm(form: FormData | Record<string, unknown>): ParseResult<AccountInput, AccountField> {
   const name = value(form, "name").replace(/\s+/g, " ").trim();
@@ -33,7 +41,7 @@ export function parseAccountForm(form: FormData | Record<string, unknown>): Pars
   const password = value(form, "password");
   const errors: FieldErrors<AccountField> = {};
   if (name.length < 2 || name.length > 100) errors.name = "Enter your name.";
-  if (!emailSchema.safeParse(email).success || email.length > 254) errors.email = "Enter a valid email address, like name@garage.co.uk.";
+  if (!isEmail(email) || email.length > 254) errors.email = "Enter a valid email address, like name@garage.co.uk.";
   if (password.length < PASSWORD_MIN_LENGTH) errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
   else if (password.length > 128) errors.password = "Use 128 characters or fewer.";
   else if (password.trim().length !== password.length) errors.password = "Your password can't start or end with a space.";
@@ -77,7 +85,7 @@ export function parseGarageDetails(form: FormData | Record<string, unknown>): Pa
   const errors: FieldErrors<GarageField> = {};
   if (name.length < 2 || name.length > 120) errors.name = "Enter your garage's name.";
   if (!phone) errors.phone = "Enter a UK phone number customers can call, like 01302 123456.";
-  if (emailInput && (!emailSchema.safeParse(emailInput).success || emailInput.length > 254)) errors.email = "Enter a valid email address, or leave it empty.";
+  if (emailInput && (!isEmail(emailInput) || emailInput.length > 254)) errors.email = "Enter a valid email address, or leave it empty.";
   if (websiteInput && !website) errors.website = "Enter a website address, like www.yourgarage.co.uk, or leave it empty.";
   if (!line1 || line1.length > 120) errors.line1 = "Enter the first line of the address.";
   if (line2.length > 120) errors.line2 = "Use 120 characters or fewer.";
@@ -176,7 +184,7 @@ export function parseInviteForm(form: FormData | Record<string, unknown>): Parse
   const email = value(form, "email").trim().toLowerCase();
   const role = value(form, "role");
   const errors: FieldErrors<InviteField> = {};
-  if (!emailSchema.safeParse(email).success || email.length > 254) errors.email = "Enter their email address.";
+  if (!isEmail(email) || email.length > 254) errors.email = "Enter their email address.";
   if (!(INVITE_ROLES as readonly string[]).includes(role)) errors.role = "Choose a role.";
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, value: { email, role: role as InviteRole } };
 }

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import type { PublicGarage } from "@/components/garage/garage-provider";
 import { askbridgeFromSettings } from "@/lib/askbridge/config";
+import { showPricesFromSettings } from "@/lib/booking-page/show-prices";
 import { resolveHost } from "@/lib/tenancy/resolve";
 
 export type GarageAddress = { line1?: string; line2?: string; town?: string; postcode?: string };
@@ -49,6 +50,8 @@ export type Garage = {
   invoicePayment: GarageInvoicePayment | null;
   /** Askbridge site key from `settings.askbridge` while the owner has the chat on (P4.6); otherwise null. */
   askbridgeSiteKey?: string | null;
+  /** `settings.showPrices`: false hides service prices on the booking site; absent means shown. Read with `garageShowsPrices()`. */
+  showPrices?: boolean;
 };
 
 type GarageDomainRow = { hostname: string; kind?: string | null; status?: string | null; deleted_at?: string | null; created_at?: string | null };
@@ -135,6 +138,7 @@ export function garageFromRow(row: GarageRow): Garage {
     tagline: text(row.settings?.tagline, 160),
     invoicePayment: invoicePaymentFrom(row.settings),
     askbridgeSiteKey: askbridge.enabled ? askbridge.siteKey : null,
+    showPrices: showPricesFromSettings(row.settings),
   };
 }
 

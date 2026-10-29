@@ -2,7 +2,7 @@
 
 Every Autofix rule stays in Autofix's database. Each function checks that ``auth.uid()`` is a platform
 admin at AAL2, validates the reason and writes ``platform_audit_log`` and the garage's own audit log.
-The super admin connects as ``autofix_superadmin`` (SELECT on views, EXECUTE on the three functions
+The super admin connects as ``autofix_superadmin`` (SELECT on views, EXECUTE on the four functions
 below, read-only sessions by default). For a write it opens a read-write transaction, sets
 ``request.jwt.claims`` for the signed-in Vitalos user's linked platform admin (whose second factor
 Django has just verified) and calls one function. Nothing else can be called from here.
@@ -26,6 +26,8 @@ PLATFORM_FUNCTIONS = {
     "platform_update_garage": 4,
     "platform_retry_job": 2,
     "platform_request_domains_check": 2,
+    # Contact page enquiries: status and notes (20261029003000_platform_enquiries.sql).
+    "platform_update_enquiry": 3,
 }
 _alias: ContextVar[str] = ContextVar("autofix_alias", default=ALIAS)
 

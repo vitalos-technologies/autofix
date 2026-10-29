@@ -31,6 +31,7 @@ export type MockOutboxEntry = {
   body: string;
   subject?: string;
   html?: string;
+  replyTo?: string;
   senderId?: string;
   statusCallbackUrl?: string;
   idempotencyKey: string;
@@ -139,6 +140,7 @@ export function createMockChannel(kind: ChannelKind): MessageChannel {
         body: message.body,
         subject: message.subject,
         html: message.html,
+        ...(message.replyTo ? { replyTo: message.replyTo } : {}),
         senderId: message.senderId,
         statusCallbackUrl: message.statusCallbackUrl,
         idempotencyKey: message.idempotencyKey,

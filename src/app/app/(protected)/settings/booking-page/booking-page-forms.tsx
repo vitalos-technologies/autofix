@@ -28,28 +28,27 @@ export function ConnectDomainForm({ canEdit }: { canEdit: boolean }) {
   useFocusOnError(state, CONNECT_FIELDS);
   return (
     <form action={formAction} noValidate className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-2.5">
-        <TextInputField
-          id="domain-hostname"
-          name="hostname"
-          label="Web address"
-          hint="A subdomain of your own website, for example book.yourgarage.co.uk."
-          placeholder="book.yourgarage.co.uk"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          inputMode="url"
-          maxLength={253}
-          value={hostname}
-          onChange={(event) => setHostname(event.target.value)}
-          disabled={!canEdit}
-          error={state.fieldErrors?.hostname}
-          fieldClassName="min-w-0 flex-[1_1_300px]"
-        />
-        <SubmitButton disabled={!canEdit} className={buttonClass("primary", "md", "w-full sm:w-auto")}>
-          Connect
-        </SubmitButton>
-      </div>
+      <TextInputField
+        id="domain-hostname"
+        name="hostname"
+        label="Web address"
+        hint="A subdomain of your own website, for example book.yourgarage.co.uk."
+        placeholder="book.yourgarage.co.uk"
+        autoComplete="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        inputMode="url"
+        maxLength={253}
+        value={hostname}
+        onChange={(event) => setHostname(event.target.value)}
+        disabled={!canEdit}
+        error={state.fieldErrors?.hostname}
+        action={
+          <SubmitButton disabled={!canEdit} className={buttonClass("primary", "md")}>
+            Connect
+          </SubmitButton>
+        }
+      />
       <FormMessage state={state} />
     </form>
   );

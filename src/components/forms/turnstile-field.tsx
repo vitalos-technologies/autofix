@@ -38,5 +38,7 @@ export function TurnstileField({ onToken, theme = "light" }: { onToken: (token: 
   }, []);
 
   if (development || !siteKey) return null;
-  return <><Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="lazyOnload" onLoad={render} /><div id={id} ref={ref} /></>;
+  // onReady (not onLoad) also fires when the field mounts again after the script has loaded, e.g. when the
+  // contact form asks for a fresh token after a failed send, so the new widget is rendered too.
+  return <><Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="lazyOnload" onReady={render} /><div id={id} ref={ref} /></>;
 }

@@ -3,13 +3,17 @@ import { createAdminClient } from "@/lib/supabase/server";
 
 const localBuckets = new Map<string, { count: number; resetAt: number }>();
 
-function hashIdentifier(value: string) {
-  const day = new Date().toISOString().slice(0, 10);
+/**
+ * SHA-256 of "<UTC day>:<value>": how rate_limit_buckets keys an identifier. Also stored as
+ * platform_enquiries.ip_hash, so it links one source's requests on one day and nothing more.
+ */
+export function rateLimitIdentifierHash(value: string, now: Date = new Date()) {
+  const day = now.toISOString().slice(0, 10);
   return createHash("sha256").update(`${day}:${value}`).digest("hex");
 }
 
 export async function consumeRateLimit(identifier: string, scope: string, limit = 10, windowSeconds = 60) {
-  const key = hashIdentifier(identifier);
+  const key = rateLimitIdentifierHash(identifier);
   const admin = process.env.PLAYWRIGHT_TEST === "true" ? null : createAdminClient();
 
   if (admin) {

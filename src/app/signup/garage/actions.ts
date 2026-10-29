@@ -5,7 +5,7 @@ import { getPlacesProvider, cleanPlacesQuery } from "@/lib/places/provider";
 import { isPlaceId, PlacesLookupError, type PlaceDetails, type PlaceSummary } from "@/lib/places/types";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { parseGarageForm, parseSlug, type FieldErrors, type GarageField } from "@/lib/signup/schema";
-import { checkSlugAvailability, createGarageForUser, getSignupSession, requestIp, signupDisplayName } from "@/lib/signup/server";
+import { availableSlugs, createGarageForUser, getSignupSession, requestIp, signupDisplayName } from "@/lib/signup/server";
 import { SLUG_PROBLEM_MESSAGES, slugAlternatives } from "@/lib/signup/slug";
 import { ONBOARDING_PATHS } from "@/components/onboarding/steps";
 
@@ -70,15 +70,11 @@ export async function checkSlugAction(raw: string, town?: string): Promise<SlugC
   if (!user || !(await consumeRateLimit(user.id, "signup_slug", 120, 600))) {
     return { slug: parsed.value, status: "unavailable", message: SLUG_PROBLEM_MESSAGES.unavailable, alternatives: [] };
   }
-  const { status } = await checkSlugAvailability(parsed.value);
-  if (status === "available") return { slug: parsed.value, status, message: "This link is free.", alternatives: [] };
-  if (status === "taken") {
-    const candidates = slugAlternatives(parsed.value, town);
-    const free: string[] = [];
-    for (const candidate of candidates) if ((await checkSlugAvailability(candidate)).status === "available") free.push(candidate);
-    return { slug: parsed.value, status, message: SLUG_PROBLEM_MESSAGES.taken, alternatives: free.slice(0, 3) };
-  }
-  return { slug: parsed.value, status, message: SLUG_PROBLEM_MESSAGES[status === "invalid" ? "characters" : "unavailable"], alternatives: [] };
+  // The link and the alternatives offered when it is taken, in one lookup.
+  const free = await availableSlugs([parsed.value, ...slugAlternatives(parsed.value, town)]);
+  if (!free) return { slug: parsed.value, status: "unavailable", message: SLUG_PROBLEM_MESSAGES.unavailable, alternatives: [] };
+  if (free.includes(parsed.value)) return { slug: parsed.value, status: "available", message: "This link is free.", alternatives: [] };
+  return { slug: parsed.value, status: "taken", message: SLUG_PROBLEM_MESSAGES.taken, alternatives: free.slice(0, 3) };
 }
 
 export type CreateGarageState = { seq: number; errors: FieldErrors<GarageField>; message?: string };
