@@ -90,6 +90,14 @@ export const bookingCustomerInputSchema = z.object({
    * Only sent when `reminderConsent` is true.
    */
   consentText: z.string().trim().min(1).max(300).optional(),
+  /**
+   * Offers (campaigns) consent, apart from reminders: only the customer gives it, by ticking the
+   * offers box on the booking page. `create_booking()` refuses it from staff and the AI front desk;
+   * the public and agent APIs never accept it (they omit both keys). Absent means not given.
+   */
+  offersConsent: z.boolean().optional(),
+  /** The exact offers wording shown, with the garage's name (`customers.offers_consent_text`). Required with `offersConsent`. */
+  offersConsentText: z.string().trim().min(1).max(300).optional(),
 });
 export type BookingCustomerInput = z.infer<typeof bookingCustomerInputSchema>;
 

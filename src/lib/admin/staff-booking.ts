@@ -85,6 +85,8 @@ export async function createStaffBooking(garageId: string, memberId: string, inp
       channel: "sms",
       reminderConsent: input.reminderConsent,
       consentText: input.reminderConsent ? STAFF_CONSENT_WORDING : undefined,
+      // Staff never record offers consent; only the customer ticks it on the booking page.
+      offersConsent: false,
     },
     vehicle: { registration: input.registration, make: input.make, model: input.model },
   }, { staff: { memberId, overrideHours: input.overrideHours } });

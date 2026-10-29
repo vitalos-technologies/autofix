@@ -88,7 +88,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 | `SlotGrid` | Booking 3 | 3 columns of 48px buttons, grouped Morning/Afternoon; taken = dashed + struck through and disabled |
 | `StickyActionBar` | Booking 1 to 4 | White bar, 54px accent button whose label states the next step or the chosen time |
 | `BookingSummaryBar` | Booking 4 | Navy card: plate chip, service, time, Edit |
-| `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due" |
+| `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due". A second, separate one under it for offers (consent wording v1.0), also unticked: "Send me occasional offers from [Garage name]. You can stop these any time." |
 | `ConfirmationCard` | Booking 5 | Reference in Barlow, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
 | `BookingStatusChip` | Manage booking | Customer-facing status: 999px chip with a dot, success / warning / info / neutral / danger (same colour pairs as `StatusPill`) |
 | `AdminShell` | Admin desktop | Navy sidebar (garage switcher, 3 groups), white top bar (search, booking page link, bell, avatar); stacks on phones |

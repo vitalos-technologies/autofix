@@ -241,7 +241,7 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
     // Always a request for staff to confirm: source ai_agent makes create_booking() store `requested`.
     const result = await getBookingEngine().createBooking(garageId, {
       ...input,
-      customer: { ...input.customer, reminderConsent: false },
+      customer: { ...input.customer, reminderConsent: false, offersConsent: false },
       source: "ai_agent",
     });
     if (!result.ok) {

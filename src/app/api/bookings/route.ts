@@ -4,7 +4,7 @@ import { getBookingEngine } from "@/lib/booking-engine";
 import { bookingErrorMessages, bookingErrorStatus } from "@/lib/booking-engine/errors";
 import { bodyErrorResponse, errorResponse, jsonResponse, readJsonBody, requesterIp, validationIssues } from "@/lib/booking-engine/http";
 import { manageBookingUrl } from "@/lib/booking-engine/manage";
-import { createBookingInputSchema } from "@/lib/booking-engine/types";
+import { bookingCustomerInputSchema, createBookingInputSchema } from "@/lib/booking-engine/types";
 import { toE164UK } from "@/lib/messaging/phone";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { resolveRouteGarage } from "@/lib/tenancy/route";
@@ -14,9 +14,15 @@ import { verifyTurnstile } from "@/lib/turnstile";
 // always "online" here and a reminder attribution only ever comes from a
 // verified reminder link (server side), so neither may be sent. The schema is
 // strict: a garage id (or anything else unexpected) in the body is a 422.
+// Offers consent is taken only on the booking page, where the server knows the
+// wording the customer saw, so the customer object here has no offers keys
+// (they are dropped like any other unknown customer key).
 const publicBookingSchema = createBookingInputSchema
-  .omit({ source: true, reminderSendId: true })
-  .extend({ turnstileToken: z.string().trim().min(1).max(4096).optional() });
+  .omit({ source: true, reminderSendId: true, customer: true })
+  .extend({
+    customer: bookingCustomerInputSchema.omit({ offersConsent: true, offersConsentText: true }),
+    turnstileToken: z.string().trim().min(1).max(4096).optional(),
+  });
 
 const tooMany = () => errorResponse(429, "RATE_LIMITED", bookingErrorMessages.RATE_LIMITED);
 
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
   const phoneKey = toE164UK(booking.customer.phone) ?? booking.customer.phone;
   if (!(await consumeRateLimit(`${garage.id}:${ip}:${phoneKey}`, "booking_create_details", 5, 1_800))) return tooMany();
 
-  const result = await getBookingEngine().createBooking(garage.id, { ...booking, source: "online" });
+  const result = await getBookingEngine().createBooking(garage.id, { ...booking, customer: { ...booking.customer, offersConsent: false }, source: "online" });
   if (!result.ok) {
     return errorResponse(bookingErrorStatus[result.code], result.code, result.message, result.alternatives ? { alternatives: result.alternatives } : {});
   }

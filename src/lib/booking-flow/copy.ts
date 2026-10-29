@@ -1,8 +1,9 @@
 /**
  * Customer-facing wording and formatting for the booking flow. Pure and client-safe.
  */
-import { REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book/consent-checkbox";
+import { OFFERS_CONSENT_COPY, REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book/consent-checkbox";
 import type { CustomerChannel, LocationMode } from "@/lib/booking-engine/types";
+import { fillGarageName } from "@/lib/consent/copy";
 
 /** Symptom chips on the service step. Values are stored as `bookings.symptoms`. */
 export const SYMPTOM_OPTIONS = [
@@ -28,6 +29,11 @@ export const CHANNEL_OPTIONS: ReadonlyArray<{ value: CustomerChannel; label: str
 /** The reminder consent wording shown for this garage. The same text is stored with the consent. */
 export function reminderConsentCopy(motEnabled: boolean): string {
   return motEnabled ? REMINDER_CONSENT_COPY : REMINDER_CONSENT_COPY_NO_MOT;
+}
+
+/** The offers consent wording shown for this garage, with its name. The same text is stored with the consent. */
+export function offersConsentCopy(garageName: string): string {
+  return fillGarageName(OFFERS_CONSENT_COPY, garageName);
 }
 
 const UK_POSTCODE = /^(GIR ?0AA|[A-PR-UWYZ](?:[0-9][0-9A-HJKPSTUW]?|[A-HK-Y][0-9][0-9ABEHMNPRV-Y]?) ?[0-9][ABD-HJLNP-UW-Z]{2})$/;

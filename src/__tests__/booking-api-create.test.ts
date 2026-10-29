@@ -87,6 +87,14 @@ describe("POST /api/bookings", () => {
     expect(input).not.toHaveProperty("reminderSendId");
   });
 
+  it("never takes offers consent from the body: only the booking page records it", async () => {
+    const response = await post({ ...body, customer: { ...body.customer, offersConsent: true, offersConsentText: "Send me occasional offers from Anyone. You can stop these any time." } });
+    expect(response.status).toBe(201);
+    const [, input] = engine.createBooking.mock.calls[0]!;
+    expect(input.customer).toMatchObject({ reminderConsent: true, offersConsent: false });
+    expect(input.customer).not.toHaveProperty("offersConsentText");
+  });
+
   it("applies SOB's limits: per IP, per garage and per customer", async () => {
     await post(body);
     expect(harness.rateLimitCalls).toEqual([

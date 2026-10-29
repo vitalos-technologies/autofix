@@ -327,6 +327,8 @@ test.describe("5-step booking flow", () => {
     await expectOneVisibleH1(page, "Who's dropping it off?");
     await expect(page.getByText("Diagnostics · Workshop")).toBeVisible();
     await expect(page.getByRole("checkbox", { name: /Remind me when the MOT and service are due/ })).not.toBeChecked();
+    // Offers consent is its own box (consent wording v1.0), unticked, with the garage's name.
+    await expect(page.getByRole("checkbox", { name: /^Send me occasional offers from .+\. You can stop these any time\.$/ })).not.toBeChecked();
     await page.getByRole("button", { name: "Confirm booking" }).click();
     await expect(page.getByText("Enter your full name.")).toBeVisible();
     await expect(page.getByLabel("Full name")).toBeFocused();

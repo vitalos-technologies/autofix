@@ -304,6 +304,20 @@ describe("createBooking", () => {
     }
   });
 
+  it("passes offers consent apart from reminder consent, with its wording only alongside a ticked box", async () => {
+    const wording = "Send me occasional offers from Hartley Road Motors. You can stop these any time.";
+    const ticked = engineFor(world());
+    await ticked.engine.createBooking(GARAGE, input({ customer: { ...input().customer, reminderConsent: false, offersConsent: true, offersConsentText: wording } }));
+    const tickedCustomer = (ticked.fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { customer: Record<string, unknown> }).customer;
+    expect(tickedCustomer).toMatchObject({ reminder_consent: false, consent_source: null, consent_text: null, offers_consent: true, offers_consent_text: wording });
+    expect(tickedCustomer).not.toHaveProperty("offers_consent_source");
+
+    const unticked = engineFor(world());
+    await unticked.engine.createBooking(GARAGE, input({ customer: { ...input().customer, offersConsentText: wording } }));
+    const untickedCustomer = (unticked.fake.rpcs.find((item) => item.fn === "create_booking")!.args.p_booking as { customer: Record<string, unknown> }).customer;
+    expect(untickedCustomer).toMatchObject({ reminder_consent: true, offers_consent: false, offers_consent_text: null });
+  });
+
   it("rejects numbers that are not UK mobiles without touching the database", async () => {
     const { engine, fake } = engineFor(world());
     for (const phone of ["01302 000101", "+1 202 555 0100", "12345"]) {
