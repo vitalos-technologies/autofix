@@ -24,19 +24,27 @@ export async function saveOnboardingServicesAction(formData: FormData): Promise<
   const { error: garageError } = await admin.client.from("garages").update({ mot_enabled: motEnabled }).eq("id", admin.garage.id);
   if (garageError) redirect(`${ONBOARDING_PATHS.services}?error=save_failed`);
 
-  const now = new Date().toISOString();
+  const restore: string[] = [];
+  const archive: string[] = [];
   for (const service of services as Array<{ id: string; is_mot: boolean; deleted_at: string | null }>) {
     // The MOT service follows the MOT switch (it is never bookable while MOT is off).
     const wanted = service.is_mot ? motEnabled : keep.has(service.id);
     const archived = service.deleted_at !== null;
     if (wanted === !archived) continue;
-    const { error } = await admin.client
-      .from("services")
-      .update(wanted ? { deleted_at: null, deleted_by: null } : { deleted_at: now, deleted_by: admin.user.id })
-      .eq("garage_id", admin.garage.id)
-      .eq("id", service.id);
-    if (error) redirect(`${ONBOARDING_PATHS.services}?error=save_failed`);
+    (wanted ? restore : archive).push(service.id);
   }
+  // One update per direction, sent together (not one round trip per service).
+  const now = new Date().toISOString();
+  const changes = [
+    { ids: restore, values: { deleted_at: null, deleted_by: null } },
+    { ids: archive, values: { deleted_at: now, deleted_by: admin.user.id } },
+  ].filter((change) => change.ids.length);
+  const results = await Promise.all(changes.map((change) => admin.client
+    .from("services")
+    .update(change.values)
+    .eq("garage_id", admin.garage.id)
+    .in("id", change.ids)));
+  if (results.some((result) => result.error)) redirect(`${ONBOARDING_PATHS.services}?error=save_failed`);
 
   await auditSetupChange(admin, "onboarding.services_saved", "garage", admin.garage.id, { mot_enabled: motEnabled, services_kept: keep.size });
   afterSetupChange(admin.garage.id, ["/app/settings/services"]);
