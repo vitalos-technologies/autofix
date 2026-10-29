@@ -22,7 +22,11 @@ const DEMO_B_ORIGIN = `http://demo-b.localhost:${port}`;
 const REGISTRATION = "AB12CDE";
 const RIVAL_REGISTRATION = "EF56GHJ";
 const MANUAL_REGISTRATION = "CD34EFG";
-const REGISTRATIONS = [REGISTRATION, RIVAL_REGISTRATION, MANUAL_REGISTRATION];
+/** The car named in the Contact us test's message (29 Oct 2026). */
+const CONTACT_REGISTRATION = "GH78JKL";
+const REGISTRATIONS = [REGISTRATION, RIVAL_REGISTRATION, MANUAL_REGISTRATION, CONTACT_REGISTRATION];
+const CONTACT_PHONE = "07700 900463";
+const CONTACT_PHONE_E164 = "+447700900463";
 /** Ofcom drama-range mobiles used only by this spec (the seed uses 9001xx and 9002xx). */
 const CUSTOMER_PHONE = "07700 900461";
 const RIVAL_PHONE = "07700 900462";
@@ -143,6 +147,24 @@ async function deleteSpecBookings() {
   createdBookingIds.clear();
 }
 
+/** The Contact us test's enquiries, its customer and its car (all keyed by its own phone and registration). */
+async function deleteSpecEnquiries() {
+  const customers = await db.from("customers").select("id").eq("garage_id", garage.id).eq("phone", CONTACT_PHONE_E164);
+  if (customers.error) throw new Error(`Could not read the contact customer: ${customers.error.message}`);
+  const customerIds = (customers.data ?? []).map((row) => row.id as string);
+  if (customerIds.length) {
+    const enquiries = await db.from("enquiries").select("id").eq("garage_id", garage.id).in("customer_id", customerIds);
+    const enquiryIds = (enquiries.data ?? []).map((row) => row.id as string);
+    if (enquiryIds.length) {
+      await db.from("notification_attempts").delete().eq("garage_id", garage.id).in("enquiry_id", enquiryIds);
+      const { error } = await db.from("enquiries").delete().eq("garage_id", garage.id).in("id", enquiryIds);
+      if (error) throw new Error(`Could not delete the contact enquiries: ${error.message}`);
+    }
+  }
+  await db.from("vehicles").delete().eq("garage_id", garage.id).eq("registration", CONTACT_REGISTRATION);
+  if (customerIds.length) await db.from("customers").delete().eq("garage_id", garage.id).in("id", customerIds);
+}
+
 test.beforeAll(async () => {
   const found = await db.from("garages").select("id,timezone").eq("slug", "hartley-road").single();
   if (found.error || !found.data) throw new Error(`hartley-road is not seeded (pnpm db:seed): ${found.error?.message}`);
@@ -152,10 +174,12 @@ test.beforeAll(async () => {
   diagnosticsId = service.data.id as string;
   // Leftovers of an interrupted run.
   await deleteSpecBookings();
+  await deleteSpecEnquiries();
 });
 
 test.afterAll(async () => {
   await deleteSpecBookings();
+  await deleteSpecEnquiries();
 });
 
 function localDate(iso: string) {
@@ -462,6 +486,63 @@ test.describe("5-step booking flow", () => {
     await page.waitForURL(/\/service$/);
     await expect(page.getByRole("radio", { name: /Diagnostics/ })).toBeVisible();
     await expect(page.getByRole("radio", { name: /^MOT/ })).toHaveCount(0);
+  });
+
+  test("Contact us: a question reaches the garage's Enquiries, without the registration in any URL", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Contact us", exact: true }).click();
+    await page.waitForURL(/\/contact$/);
+    await expectOneVisibleH1(page, "Contact us");
+    await expectAccessible(page);
+    await noHorizontalOverflow(page);
+
+    // Checked in the browser first: the first field to fix gets focus.
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByLabel("Full name")).toBeFocused();
+    await expect(page.getByText("Enter your name.")).toBeVisible();
+    await page.getByLabel("Full name").fill("Contact Customer");
+    await page.getByLabel("Phone number").fill(CONTACT_PHONE);
+    await page.getByRole("button", { name: "Email", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Email", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByLabel("Your message").fill("Can you fit a towbar to my Focus next week?");
+    await page.getByLabel("Registration (optional)").fill("gh78 jkl");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByLabel(/^Email/)).toBeFocused();
+    await expect(page.getByText("Enter your email address, or choose another way to be contacted.")).toBeVisible();
+    await page.getByLabel(/^Email/).fill("contact.customer@example.com");
+    await expectAccessible(page);
+    await page.getByRole("button", { name: "Send message" }).click();
+
+    await expectOneVisibleH1(page, "Message sent");
+    await expect(page.getByRole("heading", { level: 1, name: "Message sent" })).toBeFocused();
+    await expect(page.getByText(/will get back to you by email\.$/)).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/contact");
+    await expectAccessible(page);
+    await noHorizontalOverflow(page);
+
+    // A real row in hartley-road's Enquiries (the host's garage), with the customer and the car.
+    const customer = await db.from("customers").select("id,email,preferred_contact").eq("garage_id", garage.id).eq("phone", CONTACT_PHONE_E164).single();
+    expect(customer.error).toBeNull();
+    expect(customer.data).toMatchObject({ email: "contact.customer@example.com", preferred_contact: "email" });
+    const enquiry = await db
+      .from("enquiries")
+      .select("type,description,status,vehicles(registration)")
+      .eq("garage_id", garage.id)
+      .eq("customer_id", customer.data!.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(enquiry.data).toMatchObject({ type: "general", description: "Can you fit a towbar to my Focus next week?", status: "new", vehicles: { registration: CONTACT_REGISTRATION } });
+  });
+
+  test("offers Contact us from the service step for a job that doesn't fit", async ({ page }) => {
+    await findCar(page);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.waitForURL(/\/service$/);
+    await page.getByRole("link", { name: "Ask the garage a question" }).click();
+    await page.waitForURL(/\/contact$/);
+    // The car already entered in this browser is offered (from the sealed draft, not the address).
+    await expect(page.getByLabel("Registration (optional)")).toHaveValue("AB12 CDE");
   });
 
   test("has no horizontal overflow at any step", async ({ page }) => {

@@ -58,6 +58,8 @@ export function renderBusinessEnquiryNotification(input: EnquiryTemplateInput): 
     { label: "Location", value: input.location },
   ];
   const url = adminUrl(`/app/enquiries/${input.enquiryId}`);
+  // A general enquiry (the booking site's Contact us form) is a message, not necessarily a fault.
+  const messageLabel = input.type === "general" ? "Message" : "Problem";
   return {
     html: emailLayout({
       brand,
@@ -66,10 +68,10 @@ export function renderBusinessEnquiryNotification(input: EnquiryTemplateInput): 
       tone: "info",
       title: typeLabel(input.type),
       intro: `A new customer request for ${brand.name} is ready to review.`,
-      contentHtml: `${detailCard(details)}<div style="margin-top:22px;"><p style="margin:0 0 8px;color:#586575;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Problem</p><div style="padding:16px 18px;border:1px solid #DCE6F2;border-radius:12px;color:#071127;font-size:15px;line-height:23px;overflow-wrap:anywhere;">${textToHtml(input.description)}</div></div>`,
+      contentHtml: `${detailCard(details)}<div style="margin-top:22px;"><p style="margin:0 0 8px;color:#586575;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">${messageLabel}</p><div style="padding:16px 18px;border:1px solid #DCE6F2;border-radius:12px;color:#071127;font-size:15px;line-height:23px;overflow-wrap:anywhere;">${textToHtml(input.description)}</div></div>`,
       cta: { label: "View enquiry", url },
     }),
-    text: [plainTextHeader(brand), "", "NEW ENQUIRY", "", typeLabel(input.type), "", detailsText(details), "", "Problem:", input.description, "", `View enquiry: ${url}`, plainTextFooter(brand)].join("\n"),
+    text: [plainTextHeader(brand), "", "NEW ENQUIRY", "", typeLabel(input.type), "", detailsText(details), "", `${messageLabel}:`, input.description, "", `View enquiry: ${url}`, plainTextFooter(brand)].join("\n"),
   };
 }
 

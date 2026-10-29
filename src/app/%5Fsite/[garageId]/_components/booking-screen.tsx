@@ -46,10 +46,13 @@ export function BookingScreen({ garage, step, subtitle, back, withActionBar = tr
 
 const footerLink = cn("inline-flex min-h-[44px] items-center px-1 text-grey-600 underline underline-offset-2 hover:text-navy-950", focusRing);
 
-/** Every booking page: the garage's privacy notice and the reminder opt-out (docs/autofix/legal/README.md). */
+/** Every booking page: Contact us, the garage's privacy notice and the reminder opt-out (docs/autofix/legal/README.md). */
 export function BookingFooter() {
   return (
     <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-3 px-5 pt-6 pb-2 text-[13px]">
+      <Link href="/contact" className={footerLink}>
+        Contact us
+      </Link>
       <Link href="/privacy" className={footerLink}>
         Privacy notice
       </Link>

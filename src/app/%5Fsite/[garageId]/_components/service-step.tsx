@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { SegmentedControl, ServiceOption, StickyActionBar, SymptomChips } from "@/components/book";
 import type { LocationMode, OnlineService } from "@/lib/booking-engine/types";
@@ -8,6 +9,7 @@ import { NOTE_MAX_LENGTH, SYMPTOM_OPTIONS } from "@/lib/booking-flow/copy";
 import { initialServiceFormState, type ServiceFormState } from "@/lib/booking-flow/forms";
 import { serviceLocationModes } from "@/lib/booking-flow/steps";
 import { FormAlert } from "./booking-screen";
+import { manageTextLink } from "./manage-ui";
 import { TextField } from "./text-field";
 
 const FORM_ID = "service-form";
@@ -88,6 +90,13 @@ export function ServiceStep({ services, showPrices = true, initial }: ServiceSte
             />
           ))}
         </fieldset>
+
+        <p className="m-0 flex flex-wrap items-center gap-x-1 text-[14px] text-grey-600">
+          Not sure what it needs?
+          <Link href="/contact" className={manageTextLink}>
+            Ask the garage a question
+          </Link>
+        </p>
 
         {service && modes.length > 1 ? (
           <SegmentedControl label="Where?" options={MODE_OPTIONS} value={locationMode} onChange={setMode} />
