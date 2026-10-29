@@ -136,6 +136,11 @@ const PHONE = /(?:\+|\b0)(?:[\s().-]?\d){9,14}\b/g;
 const REGISTRATION = /\b(?:[A-Z]{2}\d{2}\s?[A-Z]{3}|[A-Z]\d{1,3}\s?[A-Z]{3}|[A-Z]{3}\s?\d{1,3}[A-Z])\b/gi;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
+/** Text with anything shaped like a UK registration replaced by "[reg]" (registration privacy). */
+export function maskRegistrations(value: string) {
+  return value.replace(REGISTRATION, "[reg]");
+}
+
 /**
  * A job's last_error for the health page: emails, phone numbers and anything
  * shaped like a UK registration are masked (registration privacy), ids kept,

@@ -28,6 +28,8 @@ type CallRow = {
   voicemail_duration_s: number | null;
   text_back_message_id: string | null;
   handled_at: string | null;
+  ai_summary: string | null;
+  ai_outcome: string | null;
 };
 
 export const RECENT_CALLS_LIMIT = 50;
@@ -37,7 +39,7 @@ export async function listRecentCalls(client: SupabaseClient, garageId: string, 
   const limit = Math.max(1, Math.min(100, Math.trunc(options.limit ?? RECENT_CALLS_LIMIT)));
   const { data, error } = await client
     .from("calls")
-    .select("id,from_number,created_at,missed,status,duration_s,voicemail_url,voicemail_duration_s,text_back_message_id,handled_at")
+    .select("id,from_number,created_at,missed,status,duration_s,voicemail_url,voicemail_duration_s,text_back_message_id,handled_at,ai_summary,ai_outcome")
     .eq("garage_id", garageId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -60,6 +62,8 @@ export async function listRecentCalls(client: SupabaseClient, garageId: string, 
     voicemailHref: call.voicemail_url ? `/api/admin/calls/${call.id}/voicemail` : null,
     voicemailSeconds: call.voicemail_url ? call.voicemail_duration_s : null,
     textedBack: Boolean(call.text_back_message_id),
+    aiSummary: call.ai_summary ?? null,
+    aiOutcome: call.ai_outcome ?? null,
     missed: call.missed,
     handled: Boolean(call.handled_at),
     durationSeconds: call.missed ? null : call.duration_s,

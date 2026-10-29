@@ -25,6 +25,9 @@ export type MissedCallCard = {
   voicemailSeconds: number | null;
   /** The caller was texted back (the text's own delivery status is in `messages`). */
   textedBack: boolean;
+  /** P5.12 voice desk: what the AI front desk wrote about the call (no registrations), else null. */
+  aiSummary: string | null;
+  aiOutcome: string | null;
 };
 
 type CallRow = {
@@ -34,6 +37,8 @@ type CallRow = {
   voicemail_url: string | null;
   voicemail_duration_s: number | null;
   text_back_message_id: string | null;
+  ai_summary: string | null;
+  ai_outcome: string | null;
 };
 
 export const MISSED_CALL_CARD_LIMIT = 20;
@@ -43,7 +48,7 @@ export async function listMissedCallsNeedingOk(client: SupabaseClient, garageId:
   const limit = Math.max(1, Math.min(MISSED_CALL_CARD_LIMIT, Math.trunc(options.limit ?? 10)));
   const { data, error } = await client
     .from("calls")
-    .select("id,from_number,created_at,voicemail_url,voicemail_duration_s,text_back_message_id")
+    .select("id,from_number,created_at,voicemail_url,voicemail_duration_s,text_back_message_id,ai_summary,ai_outcome")
     .eq("garage_id", garageId)
     .eq("missed", true)
     .is("handled_at", null)
@@ -70,6 +75,8 @@ export async function listMissedCallsNeedingOk(client: SupabaseClient, garageId:
     voicemailHref: call.voicemail_url ? `/api/admin/calls/${call.id}/voicemail` : null,
     voicemailSeconds: call.voicemail_url ? call.voicemail_duration_s : null,
     textedBack: Boolean(call.text_back_message_id),
+    aiSummary: call.ai_summary ?? null,
+    aiOutcome: call.ai_outcome ?? null,
   }));
 }
 

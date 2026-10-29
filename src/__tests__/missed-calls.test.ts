@@ -153,7 +153,7 @@ describe("calls.text_back job", () => {
 describe("Needs your OK: missed calls", () => {
   const rows = [
     { id: "c1", from_number: CALLER, created_at: "2026-10-27T08:12:00Z", voicemail_url: "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Recordings/RE00000000000000000000000000000001", voicemail_duration_s: 17, text_back_message_id: "m1" },
-    { id: "c2", from_number: "+447700900456", created_at: "2026-10-27T07:50:00Z", voicemail_url: null, voicemail_duration_s: null, text_back_message_id: null },
+    { id: "c2", from_number: "+447700900456", created_at: "2026-10-27T07:50:00Z", voicemail_url: null, voicemail_duration_s: null, text_back_message_id: null, ai_summary: "Wants a service quote; asked for a call back.", ai_outcome: "callback" },
     { id: "c3", from_number: null, created_at: "2026-10-27T07:00:00Z", voicemail_url: null, voicemail_duration_s: null, text_back_message_id: null },
   ];
 
@@ -170,9 +170,9 @@ describe("Needs your OK: missed calls", () => {
     expect(hasFilter(fake.queries[1]!, "eq", "garage_id", GARAGE)).toBe(true);
     expect(filterValue(fake.queries[1]!, "in", "phone")).toEqual([CALLER, "+447700900456"]);
     expect(cards).toEqual([
-      { id: "c1", at: "2026-10-27T08:12:00Z", callerName: "Sam Driver", maskedNumber: "07••• •••123", callBackHref: `tel:${CALLER}`, voicemailHref: "/api/admin/calls/c1/voicemail", voicemailSeconds: 17, textedBack: true },
-      { id: "c2", at: "2026-10-27T07:50:00Z", callerName: null, maskedNumber: "07••• •••456", callBackHref: "tel:+447700900456", voicemailHref: null, voicemailSeconds: null, textedBack: false },
-      { id: "c3", at: "2026-10-27T07:00:00Z", callerName: null, maskedNumber: null, callBackHref: null, voicemailHref: null, voicemailSeconds: null, textedBack: false },
+      { id: "c1", at: "2026-10-27T08:12:00Z", callerName: "Sam Driver", maskedNumber: "07••• •••123", callBackHref: `tel:${CALLER}`, voicemailHref: "/api/admin/calls/c1/voicemail", voicemailSeconds: 17, textedBack: true, aiSummary: null, aiOutcome: null },
+      { id: "c2", at: "2026-10-27T07:50:00Z", callerName: null, maskedNumber: "07••• •••456", callBackHref: "tel:+447700900456", voicemailHref: null, voicemailSeconds: null, textedBack: false, aiSummary: "Wants a service quote; asked for a call back.", aiOutcome: "callback" },
+      { id: "c3", at: "2026-10-27T07:00:00Z", callerName: null, maskedNumber: null, callBackHref: null, voicemailHref: null, voicemailSeconds: null, textedBack: false, aiSummary: null, aiOutcome: null },
     ]);
     // The Twilio link itself never reaches the browser.
     expect(JSON.stringify(cards)).not.toContain("api.twilio.com");
