@@ -256,7 +256,7 @@ export function createSupabaseTwilioWebhookRepo(db: SupabaseClient): TwilioWebho
         .select("id");
       if (error) throw databaseError("calls.voicemail", error);
       if ((data ?? []).length > 0) return true;
-      // Not a garage call: Autofix's own line (A420).
+      // Not a garage call: Pitline's own line (A420).
       const platform = await db
         .from("platform_calls")
         .update({ voicemail_url: voicemail.url, voicemail_duration_s: voicemail.durationSeconds })

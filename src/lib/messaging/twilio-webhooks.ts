@@ -47,9 +47,9 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 //   gets the voicemail. Without the voice service configured
 //   (VOICE_RELAY_URL, VOICE_RELAY_SECRET), or if the check fails, the flow
 //   above is unchanged (src/lib/ai-front-desk/hand-off.ts).
-// - voice, Autofix's own line (A420): a number in AUTOFIX_PLATFORM_VOICE_NUMBERS
+// - voice, Pitline's own line (A420): a number in AUTOFIX_PLATFORM_VOICE_NUMBERS
 //   belongs to no garage. The call is logged in `platform_calls` (which no
-//   garage can read), greeted in Autofix's name and sent to the voicemail: no
+//   garage can read), greeted in Pitline's name and sent to the voicemail: no
 //   ring-through, no text-back, no AI front desk (src/lib/calls/platform-line.ts).
 // Logs carry ids, kinds and outcome codes only: never numbers or bodies.
 
@@ -77,7 +77,7 @@ export type CallRecord = {
   missed: boolean;
 };
 
-/** A call to Autofix's own line (A420): no garage, so no dial outcome and no text-back. */
+/** A call to Pitline's own line (A420): no garage, so no dial outcome and no text-back. */
 export type PlatformCallRecord = {
   callSid: string;
   from: string | null;
@@ -111,7 +111,7 @@ export interface TwilioWebhookRepo {
   /** Whether this caller rang this garage in the last `withinMs` on another call (a forward that came back to us). */
   callerRangRecently(garageId: string, from: string, callSid: string, withinMs: number): Promise<boolean>;
   recordDialOutcome(garageId: string, callSid: string, outcome: DialOutcome): Promise<{ callId: string | null }>;
-  /** A420: inserts a call to Autofix's own line in `platform_calls`, or moves its status forward. */
+  /** A420: inserts a call to Pitline's own line in `platform_calls`, or moves its status forward. */
   recordPlatformCall(call: PlatformCallRecord): Promise<{ outcome: "created" | "updated" | "unchanged" }>;
   /** Stores the voicemail link on the call by CallSid (unique across garages), in `calls` or else `platform_calls`; false when there is no such call. */
   recordVoicemail(callSid: string, voicemail: { url: string; durationSeconds: number | null }): Promise<boolean>;
@@ -134,7 +134,7 @@ export type TwilioWebhookDeps = {
   voiceRelayTarget?: VoiceRelayTarget | null;
   /** Wakes the voice service (GET its health URL) after the response, while the disclosure plays. */
   prewarm?: (url: string) => Promise<unknown>;
-  /** A420: Autofix's own numbers; undefined reads AUTOFIX_PLATFORM_VOICE_NUMBERS from `env` (or process.env). */
+  /** A420: Pitline's own numbers; undefined reads AUTOFIX_PLATFORM_VOICE_NUMBERS from `env` (or process.env). */
   platformVoiceNumbers?: ReadonlySet<string>;
 };
 
@@ -324,7 +324,7 @@ async function voice(form: Record<string, string>, repo: TwilioWebhookRepo, cont
 }
 
 /**
- * A420: a call to Autofix's own line. Logged in `platform_calls`, greeted in Autofix's name, then the
+ * A420: a call to Pitline's own line. Logged in `platform_calls`, greeted in Pitline's name, then the
  * voicemail (the recording steps are shared with garage calls). Nothing rings and nothing is texted.
  */
 async function platformVoice(form: Record<string, string>, repo: TwilioWebhookRepo, callSid: string, to: string, context: VoiceContext): Promise<Outcome> {

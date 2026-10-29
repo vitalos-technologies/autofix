@@ -213,7 +213,7 @@ def test_call_selectors_read_through_the_role(live):
     assert call.garage.name == "SA Integration Garage" and link == RECORDING
     platform = [row for row in selectors.calls({"garage": "platform"}) if row.pk == PLATFORM_CALL]
     assert [(row.caller_masked, row.garage_id, row.line_name) for row in platform] == [
-        ("07••• •••777", None, "Autofix (platform line)")
+        ("07••• •••777", None, "Pitline (platform line)")
     ]
     assert selectors.voicemail(PLATFORM_CALL)[1].endswith("RE" + "6" * 32)
 

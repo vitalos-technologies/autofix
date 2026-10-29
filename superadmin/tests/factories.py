@@ -152,7 +152,7 @@ class AutofixFactory:
     def call(self, garage, voicemail_s=None, voicemail_url=None, **values):
         """A call; with ``voicemail_s`` it has a voicemail and its recording link (as the views show it).
 
-        ``garage=None, is_platform=True`` is a call to Autofix's own line (A420)."""
+        ``garage=None, is_platform=True`` is a call to Pitline's own line (A420)."""
         if voicemail_s is not None:
             values.update(
                 has_voicemail=True, voicemail_duration_s=voicemail_s, missed=values.get("missed", True)

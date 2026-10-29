@@ -1241,8 +1241,8 @@ describe("tenancy isolation", () => {
     }
   });
 
-  describe("platform_calls (Autofix's own line, A420)", () => {
-    // Calls to Autofix's own number belong to no garage: no member of any garage, and nobody signed
+  describe("platform_calls (Pitline's own line, A420)", () => {
+    // Calls to Pitline's own number belong to no garage: no member of any garage, and nobody signed
     // out, may read or touch them, whatever garage they have selected or forge.
     for (const spec of ACTORS) {
       it(`${spec.label} cannot select, insert, update or delete platform calls`, async () => {

@@ -351,12 +351,12 @@ class Message(AutofixModel):
         db_table = "messages"
 
 
-# Shown for calls to Autofix's own number (``Call.is_platform``, DECISIONS A420).
-PLATFORM_LINE_LABEL = "Autofix (platform line)"
+# Shown for calls to Pitline's own number (``Call.is_platform``, DECISIONS A420).
+PLATFORM_LINE_LABEL = "Pitline (platform line)"
 
 
 class Call(AutofixModel):
-    """A garage's call, or a call to Autofix's own line (``is_platform``: no garage, no text-back)."""
+    """A garage's call, or a call to Pitline's own line (``is_platform``: no garage, no text-back)."""
 
     id = models.UUIDField(primary_key=True)
     garage = _garage_fk("calls", null=True)
@@ -379,7 +379,7 @@ class Call(AutofixModel):
 
     @property
     def line_name(self) -> str:
-        """The garage's name, or Autofix's own line."""
+        """The garage's name, or Pitline's own line."""
         return PLATFORM_LINE_LABEL if self.is_platform or not self.garage_id else self.garage.name
 
 

@@ -202,7 +202,7 @@ AUTOFIX_SUPERADMIN_URL = env("AUTOFIX_SUPERADMIN_URL", default=APP_BASE_URL).str
 # Empty: the endpoint answers 503 and reveals nothing. A secret: set only in the platform's store.
 AUTOFIX_STATUS_TOKEN = env("AUTOFIX_STATUS_TOKEN", default="")
 AUTOFIX_TIME_ZONE = "Europe/London"
-# Voicemail playback (Calls): the Twilio account Autofix records voicemails on. Recordings need the
+# Voicemail playback (Calls): the Twilio account Pitline records voicemails on. Recordings need the
 # account's credentials, so the super admin fetches them server-side; the browser never gets the
 # Twilio link. Empty: playback says it is not configured. Secrets: set only in the platform's store.
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="").strip()

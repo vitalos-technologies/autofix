@@ -19,7 +19,7 @@ const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE };
 const GARAGE = "a0000000-0000-4000-8000-00000000000a";
 const GARAGE_NUMBER = "+447700100200";
 const CUSTOMER = "+447700900123";
-/** Autofix's own line (A420). */
+/** Pitline's own line (A420). */
 const PLATFORM_NUMBER = "+441146974393";
 
 function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, options: { signWith?: string; url?: string; headers?: Record<string, string>; requestUrl?: string; query?: string } = {}) {
@@ -463,7 +463,7 @@ describe("voice (P4.1 missed calls)", () => {
   });
 });
 
-describe("voice, Autofix's own line (A420)", () => {
+describe("voice, Pitline's own line (A420)", () => {
   const CALL = "CA00000000000000000000000000000009";
   const RECORDING = "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Recordings/RE00000000000000000000000000000009";
   const PLATFORM_ENV = { ...ENV, AUTOFIX_PLATFORM_VOICE_NUMBERS: ` ${PLATFORM_NUMBER} , not-a-number,+44` };
@@ -476,7 +476,7 @@ describe("voice, Autofix's own line (A420)", () => {
     expect(platformVoiceNumbers({}).size).toBe(0);
   });
 
-  it("greets in Autofix's name and takes a voicemail: no ring-through, no text-back, no AI front desk, no garage", async () => {
+  it("greets in Pitline's name and takes a voicemail: no ring-through, no text-back, no AI front desk, no garage", async () => {
     // Even with a garage dial target and the front desk on, the platform line never uses them.
     const { repo, state } = memoryRepo({ dialTarget: "+441302000101" });
     repo.aiFrontDeskVoiceReady = vi.fn(async () => true);
@@ -491,7 +491,7 @@ describe("voice, Autofix's own line (A420)", () => {
     );
     const xml = await response.text();
     expect(xml).toBe(
-      `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="en-GB">Thanks for calling Autofix. We can&apos;t take your call right now. Please leave a message after the tone and we&apos;ll get back to you.</Say>`
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="en-GB">Thanks for calling Pitline. We can&apos;t take your call right now. Please leave a message after the tone and we&apos;ll get back to you.</Say>`
         + `<Record maxLength="120" timeout="5" playBeep="true" trim="trim-silence" action="${voiceUrl("recorded")}" method="POST" recordingStatusCallback="${voiceUrl("recording")}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>`
         + `<Say language="en-GB">We didn&apos;t get a message. Goodbye.</Say><Hangup/></Response>`,
     );

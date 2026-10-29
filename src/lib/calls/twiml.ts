@@ -53,7 +53,7 @@ export function voicemailTwiml(input: { garageName: string; recordedUrl: string;
   return recordTwiml(`Sorry, ${input.garageName} can't take your call right now. Please leave a message after the tone and we'll get back to you.`, input);
 }
 
-/** Autofix's own line (A420): the greeting in Autofix's name, then the same voicemail. */
+/** Pitline's own line (A420): the greeting in Pitline's name, then the same voicemail. */
 export function platformVoicemailTwiml(input: { lineName: string; recordedUrl: string; recordingStatusUrl: string }) {
   return recordTwiml(`Thanks for calling ${input.lineName}. We can't take your call right now. Please leave a message after the tone and we'll get back to you.`, input);
 }

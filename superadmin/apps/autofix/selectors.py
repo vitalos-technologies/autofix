@@ -571,7 +571,7 @@ def messaging_summary(now: datetime | None = None, garage_id=None, days: int = 3
     messages = Message.objects.filter(direction="outbound", created_at__gte=since)
     sends = ReminderSend.objects.filter(updated_at__gte=since)
     customers = Customer.objects.all()
-    # Garage calls only: Autofix's own line is not a garage's messaging.
+    # Garage calls only: Pitline's own line is not a garage's messaging.
     calls = Call.objects.filter(created_at__gte=since, is_platform=False)
     if garage_id:
         messages, sends = messages.filter(garage_id=garage_id), sends.filter(garage_id=garage_id)
@@ -643,12 +643,12 @@ TEXT_BACK_LABELS = {
     "failed": "Failed",
 }
 NEW_VOICEMAIL_HOURS = 24
-# The ``garage`` filter value for Autofix's own line (A420).
+# The ``garage`` filter value for Pitline's own line (A420).
 PLATFORM_LINE = "platform"
 
 
 def clean_call_filters(params) -> dict[str, str]:
-    """``garage`` (a UUID, or ``platform`` for Autofix's own line), ``missed`` and ``voicemail`` ("1" or
+    """``garage`` (a UUID, or ``platform`` for Pitline's own line), ``missed`` and ``voicemail`` ("1" or
     empty). Anything else is dropped."""
     garage_id = (params.get("garage") or "").strip()
     try:
@@ -666,7 +666,7 @@ def clean_call_filters(params) -> dict[str, str]:
 
 @reads
 def calls(filters: dict):
-    """Calls across every garage and Autofix's own line (or one of them, with ``filters["garage"]``),
+    """Calls across every garage and Pitline's own line (or one of them, with ``filters["garage"]``),
     with the text-back's status.
 
     Callers arrive masked by the database; the recording link is not on these rows (``voicemail``).
@@ -686,7 +686,7 @@ def calls(filters: dict):
 
 @reads
 def call_garages() -> list[tuple[str, str]]:
-    """Autofix's own line (once it has had a call), then garages that have had a call, for the filter."""
+    """Pitline's own line (once it has had a call), then garages that have had a call, for the filter."""
     with_calls = Garage.objects.filter(Exists(Call.objects.filter(garage_id=OuterRef("pk"))))
     choices = [(str(pk), name) for pk, name in with_calls.order_by("name").values_list("pk", "name")]
     if Call.objects.filter(is_platform=True).exists():
@@ -708,7 +708,7 @@ def voicemail(pk) -> tuple[Call, str] | None:
 def new_voicemails(
     now: datetime | None = None, hours: int = NEW_VOICEMAIL_HOURS, limit: int = 50
 ) -> list[Call]:
-    """Voicemails left in the last ``hours`` hours on any garage's line or Autofix's own, newest first
+    """Voicemails left in the last ``hours`` hours on any garage's line or Pitline's own, newest first
     (the bell's "new voicemail")."""
     now = now or timezone.now()
     return list(

@@ -10,7 +10,7 @@ import { databaseError, type JobHandler } from "../types";
 // whatever data a garage still holds, A24), then platform housekeeping that
 // holds no personal data: vehicle_facts rows older than 30 days (the cache
 // is only trusted for 24 hours) and finished jobs older than 14 days; and
-// Autofix's own line, apply_platform_call_retention() (voicemail links after
+// Pitline's own line, apply_platform_call_retention() (voicemail links after
 // 12 months, A420). With a
 // garage: apply_enquiry_retention() (bookings, enquiries, customers) and
 // apply_message_retention() (message bodies, reminder bodies, voicemail

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Calls · Autofix Super Admin{% endblock %}
+{% block title %}Calls · Pitline Super Admin{% endblock %}
 {% block content %}
   <h1>Calls</h1>
-  <p class="muted mt-1 text-sm">Calls to every garage's Autofix number and to Autofix's own line, newest first. Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
+  <p class="muted mt-1 text-sm">Calls to every garage's Pitline number and to Pitline's own line, newest first. Callers are masked by the database. Playing a voicemail needs a fresh authenticator code and is recorded in the audit trail.</p>
 
   <form method="get" action="{% url 'autofix:calls' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
         hx-get="{% url 'autofix:calls' %}" hx-trigger="change" hx-target="#call-results" hx-swap="outerHTML" hx-push-url="true"

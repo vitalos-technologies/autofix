@@ -1,6 +1,6 @@
-"""Voicemail playback for Vitalos staff: the super admin's side of Autofix's voicemail proxy.
+"""Voicemail playback for Vitalos staff: the super admin's side of Pitline's voicemail proxy.
 
-Autofix stores each voicemail as a Twilio recording link (``calls.voicemail_url``, via
+Pitline stores each voicemail as a Twilio recording link (``calls.voicemail_url``, via
 ``recordVoicemail``). Twilio recordings need the account's credentials, so, exactly as the garage
 app's ``/api/admin/calls/{id}/voicemail`` (``src/lib/calls/voicemail.ts``) does:
 
