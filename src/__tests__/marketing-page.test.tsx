@@ -30,7 +30,7 @@ describe("marketing page (/ on the admin host)", () => {
     }
   });
 
-  it("shows two plans, the Pro trial, coming soon only on unshipped Pro features, and no prices", () => {
+  it("shows two plans with their prices, the Pro trial, and coming soon only on unshipped Pro features", () => {
     render(<HomePage />);
     const essentials = screen.getByRole("article", { name: "Essentials" });
     const pro = screen.getByRole("article", { name: "Pro" });
@@ -47,7 +47,9 @@ describe("marketing page (/ on the admin host)", () => {
     // Only Pro features that have shipped are claimed as available (P5.3–P5.12: every Pro feature has shipped).
     expect(marketing.plans.pro.features.filter((feature) => feature.shipped).length).toBe(10);
     expect(within(essentials).getByRole("link", { name: "Start with Essentials" })).toHaveAttribute("href", "/signup");
-    expect(screen.getByRole("region", { name: marketing.plans.heading }).textContent).not.toMatch(/£\s?\d/);
+    // Prices set by Temitope on 29 Oct 2026 (excluding VAT).
+    expect(essentials).toHaveTextContent("£20 a month + VAT");
+    expect(pro).toHaveTextContent("£45 a month + VAT");
   });
 
   it("answers every FAQ in a native disclosure", () => {

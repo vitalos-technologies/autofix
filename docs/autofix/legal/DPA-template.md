@@ -1,6 +1,6 @@
-# Data Processing Agreement (draft v0.1)
+# Data Processing Agreement (v1.0)
 
-Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Accepted on [date] by [name, role]. Draft for solicitor review; not legal advice.
+Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Accepted on [date] by [name, role].
 
 ## 1. Scope
 
@@ -86,7 +86,9 @@ Vitalos provides the information needed to show compliance with this agreement a
 | Twilio | SMS, WhatsApp, voice | US / global |
 | Sentry | Error monitoring (scrubbed) | US / EU |
 | Vehicle Data Global | Vehicle details lookup | UK |
-| Anthropic | AI processing for the optional AI front desk (via Vitalos Workforce and Askbridge) | US |
-| Stripe | Subscription billing (Garage's billing contact only) | US / EU |
+| Anthropic | AI processing for the optional AI front desk, only when the Garage turns it on | US |
+| Stripe | Subscription billing, and the Garage's payments when it turns them on (deposits, invoices, Direct Debit) | US / EU |
+| Microsoft Azure | Hosting of Vitalos's internal support tools (super admin) | UK South (provider is US-based) |
+| Google | Business name and address lookup when a garage signs up (no customer data) | Global (US-based) |
 
 DVLA and DVSA provide vehicle and MOT data as public bodies under their own terms; registrations are sent to them for lookups.

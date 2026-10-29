@@ -322,6 +322,10 @@ function Plans() {
               <div>
                 <h3 id="plan-essentials" className="text-[38px] leading-none font-bold text-navy-950">{plans.essentials.name}</h3>
                 <p className="mt-1.5 text-[16px] text-grey-700">{plans.essentials.tagline}</p>
+                <p className="mt-4 text-navy-950">
+                  <span className="text-[34px] leading-none font-bold">{plans.essentials.price}</span>{" "}
+                  <span className="text-[15px] text-grey-700">{plans.priceUnit}</span>
+                </p>
               </div>
               <p className="rounded-full bg-success-bg px-3 py-1 text-[13px] font-semibold text-success-ink">{plans.essentials.status}</p>
             </div>
@@ -344,6 +348,10 @@ function Plans() {
               <div>
                 <h3 id="plan-pro" className="text-[38px] leading-none font-bold">{plans.pro.name}</h3>
                 <p className="mt-1.5 text-[16px] text-white/80">{plans.pro.tagline}</p>
+                <p className="mt-4">
+                  <span className="text-[34px] leading-none font-bold">{plans.pro.price}</span>{" "}
+                  <span className="text-[15px] text-white/80">{plans.priceUnit}</span>
+                </p>
               </div>
               <p className="rounded-full bg-plate px-3 py-1 text-[13px] font-semibold text-plate-ink">{plans.pro.status}</p>
             </div>

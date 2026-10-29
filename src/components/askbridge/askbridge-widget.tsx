@@ -3,31 +3,20 @@
 import Script from "next/script";
 
 export type AskbridgeWidgetProps = {
-  /** Validated script URL (`askbridgeScriptUrl()`); the CSP allows its origin only for this garage. */
+  /** Validated loader URL (`askbridgeScriptUrl()`); the CSP allows its origin only for this garage. */
   src: string;
-  widgetId: string;
-  garageName: string;
-  /** Garage accent, for the launcher. */
-  accent: string;
+  /** The garage's Askbridge site key (`pk_…`). */
+  siteKey: string;
 };
 
 /**
- * Askbridge chat on a garage's booking pages (P4.6). Loaded with `lazyOnload` (after the page has
+ * Askbridge chat on a garage's booking pages (P4.6): Askbridge's own install snippet,
+ * `<script src="…/widget/v1/askbridge.js" data-site="pk_…" async>`. The loader reads only `data-site`
+ * (and an optional `data-api` we do not set, so it calls the API on the script's origin); theme, greeting
+ * and the rest come from the garage's Askbridge workspace. Loaded with `lazyOnload` (after the page has
  * loaded, when the browser is idle), so it is never on the critical path; the widget draws its own
- * fixed-position launcher, so nothing on the page moves. Contract: `docs/autofix/askbridge.md`.
- * Chats that end in a booking send the customer to `data-booking-url` (the first step) and never
- * put a registration in the address.
+ * fixed-position launcher in a shadow root, so nothing on the page moves. Contract: `docs/autofix/askbridge.md`.
  */
-export function AskbridgeWidget({ src, widgetId, garageName, accent }: AskbridgeWidgetProps) {
-  return (
-    <Script
-      id="askbridge-widget"
-      src={src}
-      strategy="lazyOnload"
-      data-widget-id={widgetId}
-      data-garage-name={garageName}
-      data-accent={accent}
-      data-booking-url="/"
-    />
-  );
+export function AskbridgeWidget({ src, siteKey }: AskbridgeWidgetProps) {
+  return <Script id="askbridge-widget" src={src} strategy="lazyOnload" async data-site={siteKey} />;
 }

@@ -3,6 +3,7 @@ export { BookingSummaryBar, type BookingSummaryBarProps } from "./booking-summar
 export { ConfirmationCard, type ConfirmationCardProps } from "./confirmation-card";
 export {
   ConsentCheckbox,
+  OFFERS_CONSENT_COPY,
   REMINDER_CONSENT_COPY,
   REMINDER_CONSENT_COPY_NO_MOT,
   type ConsentCheckboxProps,

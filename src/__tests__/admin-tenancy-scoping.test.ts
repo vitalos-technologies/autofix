@@ -36,7 +36,7 @@ vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => harness.admin
 vi.mock("@/lib/env", () => ({
   getEnvironmentReadiness: () => ({ ready: true, missing: [] }),
   getBookingEnvironmentReadiness: () => ({ ready: true, missing: [] }),
-  getAskbridgeEnvironmentReadiness: () => ({ ready: false, missing: ["ASKBRIDGE_SYNC_URL"] }),
+  getAskbridgeEnvironmentReadiness: () => ({ ready: false, missing: ["NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL"] }),
 }));
 
 import { GET as healthRoute } from "@/app/api/health/route";

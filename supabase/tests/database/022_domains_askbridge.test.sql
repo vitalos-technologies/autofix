@@ -3,12 +3,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(29);
+select plan(25);
 
 -- P4.3/P4.6: set_booking_page_settings (owner only, validated, merges into
--- settings) and the askbridge.sync triggers (widget on only, one job per garage
--- per minute, no job for domains.check's last_checked_at bumps, never another
--- garage's).
+-- settings) with settings.askbridge = {enabled, siteKey}, and no knowledge
+-- sync: 20261029001300_askbridge_site_key.sql dropped the askbridge.sync
+-- triggers and functions, so garage changes queue nothing for Askbridge.
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('1c000000-0000-4000-8000-0000000000a1', 'page-owner-a@pgtap.test', '{}'::jsonb),
@@ -36,21 +36,19 @@ begin
 end
 $$;
 
-create function pg_temp.sync_jobs(p_garage uuid)
-returns integer
-language sql
-as $$ select count(*)::integer from public.jobs where kind = 'askbridge.sync' and garage_id = p_garage $$;
-
 -- ---------------------------------------------------------------------------
--- Privileges
+-- Privileges, and the knowledge sync is gone
 -- ---------------------------------------------------------------------------
 
 select ok(has_function_privilege('authenticated', 'public.set_booking_page_settings(jsonb,jsonb)', 'execute'), 'staff can call set_booking_page_settings (owners only inside)');
 select ok(not has_function_privilege('anon', 'public.set_booking_page_settings(jsonb,jsonb)', 'execute'), 'anon cannot change booking page settings');
-select ok(not has_function_privilege('authenticated', 'public.enqueue_askbridge_sync(uuid)', 'execute'), 'staff cannot queue syncs directly');
-select ok(not has_function_privilege('anon', 'public.enqueue_askbridge_sync(uuid)', 'execute'), 'anon cannot queue syncs');
-select ok(has_function_privilege('service_role', 'public.enqueue_askbridge_sync(uuid)', 'execute'), 'the service role can queue a sync');
-select ok(not has_function_privilege('authenticated', 'public.askbridge_sync_after_change()', 'execute'), 'the trigger function is not callable by staff');
+select hasnt_function('public', 'enqueue_askbridge_sync', 'enqueue_askbridge_sync() is gone');
+select hasnt_function('public', 'askbridge_sync_after_change', 'the askbridge sync trigger function is gone');
+select is(
+  (select count(*)::integer from pg_trigger where not tgisinternal and tgname like '%askbridge%'),
+  0,
+  'no askbridge triggers remain'
+);
 
 -- ---------------------------------------------------------------------------
 -- set_booking_page_settings
@@ -79,67 +77,65 @@ select throws_ok(
   $$select public.set_booking_page_settings((select jsonb_agg('https://s' || n || '.page-a.example') from generate_series(1, 11) n), null)$$,
   '22023', null, 'at most 10 origins'
 );
-select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": true}'::jsonb)$$, '22023', null, 'the widget cannot be on without an id');
-select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": "yes", "widgetId": "wid_1234"}'::jsonb)$$, '22023', null, 'enabled must be a boolean');
-select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "widgetId": "<script>"}'::jsonb)$$, '22023', null, 'widget ids are letters, digits, _ and -');
-select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "widgetId": "wid_1234", "secret": "x"}'::jsonb)$$, '22023', null, 'no other askbridge keys');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": true}'::jsonb)$$, '22023', null, 'the chat cannot be on without a site key');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": "yes", "siteKey": "pk_0123456789abcdef0123456789abcdef"}'::jsonb)$$, '22023', null, 'enabled must be a boolean');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "siteKey": "wid_1234"}'::jsonb)$$, '22023', null, 'a site key starts with pk_');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "siteKey": "pk_0123456789ABCDEF0123456789ABCDEF"}'::jsonb)$$, '22023', null, 'a site key is lower-case hex');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "siteKey": "pk_0123456789abcdef0123456789abcde"}'::jsonb)$$, '22023', null, 'a site key has exactly 32 hex characters');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "widgetId": "pk_0123456789abcdef0123456789abcdef"}'::jsonb)$$, '22023', null, 'the old widgetId key is refused');
+select throws_ok($$select public.set_booking_page_settings(null, '{"enabled": false, "siteKey": "pk_0123456789abcdef0123456789abcdef", "secret": "x"}'::jsonb)$$, '22023', null, 'no other askbridge keys');
 
 select is(
   public.set_booking_page_settings('["https://www.page-a.example", "https://shop.page-a.example:8443"]'::jsonb, null),
-  '{"embedOrigins": ["https://www.page-a.example", "https://shop.page-a.example:8443"], "askbridge": {"enabled": false, "widgetId": null}}'::jsonb,
+  '{"embedOrigins": ["https://www.page-a.example", "https://shop.page-a.example:8443"], "askbridge": {"enabled": false, "siteKey": null}}'::jsonb,
   'the owner saves allowed sites'
 );
 
-reset role;
 select is(
-  (select settings - 'embedOrigins' from public.garages where id = 'ac000000-0000-4000-8000-000000000001'),
+  public.set_booking_page_settings(null, '{"enabled": true, "siteKey": "pk_0123456789abcdef0123456789abcdef"}'::jsonb) -> 'askbridge',
+  '{"enabled": true, "siteKey": "pk_0123456789abcdef0123456789abcdef"}'::jsonb,
+  'the owner turns the chat on with a site key'
+);
+
+reset role;
+
+select is(
+  (select settings - 'embedOrigins' - 'askbridge' from public.garages where id = 'ac000000-0000-4000-8000-000000000001'),
   '{"faqs": [{"question": "Parking?", "answer": "Yes"}], "tagline": "Kept"}'::jsonb,
   'other settings keys are untouched'
 );
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 0, 'no sync is queued while the widget is off');
+
+select is(
+  (select settings from public.garages where id = 'bc000000-0000-4000-8000-000000000001'),
+  '{}'::jsonb,
+  'garage B is untouched'
+);
 
 -- ---------------------------------------------------------------------------
--- askbridge.sync triggers
+-- Nothing is queued for Askbridge any more (the chat is on for garage A)
 -- ---------------------------------------------------------------------------
+
+update public.garages set phone = '+441302000777', settings = settings || '{"faqs": []}'::jsonb where id = 'ac000000-0000-4000-8000-000000000001';
+insert into public.services (garage_id, name, duration_min, price_pence, price_mode) values ('ac000000-0000-4000-8000-000000000001', 'Brakes', 60, 9000, 'fixed');
+insert into public.opening_hours (garage_id, weekday, opens, closes) values ('ac000000-0000-4000-8000-000000000001', 1, '08:00', '17:00');
+insert into public.closures (garage_id, starts_on, ends_on) values ('ac000000-0000-4000-8000-000000000001', current_date + 3, current_date + 3);
+insert into public.garage_domains (garage_id, hostname, kind, status) values ('ac000000-0000-4000-8000-000000000001', 'book.page-a.example', 'custom', 'pending_dns');
+update public.garage_domains set status = 'active' where hostname = 'book.page-a.example';
+
+select is(
+  (select count(*)::integer from public.jobs where kind = 'askbridge.sync'),
+  0,
+  'with the chat on, profile, FAQ, service, hours, closure and domain changes queue no askbridge.sync job'
+);
 
 set local role authenticated;
 select pg_temp.act_as('1c000000-0000-4000-8000-0000000000a1', 'ac000000-0000-4000-8000-000000000001');
 select is(
-  public.set_booking_page_settings(null, '{"enabled": true, "widgetId": "wid_pageA"}'::jsonb) -> 'askbridge',
-  '{"enabled": true, "widgetId": "wid_pageA"}'::jsonb,
-  'the owner turns the widget on'
+  public.set_booking_page_settings(null, '{"enabled": false, "siteKey": "pk_0123456789abcdef0123456789abcdef"}'::jsonb) -> 'askbridge',
+  '{"enabled": false, "siteKey": "pk_0123456789abcdef0123456789abcdef"}'::jsonb,
+  'turning the chat off keeps the key'
 );
 reset role;
-
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 1, 'turning the widget on queues a sync');
-select is(
-  (select payload || jsonb_build_object('due_next_minute', run_at = date_trunc('minute', now()) + interval '1 minute', 'key', dedupe_key like 'askbridge.sync:ac000000-0000-4000-8000-000000000001:%')
-     from public.jobs where kind = 'askbridge.sync' and garage_id = 'ac000000-0000-4000-8000-000000000001'),
-  '{"garageId": "ac000000-0000-4000-8000-000000000001", "due_next_minute": true, "key": true}'::jsonb,
-  'the job names the garage, runs the minute after and has a per-garage, per-minute key'
-);
-
-update public.garages set phone = '+441302000777' where id = 'ac000000-0000-4000-8000-000000000001';
-insert into public.services (garage_id, name, duration_min, price_pence, price_mode) values ('ac000000-0000-4000-8000-000000000001', 'Brakes', 60, 9000, 'fixed');
-insert into public.opening_hours (garage_id, weekday, opens, closes) values ('ac000000-0000-4000-8000-000000000001', 1, '08:00', '17:00');
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 1, 'changes in the same minute share one job (debounced)');
-
-delete from public.jobs where kind = 'askbridge.sync';
-update public.garages set accent = '#0f766e' where id = 'ac000000-0000-4000-8000-000000000001';
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 0, 'a change Askbridge does not see (brand colour) queues nothing');
-
-insert into public.garage_domains (garage_id, hostname, kind, status) values ('ac000000-0000-4000-8000-000000000001', 'book.page-a.example', 'custom', 'pending_dns');
-update public.garage_domains set last_checked_at = now() where hostname = 'book.page-a.example';
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 0, 'domains.check bumps do not queue a sync');
-update public.garage_domains set status = 'active' where hostname = 'book.page-a.example';
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 1, 'a custom domain going live queues a sync (the booking link changed)');
-
-delete from public.jobs where kind = 'askbridge.sync';
-update public.garages set settings = settings || '{"faqs": []}'::jsonb where id = 'ac000000-0000-4000-8000-000000000001';
-select is(pg_temp.sync_jobs('ac000000-0000-4000-8000-000000000001'), 1, 'an FAQ change queues a sync');
-
-insert into public.closures (garage_id, starts_on, ends_on) values ('bc000000-0000-4000-8000-000000000001', current_date + 3, current_date + 3);
-select is(pg_temp.sync_jobs('bc000000-0000-4000-8000-000000000001'), 0, 'a garage with the widget off gets nothing, and garage A''s changes never queue B');
 
 select * from finish();
 rollback;

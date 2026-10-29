@@ -59,6 +59,7 @@ export default async function DetailsPage({ params }: { params: Promise<{ garage
           />
         }
         motEnabled={garage.motEnabled}
+        garageName={garage.name}
         needsApproval={service.needsApproval || garage.approveOnline}
         humanCheck={needsHumanCheck(meta)}
         extras={extras}

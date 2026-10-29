@@ -19,7 +19,7 @@ const original = garage.settings ?? {};
 const stub = spawn(process.execPath, ["scripts/askbridge-widget-stub.mjs"], { stdio: "inherit" });
 let code = 1;
 try {
-  await db.from("garages").update({ settings: { ...original, askbridge: { enabled: true, widgetId: "wid_lighthouse" } } }).eq("id", garage.id);
+  await db.from("garages").update({ settings: { ...original, askbridge: { enabled: true, siteKey: "pk_00000000000000000000000000000000" } } }).eq("id", garage.id);
   await new Promise((resolve) => setTimeout(resolve, 500));
   const run = spawn("pnpm", ["exec", "lhci", "autorun", "--config=lighthouserc.askbridge.cjs"], { stdio: "inherit", env: process.env });
   code = await new Promise((resolve) => run.on("exit", (exitCode) => resolve(exitCode ?? 1)));

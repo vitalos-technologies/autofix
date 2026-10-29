@@ -157,6 +157,9 @@ export function createBookingPayload(
       // Consent taken by staff (phone, walk-in) is recorded as such (PECR record).
       consent_source: input.customer.reminderConsent ? (STAFF_SOURCES.has(input.source) ? "staff" : "booking") : null,
       consent_text: input.customer.reminderConsent ? (input.customer.consentText ?? null) : null,
+      // Offers consent is the customer's own, from the booking page (source `booking` in SQL).
+      offers_consent: input.customer.offersConsent === true,
+      offers_consent_text: input.customer.offersConsent ? (input.customer.offersConsentText ?? null) : null,
     },
     vehicle: {
       registration: input.vehicle.registration,

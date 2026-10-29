@@ -6,9 +6,11 @@ import { testGarage } from "./support/garage";
 
 const garage = testGarage();
 
-/** The draft's body (after heading and draft line) as patterns: placeholders match any filled value. */
+/** The document's body (after the heading, and the draft line while there is one) as patterns: placeholders match any filled value. */
 function templatePatterns(source: string) {
-  const [, , ...body] = parseLegalMarkdown(source);
+  const [, ...rest] = parseLegalMarkdown(source);
+  const first = rest[0];
+  const body = first?.kind === "paragraph" && first.text.startsWith("Draft for solicitor review") ? rest.slice(1) : rest;
   return blockTexts(body).map((text) => new RegExp(`^${text.replace(/[.*+?^${}()|\\]/g, "\\$&").replace(/\\\[[^\]]+\\\]|\[[^\]]+\]/g, ".+")}$`));
 }
 
@@ -31,15 +33,16 @@ describe("renderPrivacyNotice", () => {
     const notice = renderPrivacyNotice(garage);
     const texts = blockTexts(notice.blocks);
     expect(notice.title).toBe("Privacy notice for customers of Hartley Road Motors");
-    expect(notice.version).toBe("0.1");
-    expect(notice.draftNote).toBe("Draft for solicitor review; not legal advice.");
+    // v1.0, approved by Temitope on 29 Oct 2026: no draft flag.
+    expect(notice.version).toBe("1.0");
+    expect(notice.draftNote).toBeNull();
     expect(unfilledPlaceholders([notice.title, ...texts])).toEqual([]);
     expect(texts.join("\n")).not.toMatch(/not provided\]/);
     const whoWeAre = texts.find((text) => text.startsWith("**Who we are.**"));
     expect(whoWeAre).toBe(
       "**Who we are.** Hartley Road Motors Ltd, 4 Hartley Road, Doncaster, DN1 2AB, is responsible for your personal data (\"we\"). Contact us at bookings@hartleyroad.example or 01302 000101. Our booking system, Autofix, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.",
     );
-    expect(texts.at(-1)).toBe("Last updated 27 October 2026.");
+    expect(texts.at(-1)).toBe("Last updated 29 October 2026.");
     expect(texts.join("\n")).not.toContain("Shown on the garage's booking pages");
   });
 
@@ -65,12 +68,12 @@ describe("renderPrivacyNotice", () => {
 });
 
 describe("renderDpa", () => {
-  it("names the garage as controller and Vitalos as processor, flagged as a draft", () => {
+  it("names the garage as controller and Vitalos as processor, as the approved v1.0", () => {
     const dpa = renderDpa(garage);
     const texts = blockTexts(dpa.blocks);
     expect(dpa.version).toBe(DPA_VERSION);
-    expect(DPA_VERSION).toBe("0.1");
-    expect(dpa.draftNote).toBe("Draft for solicitor review; not legal advice.");
+    expect(DPA_VERSION).toBe("1.0");
+    expect(dpa.draftNote).toBeNull();
     expect(texts[0]).toBe(
       'Between **Hartley Road Motors Ltd** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Not yet accepted.',
     );

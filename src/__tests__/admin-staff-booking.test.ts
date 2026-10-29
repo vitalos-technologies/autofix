@@ -101,9 +101,10 @@ describe("staff booking", () => {
       idempotencyKey: KEY,
       locationMode: "workshop",
       vehicle: { registration: "MA12BCD", make: "Ford", model: "Focus" },
-      customer: { name: "Priya Phone", phone: "07700 900488", channel: "sms", reminderConsent: false },
+      customer: { name: "Priya Phone", phone: "07700 900488", channel: "sms", reminderConsent: false, offersConsent: false },
     });
     expect(input.customer.consentText).toBeUndefined();
+    expect(input.customer.offersConsentText).toBeUndefined();
     expect(harness.revalidated).toContain("/app");
   });
 
@@ -123,6 +124,9 @@ describe("staff booking", () => {
   it("records the consent wording when staff tick the box, and accepts walk-ins", async () => {
     await expect(createStaffBookingAction(idle, form({ ...valid, source: "walk_in", reminderConsent: "on" }))).rejects.toThrow("REDIRECT:");
     expect(harness.calls[0]?.input).toMatchObject({ source: "walk_in", customer: { reminderConsent: true, consentText: STAFF_CONSENT_WORDING } });
+    // Staff never record offers consent, even if the form tried to send it.
+    await expect(createStaffBookingAction(idle, form({ ...valid, offersConsent: "on" }))).rejects.toThrow("REDIRECT:");
+    expect(harness.calls[1]?.input.customer.offersConsent).toBe(false);
   });
 
   it("only takes the staff sources", async () => {

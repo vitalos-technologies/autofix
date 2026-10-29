@@ -6,7 +6,7 @@ import { ConsentCheckbox, SegmentedControl, StickyActionBar } from "@/components
 import { TurnstileField } from "@/components/forms/turnstile-field";
 import type { CustomerChannel } from "@/lib/booking-engine/types";
 import { confirmBookingAction } from "@/lib/booking-flow/actions";
-import { CHANNEL_OPTIONS } from "@/lib/booking-flow/copy";
+import { CHANNEL_OPTIONS, offersConsentCopy } from "@/lib/booking-flow/copy";
 import { initialDetailsFormState, type DetailsFormState } from "@/lib/booking-flow/forms";
 import { BookingExtrasFields } from "./booking-extras";
 import type { BookingExtrasOptions } from "@/lib/courtesy/booking-site";
@@ -20,6 +20,8 @@ type DetailsStepProps = {
   summary: ReactNode;
   /** Picks the consent wording (MOT and service, or service only). */
   motEnabled: boolean;
+  /** Named in the offers consent wording. */
+  garageName: string;
   /** The garage checks this booking before confirming it. */
   needsApproval: boolean;
   humanCheck: boolean;
@@ -29,14 +31,15 @@ type DetailsStepProps = {
   deposit?: { amount: string; holdMin: number } | null;
 };
 
-/** Step 4: who is bringing the car, how to send updates, reminder consent, Confirm booking. */
-export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, extras, deposit = null }: DetailsStepProps) {
+/** Step 4: who is bringing the car, how to send updates, reminder and offers consent (two separate boxes), Confirm booking. */
+export function DetailsStep({ summary, motEnabled, garageName, needsApproval, humanCheck, extras, deposit = null }: DetailsStepProps) {
   const [state, formAction, pending] = useActionState<DetailsFormState, FormData>(confirmBookingAction, initialDetailsFormState);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [channel, setChannel] = useState<CustomerChannel>("sms");
   const [consent, setConsent] = useState(false);
+  const [offers, setOffers] = useState(false);
   const [token, setToken] = useState("");
   const handledSeq = useRef(state.seq);
 
@@ -101,6 +104,9 @@ export function DetailsStep({ summary, motEnabled, needsApproval, humanCheck, ex
         ) : null}
 
         <ConsentCheckbox name="reminderConsent" value="yes" checked={consent} onCheckedChange={setConsent} motEnabled={motEnabled} />
+        <ConsentCheckbox name="offersConsent" value="yes" checked={offers} onCheckedChange={setOffers}>
+          {offersConsentCopy(garageName)}
+        </ConsentCheckbox>
 
         {needsApproval ? (
           <p className="m-0 text-[13px] leading-[1.45] text-grey-600">The garage checks this kind of job first and will confirm the time with you.</p>

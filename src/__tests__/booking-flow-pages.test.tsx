@@ -165,13 +165,16 @@ describe("step pages", () => {
     expect(screen.getByRole("button", { name: "Choose a time" })).toBeDisabled();
   });
 
-  it("shows the booking summary and an unticked consent box on the details step", async () => {
+  it("shows the booking summary and unticked reminder and offers boxes on the details step", async () => {
     saveDraft({ vehicle, serviceId: FAKE_SERVICE_IDS.diagnostics, locationMode: "workshop", startsAt: "2026-10-28T09:15:00.000Z" });
     render((await DetailsPage({ params: params() })) as ReactElement);
     expect(screen.getByText("AB12 CDE")).toBeInTheDocument();
     expect(screen.getByText("Diagnostics · Workshop")).toBeInTheDocument();
     expect(screen.getByText("Wed 28 Oct · 09:15")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox")).not.toBeChecked();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    expect(screen.getByRole("checkbox", { name: /^Remind me when/ })).not.toBeChecked();
+    // The offers box names this garage (from the host), not a placeholder.
+    expect(screen.getByRole("checkbox", { name: "Send me occasional offers from Hartley Road Motors. You can stop these any time." })).not.toBeChecked();
     expect(screen.getByRole("link", { name: "How we use your details" })).toHaveAttribute("href", "/privacy");
   });
 });

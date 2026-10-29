@@ -82,12 +82,13 @@ test.afterAll(async () => {
 });
 
 test.describe("privacy notice", () => {
-  test("is filled in for the garage, flagged as a draft, and accessible", async ({ page }) => {
+  test("is filled in for the garage, final (v1.0, no draft flag), and accessible", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Privacy notice" }).click();
     await page.waitForURL(/\/privacy$/);
     await expect(page.getByRole("heading", { level: 1, name: "Privacy notice for customers of Hartley Road Motors" })).toBeVisible();
-    await expect(page.getByText(/^Draft v0\.1, pending solicitor review\./)).toBeVisible();
+    // v1.0, approved by Temitope on 29 Oct 2026.
+    await expect(page.getByText(/pending solicitor review/)).toHaveCount(0);
     const article = page.locator("article");
     await expect(article).toContainText("Vitalos Technologies Ltd, which handles your data for us under a contract");
     await expect(article).toContainText("Information Commissioner's Office");

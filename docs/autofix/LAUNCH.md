@@ -97,9 +97,11 @@ The app's own random secrets (`CRON_SECRET`, `BOOKING_MANAGEMENT_SECRET`, `BOOKI
 | `SENTRY_DSN` | Sentry project `autofix` → Client Keys | No (DSN is not a secret, keep it out of git anyway) | Recommended |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | source-map upload at build (token **Sensitive**) | Partly | Recommended |
 | `GOOGLE_PLACES_API_KEY` | Google Cloud, Places API, restricted to the server | **Sensitive** | For sign-up autofill (P4.4) |
-| `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` | Askbridge widget script (https), from Askbridge | No | When the Askbridge chat goes live (P4.6) |
-| `ASKBRIDGE_SYNC_URL` | Askbridge knowledge endpoint (https) | **Sensitive** | When the Askbridge chat goes live |
-| `ASKBRIDGE_WEBHOOK_SECRET` | 32+ random chars, shared with Askbridge (signs knowledge syncs) | **Sensitive** | When the Askbridge chat goes live |
+| `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` | Askbridge loader override (https); unset uses `https://askbridge.vitalos.co.uk/widget/v1/askbridge.js` | No | No (P4.6; garages paste their own site key) |
+
+### Plans and payments (Stripe, test mode)
+
+`STRIPE_SECRET_KEY` is a GitHub secret and must be a test key (`sk_test_` or `rk_test_`; anything else is refused). **Actions → Launch ops → `stripe-setup`** with apply ticked sets Stripe up from it. It finds or creates the products "Autofix Pro" and "Autofix extra site", each with a monthly GBP price looked up by `autofix_pro_monthly` (`PLAN_PRO_PRICE_PENCE`, default 4500) and `autofix_extra_site_monthly` (`PLAN_EXTRA_SITE_PRICE_PENCE`, default 1500). It also creates the webhook endpoint `/api/webhooks/billing/stripe` and the Connect endpoint `/api/webhooks/payments/stripe` with the events the app handles. It writes `STRIPE_PRICE_PRO` and `STRIPE_PRICE_EXTRA_SITE` (Encrypted), and `STRIPE_BILLING_WEBHOOK_SECRET` and `STRIPE_PAYMENTS_WEBHOOK_SECRET` (Sensitive, never printed), straight into Vercel Production, then redeploys. A second run finds everything and changes nothing. It never changes a price, deletes or rolls an endpoint, or sets `BILLING_PROVIDER` / `PAYMENTS_PROVIDER` (switch those to `stripe` with Sync Vercel env afterwards). If an endpoint exists but Vercel has no secret for it, the run fails and says how to fix it. If GitHub also holds any of those four names, Sync Vercel env replaces the task's value with GitHub's, so leave them unset in GitHub or make them match.
 
 Never set in production: a `http://127.0.0.1` `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` (local stub), `DEV_TENANT_ROOT_DOMAIN`, `PLAYWRIGHT_TEST`, `ENABLE_DEV_COMPONENTS`, `SEED_*`, `VERCEL_DOMAINS_LIVE_TEST`, `EMAIL_PREVIEW_DIR`, `INVOICE_PDF_QA_DIR`. `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`, `NODE_ENV`, `NEXT_RUNTIME` are set by the platform.
 
