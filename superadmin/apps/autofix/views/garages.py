@@ -25,6 +25,7 @@ from apps.core.templatetags.ui import badge_class
 from .. import plans, selectors, services
 from ..db import AutofixUnavailable
 from ..forms import BulkStatusForm, PlanStatusForm, ViewAsSupportForm
+from . import calls
 from .common import parse_uuid, render_unavailable, unavailable_message
 
 logger = logging.getLogger(__name__)
@@ -36,11 +37,14 @@ TABS = (
     ("bookings", "Bookings"),
     ("domains", "Domains"),
     ("messaging", "Messaging and reminders"),
+    ("calls", "Calls"),
     ("plan", "Plan and status"),
     ("agreements", "Agreements"),
     ("audit", "Audit"),
 )
 TAB_KEYS = {key for key, _ in TABS}
+# Tabs with the garage's customer data: SuperAdmin and Support only (``can_support``).
+SUPPORT_TABS = {"calls"}
 MAX_BULK = 100
 COLUMNS = [
     Column("select", "Select"),
@@ -95,6 +99,10 @@ def _row(garage):
         _when(garage.last_booking_at),
         _when(garage.created_at),
     ]
+
+
+def _tabs_for(user):
+    return tuple((key, label) for key, label in TABS if key not in SUPPORT_TABS or can_support(user))
 
 
 def _is_partial(request) -> bool:
@@ -263,10 +271,13 @@ def garage_detail(request, pk):
         return render_unavailable(request, error, "Garage")
     if garage is None:
         raise Http404
+    tabs = _tabs_for(request.user)
     tab = request.GET.get("tab", "overview")
-    tab = tab if tab in TAB_KEYS else "overview"
-    context = {"garage": garage, "tabs": TABS, "tab": tab}
+    tab = tab if tab in dict(tabs) else "overview"
+    context = {"garage": garage, "tabs": tabs, "tab": tab}
     context.update(_tab_context(request, garage, tab))
+    if tab == "calls" and calls.is_table_request(request) and "calls_table" in context:
+        return render(request, "partials/data_table.html", {"table": context["calls_table"]})
     return _allow_handoff(render(request, "autofix/garage_detail.html", context))
 
 
@@ -281,6 +292,7 @@ def _tab_context(request, garage, tab: str) -> dict:
         "bookings": lambda: {"bookings": selectors.garage_bookings(garage)},
         "domains": lambda: {"domains": selectors.garage_domains(garage)},
         "messaging": lambda: {"messaging": selectors.garage_messaging(garage)},
+        "calls": lambda: calls.garage_calls(request, garage),
         "plan": lambda: {"history": selectors.garage_plan_history(garage), "plan_form": _plan_form(garage)},
         "agreements": lambda: {"agreements": selectors.garage_agreements(garage)},
         "audit": lambda: {
@@ -311,6 +323,8 @@ def garage_tab(request, pk, tab):
     pk = parse_uuid(pk)
     if tab not in TAB_KEYS:
         raise Http404
+    if tab in SUPPORT_TABS and not can_support(request.user):
+        raise PermissionDenied
     try:
         garage = selectors.garage(pk)
     except AutofixUnavailable as error:

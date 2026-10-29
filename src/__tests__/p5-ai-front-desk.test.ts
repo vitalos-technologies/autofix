@@ -181,6 +181,7 @@ function voiceRepo(options: { ready?: boolean | "throws"; dialTarget?: string; w
       return { callId: existing.id };
     },
     async recordVoicemail() { return true; },
+    async recordPlatformCall() { return { outcome: "created" as const }; },
     async queueTextBack(_garageId, callId) { state.textBacks.push(callId); },
   };
   if (options.withHook !== false) {

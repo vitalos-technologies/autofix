@@ -34,6 +34,7 @@ ACTIONS = {
     "autofix.domain_check_requested": "Asked Autofix to re-check a domain",
     "autofix.view_as_support": "Handed off to View as support",
     "autofix.personal_data_viewed": "Viewed customer details on a garage's bookings",
+    "autofix.voicemail_played": "Played a garage's voicemail",
 }
 
 

@@ -351,9 +351,15 @@ class Message(AutofixModel):
         db_table = "messages"
 
 
+# Shown for calls to Autofix's own number (``Call.is_platform``, DECISIONS A420).
+PLATFORM_LINE_LABEL = "Autofix (platform line)"
+
+
 class Call(AutofixModel):
+    """A garage's call, or a call to Autofix's own line (``is_platform``: no garage, no text-back)."""
+
     id = models.UUIDField(primary_key=True)
-    garage = _garage_fk("calls")
+    garage = _garage_fk("calls", null=True)
     status = models.TextField()
     dial_status = models.TextField(null=True, blank=True)
     missed = models.BooleanField(default=False)
@@ -361,9 +367,31 @@ class Call(AutofixModel):
     text_back_message_id = models.UUIDField(null=True, blank=True)
     handled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField()
+    # 20261029002200_superadmin_calls.sql: masked like the garage app (07••• •••123); null when withheld.
+    caller_masked = models.TextField(null=True, blank=True)
+    voicemail_duration_s = models.IntegerField(null=True, blank=True)
+    has_voicemail = models.BooleanField(default=False)
+    is_platform = models.BooleanField(default=False)
 
     class Meta(AutofixModel.Meta):
         db_table = "calls"
+        ordering = ["-created_at", "id"]
+
+    @property
+    def line_name(self) -> str:
+        """The garage's name, or Autofix's own line."""
+        return PLATFORM_LINE_LABEL if self.is_platform or not self.garage_id else self.garage.name
+
+
+class CallVoicemail(AutofixModel):
+    """A call's Twilio recording link. Read only by the voicemail proxy (``voicemail.py``), never rendered."""
+
+    id = models.UUIDField(primary_key=True)
+    garage = _garage_fk("+", null=True)
+    voicemail_url = models.TextField()
+
+    class Meta(AutofixModel.Meta):
+        db_table = "call_voicemails"
 
 
 class GarageAgreement(AutofixModel):

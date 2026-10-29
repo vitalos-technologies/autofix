@@ -228,12 +228,13 @@ describe("domains.check", () => {
 });
 
 describe("retention", () => {
-  it("fans out per garage (cancelled ones too) and purges old vehicle facts and finished jobs", async () => {
+  it("fans out per garage (cancelled ones too), purges old vehicle facts and finished jobs, and clears old platform-line voicemails", async () => {
     const fake = createFakeSupabase({
       from: (query) => {
         if (query.table === "garages") return { data: [{ id: A, status: "active" }, { id: B, status: "cancelled" }] };
         return { data: null, count: query.table === "jobs" ? 7 : 3 };
       },
+      rpc: () => ({ data: 2 }),
     });
     const { queue, enqueued } = recordingQueue();
     const now = new Date("2026-10-27T11:00:00Z");
@@ -250,7 +251,8 @@ describe("retention", () => {
       { method: "in", args: ["status", ["done", "failed"]] },
       { method: "lt", args: ["finished_at", "2026-10-13T11:00:00.000Z"] },
     ]);
-    expect(result).toEqual({ outcome: "fanned_out", counts: { garages: 2, vehicle_facts: 3, jobs: 7 } });
+    expect(fake.rpcs.map((call) => call.fn)).toEqual(["apply_platform_call_retention"]);
+    expect(result).toEqual({ outcome: "fanned_out", counts: { garages: 2, vehicle_facts: 3, jobs: 7, platform_voicemails_cleared: 2 } });
   });
 
   it("runs enquiry and message retention for one garage and reports totals only", async () => {

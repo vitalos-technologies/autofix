@@ -12,13 +12,14 @@ from dataclasses import dataclass
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone
 
 from apps.accounts.roles import can_change_autofix, can_support
 from apps.audit.services import record
 
 from . import db
 from . import plans as plan_rules
-from .models import GARAGE_STATUSES, Garage, GarageDomain, Job
+from .models import GARAGE_STATUSES, Call, Garage, GarageDomain, Job
 from .redact import clean_reason
 
 REASON_HELP = "Give a reason of 5 to 500 characters. It is logged and shown to the garage's owners."
@@ -205,4 +206,19 @@ def record_personal_data_view(request, garage: Garage, what: str, rows: int) -> 
         summary=f"{garage.name}: {what} ({rows} rows)",
         what=what,
         rows=rows,
+    )
+
+
+def record_voicemail_played(request, call: Call) -> None:
+    """One audit event per playback. Names the garage and the call, never the caller."""
+    if not can_support(request.user):
+        raise PermissionDenied
+    record(
+        "autofix.voicemail_played",
+        request=request,
+        entity_type="autofix.call",
+        entity_id=str(call.pk),
+        summary=f"{call.line_name}: voicemail from {timezone.localtime(call.created_at):%d %b %Y %H:%M}",
+        line="platform" if call.is_platform else str(call.garage_id),
+        seconds=call.voicemail_duration_s,
     )

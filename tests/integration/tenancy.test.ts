@@ -1241,6 +1241,21 @@ describe("tenancy isolation", () => {
     }
   });
 
+  describe("platform_calls (Autofix's own line, A420)", () => {
+    // Calls to Autofix's own number belong to no garage: no member of any garage, and nobody signed
+    // out, may read or touch them, whatever garage they have selected or forge.
+    for (const spec of ACTORS) {
+      it(`${spec.label} cannot select, insert, update or delete platform calls`, async () => {
+        const client = actor(spec.key).client;
+        expect((await client.from("platform_calls").select("id").limit(1)).error?.code).toBe("42501");
+        const insert = await client.from("platform_calls").insert({ provider_call_sid: `tenancy-${localRunId}-${spec.key}`, to_number: "+441146974393" });
+        expect(insert.error?.code).toBe("42501");
+        expectDeniedOrZero(await client.from("platform_calls").update({ status: "completed" }, { count: "exact" }).neq("status", "completed"), "update platform_calls");
+        expectDeniedOrZero(await client.from("platform_calls").delete({ count: "exact" }).neq("status", "never"), "delete platform_calls");
+      });
+    }
+  });
+
   describe("garages", () => {
     it("anon cannot select, insert, update or delete garages", async () => {
       const client = actor("anon").client;

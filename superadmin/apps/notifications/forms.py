@@ -8,4 +8,4 @@ from .models import NotificationPreference
 class PreferenceForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = NotificationPreference
-        fields = ["job_failures", "domain_failures", "onboarding_stuck", "messaging_failures"]
+        fields = ["job_failures", "domain_failures", "onboarding_stuck", "messaging_failures", "voicemails"]

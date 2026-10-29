@@ -13,8 +13,9 @@
 #   deploy.sh apply                      deploy IMAGE with the connection strings in $DB_ENV_FILE
 #
 # Environment (apply): AZURE_SUBSCRIPTION_ID, IMAGE, GHCR_PULL_USERNAME, GHCR_PULL_TOKEN, DB_ENV_FILE,
-# PRIMARY_OWNER_EMAIL. Optional: SENTRY_DSN. With DEPLOY_OUT_FILE, writes SUPERADMIN_ORIGIN and
-# SUPERADMIN_PROXY_SECRET there (mode 0600) for the Vercel step.
+# PRIMARY_OWNER_EMAIL. Optional: SENTRY_DSN; TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (voicemail playback).
+# With DEPLOY_OUT_FILE, writes SUPERADMIN_ORIGIN and SUPERADMIN_PROXY_SECRET there (mode 0600) for the
+# Vercel step.
 set -euo pipefail
 
 RG="${AZ_RESOURCE_GROUP:-rg-autofix-superadmin}"
@@ -116,6 +117,10 @@ secrets=(
   "bootstrap-admin-password=$BOOTSTRAP_PASSWORD"
 )
 [[ -n "${SENTRY_DSN:-}" ]] && secrets+=("sentry-dsn=$SENTRY_DSN")
+# Voicemail playback (Calls). Optional: without them the Calls page works and playback says it is not set up.
+if [[ -n "${TWILIO_ACCOUNT_SID:-}" && -n "${TWILIO_AUTH_TOKEN:-}" ]]; then
+  secrets+=("twilio-account-sid=$TWILIO_ACCOUNT_SID" "twilio-auth-token=$TWILIO_AUTH_TOKEN")
+fi
 env_vars=(
   "APP_ENVIRONMENT=production"
   "DJANGO_SETTINGS_MODULE=config.settings.prod"
@@ -138,6 +143,9 @@ env_vars=(
   "AUTOFIX_STATUS_TOKEN=secretref:autofix-status-token"
 )
 [[ -n "${SENTRY_DSN:-}" ]] && env_vars+=("SENTRY_DSN=secretref:sentry-dsn")
+if [[ -n "${TWILIO_ACCOUNT_SID:-}" && -n "${TWILIO_AUTH_TOKEN:-}" ]]; then
+  env_vars+=("TWILIO_ACCOUNT_SID=secretref:twilio-account-sid" "TWILIO_AUTH_TOKEN=secretref:twilio-auth-token")
+fi
 # The release job also creates the primary owner as the bootstrap SuperAdmin, with a password nobody
 # knows; the owner sets their own with a one-time link (manage.py issue_setup_link).
 # shellcheck disable=SC2034 # used through job_upsert's nameref

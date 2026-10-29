@@ -3,7 +3,8 @@ import { createJobLogger } from "@/lib/jobs/log";
 import type { DeliveryStatus } from "@/lib/messaging/channel";
 import { computeTwilioSignature } from "@/lib/messaging/twilio";
 import { createSupabaseTwilioWebhookRepo } from "@/lib/messaging/twilio-webhook-repository";
-import { handleTwilioWebhook, type CallRecord, type InboundMessageRow, type TwilioWebhookKind, type TwilioWebhookRepo } from "@/lib/messaging/twilio-webhooks";
+import { platformVoiceNumbers } from "@/lib/calls/platform-line";
+import { handleTwilioWebhook, type CallRecord, type InboundMessageRow, type PlatformCallRecord, type TwilioWebhookKind, type TwilioWebhookRepo } from "@/lib/messaging/twilio-webhooks";
 import { twilioWebhookUrl } from "@/lib/messaging/webhook-request";
 import { createFakeSupabase, filterValue } from "./support/fake-supabase";
 
@@ -18,6 +19,8 @@ const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE };
 const GARAGE = "a0000000-0000-4000-8000-00000000000a";
 const GARAGE_NUMBER = "+447700100200";
 const CUSTOMER = "+447700900123";
+/** Autofix's own line (A420). */
+const PLATFORM_NUMBER = "+441146974393";
 
 function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, options: { signWith?: string; url?: string; headers?: Record<string, string>; requestUrl?: string; query?: string } = {}) {
   const body = new URLSearchParams(params).toString();
@@ -33,6 +36,7 @@ function signedRequest(kind: TwilioWebhookKind, params: Record<string, string>, 
 type Customer = { garageId: string; phone: string; consent: boolean; optedOut: boolean };
 
 type StoredCall = CallRecord & { id: string; dialStatus?: string; voicemail?: { url: string; durationSeconds: number | null } };
+type StoredPlatformCall = PlatformCallRecord & { voicemail?: { url: string; durationSeconds: number | null } };
 
 function memoryRepo(options: { routed?: boolean; customers?: Customer[]; messageStatus?: Record<string, string>; reminderStatus?: Record<string, string>; recentGarages?: string[]; dialTarget?: string; recentCaller?: boolean } = {}) {
   const events = new Map<string, string>();
@@ -43,6 +47,7 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
     inbound: [] as InboundMessageRow[],
     keywords: [] as Array<{ garageId: string; phone: string; intent: string; changed: number }>,
     calls: new Map<string, StoredCall>(),
+    platformCalls: new Map<string, StoredPlatformCall>(),
     replies: [] as string[],
     textBacks: [] as string[],
     finished: [] as Array<{ key: string; status: string; outcome?: string | null }>,
@@ -107,6 +112,11 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
       state.calls.set(call.callSid, existing ? { ...existing, status: call.status, durationSeconds: call.durationSeconds ?? existing.durationSeconds } : { ...call, id });
       return { outcome: existing ? "updated" : "created", callId: id };
     },
+    async recordPlatformCall(call) {
+      const existing = state.platformCalls.get(call.callSid);
+      state.platformCalls.set(call.callSid, existing ? { ...existing, status: call.status, durationSeconds: call.durationSeconds ?? existing.durationSeconds } : call);
+      return { outcome: existing ? "updated" : "created" };
+    },
     async findDialTarget() {
       return options.dialTarget ?? null;
     },
@@ -121,8 +131,13 @@ function memoryRepo(options: { routed?: boolean; customers?: Customer[]; message
     },
     async recordVoicemail(callSid, voicemail) {
       const existing = state.calls.get(callSid);
-      if (!existing) return false;
-      state.calls.set(callSid, { ...existing, voicemail });
+      if (existing) {
+        state.calls.set(callSid, { ...existing, voicemail });
+        return true;
+      }
+      const platform = state.platformCalls.get(callSid);
+      if (!platform) return false;
+      state.platformCalls.set(callSid, { ...platform, voicemail });
       return true;
     },
     async queueTextBack(_garageId, callId) {
@@ -448,7 +463,106 @@ describe("voice (P4.1 missed calls)", () => {
   });
 });
 
+describe("voice, Autofix's own line (A420)", () => {
+  const CALL = "CA00000000000000000000000000000009";
+  const RECORDING = "https://api.twilio.com/2010-04-01/Accounts/AC00000000000000000000000000000000/Recordings/RE00000000000000000000000000000009";
+  const PLATFORM_ENV = { ...ENV, AUTOFIX_PLATFORM_VOICE_NUMBERS: ` ${PLATFORM_NUMBER} , not-a-number,+44` };
+  const callParams = (status: string, extra: Record<string, string> = {}) => ({ CallSid: CALL, From: CUSTOMER, To: PLATFORM_NUMBER, CallStatus: status, Direction: "inbound", ...extra });
+  const voiceUrl = (step: string) => `${BASE}/api/webhooks/twilio/voice?step=${step}`;
+  const platformDeps = (repo: TwilioWebhookRepo, extra: Record<string, unknown> = {}) => ({ repo: () => repo, env: PLATFORM_ENV, log, ...extra });
+
+  it("reads E.164 platform numbers from AUTOFIX_PLATFORM_VOICE_NUMBERS and ignores the rest", () => {
+    expect([...platformVoiceNumbers(PLATFORM_ENV)]).toEqual([PLATFORM_NUMBER]);
+    expect(platformVoiceNumbers({}).size).toBe(0);
+  });
+
+  it("greets in Autofix's name and takes a voicemail: no ring-through, no text-back, no AI front desk, no garage", async () => {
+    // Even with a garage dial target and the front desk on, the platform line never uses them.
+    const { repo, state } = memoryRepo({ dialTarget: "+441302000101" });
+    repo.aiFrontDeskVoiceReady = vi.fn(async () => true);
+    const findGarage = vi.spyOn(repo, "findGarageByNumber");
+    const drainQueued = vi.fn(async () => undefined);
+    const prewarm = vi.fn(async () => undefined);
+    const relay = { url: "wss://voice.example/relay", healthUrl: "https://voice.example/healthz", secret: "relay-secret-0123456789abcdef0123" };
+    const response = await handleTwilioWebhook(
+      signedRequest("voice", callParams("ringing")),
+      "voice",
+      platformDeps(repo, { drainQueued, voiceRelayTarget: relay, prewarm }),
+    );
+    const xml = await response.text();
+    expect(xml).toBe(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="en-GB">Thanks for calling Autofix. We can&apos;t take your call right now. Please leave a message after the tone and we&apos;ll get back to you.</Say>`
+        + `<Record maxLength="120" timeout="5" playBeep="true" trim="trim-silence" action="${voiceUrl("recorded")}" method="POST" recordingStatusCallback="${voiceUrl("recording")}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>`
+        + `<Say language="en-GB">We didn&apos;t get a message. Goodbye.</Say><Hangup/></Response>`,
+    );
+    expect(state.platformCalls.get(CALL)).toEqual({ callSid: CALL, from: CUSTOMER, to: PLATFORM_NUMBER, status: "ringing", durationSeconds: null });
+    expect(state.calls.size).toBe(0);
+    expect(state.textBacks).toEqual([]);
+    expect(findGarage).not.toHaveBeenCalled();
+    expect(repo.aiFrontDeskVoiceReady).not.toHaveBeenCalled();
+    expect(drainQueued).not.toHaveBeenCalled();
+    expect(prewarm).not.toHaveBeenCalled();
+    expect(state.finished.at(-1)).toMatchObject({ key: `voice:${CALL}:ringing`, status: "processed", outcome: "platform_call_voicemail" });
+  });
+
+  it("stores the voicemail on the platform call and moves it forward on status callbacks", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", platformDeps(repo));
+    const recording = { CallSid: CALL, RecordingSid: "RE00000000000000000000000000000009", RecordingUrl: RECORDING, RecordingStatus: "completed", RecordingDuration: "31" };
+    await handleTwilioWebhook(signedRequest("voice", recording, { query: "?step=recording" }), "voice", platformDeps(repo));
+    expect(state.platformCalls.get(CALL)?.voicemail).toEqual({ url: RECORDING, durationSeconds: 31 });
+    const completed = await handleTwilioWebhook(signedRequest("voice", callParams("completed", { CallDuration: "48" })), "voice", platformDeps(repo));
+    expect(await completed.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    expect(state.platformCalls.get(CALL)).toMatchObject({ status: "completed", durationSeconds: 48 });
+  });
+
+  it("answers Twilio's retry with the same TwiML without writing twice, and hangs up a dial step", async () => {
+    const { repo, state } = memoryRepo();
+    const record = vi.spyOn(repo, "recordPlatformCall");
+    const first = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", platformDeps(repo))).text();
+    const retry = await (await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", platformDeps(repo))).text();
+    expect(retry).toBe(first);
+    expect(record).toHaveBeenCalledTimes(1);
+    const dial = await handleTwilioWebhook(signedRequest("voice", callParams("in-progress", { DialCallStatus: "no-answer" }), { query: "?step=dial" }), "voice", platformDeps(repo));
+    const relayStep = await handleTwilioWebhook(signedRequest("voice", callParams("in-progress"), { query: "?step=relay" }), "voice", platformDeps(repo));
+    expect(await relayStep.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    expect(await dial.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    expect(state.textBacks).toEqual([]);
+  });
+
+  it("is an ordinary unrouted number when it is not configured", async () => {
+    const { repo, state } = memoryRepo();
+    const response = await handleTwilioWebhook(signedRequest("voice", callParams("ringing")), "voice", deps(repo));
+    expect(await response.text()).toContain("<Reject/>");
+    expect(state.platformCalls.size).toBe(0);
+  });
+
+  it("does not change garage numbers", async () => {
+    const { repo, state } = memoryRepo();
+    await handleTwilioWebhook(signedRequest("voice", { ...callParams("ringing"), To: GARAGE_NUMBER }), "voice", platformDeps(repo));
+    expect(state.calls.get(CALL)).toMatchObject({ garageId: GARAGE, missed: true });
+    expect(state.platformCalls.size).toBe(0);
+    expect(state.textBacks).toEqual([`call-${CALL}`]);
+  });
+});
+
 describe("Supabase webhook repository", () => {
+  it("stores a platform-line call in platform_calls, never in calls, without a garage", async () => {
+    const fake = createFakeSupabase({ from: () => ({ data: null }) });
+    const repo = createSupabaseTwilioWebhookRepo(fake.client);
+    expect(await repo.recordPlatformCall({ callSid: "CA1", from: CUSTOMER, to: PLATFORM_NUMBER, status: "ringing", durationSeconds: null })).toEqual({ outcome: "created" });
+    const insert = fake.queries.find((query) => query.operation === "insert")!;
+    expect(insert.table).toBe("platform_calls");
+    expect(insert.values).toEqual({ provider_call_sid: "CA1", from_number: CUSTOMER, to_number: PLATFORM_NUMBER, status: "ringing", duration_s: null });
+    expect(fake.queries.some((query) => query.table === "calls")).toBe(false);
+  });
+
+  it("stores a voicemail on platform_calls when no garage call has that CallSid", async () => {
+    const fake = createFakeSupabase({ from: (query) => ({ data: query.table === "calls" ? [] : [{ id: "p1" }] }) });
+    const repo = createSupabaseTwilioWebhookRepo(fake.client);
+    expect(await repo.recordVoicemail("CA1", { url: "https://api.twilio.com/x", durationSeconds: 5 })).toBe(true);
+    expect(fake.queries.map((query) => [query.table, query.operation])).toEqual([["calls", "update"], ["platform_calls", "update"]]);
+  });
   it("routes only provisioned numbers (provider_sid set)", async () => {
     const fake = createFakeSupabase({ from: () => ({ data: { garage_id: GARAGE, purpose: "messaging", garages: { name: "Hartley Road Motors" } } }) });
     const repo = createSupabaseTwilioWebhookRepo(fake.client);
