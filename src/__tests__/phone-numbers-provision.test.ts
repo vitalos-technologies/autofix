@@ -400,7 +400,13 @@ describe("numbers.provision when Twilio is busy, down or slow", () => {
     const client = fullAccount();
     await provisionNumbers({ client, repo: store.repo, config: config({ voiceUrl: null }), scope: ALL });
     expect(store.states.get(GARAGE_A)).toMatchObject({ status: "not_configured", reason: "no_webhook_origin" });
-    expect(client.state.calls).toEqual([]);
+    expect(client.state.calls).toEqual(["getAccount"]);
+    expect(client.state.mutations).toEqual([]);
+
+    // On a trial the missing origin does not matter yet: it waits for the upgrade.
+    const trial = createMockTwilioNumbersClient();
+    await provisionNumbers({ client: trial, repo: store.repo, config: config({ voiceUrl: null }), scope: ALL });
+    expect(store.states.get(GARAGE_A)).toMatchObject({ status: "waiting_upgrade" });
   });
 });
 

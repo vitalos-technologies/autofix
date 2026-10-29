@@ -245,6 +245,14 @@ class ProvisionRun {
       this.summary.outcome = "waiting_upgrade";
       return this.summary;
     }
+    // Bought numbers point their calls at the voice webhook: without a public https origin, buy nothing.
+    if (!this.voiceUrl) {
+      await this.setStatus(due, "not_configured", "no_webhook_origin");
+      if (this.platformRun) await this.setTexting("not_configured", "no_webhook_origin");
+      await repo.recordPlatform({ accountType: account.type, numberCap: config.cap });
+      this.summary.outcome = "not_configured";
+      return this.summary;
+    }
 
     // 3. Everything the account holds, for the cap and to find numbers bought by an earlier run.
     this.owned = await client.listNumbers();
@@ -398,8 +406,8 @@ export async function provisionNumbers(input: ProvisionInput): Promise<Provision
     run.summary.outcome = due.length ? "checked" : "nothing_due";
     return run.summary;
   }
-  if (!input.client || !config.voiceUrl) {
-    const reason = !input.client ? (input.unconfiguredReason ?? "not_configured") : "no_webhook_origin";
+  if (!input.client) {
+    const reason = input.unconfiguredReason ?? "not_configured";
     await run.setStatus(needNumber, "not_configured", reason);
     if (scope.kind === "all") await run.setTexting("not_configured", reason);
     run.summary.outcome = "not_configured";
