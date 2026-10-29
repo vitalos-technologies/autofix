@@ -101,6 +101,9 @@ jobs:
           VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES || '200' }}
           VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE || '1500' }}
           VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE || '4' }}
+          # Contact page enquiries (/contact) are emailed here (Temitope, 29 Oct 2026: his own address). A repository
+          # variable overrides it; the app sends nothing while it is empty.
+          VAR__PLATFORM_ENQUIRY_EMAIL: ${{ vars.PLATFORM_ENQUIRY_EMAIL || 'temitope.agbola@vitalos.co.uk' }}
           VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
           VAR__RESEND_REPLY_TO: ${{ vars.RESEND_REPLY_TO }}
           VAR__STRIPE_PRICE_PRO: ${{ vars.STRIPE_PRICE_PRO }}

@@ -18,7 +18,7 @@ export const SITE_PREFIX = "/_site";
 export const DEV_GARAGE_COOKIE = "af_dev_garage";
 
 /** Paths that only exist on the admin host. */
-const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/superadmin", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent", "/api/voice"];
+const ADMIN_ONLY_PREFIXES = ["/app", "/admin", "/auth", "/dev", "/signup", "/superadmin", "/api/admin", "/api/platform", "/api/cron", "/api/jobs", "/api/agent", "/api/voice", "/api/contact"];
 
 function hasPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
