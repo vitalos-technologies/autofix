@@ -16,6 +16,7 @@ on:
           - vercel-domains
           - vercel-secrets
           - twilio-webhooks
+          - twilio-number
           - resend-domain
           - supabase-migrate
           - supabase-auth
@@ -24,6 +25,14 @@ on:
         description: Make the changes (otherwise only report what would change)
         type: boolean
         default: false
+      number:
+        description: "twilio-number: the number, E.164 (e.g. +441146974393)"
+        type: string
+        default: ""
+      garage:
+        description: "twilio-number: the garage's slug (e.g. doncaster-auto)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -46,6 +55,8 @@ jobs:
         env:
           LAUNCH_TASK: ${{ inputs.task }}
           LAUNCH_APPLY: ${{ inputs.apply }}
+          LAUNCH_NUMBER: ${{ inputs.number }}
+          LAUNCH_GARAGE: ${{ inputs.garage }}
           # Vercel
           VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}

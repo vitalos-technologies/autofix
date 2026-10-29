@@ -1,7 +1,7 @@
 // Gate 4 launch steps (docs/autofix/LAUNCH.md), run from GitHub Actions with the repository's secrets and
 // variables (.github/workflows/launch-ops.yml), so nobody pastes a key into a chat or a terminal.
 //
-//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | resend-domain | supabase-migrate | supabase-auth
+//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | twilio-number | resend-domain | supabase-migrate | supabase-auth
 //                 | stripe-setup
 //   LAUNCH_APPLY  "true" to change anything; otherwise every task only reports what it would do.
 //
@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
+const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "twilio-number", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -312,6 +312,86 @@ async function twilioWebhooks() {
     else fail(`${lastFour(number.phone_number)}: ${errorText(result)}`);
   }
   console.log("  Each garage number still needs a garage_phone_numbers row with its provider_sid (PN…) before calls and texts route to a garage.");
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Twilio: put one of the account's numbers in Autofix's Messaging Service and give it to a garage (LAUNCH 6.2)
+// ---------------------------------------------------------------------------------------------------------
+
+// Inputs `number` (E.164) and `garage` (its slug). The number joins the Messaging Service, its calls and
+// call status go to Autofix, and a garage_phone_numbers row (purpose messaging, provider_sid PN…) routes its
+// texts and calls to that garage. A number another app answers, or that another garage holds, is left alone.
+async function twilioNumber() {
+  heading("Twilio number");
+  if (missing(["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY"])) {
+    return fail("Twilio or Supabase is not configured");
+  }
+  const wanted = env("LAUNCH_NUMBER");
+  const slug = env("LAUNCH_GARAGE");
+  if (!/^\+[1-9][0-9]{6,14}$/.test(wanted ?? "")) return fail("set the workflow input `number` in E.164, e.g. +441146974393");
+  if (!/^[a-z0-9](-?[a-z0-9])*$/.test(slug ?? "")) return fail("set the workflow input `garage` to the garage's slug, e.g. doncaster-auto");
+  const ref = projectRef();
+  if (!ref) return fail("NEXT_PUBLIC_SUPABASE_URL is not a https://<ref>.supabase.co URL");
+
+  const account = env("TWILIO_ACCOUNT_SID");
+  const service = env("TWILIO_MESSAGING_SERVICE_SID");
+  const headers = { Authorization: `Basic ${Buffer.from(`${account}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64")}` };
+  const form = (fields) => ({ method: "POST", headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+  const secretKey = env("SUPABASE_SECRET_KEY");
+  const db = { apikey: secretKey, Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" };
+  const rest = `https://${ref}.supabase.co/rest/v1`;
+  const origin = siteOrigin();
+  const ours = new URL(origin).host;
+  const voice = `${origin}/api/webhooks/twilio/voice`;
+
+  const found = await call(`https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(wanted)}`, { headers });
+  if (!found.ok) return fail(`phone numbers: ${errorText(found)}`);
+  const number = (found.body?.incoming_phone_numbers ?? [])[0];
+  if (!number) return fail(`${lastFour(wanted)} is not a number on this Twilio account`);
+  const voiceHost = number.voice_url ? new URL(number.voice_url).host : null;
+  // Calls answered by another app stay with it; a TwiML Bin or nothing (Twilio's own hosts) can be taken over.
+  if (voiceHost && voiceHost !== ours && !voiceHost.endsWith("twilio.com")) return fail(`${lastFour(wanted)}: its calls go to ${voiceHost}; left alone`);
+
+  const membership = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers/${number.sid}`, { headers });
+  const inService = membership.ok;
+  if (!inService && membership.status !== 404) return fail(`Messaging Service membership: ${errorText(membership)}`);
+
+  const garages = await call(`${rest}/garages?select=id,name&slug=eq.${encodeURIComponent(slug)}`, { headers: db });
+  if (!garages.ok) return fail(`garage: ${errorText(garages)}`);
+  const garage = (garages.body ?? [])[0];
+  if (!garage) return fail(`no garage with the slug ${slug}`);
+  const rows = await call(`${rest}/garage_phone_numbers?select=id,garage_id,purpose,provider_sid&number=eq.${encodeURIComponent(wanted)}`, { headers: db });
+  if (!rows.ok) return fail(`garage_phone_numbers: ${errorText(rows)}`);
+  const row = (rows.body ?? [])[0];
+  if (row && row.garage_id !== garage.id) return fail(`${lastFour(wanted)} already belongs to another garage; left alone`);
+  const rowReady = row && row.purpose === "messaging" && row.provider_sid === number.sid;
+
+  console.log(`  ${lastFour(wanted)}: ${inService ? "in" : "not in"} the Messaging Service; voice=${voiceHost ?? "none"}; garage "${garage.name}": ${rowReady ? "routed" : row ? "row needs updating" : "no row"}`);
+  if (!apply) {
+    console.log(`  would ${inService ? "keep it in" : "add it to"} the Messaging Service, point its calls and call status at ${voice}, and route it to "${garage.name}" (purpose messaging)`);
+    return;
+  }
+
+  if (!inService) {
+    const added = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers`, form({ PhoneNumberSid: number.sid }));
+    if (!added.ok) return fail(`adding ${lastFour(wanted)} to the Messaging Service: ${errorText(added)}`);
+    console.log(`  ${lastFour(wanted)}: added to the Messaging Service`);
+  }
+  const pointed = await call(
+    `https://api.twilio.com/2010-04-01/Accounts/${account}/IncomingPhoneNumbers/${number.sid}.json`,
+    form({ VoiceUrl: voice, VoiceMethod: "POST", StatusCallback: voice, StatusCallbackMethod: "POST" }),
+  );
+  if (!pointed.ok) return fail(`${lastFour(wanted)} voice: ${errorText(pointed)}`);
+  console.log(`  ${lastFour(wanted)}: calls and call status point at ${ours}`);
+
+  if (!rowReady) {
+    const body = JSON.stringify({ garage_id: garage.id, number: wanted, purpose: "messaging", provider_sid: number.sid });
+    const saved = row
+      ? await call(`${rest}/garage_phone_numbers?id=eq.${row.id}`, { method: "PATCH", headers: db, body: JSON.stringify({ purpose: "messaging", provider_sid: number.sid }) })
+      : await call(`${rest}/garage_phone_numbers`, { method: "POST", headers: db, body });
+    if (!saved.ok) return fail(`routing ${lastFour(wanted)} to "${garage.name}": ${errorText(saved)}`);
+  }
+  console.log(`  ${lastFour(wanted)}: texts and calls route to "${garage.name}"`);
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -866,6 +946,7 @@ const run = {
   "vercel-domains": vercelDomains,
   "vercel-secrets": vercelSecrets,
   "twilio-webhooks": twilioWebhooks,
+  "twilio-number": twilioNumber,
   "resend-domain": resendDomain,
   "supabase-migrate": supabase,
   "supabase-auth": supabase,
