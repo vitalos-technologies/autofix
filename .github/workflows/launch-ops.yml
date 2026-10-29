@@ -17,6 +17,7 @@ on:
           - vercel-secrets
           - twilio-webhooks
           - twilio-number
+          - twilio-buy-mobile
           - resend-domain
           - supabase-migrate
           - supabase-auth

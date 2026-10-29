@@ -1,7 +1,7 @@
 // Gate 4 launch steps (docs/autofix/LAUNCH.md), run from GitHub Actions with the repository's secrets and
 // variables (.github/workflows/launch-ops.yml), so nobody pastes a key into a chat or a terminal.
 //
-//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | twilio-number | resend-domain | supabase-migrate | supabase-auth
+//   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | twilio-number | twilio-buy-mobile | resend-domain | supabase-migrate | supabase-auth
 //                 | stripe-setup
 //   LAUNCH_APPLY  "true" to change anything; otherwise every task only reports what it would do.
 //
@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "twilio-number", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
+const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "twilio-number", "twilio-buy-mobile", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -397,6 +397,68 @@ async function twilioNumber() {
     if (!saved.ok) return fail(`routing ${lastFour(wanted)} to "${garage.name}": ${errorText(saved)}`);
   }
   console.log(`  ${lastFour(wanted)}: ${canText ? "texts and calls" : "calls"} route to "${garage.name}"`);
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Twilio: buy one UK mobile number for texts and put it in the Messaging Service (Temitope, 29 Oct 2026)
+// ---------------------------------------------------------------------------------------------------------
+
+// Texts go out through the Messaging Service, so one SMS-capable number there lets every garage text
+// (booking confirmations, reminders, text-backs). Buys only when the service has no SMS-capable number yet,
+// so a re-run never buys a second one. UK mobile numbers need an approved Twilio regulatory bundle.
+async function twilioBuyMobile() {
+  heading("Twilio mobile number for texts");
+  if (missing(["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID"])) return fail("Twilio is not configured");
+  const account = env("TWILIO_ACCOUNT_SID");
+  const service = env("TWILIO_MESSAGING_SERVICE_SID");
+  const headers = { Authorization: `Basic ${Buffer.from(`${account}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64")}` };
+  const form = (fields) => ({ method: "POST", headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+  const api = `https://api.twilio.com/2010-04-01/Accounts/${account}`;
+  const voice = `${siteOrigin()}/api/webhooks/twilio/voice`;
+
+  const acct = await call(`${api}.json`, { headers });
+  if (!acct.ok) return fail(`account: ${errorText(acct)}`);
+  console.log(`  account: ${acct.body.type} (${acct.body.status})`);
+
+  const inService = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers?PageSize=100`, { headers });
+  if (!inService.ok) return fail(`Messaging Service numbers: ${errorText(inService)}`);
+  const texting = (inService.body.phone_numbers ?? []).filter((number) => number.capabilities?.includes?.("SMS") ?? true);
+  if (texting.length) {
+    console.log(`  the Messaging Service already has ${texting.length} number(s) that can text (${texting.map((number) => lastFour(number.phone_number)).join(", ")}); nothing to buy`);
+    return;
+  }
+
+  const bundles = await call("https://numbers.twilio.com/v2/RegulatoryCompliance/Bundles?Status=twilio-approved&IsoCountry=GB&NumberType=mobile&PageSize=20", { headers });
+  const bundle = bundles.ok ? (bundles.body?.results ?? [])[0] : null;
+  console.log(`  approved UK mobile regulatory bundle: ${bundle ? `yes (${bundle.friendly_name})` : bundles.ok ? "none" : `unknown (${errorText(bundles)})`}`);
+  const addresses = await call(`${api}/Addresses.json?IsoCountry=GB&PageSize=20`, { headers });
+  const address = addresses.ok ? (addresses.body?.addresses ?? [])[0] : null;
+
+  const available = await call(`${api}/AvailablePhoneNumbers/GB/Mobile.json?SmsEnabled=true&VoiceEnabled=true&PageSize=5`, { headers });
+  if (!available.ok) return fail(`available UK mobile numbers: ${errorText(available)}`);
+  const candidates = available.body?.available_phone_numbers ?? [];
+  if (!candidates.length) return fail("no UK mobile numbers with SMS and voice are available right now");
+  console.log(`  available: ${candidates.map((number) => number.friendly_name).join(", ")}`);
+  if (!apply) {
+    console.log(`  would buy ${candidates[0].friendly_name}, add it to the Messaging Service and point its calls at ${voice}`);
+    if (acct.body.type === "Trial") console.log("  note: a trial account may not be allowed a second number; upgrade it in the Twilio console if the purchase is refused");
+    if (!bundle) console.log("  note: UK mobile numbers need an approved regulatory bundle (Twilio console > Phone Numbers > Regulatory Compliance)");
+    return;
+  }
+
+  const bought = await call(`${api}/IncomingPhoneNumbers.json`, form({
+    PhoneNumber: candidates[0].phone_number,
+    FriendlyName: "Autofix texts",
+    VoiceUrl: voice,
+    VoiceMethod: "POST",
+    ...(bundle ? { BundleSid: bundle.sid } : {}),
+    ...(address ? { AddressSid: address.sid } : {}),
+  }));
+  if (!bought.ok) return fail(`buying ${candidates[0].friendly_name}: ${errorText(bought)}`);
+  console.log(`  bought ${bought.body.friendly_name} (…${String(bought.body.phone_number).slice(-4)})`);
+  const added = await call(`https://messaging.twilio.com/v1/Services/${service}/PhoneNumbers`, form({ PhoneNumberSid: bought.body.sid }));
+  if (!added.ok) return fail(`adding it to the Messaging Service: ${errorText(added)}`);
+  console.log("  added to the Messaging Service: every garage's texts can go out now");
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -952,6 +1014,7 @@ const run = {
   "vercel-secrets": vercelSecrets,
   "twilio-webhooks": twilioWebhooks,
   "twilio-number": twilioNumber,
+  "twilio-buy-mobile": twilioBuyMobile,
   "resend-domain": resendDomain,
   "supabase-migrate": supabase,
   "supabase-auth": supabase,
