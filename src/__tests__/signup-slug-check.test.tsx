@@ -54,7 +54,8 @@ describe("sign-up booking link check", () => {
     await screen.findByText("This link is free.");
     actions.checkSlugAction.mockClear();
 
-    for (const value of ["kin", "king", "kings", "kingsw", "kingsway"]) fill("Booking link name", value);
+    // Typing from a short value: nothing is checked while the keys come quickly.
+    for (const value of ["k", "ki", "kin", "king", "kings", "kingsw", "kingsway"]) fill("Booking link name", value);
     expect(actions.checkSlugAction).not.toHaveBeenCalled();
     expect(screen.getByText("Checking…")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Create my garage" }) as HTMLButtonElement).disabled).toBe(true);
@@ -67,12 +68,29 @@ describe("sign-up booking link check", () => {
     expect(actions.checkSlugAction).toHaveBeenCalledTimes(1);
   });
 
+  it("checks a change after a quiet spell (a paste) at once, then waits for the next pause", async () => {
+    await openLinkStep();
+    await screen.findByText("This link is free.");
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    actions.checkSlugAction.mockClear();
+
+    fill("Booking link name", "kingsway-motors");
+    expect(actions.checkSlugAction).toHaveBeenCalledTimes(1);
+    expect(actions.checkSlugAction).toHaveBeenLastCalledWith("kingsway-motors", "Doncaster");
+    fill("Booking link name", "kingsway-motor");
+    fill("Booking link name", "kingsway-moto");
+    expect(actions.checkSlugAction).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(actions.checkSlugAction).toHaveBeenCalledTimes(2));
+    expect(actions.checkSlugAction).toHaveBeenLastCalledWith("kingsway-moto", "Doncaster");
+    await screen.findByText("This link is free.");
+  });
+
   it("does not check a link shorter than three characters", async () => {
     await openLinkStep();
     await screen.findByText("This link is free.");
     actions.checkSlugAction.mockClear();
-    fill("Booking link name", "kin");
     fill("Booking link name", "ki");
+    fill("Booking link name", "k");
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(actions.checkSlugAction).not.toHaveBeenCalled();
     expect(screen.queryByText("Checking…")).toBeNull();

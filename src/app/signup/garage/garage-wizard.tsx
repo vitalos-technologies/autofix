@@ -20,7 +20,7 @@ const initialCreateState: CreateGarageState = { seq: 0, errors: {} };
 /**
  * Typing in the link box checks the slug once the owner pauses. Server actions run one at a time per
  * client, so a check per keystroke queued every one of them and kept "Create my garage" disabled for
- * seconds after the last key.
+ * seconds after the last key. A change after a quiet spell (a paste, the first edit) is checked at once.
  */
 const SLUG_CHECK_DELAY_MS = 300;
 
@@ -58,6 +58,7 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
   const [checking, startCheck] = useTransition();
   const [checkDue, setCheckDue] = useState(false);
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSlugChange = useRef(0);
   const [state, formAction, creating] = useActionState(createGarageAction, initialCreateState);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -171,8 +172,11 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
     setSlug(next);
     setSlugTouched(true);
     setSlugCheck(null);
+    const now = Date.now();
+    const quiet = !checkTimer.current && now - lastSlugChange.current >= SLUG_CHECK_DELAY_MS;
+    lastSlugChange.current = now;
     if (next.length < 3) cancelPendingCheck();
-    else if (immediate) checkSlug(next);
+    else if (immediate || quiet) checkSlug(next);
     else checkSlugSoon(next);
   }
 
