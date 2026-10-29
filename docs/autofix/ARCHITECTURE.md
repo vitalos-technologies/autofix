@@ -345,11 +345,11 @@ App:
 
 ## Booking page, domains and Askbridge (P4.3, P4.6), as built
 
-Migrations `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140–A153) and `20261029001300_askbridge_site_key.sql` (29 Oct 2026: Askbridge site key; the knowledge sync, its triggers, `enqueue_askbridge_sync` and `askbridge_sync_after_change` dropped; job kind `askbridge.sync` unused). pgTAP `022_domains_askbridge.test.sql`.
+Migrations `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140–A153) and `20261029001300_askbridge_site_key.sql` (29 Oct 2026: Askbridge site key; the knowledge sync, its triggers, `enqueue_askbridge_sync` and `askbridge_sync_after_change` dropped; job kind `askbridge.sync` unused). pgTAP `022_domains_askbridge.test.sql`. `20261029003100_booking_page_show_prices.sql` (29 Oct 2026, Temitope: "Show prices on my booking page"; the 2-argument function is replaced by the 3-argument one below), pgTAP `040_booking_page_show_prices.test.sql`.
 
 | SQL | Who | What |
 | --- | --- | --- |
-| `set_booking_page_settings(p_embed_origins jsonb default null, p_askbridge jsonb default null) → jsonb` | authenticated, **owner** of the selected garage (else `42501`) | Atomic merge into `garages.settings`: `embedOrigins` (≤ 10 `https://host[:port]`) and/or `askbridge` `{enabled bool, siteKey ^pk_[0-9a-f]{32}$}` (`enabled` needs a key); null leaves a key alone; `22023` on bad input. Returns `{embedOrigins, askbridge}` |
+| `set_booking_page_settings(p_embed_origins jsonb default null, p_askbridge jsonb default null, p_show_prices boolean default null) → jsonb` | authenticated, **owner** of the selected garage (else `42501`) | Atomic merge into `garages.settings`: `embedOrigins` (≤ 10 `https://host[:port]`), `askbridge` `{enabled bool, siteKey ^pk_[0-9a-f]{32}$}` (`enabled` needs a key) and/or `showPrices` (bool; absent = true); null leaves a key alone; `22023` on bad input. Returns `{embedOrigins, askbridge, showPrices}` |
 
 `garage_domains.verification` (service role only) now holds `{records: [{type: CNAME\|TXT, name, host, value, purpose}], pending_since}`.
 
@@ -361,7 +361,8 @@ Migrations `20261028000600_domains_askbridge.sql` (no new tables; DECISIONS A140
 | `src/lib/booking-page/domains-server.ts` | `getCustomDomain(client, garageId)`, `connectCustomDomain(garageId, hostname, {rls, service, domains?})`, `checkCustomDomainNow` / `retryCustomDomain(garageId, {service, domains?, now?})`, `removeCustomDomain(garageId, {rls, service})`, `createSupabaseDomainsCheckRepo(client, {garageId?, id?, limit?})` (scoped to one garage/row for "Check now"; clears the host cache on each status write; the `domains.check` job keeps its own repo in `src/lib/jobs/handlers/domains-check.ts`) |
 | `src/lib/booking-page/qr.ts` | `qrMatrix`, `qrSvg(text, {title})`, `qrPng(text, scale)` (`uqr` + zlib; no external service) |
 | `src/lib/tenancy/resolve.ts` (+) | `HostGarage` gains `embedOrigins`, `widgetEnabled` (from `settings`); cache on `globalThis`; `clearHostCache({hostnames?, slugs?})` |
-| `src/lib/tenancy/garage.ts` (+) | `Garage.askbridgeSiteKey` (set only while the chat is on) |
+| `src/lib/tenancy/garage.ts` (+) | `Garage.askbridgeSiteKey` (set only while the chat is on), `Garage.showPrices` (from `settings.showPrices`) |
+| `src/lib/booking-page/show-prices.ts` (client-safe) | `showPricesFromSettings(settings)`, `garageShowsPrices(garage)`, `publicServicePrice(service, show)`. Off: the service step has no price column and receives no prices; `GET /api/services` drops `pricePence`/`priceMode` and adds `pricesHidden: true`. Deposits, payment links, plan Direct Debits and health-check approvals always show their amounts |
 | `src/lib/askbridge/config.ts` (client-safe) | `ASKBRIDGE_DEFAULT_SCRIPT_URL`, `ASKBRIDGE_SITE_KEY`, `parseAskbridgeSiteKey`, `askbridgeFromSettings`, `askbridgeScriptUrl(env)` (default when unset, `null` when set but invalid), `askbridgeWidgetFor(settings, env)`, `askbridgeAllowedOrigins(freeLinkOrigin, customHostname)` |
 | `src/lib/agent-api/handler.ts` (+) | `agentGarageProfile(record)` (the `garage_profile` body) |
 | `src/components/askbridge/askbridge-widget.tsx` | `AskbridgeWidget({src, siteKey})`: `next/script` `lazyOnload`, `async`, `data-site` (Askbridge's install snippet), rendered by the garage layout only when the chat is on and the loader URL is valid |

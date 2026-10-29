@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Plus, Tag } from "lucide-react";
 import { Badge, buttonClass, EmptyState, PageHeader, Panel, textLinkClass } from "@/components/admin-ui";
 import { formatDuration, formatServicePrice } from "@/components/book";
+import { garageShowsPrices } from "@/lib/booking-page/show-prices";
 import { canManageSetup } from "@/lib/settings/setup";
 import { getAdminContext } from "@/lib/tenancy/admin";
 import { FlashMessage, ReadOnlyNotice, SetupNav, SetupNotice } from "../_components/setup-nav";
@@ -50,6 +51,14 @@ export default async function ServicesSetupPage({ searchParams }: PageProps) {
       <SetupNav current="services" />
       <FlashMessage messages={MESSAGES} done={query.done} error={query.error} />
       {!canEdit ? <ReadOnlyNotice level="manage" /> : null}
+      {admin && !garageShowsPrices(admin.garage) ? (
+        <SetupNotice>
+          Your booking page hides prices, so customers see these services without them.{" "}
+          <Link href="/app/settings/booking-page#prices" className="font-semibold underline underline-offset-2">
+            Show prices
+          </Link>
+        </SetupNotice>
+      ) : null}
       {hasMot && !motEnabled ? (
         <SetupNotice tone="warning">
           MOT is switched off, so MOT services are hidden from customers.{" "}

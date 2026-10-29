@@ -103,6 +103,24 @@ export async function saveEmbedOriginsAction(previous: SetupFormState<"origins">
   });
 }
 
+/** "Show prices on my booking page" (settings.showPrices). Deposits and payment amounts always show. */
+export async function saveShowPricesAction(previous: SetupFormState, formData: FormData): Promise<SetupFormState> {
+  const admin = await requireSetupContext(PATH);
+  if (!roleAllows(admin, "owner")) return stateFor(previous, { status: "error", message: NOT_ALLOWED_MESSAGES.owner });
+  const showPrices = formData.get("showPrices") === "on";
+
+  const { error } = await admin.client.rpc("set_booking_page_settings", { p_embed_origins: null, p_askbridge: null, p_show_prices: showPrices });
+  if (error) return stateFor(previous, { status: "error", message: settingsProblem(error) });
+  await auditSetupChange(admin, showPrices ? "booking_page.prices_shown" : "booking_page.prices_hidden", "garage", admin.garage.id, { showPrices });
+  afterBookingPageChange(admin);
+  return stateFor(previous, {
+    status: "saved",
+    message: showPrices
+      ? "Saved. Customers see your prices on the booking page."
+      : "Saved. Your booking page no longer shows prices. Deposits still show, because customers pay them.",
+  });
+}
+
 export async function saveAskbridgeAction(previous: SetupFormState<"siteKey">, formData: FormData): Promise<SetupFormState<"siteKey">> {
   const admin = await requireSetupContext(PATH);
   if (!roleAllows(admin, "owner")) return stateFor(previous, { status: "error", message: NOT_ALLOWED_MESSAGES.owner });

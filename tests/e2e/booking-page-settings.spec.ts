@@ -7,7 +7,8 @@
  * Checks: free link + QR download, connect a custom domain (DNS table, status steps, Check now and its
  * 5-minute throttle, remove), the embed sites → the garage host's CSP frame-ancestors (no X-Frame-Options)
  * while the admin host stays SAMEORIGIN, the chat setting (Askbridge site key; the loader and its API are
- * answered by the test, never the real Askbridge), the manager's read-only view, and axe with no
+ * answered by the test, never the real Askbridge), "Show prices on my booking page" off and on again (the
+ * service step and GET /api/services lose and regain their prices), the manager's read-only view, and axe with no
  * violations at 390 and 1440 with no horizontal scroll.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -19,6 +20,8 @@ import { createLocalClient, createLocalGarage, getLocalSupabaseConfig, type Loca
 const port = process.env.PLAYWRIGHT_PORT || "3430";
 const adminOrigin = `http://localhost:${port}`;
 const PATH = "/app/settings/booking-page";
+/** Prices hidden: the setting and the service step it changes (29 Oct 2026). */
+const SHOTS = "docs/autofix/screenshots/owner-2026-10-29/after";
 const service = createLocalClient(getLocalSupabaseConfig().secretKey);
 const hostname = `book.af${randomUUID().replace(/[^0-9a-e]/g, "").slice(0, 8)}motors.co.uk`;
 
@@ -227,6 +230,64 @@ test("Askbridge chat: validated site key, on and off", async () => {
   expect((await siteHeaders())["content-security-policy"]).not.toMatch(/askbridge|127\.0\.0\.1:4100/);
 });
 
+test("Prices: the owner hides them on the booking page, then shows them again", async () => {
+  type PublicService = { name: string; pricePence?: number | null; priceMode?: string };
+  const visitor = await page.context().browser()!.newContext({ viewport: { width: 390, height: 844 } });
+  const site = await visitor.newPage();
+  // Through the browser, which maps *.localhost to loopback (the Node request client does not).
+  const listed = async () => (await (await site.goto(`${siteOrigin}/api/services`))!.json()) as { services: PublicService[]; pricesHidden?: boolean };
+  /** Book 1 → Book 2 with the mock lookup's car; returns the service list's text. */
+  const serviceStepText = async () => {
+    await site.goto(`${siteOrigin}/`);
+    await site.getByLabel("Registration").fill("ab12 cde");
+    await site.getByRole("button", { name: "Find my car" }).click();
+    await site.getByRole("button", { name: "Continue" }).click();
+    await site.waitForURL(/\/service$/);
+    return site.getByRole("group", { name: "Choose a service" }).innerText();
+  };
+
+  const before = await listed();
+  expect(before.pricesHidden).toBeUndefined();
+  expect(before.services.some((item) => typeof item.pricePence === "number" && item.pricePence > 0)).toBe(true);
+  expect(await serviceStepText()).toMatch(/£\d/);
+
+  await page.goto(`${adminOrigin}${PATH}`);
+  const prices = page.locator("#prices");
+  await expect(prices.getByLabel("Show prices on my booking page")).toBeChecked();
+  await prices.getByLabel("Show prices on my booking page").uncheck();
+  await prices.getByRole("button", { name: "Save prices setting" }).click();
+  await expect(prices.getByText("Saved. Your booking page no longer shows prices.", { exact: false })).toBeVisible();
+  // The box shows what was saved, after React resets the form.
+  await expect(prices.getByLabel("Show prices on my booking page")).not.toBeChecked();
+  await expect(prices.getByText("Hidden", { exact: true })).toBeVisible();
+  const { data } = await service.from("garages").select("settings").eq("id", garage.id).single();
+  expect((data?.settings as { showPrices?: unknown }).showPrices).toBe(false);
+
+  const hidden = await listed();
+  expect(hidden.pricesHidden).toBe(true);
+  expect(hidden.services.length).toBe(before.services.length);
+  for (const item of hidden.services) expect(item).not.toHaveProperty("pricePence");
+  const text = await serviceStepText();
+  expect(text).not.toMatch(/£|From |Quote|Free/);
+  expect(await site.content()).not.toMatch(/£\d/);
+  for (const width of [390, 1440]) {
+    await site.setViewportSize({ width, height: width < 600 ? 844 : 900 });
+    await site.screenshot({ path: `${SHOTS}/book-2-service-prices-hidden-${width}.png`, fullPage: true });
+    await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 });
+    await page.screenshot({ path: `${SHOTS}/settings-booking-page-prices-hidden-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
+  await page.reload();
+  await expect(prices.getByLabel("Show prices on my booking page")).not.toBeChecked();
+  await prices.getByLabel("Show prices on my booking page").check();
+  await prices.getByRole("button", { name: "Save prices setting" }).click();
+  await expect(prices.getByText("Saved. Customers see your prices on the booking page.")).toBeVisible();
+  await expect(prices.getByLabel("Show prices on my booking page")).toBeChecked();
+  expect((await listed()).pricesHidden).toBeUndefined();
+  await visitor.close();
+});
+
 test("a manager sees the settings read only", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const managerPage = await context.newPage();
@@ -237,6 +298,7 @@ test("a manager sees the settings read only", async ({ browser }) => {
   await expect(managerPage.locator("#own-address").getByRole("button", { name: /^Remove / })).toHaveCount(0);
   await expect(managerPage.getByRole("button", { name: "Save websites" })).toBeDisabled();
   await expect(managerPage.getByRole("button", { name: "Save chat" })).toBeDisabled();
+  await expect(managerPage.getByRole("button", { name: "Save prices setting" })).toBeDisabled();
   await expectAccessibleAt(managerPage);
   await context.close();
 });

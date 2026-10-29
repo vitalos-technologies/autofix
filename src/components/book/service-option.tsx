@@ -15,6 +15,8 @@ export type ServiceOptionProps = {
   durationMinutes?: number | null;
   pricePence?: number | null;
   priceMode: PriceMode;
+  /** False when the garage hides prices on its booking page: no price column at all. */
+  showPrice?: boolean;
   /** Controlled selection. Leave unset and use `defaultChecked` for a plain form. */
   checked?: boolean;
   defaultChecked?: boolean;
@@ -24,7 +26,7 @@ export type ServiceOptionProps = {
   className?: string;
 };
 
-/** Radio card for one service: name, description · duration, and the price (`£x`, `From £x` or `Quote`). */
+/** Radio card for one service: name, description · duration, and the price (`£x`, `From £x` or `Quote`) unless the garage hides prices. */
 export function ServiceOption({
   name,
   value,
@@ -33,6 +35,7 @@ export function ServiceOption({
   durationMinutes,
   pricePence,
   priceMode,
+  showPrice = true,
   checked,
   defaultChecked,
   onSelect,
@@ -68,7 +71,7 @@ export function ServiceOption({
         <span className="text-[15px] font-bold text-navy-950">{label}</span>
         {detail ? <span className="text-[12.5px] text-grey-600">{detail}</span> : null}
       </span>
-      <span className="shrink-0 text-right text-[13px] font-semibold text-grey-700">{formatServicePrice(pricePence, priceMode)}</span>
+      {showPrice ? <span className="shrink-0 text-right text-[13px] font-semibold text-grey-700">{formatServicePrice(pricePence, priceMode)}</span> : null}
     </label>
   );
 }

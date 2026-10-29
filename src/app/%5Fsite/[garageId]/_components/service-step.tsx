@@ -22,6 +22,8 @@ export type ServiceChoice = Pick<OnlineService, "id" | "name" | "description" | 
 
 type ServiceStepProps = {
   services: readonly ServiceChoice[];
+  /** The garage's "Show prices on my booking page" (default on). */
+  showPrices?: boolean;
   initial: {
     serviceId?: string;
     locationMode?: LocationMode;
@@ -32,7 +34,7 @@ type ServiceStepProps = {
 };
 
 /** Step 2: the service (radio cards), workshop or mobile, symptoms and a note. */
-export function ServiceStep({ services, initial }: ServiceStepProps) {
+export function ServiceStep({ services, showPrices = true, initial }: ServiceStepProps) {
   const [state, formAction, pending] = useActionState<ServiceFormState, FormData>(serviceStepAction, initialServiceFormState);
   const [serviceId, setServiceId] = useState<string | null>(
     initial.serviceId && services.some((service) => service.id === initial.serviceId) ? initial.serviceId : null,
@@ -80,6 +82,7 @@ export function ServiceStep({ services, initial }: ServiceStepProps) {
               durationMinutes={item.priceMode === "quote" ? null : item.durationMin}
               pricePence={item.pricePence}
               priceMode={item.priceMode}
+              showPrice={showPrices}
               checked={serviceId === item.id}
               onSelect={setServiceId}
             />
