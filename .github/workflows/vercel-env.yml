@@ -71,13 +71,16 @@ jobs:
           SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           # Variables (Vercel "encrypted")
           VAR__ASKBRIDGE_SYNC_URL: ${{ vars.ASKBRIDGE_SYNC_URL }}
-          VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER }}
+          # Stripe test mode for Autofix's own billing and garage payments (Temitope, 29 Oct 2026; Connect on).
+          # Run Launch ops stripe-setup first: it puts the price ids and webhook secrets in Vercel.
+          VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER || 'stripe' }}
           VAR__COOKIE_CONFIGURATION_APPROVED: ${{ vars.COOKIE_CONFIGURATION_APPROVED }}
           VAR__DVSA_MOT_SCOPE: ${{ vars.DVSA_MOT_SCOPE }}
           VAR__DVSA_MOT_TOKEN_URL: ${{ vars.DVSA_MOT_TOKEN_URL }}
           VAR__ENQUIRY_NOTIFICATION_EMAIL: ${{ vars.ENQUIRY_NOTIFICATION_EMAIL }}
           VAR__ENQUIRY_REPLY_DOMAIN: ${{ vars.ENQUIRY_REPLY_DOMAIN }}
-          VAR__LEGAL_COPY_APPROVED: ${{ vars.LEGAL_COPY_APPROVED }}
+          # The legal copy is v1.0, approved by Temitope on 29 Oct 2026.
+          VAR__LEGAL_COPY_APPROVED: ${{ vars.LEGAL_COPY_APPROVED || 'true' }}
           # live: real texts and emails (Temitope, 29 Oct 2026). A repository variable overrides it.
           VAR__MESSAGING_MODE: ${{ vars.MESSAGING_MODE || 'live' }}
           VAR__NEXT_PUBLIC_ADMIN_HOST: ${{ vars.NEXT_PUBLIC_ADMIN_HOST }}
@@ -87,17 +90,18 @@ jobs:
           VAR__NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           VAR__NEXT_PUBLIC_TENANT_ROOT_DOMAIN: ${{ vars.NEXT_PUBLIC_TENANT_ROOT_DOMAIN }}
           VAR__NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
-          VAR__PAYMENTS_PROVIDER: ${{ vars.PAYMENTS_PROVIDER }}
+          VAR__PAYMENTS_PROVIDER: ${{ vars.PAYMENTS_PROVIDER || 'stripe' }}
           VAR__PLACES_PROVIDER: ${{ vars.PLACES_PROVIDER }}
-          # Plans (D17): Essentials £20 and Pro £45 a month, excluding VAT (Temitope, 29 Oct 2026); the rest
-          # stay "to be confirmed" until set. A repository variable overrides any of them.
+          # Plans (D17), excluding VAT (Temitope, 29 Oct 2026): Essentials £20 and Pro £45 a month, extra site
+          # £15; 100 and 500 texts a month, 200 AI minutes on Pro; a text costed at 4p. A repository variable
+          # overrides any of them.
           VAR__PLAN_ESSENTIALS_PRICE_PENCE: ${{ vars.PLAN_ESSENTIALS_PRICE_PENCE || '2000' }}
           VAR__PLAN_PRO_PRICE_PENCE: ${{ vars.PLAN_PRO_PRICE_PENCE || '4500' }}
-          VAR__PLAN_ESSENTIALS_SMS_ALLOWANCE: ${{ vars.PLAN_ESSENTIALS_SMS_ALLOWANCE }}
-          VAR__PLAN_PRO_SMS_ALLOWANCE: ${{ vars.PLAN_PRO_SMS_ALLOWANCE }}
-          VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES }}
-          VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE }}
-          VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE }}
+          VAR__PLAN_ESSENTIALS_SMS_ALLOWANCE: ${{ vars.PLAN_ESSENTIALS_SMS_ALLOWANCE || '100' }}
+          VAR__PLAN_PRO_SMS_ALLOWANCE: ${{ vars.PLAN_PRO_SMS_ALLOWANCE || '500' }}
+          VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES || '200' }}
+          VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE || '1500' }}
+          VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE || '4' }}
           VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
           VAR__RESEND_REPLY_TO: ${{ vars.RESEND_REPLY_TO }}
           VAR__STRIPE_PRICE_PRO: ${{ vars.STRIPE_PRICE_PRO }}

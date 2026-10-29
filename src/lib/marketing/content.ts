@@ -95,14 +95,17 @@ export const marketing = {
 
   // Two plans (DECISIONS D17). Essentials is what ships today. Pro lists its features; `shipped: false` marks
   // the ones still being built ("Coming soon"), so the page only claims what Autofix does. Every new garage
-  // starts on a 14-day Pro trial (P5.2). No prices until Temitope sets them.
+  // starts on a 14-day Pro trial (P5.2). Prices set by Temitope on 29 Oct 2026, excluding VAT; keep them
+  // in step with PLAN_ESSENTIALS_PRICE_PENCE, PLAN_PRO_PRICE_PENCE and PLAN_EXTRA_SITE_PRICE_PENCE.
   plans: {
     id: "plans",
     heading: "Two plans",
-    intro: "Essentials runs the garage. Pro grows it. Every new garage gets Pro free for 14 days, then chooses. Prices are coming soon.",
+    intro: "Essentials runs the garage. Pro grows it. Every new garage gets Pro free for 14 days, then chooses.",
+    priceUnit: "a month + VAT",
     essentials: {
       name: "Essentials",
       tagline: "Run the garage",
+      price: "£20",
       status: "Available now",
       features: [
         "Booking page on a free link or your own domain",
@@ -120,6 +123,7 @@ export const marketing = {
     pro: {
       name: "Pro",
       tagline: "Grow the garage",
+      price: "£45",
       status: "14-day free trial",
       lead: "Everything in Essentials, plus:",
       comingSoon: "Coming soon",
@@ -135,7 +139,7 @@ export const marketing = {
         { label: "Courtesy cars, collection and delivery", shipped: true },
         { label: "Several sites under one login", shipped: true },
       ],
-      note: "Try every Pro feature free for 14 days, then choose Pro or Essentials. Nothing you set up is lost if you choose Essentials.",
+      note: "Try every Pro feature free for 14 days, then choose Pro or Essentials. Nothing you set up is lost if you choose Essentials. Each extra site is £15 a month + VAT.",
     },
     cta: { label: "Start with Essentials", href: "/signup" },
   },
@@ -166,7 +170,7 @@ export const marketing = {
       },
       {
         q: "How much does it cost?",
-        a: "There are two plans, Essentials and Pro. Prices are being finalised. Every new garage gets Pro free for 14 days, so you can set up your garage and try everything now.",
+        a: "Essentials is £20 a month and Pro is £45 a month, plus VAT. On Pro, each extra site is £15 a month. Every new garage gets Pro free for 14 days, so you can set up your garage and try everything first.",
       },
       {
         q: "We don't do MOTs. Does that matter?",
