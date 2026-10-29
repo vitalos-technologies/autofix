@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { regexes } from "zod/v4/core";
 
 vi.mock("server-only", () => ({}));
 
@@ -10,7 +12,7 @@ import { describeOpeningHours, mapPlaceDetails, placeAddress, placeOpeningHours,
 import { cleanPlacesQuery, createGooglePlacesProvider, createMockPlacesProvider, DETAILS_FIELD_MASK, resolvePlacesMode, SEARCH_FIELD_MASK } from "@/lib/places/provider";
 import { PlacesLookupError } from "@/lib/places/types";
 import { generateInviteToken, hashInviteToken, inviteUrl, isInviteToken } from "@/lib/signup/invite-token";
-import { createGaragePayload, parseAccountForm, parseGarageDetails, parseGarageForm, parseInviteForm, parseOpeningHours, parseSlug } from "@/lib/signup/schema";
+import { createGaragePayload, EMAIL_PATTERN, parseAccountForm, parseGarageDetails, parseGarageForm, parseInviteForm, parseOpeningHours, parseSlug } from "@/lib/signup/schema";
 import { availableSlugs, createGarageError } from "@/lib/signup/server";
 import { slugAlternatives, slugify, slugProblem } from "@/lib/signup/slug";
 import { composeInviteEmail } from "@/lib/team/server";
@@ -199,6 +201,23 @@ describe("Places provider", () => {
 });
 
 describe("wizard validation", () => {
+  it("keeps the copied email pattern equal to zod's", () => {
+    expect(EMAIL_PATTERN.source).toBe(regexes.email.source);
+    expect(EMAIL_PATTERN.flags).toBe(regexes.email.flags);
+  });
+
+  it("accepts and refuses email addresses exactly as z.email() does", () => {
+    const samples = [
+      "owner@garage.co.uk", "o'brien@garage.co.uk", "first.last+tag@sub.example.org", "a_b-c@garage.example",
+      "a..b@garage.co.uk", ".a@garage.co.uk", "a.@garage.co.uk", "owner@garage", "owner@-garage.co.uk",
+      "owner@garage.c", "owner@@garage.co.uk", "ówner@garage.co.uk", "owner@garage..co.uk", "owner garage@x.co.uk", "",
+    ];
+    for (const sample of samples) {
+      const parsed = parseInviteForm({ email: sample, role: "technician" });
+      expect(parsed.ok ? undefined : parsed.errors.email, sample).toBe(z.email().safeParse(sample).success ? undefined : "Enter their email address.");
+    }
+  });
+
   const goodDetails = {
     name: " Kingsway  Autocare ",
     phone: "01632 960123",
