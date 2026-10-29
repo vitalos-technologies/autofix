@@ -17,7 +17,7 @@ export type OnboardingFrameProps = {
 };
 
 /**
- * Phone-first page for sign-up and onboarding, outside the admin shell: an Autofix bar, the step
+ * Phone-first page for sign-up and onboarding, outside the admin shell: a Pitline bar, the step
  * progress, a Barlow H1 and the step's content in a single column (560px, 720px when wide).
  * The content column is the page's <main> (the root layout has none, A85).
  */
@@ -30,7 +30,7 @@ export function OnboardingFrame({ step, eyebrow, title, description, children, h
             <span aria-hidden="true" className="grid size-9 place-items-center rounded-lg bg-[#155fba] text-white">
               <Wrench size={18} strokeWidth={2.25} />
             </span>
-            <span className="font-display text-[26px] leading-none font-extrabold tracking-tight text-navy-950">Autofix</span>
+            <span className="font-display text-[26px] leading-none font-extrabold tracking-tight text-navy-950">Pitline</span>
           </span>
           {headerAction}
         </div>

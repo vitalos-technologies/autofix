@@ -24,7 +24,7 @@ export default async function SignupPage() {
           Already started setting up? <Link href="/signup/garage" className={textLinkClass}>Continue set-up</Link>
         </p>
         <p className="m-0">
-          Already on Autofix? <Link href="/app/login" className={textLinkClass}>Sign in</Link>
+          Already on Pitline? <Link href="/app/login" className={textLinkClass}>Sign in</Link>
         </p>
       </div>
     </OnboardingFrame>

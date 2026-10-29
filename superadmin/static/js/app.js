@@ -1,4 +1,4 @@
-// Autofix Super Admin client behaviour (from the Vitalos Super Admin). Loaded as an external file so the CSP needs no inline script.
+// Pitline Super Admin client behaviour (from the Vitalos Super Admin). Loaded as an external file so the CSP needs no inline script.
 (function () {
   "use strict";
 
@@ -40,7 +40,7 @@
 
   function setCookie(name, value) {
     var secure = window.location.protocol === "https:" ? "; Secure" : "";
-    // Scoped to the app's path, so the Autofix app on the same host never sees them.
+    // Scoped to the app's path, so the Pitline app on the same host never sees them.
     var path = root.getAttribute("data-cookie-path") || "/";
     document.cookie = name + "=" + value + "; Path=" + path + "; Max-Age=31536000; SameSite=Strict" + secure;
   }

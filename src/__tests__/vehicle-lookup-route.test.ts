@@ -12,7 +12,7 @@ vi.mock("@/lib/tenancy/garage", () => ({ getHostGarage: vi.fn(async () => harnes
 import { POST } from "@/app/api/vehicle/lookup/route";
 
 function lookupRequest(registration: string, extra: Record<string, unknown> = {}) {
-  return new NextRequest("https://hartley-road.autofix.vitalos.co.uk/api/vehicle/lookup", {
+  return new NextRequest("https://hartley-road.pitline.co.uk/api/vehicle/lookup", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ registration, ...extra }),

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Domains · Autofix Super Admin{% endblock %}
+{% block title %}Domains · Pitline Super Admin{% endblock %}
 {% block content %}
   <h1>Domains</h1>
-  <p class="muted mt-1 text-sm">Each garage's booking page address and its verification state. A re-check queues Autofix's own domains.check job (at most one per 5 minutes).</p>
+  <p class="muted mt-1 text-sm">Each garage's booking page address and its verification state. A re-check queues Pitline's own domains.check job (at most one per 5 minutes).</p>
   <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="kpi"><p class="kpi-label">Waiting for DNS</p><p class="kpi-value">{{ counts.pending_dns }}</p><p class="kpi-time">Custom domains</p></div>
     <div class="kpi"><p class="kpi-label">Verifying</p><p class="kpi-value">{{ counts.verifying }}</p><p class="kpi-time">Custom domains</p></div>

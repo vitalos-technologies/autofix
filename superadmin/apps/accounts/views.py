@@ -272,7 +272,7 @@ def user_create(request):
 
 
 def _admin_choices() -> list[tuple[str, str]]:
-    """Autofix platform admins for the link field; empty when Autofix data is not connected."""
+    """Pitline platform admins for the link field; empty when Pitline data is not connected."""
     try:
         return autofix_selectors.platform_admin_choices()
     except AutofixUnavailable:
@@ -291,7 +291,7 @@ def user_edit(request, pk):
     }
     choices = _admin_choices()
     if target.autofix_admin_id and str(target.autofix_admin_id) not in {key for key, _ in choices}:
-        choices.append((str(target.autofix_admin_id), f"{target.autofix_admin_id} (not found in Autofix)"))
+        choices.append((str(target.autofix_admin_id), f"{target.autofix_admin_id} (not found in Pitline)"))
     form = UserEditForm(request.POST or None, initial=initial, admin_choices=choices, user=request.user)
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data

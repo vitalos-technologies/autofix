@@ -290,7 +290,7 @@ export function RemindersView() {
  * Booking page & domain (Admin-Domain)
  * ---------------------------------------------------------------------------------------------- */
 
-const FREE_LINK = "hartley-road.autofix.vitalos.co.uk";
+const FREE_LINK = "hartley-road.pitline.co.uk";
 const CUSTOM_HOST = "book.hartleyroadmotors.co.uk";
 const DNS_STEPS_EMAIL = `mailto:?subject=${encodeURIComponent("Please add this DNS record")}&body=${encodeURIComponent(
   `Please add this record to the DNS for hartleyroadmotors.co.uk:\n\nType: CNAME\nName: book\nValue: cname.vercel-dns-0.com\n\nThanks!`,
@@ -623,7 +623,7 @@ export function StatesView() {
       </Panel>
 
       <Panel id="embed" title="EmbedSnippet (teal garage)">
-        <EmbedSnippet bookingUrl="https://donvalley.autofix.vitalos.co.uk" accent="#0f766e" garageName="Don Valley Autos" defaultKind="embed" />
+        <EmbedSnippet bookingUrl="https://donvalley.pitline.co.uk" accent="#0f766e" garageName="Don Valley Autos" defaultKind="embed" />
       </Panel>
 
       <div className={twoColumns}>

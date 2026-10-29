@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Email identity helpers. Autofix sends every message from one platform sender
+// Email identity helpers. Pitline sends every message from one platform sender
 // (RESEND_FROM_EMAIL) with the garage's name as the display name, and replies
 // go to the garage's own address. No business addresses are hard-coded here.
 
@@ -28,7 +28,7 @@ export function mailboxAddress(value: string | null | undefined): string | null 
 }
 
 /** A display name that is safe inside a From header (no quotes, brackets, separators or control characters). */
-export function senderDisplayName(name: string | null | undefined, fallback = "Autofix") {
+export function senderDisplayName(name: string | null | undefined, fallback = "Pitline") {
   const cleaned = Array.from(name ?? "")
     .map((character) => {
       const code = character.charCodeAt(0);
@@ -41,7 +41,7 @@ export function senderDisplayName(name: string | null | undefined, fallback = "A
   return cleaned || fallback;
 }
 
-/** `"Hartley Road Motors" <notifications@autofix.vitalos.co.uk>` */
+/** `"Hartley Road Motors" <notifications@pitline.co.uk>` */
 export function formatMailbox(name: string, address: string) {
   return `"${senderDisplayName(name)}" <${parseEmailAddress(address)}>`;
 }

@@ -277,12 +277,12 @@ describe("invite links", () => {
     expect(hashInviteToken("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     expect(isInviteToken("short")).toBe(false);
     expect(isInviteToken(`${token.slice(0, 42)}/`)).toBe(false);
-    expect(inviteUrl(token, "https://autofix.vitalos.co.uk")).toBe(`https://autofix.vitalos.co.uk/signup/invite/${token}`);
+    expect(inviteUrl(token, "https://pitline.co.uk")).toBe(`https://pitline.co.uk/signup/invite/${token}`);
   });
 
   it("compose an email that names the garage, role and expiry", () => {
-    const email = composeInviteEmail({ garageName: "Kingsway <Autocare>", inviterName: "Sam", role: "front_desk", link: "https://autofix.vitalos.co.uk/signup/invite/x" });
-    expect(email.subject).toBe("Join Kingsway <Autocare> on Autofix");
+    const email = composeInviteEmail({ garageName: "Kingsway <Autocare>", inviterName: "Sam", role: "front_desk", link: "https://pitline.co.uk/signup/invite/x" });
+    expect(email.subject).toBe("Join Kingsway <Autocare> on Pitline");
     expect(email.text).toContain("as front desk.");
     expect(email.text).toContain("7 days");
     expect(email.html).toContain("Kingsway &lt;Autocare&gt;");

@@ -1,4 +1,4 @@
-// TwiML for the garage's Autofix number (P4.1). Pure.
+// TwiML for the garage's Pitline number (P4.1). Pure.
 //
 // Docs read 28 Oct 2026: <Dial> https://www.twilio.com/docs/voice/twiml/dial
 // (timeout, action + DialCallStatus completed/answered/busy/no-answer/failed/
@@ -74,7 +74,7 @@ export function aiDisclosure(garageName: string) {
 }
 
 /**
- * P5.12 voice desk: the disclosure, then the call goes to Autofix's voice service over Twilio
+ * P5.12 voice desk: the disclosure, then the call goes to Pitline's voice service over Twilio
  * ConversationRelay (https://www.twilio.com/docs/voice/twiml/connect/conversationrelay, read 29 Oct
  * 2026). The disclosure plays while the service wakes. When the session ends Twilio asks `actionUrl`
  * (?step=relay) with SessionStatus (ended / completed / failed) and any HandoffData; a failed

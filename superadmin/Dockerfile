@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Autofix Super Admin: multi-stage build, gunicorn + WhiteNoise, non-root runtime.
+# Pitline Super Admin: multi-stage build, gunicorn + WhiteNoise, non-root runtime.
 ARG PYTHON_IMAGE=python:3.12-slim-trixie
 
 FROM ${PYTHON_IMAGE} AS build

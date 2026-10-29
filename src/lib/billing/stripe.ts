@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { BillingProvider, SubscriptionState, SubscriptionStatus } from "./provider";
 
-// Stripe Billing for Autofix's own plans (P5.2), TEST MODE ONLY, over Stripe's REST API with fetch
+// Stripe Billing for Pitline's own plans (P5.2), TEST MODE ONLY, over Stripe's REST API with fetch
 // (no SDK). Checkout (mode=subscription) to upgrade, the customer portal, a quantity line for extra
 // sites, and signed webhooks (`Stripe-Signature`, HMAC-SHA-256 over "<t>.<raw body>", 5-minute
 // tolerance). The garage id travels as `client_reference_id` and subscription metadata `garage_id`,

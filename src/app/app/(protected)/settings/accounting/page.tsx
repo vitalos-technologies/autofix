@@ -25,7 +25,7 @@ const FLASH: Record<string, { tone: "success" | "error" | "info"; text: string }
   owner_only: { tone: "error", text: "Only the garage owner can connect or disconnect accounting." },
   not_allowed: { tone: "error", text: "Only owners and managers can sync." },
   plan: { tone: "error", text: "Accounting sync is on Pro." },
-  configuration_required: { tone: "error", text: "That provider isn't set up on Autofix yet. Vitalos has been told; try again later." },
+  configuration_required: { tone: "error", text: "That provider isn't set up on Pitline yet. Vitalos has been told; try again later." },
   connect_denied: { tone: "info", text: "You cancelled the connection. Nothing has changed." },
   connect_expired: { tone: "error", text: "That took too long. Start the connection again." },
   connect_state: { tone: "error", text: "We couldn't match that sign-in to this page. Start the connection again." },
@@ -55,11 +55,11 @@ const ERROR_TEXT: Record<string, string> = {
   PROVIDER_UNAVAILABLE: "Your accounting system was unavailable",
   NETWORK: "Couldn't reach your accounting system",
   UNEXPECTED_RESPONSE: "Unexpected answer from your accounting system",
-  CONFIGURATION_REQUIRED: "Provider not set up on Autofix yet",
+  CONFIGURATION_REQUIRED: "Provider not set up on Pitline yet",
   INVOICE_NOT_SYNCED: "Its invoice didn't sync",
   INVOICE_VOID: "Invoice was voided, so it wasn't sent",
   INVOICE_NOT_ISSUED: "Invoice isn't issued",
-  LOCAL_NOT_FOUND: "No longer in Autofix",
+  LOCAL_NOT_FOUND: "No longer in Pitline",
   DISCONNECTED: "Not sent before you disconnected",
   UNEXPECTED: "Something went wrong",
 };
@@ -169,7 +169,7 @@ export default async function AccountingSettingsPage({ searchParams }: { searchP
         </Notice>
       ) : null}
       {mode === "fake" ? (
-        <Notice tone="info">Test mode: connections use Autofix&apos;s built-in test accounts. Nothing reaches a real accounting system.</Notice>
+        <Notice tone="info">Test mode: connections use Pitline&apos;s built-in test accounts. Nothing reaches a real accounting system.</Notice>
       ) : null}
       {isOwner && !admin.mfaVerified ? (
         <Notice tone="warning">
@@ -207,7 +207,7 @@ export default async function AccountingSettingsPage({ searchParams }: { searchP
                 })}
                 {!isOwner ? <p className="m-0 text-[14px] text-grey-700">Only the garage owner can connect accounting.</p> : null}
                 <p className="m-0 text-[13px] text-grey-700">
-                  You sign in on the provider&apos;s own page; Autofix never sees your password. Invoices issued before you connect are not sent.
+                  You sign in on the provider&apos;s own page; Pitline never sees your password. Invoices issued before you connect are not sent.
                 </p>
               </div>
             </Panel>
@@ -229,7 +229,7 @@ export default async function AccountingSettingsPage({ searchParams }: { searchP
                   isOwner ? (
                     <form action={chooseOrganisationAction} className="flex flex-col gap-3">
                       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-                        <legend className="mb-2 text-[15px] font-bold text-navy-950">Which organisation should Autofix use?</legend>
+                        <legend className="mb-2 text-[15px] font-bold text-navy-950">Which organisation should Pitline use?</legend>
                         {tenants.length === 0 ? <p className="m-0 text-[14px] text-grey-700">We couldn&apos;t load your organisations. Disconnect and connect again.</p> : null}
                         {tenants.map((tenant, index) => (
                           <label key={tenant.id} className="flex min-h-11 items-center gap-3 rounded-input border border-grey-200 px-3 text-[15px] text-navy-950">
@@ -269,7 +269,7 @@ export default async function AccountingSettingsPage({ searchParams }: { searchP
                 {isOwner && confirm === "disconnect" ? (
                   <form action={disconnectAction} className="flex flex-col gap-3 rounded-input border border-grey-200 bg-grey-50 p-3">
                     <p className="m-0 text-[14px] text-navy-950">
-                      Disconnect {ACCOUNTING_PROVIDER_NAMES[connection.provider]}? We sign Autofix out of it and delete the stored sign-in. What already synced stays in your accounts, and the history stays here.
+                      Disconnect {ACCOUNTING_PROVIDER_NAMES[connection.provider]}? We sign Pitline out of it and delete the stored sign-in. What already synced stays in your accounts, and the history stays here.
                     </p>
                     <input type="hidden" name="confirm" value="yes" />
                     <div className="flex flex-wrap gap-2">

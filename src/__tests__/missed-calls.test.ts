@@ -36,7 +36,7 @@ const CALL = "c0000000-0000-4000-8000-000000000001";
 const CALLER = "+447700900123";
 const NOW = new Date("2026-11-01T23:10:00Z"); // a Sunday night: outside the reminder send window
 const garage = { id: GARAGE, slug: "hartley-road", customDomain: null, name: "Hartley Road Motors" };
-const PROD = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk" };
+const PROD = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk" };
 
 type Overrides = {
   call?: Partial<{ id: string; fromNumber: string | null; missed: boolean; textBackMessageId: string | null; createdAt: string }> | null;
@@ -84,7 +84,7 @@ describe("the text-back", () => {
     const [sent] = getMockOutbox();
     expect(sent).toMatchObject({ kind: "sms", to: CALLER, idempotencyKey: `call_text_back:${CALL}` });
     expect(sent!.senderId).toBeUndefined();
-    expect(sent!.body).toBe("Sorry we missed your call. Book online in about a minute: https://hartley-road.autofix.vitalos.co.uk/ or we'll call you back soon. Hartley Road Motors\nReply STOP to opt out.");
+    expect(sent!.body).toBe("Sorry we missed your call. Book online in about a minute: https://hartley-road.pitline.co.uk/ or we'll call you back soon. Hartley Road Motors\nReply STOP to opt out.");
     expect(calls.claims).toEqual([{ channel: "sms", body: sent!.body, provider: "mock" }]);
     expect(calls.results).toEqual([{ messageId: "m1", status: "queued", providerMessageId: sent!.providerMessageId }]);
   });

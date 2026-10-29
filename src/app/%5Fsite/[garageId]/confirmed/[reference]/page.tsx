@@ -135,7 +135,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
           >
             Book another car
           </Link>
-          <span className="text-[11px] text-[#8796ab]">Powered by Autofix</span>
+          <span className="text-[11px] text-[#8796ab]">Powered by Pitline</span>
         </div>
       </div>
     </div>

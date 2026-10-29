@@ -11,7 +11,7 @@ import { getLocalSupabaseConfig, localRunId, provisionLocalTestUsers, type Local
 
 const configured = Boolean(process.env.INTEGRATION_SUPABASE_URL);
 const SITE_KEY = "pk_0123456789abcdef0123456789abcdef";
-const HOST_ENV = { NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" };
+const HOST_ENV = { NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" };
 const MINUTE = 60_000;
 
 let users: LocalTestUsers;
@@ -76,10 +76,10 @@ describe.skipIf(!configured).sequential("booking page domains against local Supa
     expect(await users.otherGarageAdminForgingGarageA.rpc("set_booking_page_settings", { p_embed_origins: [], p_askbridge: null })).toMatchObject({ error: { code: "42501" } });
     resolve.clearHostCache({ hostnames: [hostname] });
     expect(await resolveCustom(hostname)).toMatchObject({ kind: "garage", garage: { embedOrigins: ["https://www.afmotors.co.uk"], widgetEnabled: true } });
-    expect(await resolve.resolveHost(`${users.garageB.slug}.autofix.vitalos.co.uk`, { env: HOST_ENV })).toMatchObject({ kind: "garage", garage: { id: users.garageB.id, embedOrigins: [], widgetEnabled: false } });
+    expect(await resolve.resolveHost(`${users.garageB.slug}.pitline.co.uk`, { env: HOST_ENV })).toMatchObject({ kind: "garage", garage: { id: users.garageB.id, embedOrigins: [], widgetEnabled: false } });
   });
 
-  it("queues nothing for Askbridge: it learns from the garage's website, not from Autofix", async () => {
+  it("queues nothing for Askbridge: it learns from the garage's website, not from Pitline", async () => {
     const { data: jobs, error } = await service.from("jobs").select("id").eq("kind", "askbridge.sync").in("garage_id", [users.garageA.id, users.garageB.id]);
     expect(error).toBeNull();
     expect(jobs).toEqual([]);

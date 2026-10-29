@@ -16,7 +16,7 @@ export function isSixDigitMfaCode(value: string) {
 }
 
 export function createMfaReplacementFriendlyName(nonce = crypto.randomUUID()) {
-  return `Autofix Replacement ${nonce.slice(0, 8)}`;
+  return `Pitline Replacement ${nonce.slice(0, 8)}`;
 }
 
 export function requiresMfaChallenge(assurance: { currentLevel: string | null; nextLevel: string | null }) {

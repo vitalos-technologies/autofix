@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Autofix agent tool API
+  title: Pitline agent tool API
   version: 1.0.0
   summary: Garage-scoped tools for the Workforce voice/WhatsApp agent and Askbridge chat.
   description: |
@@ -22,7 +22,7 @@ info:
     10 minutes per token.
 
     Plans (D17, P5.12): the AI front desk (Workforce, `workforce` tokens) is
-    part of Autofix Pro. A `workforce` token whose garage is on Essentials
+    part of Pitline Pro. A `workforce` token whose garage is on Essentials
     gets 403 `PLAN_REQUIRED` from every tool (checked before scopes); the call
     is still audited. Askbridge (`askbridge` tokens, read-only tools) works on
     every plan. Workforce reports minutes with `report_usage`.
@@ -33,7 +33,7 @@ info:
     name: Vitalos Technologies
     url: https://vitalos.co.uk
 servers:
-  - url: https://autofix.vitalos.co.uk/api/agent/v1
+  - url: https://pitline.co.uk/api/agent/v1
     description: Production (admin host only; garage booking hosts answer 404)
   - url: http://localhost:3000/api/agent/v1
     description: Local development
@@ -255,7 +255,7 @@ paths:
       tags: [usage]
       summary: Record the AI front desk's note on the call it handled (voice desk per-call tokens only).
       description: |
-        Only the token Autofix minted for one call (`POST /api/voice/v1/session`,
+        Only the token Pitline minted for one call (`POST /api/voice/v1/session`,
         bound to that `CallSid`, expires) may call this, for that call; any other
         token answers 403. The first summary stands: a repeat answers 200 with
         `stored: false`. Staff see the summary on the missed call. Anything shaped
@@ -293,7 +293,7 @@ components:
         Per-garage service token. Issued once (by Vitalos, or by the garage owner on
         Settings, AI front desk); only its HMAC is stored. Scopes limit which tools it
         may call. Each token has an audience: `workforce` (the AI front desk on calls
-        and WhatsApp, every tool; the garage needs Autofix Pro, else every call is
+        and WhatsApp, every tool; the garage needs Pitline Pro, else every call is
         403 `PLAN_REQUIRED`) or `askbridge` (the website chat, on every plan;
         `list_services`, `available_slots` and `garage_profile` only).
   responses:
@@ -308,7 +308,7 @@ components:
       description: |
         The token's scopes do not include this tool (`FORBIDDEN`), the garage is not
         taking bookings (`GARAGE_INACTIVE`), or a `workforce` token's garage is not on
-        Autofix Pro (`PLAN_REQUIRED`, with `feature: ai_front_desk` and `plan: pro`):
+        Pitline Pro (`PLAN_REQUIRED`, with `feature: ai_front_desk` and `plan: pro`):
         tell the caller the garage will call them back.
       content:
         application/json:
@@ -383,7 +383,7 @@ components:
         alternatives:
           type: array
           items: { $ref: "#/components/schemas/Slot" }
-        feature: { const: ai_front_desk, description: "With PLAN_REQUIRED: the Autofix feature the garage's plan lacks." }
+        feature: { const: ai_front_desk, description: "With PLAN_REQUIRED: the Pitline feature the garage's plan lacks." }
         plan: { const: pro, description: "With PLAN_REQUIRED: the plan that includes it." }
     SlotUnavailableError:
       allOf:

@@ -57,16 +57,16 @@ function AutofixMark() {
       <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-[9px] bg-accent text-accent-ink">
         <Wrench size={18} strokeWidth={2.2} />
       </span>
-      <span className="font-display text-[22px] leading-none font-extrabold tracking-[0.01em] text-white">Autofix</span>
+      <span className="font-display text-[22px] leading-none font-extrabold tracking-[0.01em] text-white">Pitline</span>
     </div>
   );
 }
 
 /**
- * The admin frame (design/screens/Admin-Dashboard.dc.html). From 1024px: navy sidebar (Autofix mark,
+ * The admin frame (design/screens/Admin-Dashboard.dc.html). From 1024px: navy sidebar (Pitline mark,
  * garage switcher, nav groups) and a white top bar (search, booking page link, bell, account menu).
  * Under 1024px: no sidebar or top bar; `AdminTabBar` is fixed to the bottom and each page's
- * `PageHeader` carries search and the account menu. The admin is Autofix-branded: only the garage
+ * `PageHeader` carries search and the account menu. The admin is Pitline-branded: only the garage
  * tiles in the switcher use garage colours.
  *
  * Server-compatible: no hooks here, so `nav` and `tabs` can hold lucide icon components.

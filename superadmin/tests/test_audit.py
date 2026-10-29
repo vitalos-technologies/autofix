@@ -87,7 +87,7 @@ def test_platform_log_filters_and_export(client_for, superadmin, seeded):
     body = client.get(reverse("autofix:platform_audit"), {"garage": "hartley"}).content.decode()
     assert "platform.garage_status_changed" in body and "Unpaid invoice" in body
     empty = client.get(reverse("autofix:platform_audit"), {"garage": "nobody"}).content.decode()
-    assert "No Autofix platform actions match" in empty
+    assert "No Pitline platform actions match" in empty
     export = client.get(reverse("autofix:platform_audit_export"))
     lines = list(csv.reader(io.StringIO(export.content.decode())))
     assert lines[0][1] == "action" and len(lines) == 2
@@ -98,7 +98,7 @@ def test_platform_log_date_filters(client_for, superadmin, seeded):
     response = client_for(superadmin).get(
         reverse("autofix:platform_audit"), {"date_from": "2000-01-01", "date_to": "2000-01-02"}
     )
-    assert b"No Autofix platform actions match" in response.content
+    assert b"No Pitline platform actions match" in response.content
 
 
 def test_activity_merges_both_trails_without_sign_ins(client_for, finance, seeded):

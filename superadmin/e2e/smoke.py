@@ -1,4 +1,4 @@
-"""End-to-end smoke test for a running Autofix Super Admin (local container or a deployed one).
+"""End-to-end smoke test for a running Pitline Super Admin (local container or a deployed one).
 
 Usage (credentials come only from the environment and are never printed):
 
@@ -7,11 +7,11 @@ Usage (credentials come only from the environment and are never printed):
     SMOKE_PASSWORD=... \
     python e2e/smoke.py --screenshots docs/screenshots
 
-Behind the Autofix proxy (path mode, e.g. SMOKE_BASE_URL=http://localhost:8000/superadmin), set
+Behind the Pitline proxy (path mode, e.g. SMOKE_BASE_URL=http://localhost:8000/superadmin), set
 SMOKE_PROXY_SECRET to the container's SUPERADMIN_PROXY_SECRET; the browser then sends it as the proxy
 would. If the account has no authenticator yet, the test enrols a temporary TOTP device and removes it at the
 end. If a device already exists, pass its base32 secret in SMOKE_TOTP_SECRET. The test changes nothing
-in Autofix: it opens every page at 1440 and 390 pixels wide, the garage tabs, the command palette and
+in Pitline: it opens every page at 1440 and 390 pixels wide, the garage tabs, the command palette and
 the live search, and checks the browser console for CSP violations. With SMOKE_STATUS_TOKEN it also
 calls the product status endpoint. Screenshots are named <page>-1440.png and <page>-390.png.
 """

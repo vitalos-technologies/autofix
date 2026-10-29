@@ -210,7 +210,7 @@ export function ComponentGallery() {
                 </p>
               </div>
             </div>
-            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote="Powered by Autofix" />
+            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote="Powered by Pitline" />
           </Frame>
 
           {/* Book 2 · Service */}
@@ -372,7 +372,7 @@ export function ComponentGallery() {
                 whatsappHref="#af-gallery"
               />
               <a href="#af-gallery" className="text-[13px] text-[#9cc8ff] underline">Book another car</a>
-              <span className="text-[11px] text-[#8796ab]">Powered by Autofix</span>
+              <span className="text-[11px] text-[#8796ab]">Powered by Pitline</span>
             </div>
           </Frame>
 

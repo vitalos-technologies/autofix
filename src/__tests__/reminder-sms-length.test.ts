@@ -30,8 +30,8 @@ describe("default reminder wording fits one text", () => {
     expect(garage.slug).toHaveLength(20);
     expect(GARAGE_NAME).toHaveLength(20);
     expect(FIRST_NAME).toHaveLength(12);
-    expect(longValues("mot").link).toMatch(/^https:\/\/doncaster-car-centre\.autofix\.vitalos\.co\.uk\/r\/[A-Za-z0-9_-]{22}$/);
-    expect(longValues("missed_call").link).toBe("https://doncaster-car-centre.autofix.vitalos.co.uk/");
+    expect(longValues("mot").link).toMatch(/^https:\/\/doncaster-car-centre\.pitline\.co\.uk\/r\/[A-Za-z0-9_-]{22}$/);
+    expect(longValues("missed_call").link).toBe("https://doncaster-car-centre.pitline.co.uk/");
   });
 
   it.each(RULE_KINDS)("the %s default renders to one GSM-7 SMS of at most 160 characters", (kind) => {

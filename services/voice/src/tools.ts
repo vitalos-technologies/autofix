@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { AutofixSession } from "./autofix.js";
 
-// What the desk can do on a call. Each tool but end_call is one call to Autofix's agent tool API with
+// What the desk can do on a call. Each tool but end_call is one call to Pitline's agent tool API with
 // the call's token, so bookings go through create_booking() (always a request staff confirm, never
 // confirmed by the AI) and every call is audited in agent_call_log. Inputs are checked here as well as
-// by Autofix's strict schemas; tool results go back to the model, never to the logs.
+// by Pitline's strict schemas; tool results go back to the model, never to the logs.
 
 export type CallFacts = {
   callSid: string;

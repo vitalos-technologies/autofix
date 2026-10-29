@@ -42,13 +42,13 @@ const SIGNUP_INTERSTITIAL: Interstitial = {
   title: "Confirm your email address",
   text: "Confirm below, then set up your garage and its booking page.",
   button: "Confirm and continue",
-  footer: "If you did not sign up for Autofix, close this page.",
+  footer: "If you did not sign up for Pitline, close this page.",
 };
 
 function confirmationPage(tokenHash: string, page: Interstitial) {
   const token = escapeHtml(tokenHash);
   return new Response(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(page.title)} | Autofix</title></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(page.title)} | Pitline</title></head>
 <body style="margin:0;background:#F4F7FA;color:#071127;font-family:Arial,Helvetica,sans-serif"><main style="box-sizing:border-box;max-width:560px;margin:64px auto;padding:40px;border:1px solid #DCE6F2;border-radius:16px;background:#fff"><p style="color:#155FBA;font-size:12px;font-weight:700;letter-spacing:.7px">${page.eyebrow}</p><h1 style="font-size:30px;line-height:1.25">${escapeHtml(page.title)}</h1><p style="color:#586575;line-height:1.6">${escapeHtml(page.text)}</p><form method="post" action="/auth/confirm"><input type="hidden" name="token_hash" value="${token}"><input type="hidden" name="type" value="${page.type}"><input type="hidden" name="next" value="${page.next}"><button type="submit" style="width:100%;min-height:48px;margin-top:18px;border:0;border-radius:11px;background:#155FBA;color:#fff;font-size:16px;font-weight:700;cursor:pointer">${escapeHtml(page.button)}</button></form><p style="margin-top:20px;color:#586575;font-size:13px;line-height:1.5">${escapeHtml(page.footer)}</p></main></body></html>`, {
     status: 200,
     headers: {

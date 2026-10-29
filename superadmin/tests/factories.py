@@ -1,4 +1,4 @@
-"""Autofix test rows. The ORM refuses to write Autofix models, so rows go in with plain INSERTs."""
+"""Pitline test rows. The ORM refuses to write Pitline models, so rows go in with plain INSERTs."""
 
 import uuid
 from datetime import timedelta
@@ -205,9 +205,7 @@ class AutofixFactory:
             created_at=now - timedelta(days=10),
             status="collected",
         )
-        self.make(
-            m.GarageDomain, garage=hartley, hostname="hartley-road.autofix.vitalos.co.uk", kind="subdomain"
-        )
+        self.make(m.GarageDomain, garage=hartley, hostname="hartley-road.pitline.co.uk", kind="subdomain")
         pending = self.make(
             m.GarageDomain, garage=hartley, hostname="book.hartleyroad.example", status="verifying"
         )

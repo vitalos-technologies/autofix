@@ -48,7 +48,7 @@ def garage_pages(page, base: str) -> list[str]:
     page.goto(base + "/garages/")
     link = page.locator("#garage-results tbody a").first
     href = link.get_attribute("href") if link.count() else None
-    prefix = urlsplit(base).path.rstrip("/")  # /superadmin behind the Autofix proxy
+    prefix = urlsplit(base).path.rstrip("/")  # /superadmin behind the Pitline proxy
     if not href or not re.fullmatch(rf"{re.escape(prefix)}/garages/[0-9a-f-]{{36}}/", href):
         return []
     href = href[len(prefix) :]
@@ -75,7 +75,7 @@ def main() -> int:
     parser.add_argument("--axe", required=True, help="Path to axe.min.js (axe-core)")
     parser.add_argument("--session", required=True, help="Session cookie value")
     parser.add_argument("--cookie-name", default="afsa_session", help="__Secure-afsa_session in production")
-    parser.add_argument("--proxy-secret", default="", help="SUPERADMIN_PROXY_SECRET behind the Autofix proxy")
+    parser.add_argument("--proxy-secret", default="", help="SUPERADMIN_PROXY_SECRET behind the Pitline proxy")
     parser.add_argument("--chromium", default=None, help="Chromium executable (optional)")
     args = parser.parse_args()
     base = args.base.rstrip("/")

@@ -1,5 +1,5 @@
--- Autofix Super Admin: logins for its two database roles (DECISIONS D18, A415-A418). Run once in the
--- Supabase SQL editor of Autofix's production project, AFTER the production migrations (the role
+-- Pitline Super Admin: logins for its two database roles (DECISIONS D18, A415-A418). Run once in the
+-- Supabase SQL editor of Pitline's production project, AFTER the production migrations (the role
 -- autofix_superadmin and schema superadmin come from 20261028004000_superadmin_role.sql).
 --
 -- Only needed when the deploy has no SUPABASE_ACCESS_TOKEN (with one, the deploy does this itself).

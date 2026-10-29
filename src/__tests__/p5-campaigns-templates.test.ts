@@ -35,7 +35,7 @@ describe("ready-made starting points", () => {
       first_name: "Christabelle",
       link: garageUrl(longGarage, campaignLinkPath(createReminderLinkToken().token), PRODUCTION),
     };
-    expect(values.link).toMatch(/^https:\/\/doncaster-car-centre\.autofix\.vitalos\.co\.uk\/c\/[A-Za-z0-9_-]{22}$/);
+    expect(values.link).toMatch(/^https:\/\/doncaster-car-centre\.pitline\.co\.uk\/c\/[A-Za-z0-9_-]{22}$/);
     const text = renderTemplate(STARTERS[key].template, values, { channel: "sms" }).text;
     const info = smsSegments(text);
     expect(text.endsWith(OPT_OUT_LINE)).toBe(true);

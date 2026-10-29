@@ -17,7 +17,7 @@
           <button type="submit" class="btn btn-primary mt-4">Save change</button>
         </form>
       {% else %}
-        <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Your account is not linked to an Autofix platform admin, so changes are off. A SuperAdmin links it in Settings → Users.</p>
+        <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Your account is not linked to a Pitline platform admin, so changes are off. A SuperAdmin links it in Settings → Users.</p>
       {% endif %}
     {% else %}
       <p class="muted mt-4 text-sm">Only a SuperAdmin changes plans and statuses.</p>
@@ -25,7 +25,7 @@
   </section>
   <section class="card p-4" aria-labelledby="history-heading">
     <h2 id="history-heading" class="text-xl">History</h2>
-    <p class="muted text-xs">From Autofix's platform log.</p>
+    <p class="muted text-xs">From Pitline's platform log.</p>
     <ul class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
       {% for entry in history %}
         <li class="py-2"><span class="font-medium">{% if entry.action == "platform.garage_plan_changed" %}Plan: {{ entry.detail.from|plan_name }} → {{ entry.detail.to|plan_name }}{% else %}Status: {{ entry.detail.from }} → {{ entry.detail.to }}{% endif %}</span><span class="muted block text-xs">{{ entry.created_at|date:"j M Y H:i" }} · {{ entry.actor_name }}</span>{% if entry.reason %}<span class="block text-xs break-words">{{ entry.reason }}</span>{% endif %}</li>

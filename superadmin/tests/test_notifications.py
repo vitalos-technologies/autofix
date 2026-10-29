@@ -1,4 +1,4 @@
-"""Autofix alerts in the bell: the scan command, dedupe, preferences and the badge."""
+"""Pitline alerts in the bell: the scan command, dedupe, preferences and the badge."""
 
 import io
 
@@ -71,6 +71,6 @@ def test_preferences_page_saves(client_for, finance):
 
 def test_attention_tab_for_support_only(client_for, support, finance, seeded):
     assert (
-        b"Needs attention in Autofix" in client_for(support).get(reverse("notifications:attention")).content
+        b"Needs attention in Pitline" in client_for(support).get(reverse("notifications:attention")).content
     )
     assert client_for(finance).get(reverse("notifications:attention")).status_code == 403

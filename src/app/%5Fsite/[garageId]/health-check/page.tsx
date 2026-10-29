@@ -197,7 +197,7 @@ export default async function HealthCheckCustomerPage({ params, searchParams }: 
           </ManageNotice>
         )}
         {canDecide ? null : <CallGarage garage={garage} />}
-        <p className="m-0 text-center text-[11px] text-grey-600">Powered by Autofix</p>
+        <p className="m-0 text-center text-[11px] text-grey-600">Powered by Pitline</p>
       </div>
     </BookingScreen>
   );

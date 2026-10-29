@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# Autofix — project guide for Claude Code
+# Pitline — project guide for Claude Code
 
-Autofix is Vitalos's multi-tenant garage booking platform (working name). Garages get a phone-first booking page on their own domain (`book.theirgarage.co.uk`, free fallback `<slug>.autofix.vitalos.co.uk`) and manage bookings, customers and reminders at `autofix.vitalos.co.uk`. The code is a fork of SOB Autofix (single garage, sobautofix.com). Repo: https://github.com/vitalos-technologies/autofix (private).
+Pitline (formerly Autofix; internal names such as `AUTOFIX_*`, `x-autofix-*` and `docs/autofix/` keep the old name, DECISIONS D22) is Vitalos's multi-tenant garage booking platform. Garages get a phone-first booking page on their own domain (`book.theirgarage.co.uk`, free fallback `<slug>.pitline.co.uk`) and manage bookings, customers and reminders at `pitline.co.uk`. The code is a fork of SOB Autofix (single garage, sobautofix.com). Repo: https://github.com/vitalos-technologies/pitline (private).
 
 ## Read before you build
 

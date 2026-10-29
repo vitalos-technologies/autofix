@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MarketingPage } from "@/components/marketing/marketing-page";
 import { marketing } from "@/lib/marketing/content";
 
-// The admin host's home page is the Autofix marketing page; "Log in" goes to the admin sign-in (/app/login).
+// The admin host's home page is the Pitline marketing page; "Log in" goes to the admin sign-in (/app/login).
 // Garage booking sites never reach this route: the proxy rewrites their hosts to /_site.
 export const metadata: Metadata = {
   title: { absolute: marketing.metaTitle },

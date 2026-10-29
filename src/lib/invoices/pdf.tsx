@@ -12,7 +12,7 @@ import { invoiceStatusLabel, type Invoice, type InvoiceStatus } from "./types";
 
 // Invoices are the garage's documents: its name and details come from the
 // issuer snapshot taken when the invoice was issued, and its current logo and
-// bank details from the garage profile. Autofix appears only in the footer.
+// bank details from the garage profile. Pitline appears only in the footer.
 
 /** The garage profile fields an invoice PDF reads. */
 export type InvoiceGarage = Pick<Garage, "name" | "slug" | "customDomain" | "logoUrl" | "invoicePayment">;

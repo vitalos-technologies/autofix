@@ -1,6 +1,6 @@
 ---
 name: ui-agent
-description: Autofix UI lane. Use to build booking and admin screens and components from design/ (screenshots, .dc.html sources, DESIGN.md, tokens.css).
+description: Pitline UI lane. Use to build booking and admin screens and components from design/ (screenshots, .dc.html sources, DESIGN.md, tokens.css).
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 

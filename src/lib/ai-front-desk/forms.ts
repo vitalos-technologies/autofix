@@ -28,6 +28,6 @@ export const AI_FRONT_DESK_MESSAGES: Record<string, string> = {
   "done:already_revoked": "That token was already revoked.",
   "error:owner_only": "Only the garage owner can switch the AI front desk on or off.",
   "error:manage_only": "Only the garage's owners and managers can manage tokens.",
-  "error:plan_required": "The AI front desk is part of Autofix Pro. The garage owner can upgrade in Settings, Plan.",
+  "error:plan_required": "The AI front desk is part of Pitline Pro. The garage owner can upgrade in Settings, Plan.",
   "error:save_failed": "That change could not be saved. Try again.",
 };

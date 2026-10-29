@@ -5,8 +5,8 @@ import type { Garage } from "@/lib/tenancy/garage";
 import { addressLine, formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import { adminBaseUrl, garageBaseUrl } from "@/lib/tenancy/urls";
 
-/** The platform's own name. The admin, staff and account emails are Autofix-branded. */
-export const PLATFORM_NAME = "Autofix";
+/** The platform's own name. The admin, staff and account emails are Pitline-branded. */
+export const PLATFORM_NAME = "Pitline";
 
 /** Who an email speaks for: a garage (customer and staff mail) or the platform (account mail). */
 export type EmailBrand = {
@@ -22,7 +22,7 @@ export type EmailBrand = {
   phoneHref: string | null;
   email: string | null;
   address: string;
-  /** Host shown in the footer, e.g. `hartley-road.autofix.vitalos.co.uk`. */
+  /** Host shown in the footer, e.g. `hartley-road.pitline.co.uk`. */
   website: string;
   /** Origin that relative links resolve against (the garage's booking host or the admin host). */
   baseUrl: string;

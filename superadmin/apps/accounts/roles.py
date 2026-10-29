@@ -2,7 +2,7 @@
 
 - SuperAdmin: everything, including plan and status changes, job retries, domain re-checks, users.
 - Support: reads everything a garage needs help with, the audited personal-data views and "View as
-  support" (the read-only hand-off to Autofix). Never changes anything in Autofix.
+  support" (the read-only hand-off to Pitline). Never changes anything in Pitline.
 - Finance: plans, statuses and the sign-up funnel (read). No personal data, no hand-off, no writes.
 """
 

@@ -1,9 +1,9 @@
 ---
-description: One-time setup. Brings the SOB Autofix code and history into this repo, overlays the Autofix files, runs the baseline and pushes.
+description: One-time setup. Brings the SOB Autofix code and history into this repo, overlays the Pitline files, runs the baseline and pushes.
 argument-hint: "[path-or-url-to-sobautofix] (default ../sobautofix if it exists, else https://github.com/Isaacpyo/sobautofix.git)"
 ---
 
-Set up the Autofix repository. Works in a Claude Code cloud session on `vitalos-technologies/autofix` (the usual case) or in a local folder. Do every step, check each one, and stop with a clear message if a check fails. Never modify the SOB repo.
+Set up the Pitline repository. Works in a Claude Code cloud session on `vitalos-technologies/pitline` (the usual case) or in a local folder. Do every step, check each one, and stop with a clear message if a check fails. Never modify the SOB repo.
 
 1. **Pre-checks**
    - `src/` must NOT exist yet. If it does, bootstrap already ran: stop and run `/status`.
@@ -17,12 +17,12 @@ Set up the Autofix repository. Works in a Claude Code cloud session on `vitalos-
    ```
 
 3. **Combine histories**
-   - If this repo already has commits (it does on GitHub: the Autofix kit was uploaded first):
-     `git merge sob/main --allow-unrelated-histories --no-edit -m "chore: import SOB Autofix as the base of Autofix"`
+   - If this repo already has commits (it does on GitHub: the Pitline kit was uploaded first):
+     `git merge sob/main --allow-unrelated-histories --no-edit -m "chore: import SOB Autofix as the base of Pitline"`
      Expected conflicts: `README.md` (both sides have one). Resolve it with `git checkout --ours README.md` (step 4 replaces it with `.autofix/README.md` anyway), `git add README.md`, then `git commit --no-edit`. For any other conflict, list the files and stop.
    - If this is a fresh local folder with no commits: `git init -b main` (if needed) then `git checkout -B main sob/main` (untracked kit files are kept).
 
-4. **Overlay Autofix files**
+4. **Overlay Pitline files**
    - Copy `.autofix/CLAUDE.md` → `CLAUDE.md`, `.autofix/AGENTS.md` → `AGENTS.md`, `.autofix/README.md` → `README.md` (replacing SOB's).
    - Append `.autofix/env.autofix.example` to `.env.example`.
    - In `package.json` set `"name": "autofix"` and add `"db:seed": "node scripts/seed-demo.mjs"` if missing (implemented in P1.9).
@@ -35,13 +35,13 @@ Set up the Autofix repository. Works in a Claude Code cloud session on `vitalos-
 6. **Commit**
    ```bash
    git add -A
-   git commit -m "chore: start Autofix from SOB Autofix" -m "Overlays Autofix CLAUDE.md, AGENTS.md, README and env on the SOB Autofix codebase." -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+   git commit -m "chore: start Pitline from SOB Autofix" -m "Overlays Pitline CLAUDE.md, AGENTS.md, README and env on the SOB Autofix codebase." -m "Co-Authored-By: Claude <noreply@anthropic.com>"
    ```
    Check that `.env.local` and other secrets are not staged.
 
-7. **Push to `https://github.com/vitalos-technologies/autofix`**
-   - Cloud session: push `main` (or, if direct pushes to `main` are refused, push branch `phase-0/bootstrap` and open a PR titled "Start Autofix from SOB Autofix").
-   - Local folder: `git remote add origin https://github.com/vitalos-technologies/autofix.git` if missing, `git fetch origin`, `git merge origin/main --allow-unrelated-histories --no-edit` (the web-uploaded kit), then `git push -u origin main`.
+7. **Push to `https://github.com/vitalos-technologies/pitline`**
+   - Cloud session: push `main` (or, if direct pushes to `main` are refused, push branch `phase-0/bootstrap` and open a PR titled "Start Pitline from SOB Autofix").
+   - Local folder: `git remote add origin https://github.com/vitalos-technologies/pitline.git` if missing, `git fetch origin`, `git merge origin/main --allow-unrelated-histories --no-edit` (the web-uploaded kit), then `git push -u origin main`.
    - After the first push: protect `main` (require PR + passing CI), matching `vitalos-technologies/workforce`.
 
 8. Tick P0.1 to P0.5 in `docs/autofix/BUILD-PLAN.md`, commit, push, and report Done / Needs approval / Blockers. Suggest `/build` (all phases) or `/phase 1`.

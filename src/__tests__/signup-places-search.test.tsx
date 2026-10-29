@@ -17,7 +17,7 @@ import { GarageWizard } from "@/app/signup/garage/garage-wizard";
 
 describe("sign-up Places search", () => {
   it("sends what is in the box even when it was typed before React hydrated", async () => {
-    render(<GarageWizard placesEnabled linkTemplate="https://__slug__.autofix.vitalos.co.uk" ownerEmail="owner@example.test" />);
+    render(<GarageWizard placesEnabled linkTemplate="https://__slug__.pitline.co.uk" ownerEmail="owner@example.test" />);
     // Text typed before hydration is in the DOM without a React change event (CI run 40503141361 sent "").
     const box = screen.getByLabelText("Garage name and town") as HTMLInputElement;
     box.value = "Kingsway Doncaster";

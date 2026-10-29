@@ -19,7 +19,7 @@ export default async function AgreementsPage() {
       <p className="text-xs font-extrabold tracking-widest text-accent uppercase">Configuration</p>
       <h1 className="mt-2 text-4xl font-extrabold text-[#071127]">Agreements</h1>
       <p className="mt-3 max-w-2xl text-[#586575]">
-        The terms under which Vitalos Technologies processes {admin.garage.name}&apos;s customer data for Autofix.
+        The terms under which Vitalos Technologies processes {admin.garage.name}&apos;s customer data for Pitline.
       </p>
       <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
         <Link href="/app/settings" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-accent">Settings</Link>

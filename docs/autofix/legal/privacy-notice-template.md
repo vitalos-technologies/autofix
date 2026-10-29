@@ -1,6 +1,6 @@
 # Privacy notice for customers of [Garage name] (v1.0)
 
-**Who we are.** [Garage legal name], [address], is responsible for your personal data ("we"). Contact us at [email] or [phone]. Our booking system, Autofix, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.
+**Who we are.** [Garage legal name], [address], is responsible for your personal data ("we"). Contact us at [email] or [phone]. Our booking system, Pitline, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.
 
 **What we collect**
 

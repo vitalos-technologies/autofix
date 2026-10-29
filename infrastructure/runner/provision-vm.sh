@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision autofix's self-hosted runners on the AWS build VM from an operator machine. Runbook: infrastructure/RUNNER.md.
 # Needs: AWS credentials that can call SSM on the VM (e.g. AWS_PROFILE=workforce after `aws sso login --profile workforce`),
-# and a `gh` login with admin on vitalos-technologies/autofix (no jq or Python needed on the operator side).
+# and a `gh` login with admin on vitalos-technologies/pitline (no jq or Python needed on the operator side).
 #
 # The VM's own checkouts can't authenticate to GitHub non-interactively, so the scripts travel base64-embedded inside the
 # SSM command. The runner registration token is fetched here, never printed or written to disk, and only reaches the VM
@@ -18,7 +18,7 @@ set -euo pipefail
 
 INSTANCE_ID="${INSTANCE_ID:-i-0acc8453065a3eb23}"
 AWS_REGION="${AWS_REGION:-eu-west-2}"
-REPO="${REPO:-vitalos-technologies/autofix}"
+REPO="${REPO:-vitalos-technologies/pitline}"
 RUNNERS="${RUNNERS:-2}"
 RUNNER_USER="ghrunner-autofix"
 PLAYWRIGHT_VERSION="${PLAYWRIGHT_VERSION:-1.62.1}"   # the repo's locked @playwright/test

@@ -14,8 +14,8 @@ class SuperuserAdminSite(admin.AdminSite):
     This is the only place records can be hard-deleted; the application UI archives instead.
     """
 
-    site_header = "Autofix Super Admin — Django admin"
-    site_title = "Autofix Django admin"
+    site_header = "Pitline Super Admin — Django admin"
+    site_title = "Pitline Django admin"
     index_title = "Data administration (superusers only)"
 
     def admin_view(self, view, cacheable=False):

@@ -9,7 +9,7 @@ vi.mock("@/lib/tenancy/resolve", async (importOriginal) => {
   return {
     ...original,
     resolveHost: (host: string | null, options: Parameters<typeof original.resolveHost>[1] = {}) =>
-      original.resolveHost(host, { ...options, lookup, env: { NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" } }),
+      original.resolveHost(host, { ...options, lookup, env: { NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" } }),
   };
 });
 
@@ -41,13 +41,13 @@ describe("super admin proxy", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("forwards /superadmin/* on the admin host to the origin, path and query intact", async () => {
-    const response = await proxy(request("https://autofix.vitalos.co.uk/superadmin/garages/?q=hart"));
+    const response = await proxy(request("https://pitline.co.uk/superadmin/garages/?q=hart"));
     expect(response.headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/superadmin/garages/?q=hart`);
-    expect((await proxy(request("https://autofix.vitalos.co.uk/superadmin"))).headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/superadmin`);
+    expect((await proxy(request("https://pitline.co.uk/superadmin"))).headers.get("x-middleware-rewrite")).toBe(`${ORIGIN}/superadmin`);
   });
 
   it("adds the secret, the public host and the client IP, and drops spoofed copies", async () => {
-    const response = await proxy(request("https://autofix.vitalos.co.uk/superadmin/", {
+    const response = await proxy(request("https://pitline.co.uk/superadmin/", {
       "x-autofix-superadmin-proxy": "guess",
       "x-autofix-superadmin-client-ip": "198.51.100.1",
       "x-autofix-superadmin-anything": "x",
@@ -56,27 +56,27 @@ describe("super admin proxy", () => {
     const headers = forwarded(response);
     expect(headers["x-autofix-superadmin-proxy"]).toBe(SECRET);
     expect(headers["x-autofix-superadmin-client-ip"]).toBe("203.0.113.9");
-    expect(headers["x-autofix-superadmin-host"]).toBe("autofix.vitalos.co.uk");
+    expect(headers["x-autofix-superadmin-host"]).toBe("pitline.co.uk");
     expect(headers).not.toHaveProperty("x-autofix-superadmin-anything");
   });
 
-  it("forwards only the super admin's cookies, never Autofix's session", async () => {
-    const response = await proxy(request("https://autofix.vitalos.co.uk/superadmin/", {
+  it("forwards only the super admin's cookies, never Pitline's session", async () => {
+    const response = await proxy(request("https://pitline.co.uk/superadmin/", {
       cookie: "sb-abc-auth-token=secret; __Secure-afsa_session=s1; afsa_theme=dark; af_trusted_device=t; afsa_session=x",
     }));
     expect(forwarded(response).cookie).toBe("__Secure-afsa_session=s1; afsa_theme=dark; afsa_session=x");
-    const none = await proxy(request("https://autofix.vitalos.co.uk/superadmin/", { cookie: "sb-abc-auth-token=secret" }));
+    const none = await proxy(request("https://pitline.co.uk/superadmin/", { cookie: "sb-abc-auth-token=secret" }));
     expect(forwarded(none)).not.toHaveProperty("cookie");
   });
 
   it("leaves the super admin's own security headers alone", async () => {
-    const response = await proxy(request("https://autofix.vitalos.co.uk/superadmin/"));
+    const response = await proxy(request("https://pitline.co.uk/superadmin/"));
     expect(response.headers.get("content-security-policy")).toBeNull();
     expect(response.headers.get("x-frame-options")).toBeNull();
   });
 
   it("is a 404 on garage hosts", async () => {
-    const response = await proxy(request("https://hartley-road.autofix.vitalos.co.uk/superadmin/"));
+    const response = await proxy(request("https://hartley-road.pitline.co.uk/superadmin/"));
     expect(response.status).toBe(404);
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
@@ -85,25 +85,25 @@ describe("super admin proxy", () => {
     for (const [origin, secret] of [["", SECRET], [ORIGIN, ""], [ORIGIN, "short"], ["http://superadmin.example.com", SECRET], [`${ORIGIN}/x`, SECRET]]) {
       vi.stubEnv("SUPERADMIN_ORIGIN", origin);
       vi.stubEnv("SUPERADMIN_PROXY_SECRET", secret);
-      const response = await proxy(request("https://autofix.vitalos.co.uk/superadmin/"));
+      const response = await proxy(request("https://pitline.co.uk/superadmin/"));
       expect(response.status).toBe(404);
       expect(response.headers.get("x-middleware-rewrite")).toBeNull();
     }
   });
 
   it("does not catch look-alike paths", async () => {
-    const response = await proxy(request("https://autofix.vitalos.co.uk/superadminx"));
+    const response = await proxy(request("https://pitline.co.uk/superadminx"));
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
   it("keeps the super admin's trailing slashes and removes them elsewhere, as Next.js would", async () => {
-    expect((await proxy(request("https://autofix.vitalos.co.uk/superadmin/login/"))).status).not.toBe(308);
-    const app = await proxy(request("https://autofix.vitalos.co.uk/app/bookings/?view=week"));
+    expect((await proxy(request("https://pitline.co.uk/superadmin/login/"))).status).not.toBe(308);
+    const app = await proxy(request("https://pitline.co.uk/app/bookings/?view=week"));
     expect(app.status).toBe(308);
-    expect(app.headers.get("location")).toBe("https://autofix.vitalos.co.uk/app/bookings?view=week");
-    const garage = await proxy(request("https://hartley-road.autofix.vitalos.co.uk/service//"));
-    expect(garage.headers.get("location")).toBe("https://hartley-road.autofix.vitalos.co.uk/service");
-    expect((await proxy(request("https://autofix.vitalos.co.uk/"))).status).not.toBe(308);
+    expect(app.headers.get("location")).toBe("https://pitline.co.uk/app/bookings?view=week");
+    const garage = await proxy(request("https://hartley-road.pitline.co.uk/service//"));
+    expect(garage.headers.get("location")).toBe("https://hartley-road.pitline.co.uk/service");
+    expect((await proxy(request("https://pitline.co.uk/"))).status).not.toBe(308);
   });
 
   it("runs for the super admin's static files too", () => {

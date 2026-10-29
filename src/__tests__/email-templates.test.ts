@@ -9,19 +9,19 @@ import { otherTestGarage, testGarage } from "./support/garage";
 const garage = testGarage();
 // Production links (garage hosts), set before the fixtures render.
 vi.stubEnv("NODE_ENV", "production");
-vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "autofix.vitalos.co.uk");
+vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "pitline.co.uk");
 const fixtures = emailPreviewFixtures(garage);
 const platformFixtures = platformEmailPreviewFixtures();
 
 describe("garage-branded transactional email templates", () => {
   beforeEach(() => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "autofix.vitalos.co.uk");
+    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "pitline.co.uk");
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "autofix.vitalos.co.uk");
+    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "pitline.co.uk");
   });
 
   it.each(Object.entries(fixtures))("renders %s with the garage's name and contact details", (name, rendered) => {
@@ -31,8 +31,8 @@ describe("garage-branded transactional email templates", () => {
     expect(rendered.html, name).toContain("01302 000101");
     expect(rendered.html, name).toContain("bookings@hartleyroad.example");
     expect(rendered.html, name).toContain("4 Hartley Road, Doncaster, DN1 2AB");
-    expect(rendered.html, name).toContain("Sent by Autofix on behalf of Hartley Road Motors");
-    expect(rendered.text, name).toContain("Sent by Autofix on behalf of Hartley Road Motors");
+    expect(rendered.html, name).toContain("Sent by Pitline on behalf of Hartley Road Motors");
+    expect(rendered.text, name).toContain("Sent by Pitline on behalf of Hartley Road Motors");
     expect(`${rendered.html}\n${rendered.text}`, name).not.toMatch(/SOB|sobautofix|Professional Diagnostics/i);
     expect(Buffer.byteLength(rendered.html), name).toBeLessThan(100_000);
   });
@@ -59,7 +59,7 @@ describe("garage-branded transactional email templates", () => {
   });
 
   it("links customers to the garage's own booking host", () => {
-    expect(fixtures["booking-confirmed"].html).toContain('href="https://hartley-road.autofix.vitalos.co.uk/manage?token=');
+    expect(fixtures["booking-confirmed"].html).toContain('href="https://hartley-road.pitline.co.uk/manage?token=');
     const custom = emailPreviewFixtures(testGarage({ customDomain: "book.hartleyroad.co.uk" }));
     expect(custom["booking-confirmed"].html).toContain('href="https://book.hartleyroad.co.uk/manage?token=');
     expect(custom["enquiry-received"].html).toContain('href="https://book.hartleyroad.co.uk"');
@@ -67,7 +67,7 @@ describe("garage-branded transactional email templates", () => {
 
   it("keeps account mail platform-branded", () => {
     for (const [name, rendered] of Object.entries(platformFixtures)) {
-      expect(rendered.html, name).toContain("Autofix");
+      expect(rendered.html, name).toContain("Pitline");
       expect(rendered.html, name).not.toContain("on behalf of");
       expect(`${rendered.html}\n${rendered.text}`, name).not.toMatch(/SOB|sobautofix/i);
     }
@@ -94,7 +94,7 @@ describe("garage-branded transactional email templates", () => {
     expect(fixtures["booking-cancelled"].html).not.toContain(">Manage booking<");
     expect(fixtures["invoice-unpaid"].html).toContain("PDF invoice attached");
     expect(fixtures["invoice-paid"].html).toContain("PAID / SETTLED");
-    expect(platformEmailBrand().name).toBe("Autofix");
+    expect(platformEmailBrand().name).toBe("Pitline");
   });
 
   it("uses the Supabase token hash with the server-side recovery callback", () => {
@@ -106,7 +106,7 @@ describe("garage-branded transactional email templates", () => {
     expect(recovery).not.toMatch(/password\s*[:=]/i);
     const passwordChanged = readFileSync(resolve("supabase/templates/password_changed_notification.html"), "utf8");
     for (const template of [recovery, passwordChanged]) {
-      expect(template).toContain("Autofix by Vitalos");
+      expect(template).toContain("Pitline by Vitalos");
       expect(template).not.toMatch(/SOB|sobautofix|07469|Norton/i);
     }
   });

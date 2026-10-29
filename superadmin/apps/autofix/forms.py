@@ -7,7 +7,7 @@ from .models import GARAGE_STATUSES
 from .plans import PLAN_CHOICES
 
 REASON_WIDGET = forms.Textarea(attrs={"maxlength": 500, "minlength": 5})
-REASON_HELP = "5 to 500 characters. Logged in Autofix and shown to the garage's owners."
+REASON_HELP = "5 to 500 characters. Logged in Pitline and shown to the garage's owners."
 
 
 class ReasonForm(StyledFormMixin, StepUpMixin, forms.Form):
@@ -25,7 +25,7 @@ class ViewAsSupportForm(StyledFormMixin, StepUpMixin, forms.Form):
         min_length=5,
         max_length=500,
         widget=REASON_WIDGET,
-        help_text="Why you need to see this garage's app. Logged here and again in Autofix.",
+        help_text="Why you need to see this garage's app. Logged here and again in Pitline.",
     )
 
 

@@ -621,7 +621,7 @@ const FIXTURES: Record<string, Fixture> = {
   garage_domains: {
     create: async (rows) => {
       await rows.insert("garage_domains", { hostname: `book.${rows.garage.slug}.example`, kind: "custom", status: "pending_dns" });
-      return rows.insert("garage_domains", { hostname: `${rows.garage.slug}.autofix.vitalos.co.uk`, kind: "subdomain", status: "active" });
+      return rows.insert("garage_domains", { hostname: `${rows.garage.slug}.pitline.co.uk`, kind: "subdomain", status: "active" });
     },
     patch: { deleted_at: "2096-04-01T00:00:00.000Z" },
   },

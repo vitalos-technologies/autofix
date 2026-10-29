@@ -32,7 +32,7 @@ describe("garage booking calendars", () => {
   beforeEach(() => {
     process.env.BOOKING_MANAGEMENT_SECRET = "calendar-test-secret-with-high-entropy";
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "autofix.vitalos.co.uk");
+    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "pitline.co.uk");
   });
 
   afterEach(() => {
@@ -41,17 +41,17 @@ describe("garage booking calendars", () => {
   });
 
   it("uses one stable, garage-unique UID for booking, reschedule and cancellation", () => {
-    expect(bookingCalendarUid(garage, booking.reference)).toBe("HRM-4821.hartley-road@autofix.vitalos.co.uk");
+    expect(bookingCalendarUid(garage, booking.reference)).toBe("HRM-4821.hartley-road@pitline.co.uk");
     expect(bookingCalendarUid(other, booking.reference)).not.toBe(bookingCalendarUid(garage, booking.reference));
-    expect(buildBookingCalendar(booking)).toContain("UID:HRM-4821.hartley-road@autofix.vitalos.co.uk");
-    expect(buildBookingCalendar({ ...booking, status: "rescheduled", sequence: 1 })).toContain("UID:HRM-4821.hartley-road@autofix.vitalos.co.uk");
-    expect(buildBookingCalendar({ ...booking, status: "cancelled", sequence: 2 })).toContain("UID:HRM-4821.hartley-road@autofix.vitalos.co.uk");
+    expect(buildBookingCalendar(booking)).toContain("UID:HRM-4821.hartley-road@pitline.co.uk");
+    expect(buildBookingCalendar({ ...booking, status: "rescheduled", sequence: 1 })).toContain("UID:HRM-4821.hartley-road@pitline.co.uk");
+    expect(buildBookingCalendar({ ...booking, status: "cancelled", sequence: 2 })).toContain("UID:HRM-4821.hartley-road@pitline.co.uk");
   });
 
   it("generates valid CRLF calendar data with correct BST instants and the garage as organiser", () => {
     const calendar = buildBookingCalendar(booking);
     expect(calendar).toMatch(/^BEGIN:VCALENDAR\r\n/);
-    expect(calendar).toContain("PRODID:-//Autofix//Booking Calendar//EN\r\n");
+    expect(calendar).toContain("PRODID:-//Pitline//Booking Calendar//EN\r\n");
     expect(calendar).toContain("METHOD:REQUEST\r\n");
     expect(calendar).toContain("X-WR-TIMEZONE:Europe/London\r\n");
     expect(calendar).toContain("DTSTART:20260820T083000Z\r\n");
@@ -59,7 +59,7 @@ describe("garage booking calendars", () => {
     expect(calendar).toContain("SUMMARY:Vehicle Diagnostics — Hartley Road Motors\r\n");
     expect(calendar).toContain("ORGANIZER;CN=Hartley Road Motors:mailto:bookings@hartleyroad.example\r\n");
     expect(calendar).toContain("ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:mailto:customer@example.com\r\n");
-    expect(calendar).toContain("URL:https://hartley-road.autofix.vitalos.co.uk/manage\r\n");
+    expect(calendar).toContain("URL:https://hartley-road.pitline.co.uk/manage\r\n");
     expect(calendar).not.toContain("Cal.com");
     expect(calendar).not.toMatch(/SOB|sobautofix/i);
   });
@@ -93,14 +93,14 @@ describe("garage booking calendars", () => {
     expect(url.searchParams.get("dates")).toBe("20260820T083000Z/20260820T093000Z");
     expect(url.searchParams.get("ctz")).toBe("Europe/London");
     expect(url.searchParams.get("details")).toContain("HRM-4821");
-    expect(url.searchParams.get("details")).toContain("https://hartley-road.autofix.vitalos.co.uk/manage");
+    expect(url.searchParams.get("details")).toContain("https://hartley-road.pitline.co.uk/manage");
     expect(url.toString()).not.toContain("cal.com");
   });
 
   it("signs calendar downloads on the garage's own host, bound to that garage", () => {
     const url = new URL(bookingCalendarDownloadUrl(garage, booking.reference)!);
     const signature = url.searchParams.get("signature");
-    expect(url.origin).toBe("https://hartley-road.autofix.vitalos.co.uk");
+    expect(url.origin).toBe("https://hartley-road.pitline.co.uk");
     expect(url.pathname).toBe("/api/bookings/calendar/HRM-4821");
     expect(verifyBookingCalendarSignature(garage.id, booking.reference, signature)).toBe(true);
     expect(verifyBookingCalendarSignature(garage.id, "HRM-1234", signature)).toBe(false);

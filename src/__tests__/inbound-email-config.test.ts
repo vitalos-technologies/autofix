@@ -13,23 +13,23 @@ describe("provider-neutral inbound email configuration", () => {
   });
 
   it("prefers the canonical enquiry reply domain", () => {
-    process.env.ENQUIRY_REPLY_DOMAIN = "Reply.SobAutofix.com";
+    process.env.ENQUIRY_REPLY_DOMAIN = "Reply.Pitline.co.uk";
     process.env.RESEND_INBOUND_DOMAIN = "legacy.example.com";
-    expect(getEnquiryReplyDomain()).toBe("reply.sobautofix.com");
+    expect(getEnquiryReplyDomain()).toBe("reply.pitline.co.uk");
   });
 
   it("supports the legacy domain only as a rollout fallback", () => {
     delete process.env.ENQUIRY_REPLY_DOMAIN;
-    process.env.RESEND_INBOUND_DOMAIN = "reply.sobautofix.com";
-    expect(getEnquiryReplyDomain()).toBe("reply.sobautofix.com");
+    process.env.RESEND_INBOUND_DOMAIN = "reply.pitline.co.uk";
+    expect(getEnquiryReplyDomain()).toBe("reply.pitline.co.uk");
   });
 
   it("requires a valid domain and high-entropy-length server secret", () => {
-    process.env.ENQUIRY_REPLY_DOMAIN = "reply.sobautofix.com";
+    process.env.ENQUIRY_REPLY_DOMAIN = "reply.pitline.co.uk";
     process.env.CLOUDFLARE_EMAIL_WEBHOOK_SECRET = "short";
     expect(getCloudflareInboundConfig()).toBeNull();
     process.env.CLOUDFLARE_EMAIL_WEBHOOK_SECRET = "x".repeat(32);
-    expect(getCloudflareInboundConfig()).toEqual({ replyDomain: "reply.sobautofix.com", webhookSecret: "x".repeat(32) });
+    expect(getCloudflareInboundConfig()).toEqual({ replyDomain: "reply.pitline.co.uk", webhookSecret: "x".repeat(32) });
   });
 });
 

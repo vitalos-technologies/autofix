@@ -9,7 +9,7 @@ import {
 
 type WorkerEnvironment = {
   CLOUDFLARE_EMAIL_WEBHOOK_SECRET: string;
-  SOB_AUTOFIX_INBOUND_ENDPOINT: string;
+  PITLINE_INBOUND_ENDPOINT: string;
 };
 
 type EmailMessage = {
@@ -23,7 +23,7 @@ type EmailMessage = {
 const enquiryEmailWorker = {
   async email(message: EmailMessage, env: WorkerEnvironment, context: unknown) {
     void context;
-    if (recipientDomain(message.to) !== "reply.sobautofix.com") {
+    if (recipientDomain(message.to) !== "reply.pitline.co.uk") {
       message.setReject("This address does not accept email.");
       return;
     }
@@ -35,7 +35,7 @@ const enquiryEmailWorker = {
       throw new Error("Inbound email authentication is not configured");
     }
 
-    const endpoint = validatedEndpoint(env.SOB_AUTOFIX_INBOUND_ENDPOINT);
+    const endpoint = validatedEndpoint(env.PITLINE_INBOUND_ENDPOINT);
     const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
     if (raw.byteLength !== message.rawSize || raw.byteLength > CLOUDFLARE_EMAIL_MAX_BYTES) {
       throw new Error("Inbound email size changed during transfer");
@@ -102,7 +102,7 @@ function validatedEndpoint(value: string) {
   const endpoint = new URL(value);
   if (
     endpoint.protocol !== "https:"
-    || endpoint.hostname !== "sobautofix.com"
+    || endpoint.hostname !== "pitline.co.uk"
     || endpoint.pathname !== "/api/webhooks/cloudflare-email"
     || endpoint.search
     || endpoint.hash

@@ -265,7 +265,7 @@ export function smsCost(segments: number, costPerSegmentPence: number | null): n
 // ---------------------------------------------------------------------------
 
 export function reportFileName(kind: ReportKind, range: Pick<ReportRange, "from" | "to">): string {
-  return `autofix-${kind}-${range.from}-to-${range.to}.csv`;
+  return `pitline-${kind}-${range.from}-to-${range.to}.csv`;
 }
 
 export function revenueCsv(rows: readonly RevenueRow[], heading: "Service" | "Technician"): string {

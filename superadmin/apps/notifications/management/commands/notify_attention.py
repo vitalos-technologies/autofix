@@ -21,7 +21,7 @@ KINDS = {
 
 class Command(BaseCommand):
     help = (
-        "Turn Autofix items needing attention, and voicemails left in the last 24 hours, into in-app "
+        "Turn Pitline items needing attention, and voicemails left in the last 24 hours, into in-app "
         "notifications for SuperAdmin and Support (each problem or voicemail notifies each person once). "
         "Schedule every 5 minutes. Sends no email."
     )
@@ -31,7 +31,7 @@ class Command(BaseCommand):
             items = selectors.attention_items(limit=50)
             voicemails = selectors.new_voicemails()
         except AutofixUnavailable as exc:
-            self.stderr.write(f"Autofix data unavailable ({exc}); nothing notified.")
+            self.stderr.write(f"Pitline data unavailable ({exc}); nothing notified.")
             return
         recipients = list(
             get_user_model()
@@ -51,7 +51,7 @@ class Command(BaseCommand):
             )
         calls_url = reverse("autofix:calls")
         for call in voicemails:
-            # Names the garage (or Autofix's own line) and when, never the caller.
+            # Names the garage (or Pitline's own line) and when, never the caller.
             left = timezone.localtime(call.created_at)
             line = selectors.PLATFORM_LINE if call.is_platform else call.garage_id
             created += notify(

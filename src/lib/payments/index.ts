@@ -67,7 +67,7 @@ export function getPaymentsProvider(env: Env = process.env): PaymentsProvider | 
 }
 
 export const PAYMENTS_READINESS_MESSAGES: Record<Exclude<PaymentsReadiness, "mock" | "stripe_test">, string> = {
-  configuration_required: "Card payments aren't set up on Autofix yet. Vitalos is finishing the setup.",
+  configuration_required: "Card payments aren't set up on Pitline yet. Vitalos is finishing the setup.",
   live_key_refused: "Card payments aren't switched on for live use yet.",
   mock_not_in_production: "Card payments aren't switched on yet. Vitalos will tell you when they are.",
 };

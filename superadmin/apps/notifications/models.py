@@ -6,7 +6,7 @@ from django.utils import timezone
 class Notification(models.Model):
     class Kind(models.TextChoices):
         ROLE_ASSIGNED = "role_assigned", "Role assigned"
-        JOB_FAILED = "job_failed", "Autofix job failed"
+        JOB_FAILED = "job_failed", "Pitline job failed"
         DOMAIN_FAILED = "domain_failed", "Custom domain failed verification"
         ONBOARDING_STUCK = "onboarding_stuck", "Garage onboarding stuck"
         MESSAGING_FAILED = "messaging_failed", "Messages failing"
@@ -44,7 +44,7 @@ class Notification(models.Model):
 
 
 class NotificationPreference(models.Model):
-    """Which Autofix alerts a person wants in the bell. In-app only: this app sends no email."""
+    """Which Pitline alerts a person wants in the bell. In-app only: this app sends no email."""
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_preference"

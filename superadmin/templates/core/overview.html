@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Overview · Autofix Super Admin{% endblock %}
+{% block title %}Overview · Pitline Super Admin{% endblock %}
 {% block content %}
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <p class="plate-mark">Autofix</p>
+      <p class="plate-mark">Pitline</p>
       <h1 class="mt-2">Overview</h1>
-      <p class="muted mt-1 text-sm">Every garage on Autofix: health, bookings and what needs a look. Times in Europe/London.</p>
+      <p class="muted mt-1 text-sm">Every garage on Pitline: health, bookings and what needs a look. Times in Europe/London.</p>
     </div>
     <a href="{% url 'autofix:garages' %}" class="btn btn-secondary">{% icon "wrench" "h-4 w-4" %} All garages</a>
   </div>
@@ -37,7 +37,7 @@
         {% if can_operate %}<a class="text-link text-sm underline" href="{% url 'autofix:jobs' %}">Jobs</a>{% endif %}
       </div>
       {% if attention is None %}
-        <p class="muted p-4 text-sm">Not available until Autofix data is connected.</p>
+        <p class="muted p-4 text-sm">Not available until Pitline data is connected.</p>
       {% else %}
         {% include "autofix/_attention_list.html" with items=attention %}
       {% endif %}

@@ -40,7 +40,7 @@ const other = otherTestGarage();
 const engine = fakeEngine();
 
 function jsonRequest(path: string, body: unknown) {
-  return new NextRequest(`https://hartley-road.autofix.vitalos.co.uk${path}`, {
+  return new NextRequest(`https://hartley-road.pitline.co.uk${path}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" },
     body: JSON.stringify(body),
@@ -98,9 +98,9 @@ describe("public routes resolve the garage from the host", () => {
     await servicesRoute();
     expect(engine.listOnlineServices).toHaveBeenCalledWith(garage.id);
 
-    const smuggled = await slotsRoute(new NextRequest(`https://hartley-road.autofix.vitalos.co.uk/api/slots?service=${SERVICE}&from=2026-11-20&to=2026-11-21&garageId=${other.id}`));
+    const smuggled = await slotsRoute(new NextRequest(`https://hartley-road.pitline.co.uk/api/slots?service=${SERVICE}&from=2026-11-20&to=2026-11-21&garageId=${other.id}`));
     expect(smuggled.status).toBe(422);
-    await slotsRoute(new NextRequest(`https://hartley-road.autofix.vitalos.co.uk/api/slots?service=${SERVICE}&from=2026-11-20&to=2026-11-21&mode=workshop`));
+    await slotsRoute(new NextRequest(`https://hartley-road.pitline.co.uk/api/slots?service=${SERVICE}&from=2026-11-20&to=2026-11-21&mode=workshop`));
     expect(engine.getAvailableSlots).toHaveBeenCalledWith(expect.objectContaining({ garageId: garage.id, serviceId: SERVICE }));
     expect(JSON.stringify(engine.getAvailableSlots.mock.calls)).not.toContain(other.id);
   });
@@ -121,10 +121,10 @@ describe("public routes resolve the garage from the host", () => {
   });
 
   it("serves calendar files only for the host's garage and a valid reference", async () => {
-    const notFound = await calendarRoute(new NextRequest("https://hartley-road.autofix.vitalos.co.uk/api/bookings/calendar/not-a-ref?signature=x"), { params: Promise.resolve({ reference: "not-a-ref" }) });
+    const notFound = await calendarRoute(new NextRequest("https://hartley-road.pitline.co.uk/api/bookings/calendar/not-a-ref?signature=x"), { params: Promise.resolve({ reference: "not-a-ref" }) });
     expect(notFound.status).toBe(404);
     harness.garage = null;
-    const offHost = await calendarRoute(new NextRequest("https://autofix.vitalos.co.uk/api/bookings/calendar/HRM-4821?signature=x"), { params: Promise.resolve({ reference: "HRM-4821" }) });
+    const offHost = await calendarRoute(new NextRequest("https://pitline.co.uk/api/bookings/calendar/HRM-4821?signature=x"), { params: Promise.resolve({ reference: "HRM-4821" }) });
     expect(offHost.status).toBe(404);
     expect(harness.loadBookingNotificationContext).not.toHaveBeenCalled();
   });

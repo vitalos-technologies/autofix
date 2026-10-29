@@ -67,7 +67,7 @@ describe("desk tools", () => {
     expect(calls[1]?.body.idempotencyKey).toBe(calls[0]?.body.idempotencyKey);
   });
 
-  it("create_booking asks for what is missing instead of calling Autofix", async () => {
+  it("create_booking asks for what is missing instead of calling Pitline", async () => {
     const { session: s, calls } = await session();
     const base = { serviceId: SERVICE, startsAt: "2026-11-03T09:00:00.000Z", customerName: "Sam Patel", mobile: null, registration: "AB12 CDE", make: null, model: null, notes: null };
     expect(await runTool("create_booking", base, s, { ...facts, callerNumber: null })).toMatchObject({ isError: true });
@@ -76,7 +76,7 @@ describe("desk tools", () => {
     expect(calls).toEqual([]);
   });
 
-  it("passes Autofix's errors (fixed wording) back to the model", async () => {
+  it("passes Pitline's errors (fixed wording) back to the model", async () => {
     const { session: s } = await session({ create_booking: () => ({ status: 409, body: { code: "SLOT_UNAVAILABLE", message: "That time is no longer free.", alternatives: [] } }) });
     const outcome = await runTool("create_booking", { serviceId: SERVICE, startsAt: "2026-11-03T09:00:00.000Z", customerName: "Sam Patel", mobile: null, registration: "AB12CDE", make: null, model: null, notes: null }, s, facts);
     expect(outcome).toMatchObject({ isError: true });

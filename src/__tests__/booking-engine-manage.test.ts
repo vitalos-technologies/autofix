@@ -127,9 +127,9 @@ describe("manage link tokens", () => {
 
   it("link to /manage on the garage's own booking host", () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "autofix.vitalos.co.uk");
+    vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "pitline.co.uk");
     try {
-      expect(manageBookingUrl({ slug: "hartley-road" }, "abc_DEF-123")).toBe("https://hartley-road.autofix.vitalos.co.uk/manage?token=abc_DEF-123");
+      expect(manageBookingUrl({ slug: "hartley-road" }, "abc_DEF-123")).toBe("https://hartley-road.pitline.co.uk/manage?token=abc_DEF-123");
       expect(manageBookingUrl({ slug: "hartley-road", customDomain: "book.hartleyroad.co.uk" })).toBe("https://book.hartleyroad.co.uk/manage");
     } finally {
       vi.unstubAllEnvs();

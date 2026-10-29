@@ -1,10 +1,10 @@
-"""Changes to Autofix, and the audited actions around Autofix data. Views call these, never the DB.
+"""Changes to Pitline, and the audited actions around Pitline data. Views call these, never the DB.
 
 Every change goes through a platform SQL function (``db.call_platform_function``), which re-checks
-the platform admin, validates the input and writes Autofix's own audit logs. Here we add what the
+the platform admin, validates the input and writes Pitline's own audit logs. Here we add what the
 super admin owns: the role check, a verified second factor, a linked platform admin, a reason, and
-our own append-only audit event. Nothing writes to Autofix tables directly, and nothing here touches
-bookings (bookings are created only through Autofix's ``create_booking()``).
+our own append-only audit event. Nothing writes to Pitline tables directly, and nothing here touches
+bookings (bookings are created only through Pitline's ``create_booking()``).
 """
 
 import uuid
@@ -24,7 +24,7 @@ from .redact import clean_reason
 
 REASON_HELP = "Give a reason of 5 to 500 characters. It is logged and shown to the garage's owners."
 FRIENDLY_ERRORS = {
-    "PLATFORM_ADMIN_REQUIRED": "Autofix did not accept your linked platform admin. Check the link in Settings → Users.",
+    "PLATFORM_ADMIN_REQUIRED": "Pitline did not accept your linked platform admin. Check the link in Settings → Users.",
     "INVALID_REASON": REASON_HELP,
     "GARAGE_NOT_FOUND": "That garage could not be found.",
     "NOTHING_TO_CHANGE": "Choose a different plan or status.",
@@ -32,7 +32,7 @@ FRIENDLY_ERRORS = {
     "INVALID_STATUS": "Choose a status.",
     "DOMAIN_NOT_FOUND": "That domain could not be found.",
     "DOMAIN_NOT_CHECKABLE": "Only custom domains waiting for DNS or verification can be re-checked.",
-    "NOT_CONFIGURED": "Autofix data is not connected.",
+    "NOT_CONFIGURED": "Pitline data is not connected.",
 }
 
 
@@ -44,7 +44,7 @@ class Outcome:
 
 
 def _require_writer(request) -> uuid.UUID:
-    """SuperAdmin, verified with TOTP in this session, linked to an Autofix platform admin."""
+    """SuperAdmin, verified with TOTP in this session, linked to a Pitline platform admin."""
     user = request.user
     if not can_change_autofix(user):
         raise PermissionDenied
@@ -53,7 +53,7 @@ def _require_writer(request) -> uuid.UUID:
         raise PermissionDenied
     if not user.autofix_admin_id:
         raise ValidationError(
-            "Your account is not linked to an Autofix platform admin, so Autofix is read-only for you. "
+            "Your account is not linked to a Pitline platform admin, so Pitline is read-only for you. "
             "A SuperAdmin can link it in Settings → Users."
         )
     return user.autofix_admin_id
@@ -67,7 +67,7 @@ def _reason(value) -> str:
 
 
 def _friendly(error: db.PlatformError) -> str:
-    return FRIENDLY_ERRORS.get(error.code, "Autofix refused the change. Nothing was changed.")
+    return FRIENDLY_ERRORS.get(error.code, "Pitline refused the change. Nothing was changed.")
 
 
 def _update_garage(garage: Garage, plan: str | None, status: str | None, reason: str, actor):
@@ -83,7 +83,7 @@ def _update_garage(garage: Garage, plan: str | None, status: str | None, reason:
 
 
 def change_plan_status(request, garage: Garage, *, plan: str | None, status: str, reason) -> Outcome:
-    """Plan and/or status through ``platform_update_garage`` (one audit entry per change in Autofix)."""
+    """Plan and/or status through ``platform_update_garage`` (one audit entry per change in Pitline)."""
     actor = _require_writer(request)
     reason = _reason(reason)
     statuses = dict(GARAGE_STATUSES)
@@ -169,14 +169,14 @@ def request_domain_check(request, domain: GarageDomain, reason) -> Outcome:
         reason=reason,
         autofix_admin=str(actor),
     )
-    return Outcome(True, "Re-check queued. Autofix checks the domain within 5 minutes.", result)
+    return Outcome(True, "Re-check queued. Pitline checks the domain within 5 minutes.", result)
 
 
 def view_as_support(request, garage: Garage, reason) -> str:
-    """The audited hand-off to Autofix's own read-only impersonation. Returns where to go.
+    """The audited hand-off to Pitline's own read-only impersonation. Returns where to go.
 
-    The session itself starts in Autofix (/admin/garages/<id>), under the admin's own Autofix sign-in
-    and MFA, where Autofix records it again. Nothing is passed but the garage's id: no token, no
+    The session itself starts in Pitline (/admin/garages/<id>), under the admin's own Pitline sign-in
+    and MFA, where Pitline records it again. Nothing is passed but the garage's id: no token, no
     session, no personal data (ADR-044 "Open" pattern).
     """
     if not can_support(request.user):

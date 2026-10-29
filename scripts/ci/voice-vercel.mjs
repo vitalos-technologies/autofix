@@ -1,4 +1,4 @@
-// Connects the Autofix app to the deployed voice service (services/voice, the AI front desk on calls):
+// Connects the Pitline app to the deployed voice service (services/voice, the AI front desk on calls):
 // sets VOICE_RELAY_URL (encrypted) and VOICE_RELAY_SECRET (sensitive) for Production only, then redeploys
 // the current production deployment so the voice webhook picks them up, and waits for it to be ready.
 // Run by .github/workflows/voice-deploy.yml once the service has a Claude key. Prints names and states,

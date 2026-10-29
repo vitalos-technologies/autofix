@@ -76,7 +76,7 @@ describe("native booking management", () => {
     const historicalMigrations = new Set([
       join("docs", "autofix", "BUILD-PLAN.md"),
     ]);
-    // docs/autofix/ is the Autofix planning kit; it names the legacy scheduler
+    // docs/autofix/ is the Pitline planning kit; it names the legacy scheduler
     // only to record that it is not used. Every SOB doc and all of src/ stay scanned.
     const autofixPlanningDocs = join("docs", "autofix") + sep;
     const candidates = [

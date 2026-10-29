@@ -2,7 +2,7 @@ import type { VehicleDetails } from "@/types/domain";
 
 // MOT data is shown per garage (garages.mot_enabled, `Garage.motEnabled`).
 // SOB's rule that discarded MOT data at the provider boundary does not apply
-// to Autofix; customer-facing surfaces pass the host garage's switch.
+// to Pitline; customer-facing surfaces pass the host garage's switch.
 
 export const MOT_FIELDS = ["motStatus", "motExpiry"] as const satisfies ReadonlyArray<keyof VehicleDetails>;
 

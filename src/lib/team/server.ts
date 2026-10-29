@@ -65,9 +65,9 @@ export function inviteError(error: { code?: string | null; message?: string | nu
 /** The invite email: plain text and a small HTML version, no tracking. */
 export function composeInviteEmail(input: { garageName: string; inviterName: string; role: InviteRole; link: string }) {
   const role = ROLE_LABELS[input.role].toLowerCase();
-  const subject = `Join ${input.garageName} on Autofix`;
+  const subject = `Join ${input.garageName} on Pitline`;
   const text = [
-    `${input.inviterName} has invited you to join ${input.garageName} on Autofix as ${role === "front desk" ? "front desk" : `a ${role}`}.`,
+    `${input.inviterName} has invited you to join ${input.garageName} on Pitline as ${role === "front desk" ? "front desk" : `a ${role}`}.`,
     "",
     "Accept the invite and set up your account:",
     input.link,
@@ -75,7 +75,7 @@ export function composeInviteEmail(input: { garageName: string; inviterName: str
     "The link works for 7 days. If you weren't expecting this, you can ignore this email.",
   ].join("\n");
   const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const html = `<p>${escape(input.inviterName)} has invited you to join <strong>${escape(input.garageName)}</strong> on Autofix.</p>`
+  const html = `<p>${escape(input.inviterName)} has invited you to join <strong>${escape(input.garageName)}</strong> on Pitline.</p>`
     + `<p><a href="${escape(input.link)}">Accept the invite</a></p><p>The link works for 7 days. If you weren't expecting this, you can ignore this email.</p>`;
   return { subject, text, html };
 }

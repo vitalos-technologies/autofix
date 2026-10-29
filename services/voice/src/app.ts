@@ -9,7 +9,7 @@ import type { Engine } from "./llm.js";
 import type { Logger } from "./log.js";
 import { twilioSignatureValid } from "./twilio-signature.js";
 
-// GET /healthz   200 always (Autofix's voice webhook calls it to wake the container while the disclosure plays)
+// GET /healthz   200 always (Pitline's voice webhook calls it to wake the container while the disclosure plays)
 // GET /readyz    200 when the relay secret and the Claude key are set, else 503
 // GET /relay     the ConversationRelay WebSocket: the signed claim in the query (and X-Twilio-Signature when
 //                TWILIO_AUTH_TOKEN is set), one live socket per CallSid.

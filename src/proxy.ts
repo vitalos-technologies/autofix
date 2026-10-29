@@ -8,6 +8,7 @@ import { askbridgeScriptUrl } from "@/lib/askbridge/config";
 import { ADMIN_SECURITY_HEADERS, bookingSiteHeaders } from "@/lib/booking-page/security-headers";
 import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
 import { classifyHost } from "@/lib/tenancy/hosts";
+import { legacyHostDecision } from "@/lib/tenancy/legacy-hosts";
 import { REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
 import { resolveHost, type HostGarage } from "@/lib/tenancy/resolve";
 import { isSuperadminPath, superadminRequest } from "@/lib/superadmin/proxy";
@@ -104,9 +105,13 @@ function trailingSlashRedirect(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const host = requestHost(request);
+  // The old Autofix addresses first, so one redirect lands on the final URL (DECISIONS D22).
+  const legacy = legacyHostDecision(request.url, host);
+  if (legacy?.kind === "redirect") return NextResponse.redirect(legacy.location, 308);
+  if (legacy?.kind === "serve") return withSecurityHeaders(await adminHost(request, null), null);
   const slashRedirect = trailingSlashRedirect(request);
   if (slashRedirect) return slashRedirect;
-  const host = requestHost(request);
   const param = devGarageParam(request);
   let resolution;
   try {

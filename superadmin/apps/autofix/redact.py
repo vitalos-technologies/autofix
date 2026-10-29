@@ -1,4 +1,4 @@
-"""Masking for free text that leaves Autofix (job errors): ported from ``src/lib/platform/policy.ts``.
+"""Masking for free text that leaves Pitline (job errors): ported from ``src/lib/platform/policy.ts``.
 
 Emails, phone numbers and anything shaped like a UK registration are masked (registration privacy),
 ids are kept, and the result is at most 300 characters. Job payloads are never read at all.

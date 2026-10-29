@@ -19,7 +19,7 @@ const ACCOUNT_LINKS = [
 ];
 
 /**
- * Every signed-in admin page: the Autofix shell (design/screens/Admin-Dashboard.dc.html,
+ * Every signed-in admin page: the Pitline shell (design/screens/Admin-Dashboard.dc.html,
  * Admin-Today-Phone.dc.html). The garage is the member's selected garage (`af_garage`, checked
  * against their memberships); every count here goes through its RLS client. While a platform
  * admin views the garage as support (P4.5, read-only), the support banner sits above the shell.

@@ -15,20 +15,20 @@ const vars: TemplateVariables = {
   vehicle: "Ford Fiesta",
   reg: "AB12 CDE",
   due_date: "14 Nov",
-  link: "https://hartley-road.autofix.vitalos.co.uk/r/abc123",
+  link: "https://hartley-road.pitline.co.uk/r/abc123",
   garage: "Hartley Road Garage",
   service: "Full service",
   date: "Tue 3 Nov",
   time: "09:30",
   reference: "HRG-1042",
-  manage_link: "https://hartley-road.autofix.vitalos.co.uk/m/xyz",
+  manage_link: "https://hartley-road.pitline.co.uk/m/xyz",
 };
 
 describe("renderTemplate", () => {
   it("renders the MOT reminder exactly as the consent wording draft for SMS", () => {
     const rendered = renderTemplate(DEFAULT_TEMPLATES.mot.body, vars, { channel: "sms" });
     expect(rendered.text).toBe(
-      "Hartley Road Garage: Hi Sam, MOT due 14 Nov. Book: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" + OPT_OUT_LINE,
+      "Hartley Road Garage: Hi Sam, MOT due 14 Nov. Book: https://hartley-road.pitline.co.uk/r/abc123\n" + OPT_OUT_LINE,
     );
     expect(rendered.unknownPlaceholders).toEqual([]);
     expect(rendered.missingPlaceholders).toEqual([]);
@@ -36,16 +36,16 @@ describe("renderTemplate", () => {
 
   it("renders the service reminder exactly as the consent wording draft for WhatsApp", () => {
     expect(renderTemplate(DEFAULT_TEMPLATES.service.body, vars, { channel: "whatsapp" }).text).toBe(
-      "Hartley Road Garage: Hi Sam, service due. Book: https://hartley-road.autofix.vitalos.co.uk/r/abc123\n" + OPT_OUT_LINE,
+      "Hartley Road Garage: Hi Sam, service due. Book: https://hartley-road.pitline.co.uk/r/abc123\n" + OPT_OUT_LINE,
     );
   });
 
   it("keeps the missed-call and confirmation wording and adds the opt-out after it", () => {
     expect(renderTemplate(DEFAULT_TEMPLATES.missed_call.body, vars, { channel: "sms" }).text).toBe(
-      "Hartley Road Garage: sorry we missed your call. Book at https://hartley-road.autofix.vitalos.co.uk/r/abc123 or we'll call you back. " + OPT_OUT_LINE,
+      "Hartley Road Garage: sorry we missed your call. Book at https://hartley-road.pitline.co.uk/r/abc123 or we'll call you back. " + OPT_OUT_LINE,
     );
     expect(renderTemplate(DEFAULT_TEMPLATES.booking_confirmed.body, vars, { channel: "sms" }).text).toBe(
-      "Hartley Road Garage: you're booked in for Full service on Tue 3 Nov at 09:30. Ref HRG-1042. Change or cancel: https://hartley-road.autofix.vitalos.co.uk/m/xyz\n" +
+      "Hartley Road Garage: you're booked in for Full service on Tue 3 Nov at 09:30. Ref HRG-1042. Change or cancel: https://hartley-road.pitline.co.uk/m/xyz\n" +
         OPT_OUT_LINE,
     );
   });

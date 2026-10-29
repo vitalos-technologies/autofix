@@ -1,5 +1,5 @@
 /*
- * Autofix design tokens. Copy into src/app/globals.css (Tailwind v4) in Phase 2.
+ * Pitline design tokens. Copy into src/app/globals.css (Tailwind v4) in Phase 2.
  * --garage-accent is set per request from garages.accent on customer routes:
  *   <html style="--garage-accent: #155fba">
  * See design/DESIGN.md for usage.

@@ -62,7 +62,7 @@ beforeEach(() => {
 });
 
 describe("GET /api/admin/group/report", () => {
-  const url = "https://autofix.vitalos.co.uk/api/admin/group/report?from=2026-10-01&to=2026-10-28";
+  const url = "https://pitline.co.uk/api/admin/group/report?from=2026-10-01&to=2026-10-28";
 
   it("is 401 signed out", async () => {
     const response = await groupReport(new Request(url));

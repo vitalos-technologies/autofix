@@ -93,7 +93,7 @@ export function ManageLookup({ bookingPrefix, notice, humanCheck }: ManageLookup
         </p>
       </form>
 
-      <StickyActionBar type="submit" form={FORM_ID} label={pending ? "Finding your booking" : "Find my booking"} busy={pending} footnote="Powered by Autofix" />
+      <StickyActionBar type="submit" form={FORM_ID} label={pending ? "Finding your booking" : "Find my booking"} busy={pending} footnote="Powered by Pitline" />
     </>
   );
 }

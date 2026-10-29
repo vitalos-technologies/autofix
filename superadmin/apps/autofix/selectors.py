@@ -1,6 +1,6 @@
-"""Reads over Autofix data (the ``autofix`` alias). Business rules for what each page shows live here.
+"""Reads over Pitline data (the ``autofix`` alias). Business rules for what each page shows live here.
 
-Every public function is wrapped in ``db.reads``: a missing or failing Autofix connection becomes
+Every public function is wrapped in ``db.reads``: a missing or failing Pitline connection becomes
 ``AutofixUnavailable`` and the page says so instead of breaking. Time windows are computed in
 Europe/London (the garages' time zone) and timestamps stay ``timestamptz`` throughout.
 
@@ -136,7 +136,7 @@ def subscription_counts() -> dict[str, int]:
 
     active: Essentials or Pro, not on trial, on an active garage. trialing: on the Pro trial (old
     ``trial`` plan or ``trial_ends_at`` ahead), onboarding or active. pastDue: a paid plan on a
-    suspended garage (Autofix suspends for non-payment; there is no billing system yet).
+    suspended garage (Pitline suspends for non-payment; there is no billing system yet).
     """
     return {
         "active": Garage.objects.filter(plans.paid_q(), status="active").count(),
@@ -387,7 +387,7 @@ def garage_overview(garage_obj: Garage, now: datetime | None = None) -> dict:
                 else "—",
             ),
             ("Status", STATUS_LABELS.get(garage_obj.status, garage_obj.status)),
-            ("Free address", f"{garage_obj.slug}.autofix.vitalos.co.uk"),
+            ("Free address", f"{garage_obj.slug}.pitline.co.uk"),
             ("Time zone", garage_obj.timezone),
             ("MOT", "Enabled" if garage_obj.mot_enabled else "Not offered"),
             ("Team", str(GarageMember.objects.filter(garage=garage_obj).count())),

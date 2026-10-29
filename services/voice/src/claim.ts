@@ -1,14 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// The relay claim Autofix puts in the ConversationRelay URL (src/lib/ai-front-desk/voice-relay.ts in the
-// Autofix app, same algorithm, same shared test vector): ?g=<garage id>&c=<CallSid>&e=<unix expiry>&s=<hex
+// The relay claim Pitline puts in the ConversationRelay URL (src/lib/ai-front-desk/voice-relay.ts in the
+// Pitline app, same algorithm, same shared test vector): ?g=<garage id>&c=<CallSid>&e=<unix expiry>&s=<hex
 // HMAC-SHA-256(VOICE_RELAY_SECRET, "v1.<g>.<c>.<e>")>.
 
 export type RelayClaim = { garageId: string; callSid: string; expires: number; signature: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const CALL_SID = /^CA[0-9a-fA-F]{32}$/;
-/** Autofix signs claims for 5 minutes; a minute of clock skew is allowed on top. */
+/** Pitline signs claims for 5 minutes; a minute of clock skew is allowed on top. */
 const MAX_AHEAD_SECONDS = 360;
 
 export function signClaim(secret: string, claim: Pick<RelayClaim, "garageId" | "callSid" | "expires">) {

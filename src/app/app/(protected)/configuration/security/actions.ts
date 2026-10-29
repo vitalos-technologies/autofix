@@ -77,7 +77,7 @@ export async function startMfaEnrollment(previous: EnrollmentState, formData: Fo
     if (error) return { message: "We couldn't clean up an incomplete setup. Please try again." };
   }
 
-  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "Autofix" });
+  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "Pitline" });
   if (error || !data || data.type !== "totp") return { message: "We couldn't enable two-factor authentication. Please try again." };
   return { message: "", enrollment: { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret } };
 }

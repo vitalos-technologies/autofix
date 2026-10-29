@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import type { BookingEngine } from "@/lib/booking-engine/types";
 
 /** Every request in these tests arrives on Hartley Road's booking host. */
-export const GARAGE_HOST = "https://hartley-road.autofix.vitalos.co.uk";
+export const GARAGE_HOST = "https://hartley-road.pitline.co.uk";
 
 export function fakeEngine(): { [K in keyof BookingEngine]: ReturnType<typeof vi.fn> } & BookingEngine {
   const engine = {

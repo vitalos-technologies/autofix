@@ -13,7 +13,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
-// Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
+// Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it. The Resend sending
+// domain is pitline.co.uk since D22, so set CLOUDFLARE_ZONE_ID to the pitline.co.uk zone for resend-domain.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
 // One table or column each migration adds, read through PostgREST with the service key.
@@ -107,7 +108,7 @@ function keysLine() {
 const lastFour = (phone) => (phone ? `…${String(phone).slice(-4)}` : "none");
 
 function siteOrigin() {
-  const site = env("NEXT_PUBLIC_SITE_URL") ?? "https://autofix.vitalos.co.uk";
+  const site = env("NEXT_PUBLIC_SITE_URL") ?? "https://pitline.co.uk";
   const url = new URL(site);
   if (url.protocol !== "https:") throw new Error("NEXT_PUBLIC_SITE_URL must be https");
   return url.origin;
@@ -124,8 +125,8 @@ async function vercelDomains() {
   const project = encodeURIComponent(env("VERCEL_PROJECT_ID"));
   const team = `teamId=${encodeURIComponent(env("VERCEL_TEAM_ID"))}`;
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-  const adminHost = env("NEXT_PUBLIC_ADMIN_HOST") ?? "autofix.vitalos.co.uk";
-  const tenantRoot = env("NEXT_PUBLIC_TENANT_ROOT_DOMAIN") ?? "autofix.vitalos.co.uk";
+  const adminHost = env("NEXT_PUBLIC_ADMIN_HOST") ?? "pitline.co.uk";
+  const tenantRoot = env("NEXT_PUBLIC_TENANT_ROOT_DOMAIN") ?? "pitline.co.uk";
   const hosts = [...new Set([adminHost, `*.${tenantRoot}`])];
 
   for (const host of hosts) {
@@ -395,7 +396,7 @@ async function resendDomain() {
       console.log(`      left alone: ${fqdn} already has a different ${record.type} record`);
       continue;
     }
-    const body = { type: record.type, name: fqdn, content: record.value, ttl: 1, proxied: false, comment: "Autofix (Resend sending domain)" };
+    const body = { type: record.type, name: fqdn, content: record.value, ttl: 1, proxied: false, comment: "Pitline (Resend sending domain)" };
     if (record.type === "MX") body.priority = Number(record.priority ?? 10);
     const created = await call(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, { method: "POST", headers: cf, body: JSON.stringify(body) });
     if (created.ok) console.log("      added in Cloudflare");
@@ -506,9 +507,9 @@ async function supabase() {
       mailer_autoconfirm: false,
       mfa_totp_enroll_enabled: true,
       mfa_totp_verify_enabled: true,
-      mailer_subjects_confirmation: "Confirm your Autofix account",
+      mailer_subjects_confirmation: "Confirm your Pitline account",
       mailer_templates_confirmation_content: readFileSync("supabase/templates/confirmation.html", "utf8"),
-      mailer_subjects_recovery: "Reset your Autofix admin password",
+      mailer_subjects_recovery: "Reset your Pitline admin password",
       mailer_templates_recovery_content: readFileSync("supabase/templates/recovery.html", "utf8"),
     };
 
@@ -521,7 +522,7 @@ async function supabase() {
       if (verified) {
         Object.assign(patch, {
           smtp_admin_email: /<([^>]+)>/.exec(env("RESEND_FROM_EMAIL"))?.[1] ?? env("RESEND_FROM_EMAIL"),
-          smtp_sender_name: "Autofix",
+          smtp_sender_name: "Pitline",
           smtp_host: "smtp.resend.com",
           smtp_port: "465",
           smtp_user: "resend",
@@ -552,8 +553,8 @@ async function supabase() {
 // Monthly GBP prices, found again by lookup key. The amount is the plan setting (GitHub variable) or the
 // price Temitope set on 29 Oct 2026. A fixed product id makes the product easy to find again.
 const STRIPE_PRICES = [
-  { product: "autofix_pro", name: "Autofix Pro", lookupKey: "autofix_pro_monthly", amountName: "PLAN_PRO_PRICE_PENCE", defaultPence: 4500, envName: "STRIPE_PRICE_PRO" },
-  { product: "autofix_extra_site", name: "Autofix extra site", lookupKey: "autofix_extra_site_monthly", amountName: "PLAN_EXTRA_SITE_PRICE_PENCE", defaultPence: 1500, envName: "STRIPE_PRICE_EXTRA_SITE" },
+  { product: "autofix_pro", name: "Pitline Pro", lookupKey: "autofix_pro_monthly", amountName: "PLAN_PRO_PRICE_PENCE", defaultPence: 4500, envName: "STRIPE_PRICE_PRO" },
+  { product: "autofix_extra_site", name: "Pitline extra site", lookupKey: "autofix_extra_site_monthly", amountName: "PLAN_EXTRA_SITE_PRICE_PENCE", defaultPence: 1500, envName: "STRIPE_PRICE_EXTRA_SITE" },
 ];
 
 // Exactly the events the handlers act on. Billing: src/lib/billing/stripe.ts (parseWebhook). Payments,
@@ -563,14 +564,14 @@ const STRIPE_ENDPOINTS = [
   {
     path: "/api/webhooks/billing/stripe",
     connect: false,
-    description: "Autofix plans (billing)",
+    description: "Pitline plans (billing)",
     secretName: "STRIPE_BILLING_WEBHOOK_SECRET",
     events: ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"],
   },
   {
     path: "/api/webhooks/payments/stripe",
     connect: true,
-    description: "Autofix garage payments and service plans (Connect)",
+    description: "Pitline garage payments and service plans (Connect)",
     secretName: "STRIPE_PAYMENTS_WEBHOOK_SECRET",
     events: [
       "account.updated",

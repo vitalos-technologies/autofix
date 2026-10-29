@@ -115,7 +115,7 @@ describe("garage invoicing", () => {
     // No logo: every page carries the garage's name instead.
     expect(parsed.pageImageCounts.every((count) => count === 0)).toBe(true);
     expect(parsed.pageTexts.every((page) => page.includes("HARTLEY ROAD MOTORS"))).toBe(true);
-    expect(parsed.pageTexts.every((page) => page.includes("Invoice produced with Autofix"))).toBe(true);
+    expect(parsed.pageTexts.every((page) => page.includes("Invoice produced with Pitline"))).toBe(true);
     expect(parsed.text).toContain("HRM-2026-000001");
     const text = parsed.text;
     expect(text).toContain("UNPAID");

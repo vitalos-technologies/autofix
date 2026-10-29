@@ -1,8 +1,8 @@
 import { Barlow_Condensed, Inter, JetBrains_Mono } from "next/font/google";
 
 /**
- * Autofix type families (design/DESIGN.md "Type"). Apply `fontVariables` to the
- * element that wraps Autofix UI; the `font-display`, `font-sans` and `font-mono`
+ * Pitline type families (design/DESIGN.md "Type"). Apply `fontVariables` to the
+ * element that wraps Pitline UI; the `font-display`, `font-sans` and `font-mono`
  * utilities in globals.css read these variables.
  */
 export const barlowCondensed = Barlow_Condensed({

@@ -52,7 +52,7 @@
 }
 
 /*
- * Autofix tokens (design/tokens.css): navy #071127 ground, number-plate yellow #f6c700 for the primary
+ * Pitline tokens (design/tokens.css): navy #071127 ground, number-plate yellow #f6c700 for the primary
  * action and the active marker, blue #1446a5 for links and focus. Flat colour only. The token names
  * (midnight, cobalt, mineral) match the Vitalos Super Admin templates so its components carry over.
  */
@@ -74,7 +74,7 @@
   --color-line: #e4eaf0;
   --color-line-strong: #cfd8e3;
 
-  /* Neutrals re-tinted towards navy (Autofix greys) so dark surfaces share the brand ground. */
+  /* Neutrals re-tinted towards navy (Pitline greys) so dark surfaces share the brand ground. */
   --color-slate-50: #f4f7fa;
   --color-slate-100: #eef1f5;
   --color-slate-200: #e4eaf0;
@@ -348,7 +348,7 @@
   backdrop-filter: blur(4px);
 }
 
-/* ---- Autofix ------------------------------------------------------------------------------- */
+/* ---- Pitline ------------------------------------------------------------------------------- */
 @layer components {
   /* Funnel and bar charts: widths come from a fixed scale class (no inline styles under the CSP). */
   .bar-track {

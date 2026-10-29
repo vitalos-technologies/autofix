@@ -7,7 +7,7 @@ import { currentImpersonation } from "@/lib/platform/store";
 import { PlatformHeader } from "./_components/platform-header";
 
 export const metadata: Metadata = {
-  title: { default: "Platform", template: "%s · Platform | Autofix" },
+  title: { default: "Platform", template: "%s · Platform | Pitline" },
   robots: { index: false, follow: false },
 };
 

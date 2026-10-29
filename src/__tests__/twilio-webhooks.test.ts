@@ -14,7 +14,7 @@ import { createFakeSupabase, filterValue } from "./support/fake-supabase";
 // and the voice log.
 
 const AUTH_TOKEN = "twilio-test-auth-token-0123456789";
-const BASE = "https://autofix.vitalos.co.uk";
+const BASE = "https://pitline.co.uk";
 const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE };
 const GARAGE = "a0000000-0000-4000-8000-00000000000a";
 const GARAGE_NUMBER = "+447700100200";
@@ -221,20 +221,20 @@ describe("signature and URL", () => {
   it("rebuilds the signed URL from TWILIO_WEBHOOK_BASE_URL, else the forwarded headers, keeping the query", () => {
     const behindProxy = new Request("http://10.0.0.5:3000/api/webhooks/twilio/status?garage=x", {
       method: "POST",
-      headers: { "x-forwarded-proto": "https, http", "x-forwarded-host": "autofix.vitalos.co.uk, internal", host: "10.0.0.5:3000" },
+      headers: { "x-forwarded-proto": "https, http", "x-forwarded-host": "pitline.co.uk, internal", host: "10.0.0.5:3000" },
     });
-    expect(twilioWebhookUrl(behindProxy, {})).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/status?garage=x");
+    expect(twilioWebhookUrl(behindProxy, {})).toBe("https://pitline.co.uk/api/webhooks/twilio/status?garage=x");
     expect(twilioWebhookUrl(behindProxy, { TWILIO_WEBHOOK_BASE_URL: "https://hooks.example.com/autofix/" })).toBe("https://hooks.example.com/autofix/api/webhooks/twilio/status?garage=x");
-    const direct = new Request("https://autofix.vitalos.co.uk/api/webhooks/twilio/sms", { method: "POST", headers: { host: "autofix.vitalos.co.uk" } });
-    expect(twilioWebhookUrl(direct, {})).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/sms");
+    const direct = new Request("https://pitline.co.uk/api/webhooks/twilio/sms", { method: "POST", headers: { host: "pitline.co.uk" } });
+    expect(twilioWebhookUrl(direct, {})).toBe("https://pitline.co.uk/api/webhooks/twilio/sms");
   });
 
   it("verifies a request signed for the forwarded public URL when no base URL is set", async () => {
     const { repo, state } = memoryRepo();
     const request = signedRequest("sms", inboundParams("hi"), {
-      url: "https://autofix.vitalos.co.uk/api/webhooks/twilio/sms",
+      url: "https://pitline.co.uk/api/webhooks/twilio/sms",
       requestUrl: "http://10.0.0.5:3000/api/webhooks/twilio/sms",
-      headers: { "x-forwarded-proto": "https", "x-forwarded-host": "autofix.vitalos.co.uk" },
+      headers: { "x-forwarded-proto": "https", "x-forwarded-host": "pitline.co.uk" },
     });
     expect((await handleTwilioWebhook(request, "sms", { repo: () => repo, env: { TWILIO_AUTH_TOKEN: AUTH_TOKEN }, log })).status).toBe(200);
     expect(state.inbound).toHaveLength(1);

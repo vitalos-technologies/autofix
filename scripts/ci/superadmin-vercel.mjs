@@ -1,4 +1,4 @@
-// Points the Autofix app's /superadmin proxy at the deployed super admin (DECISIONS D18; src/proxy.ts):
+// Points the Pitline app's /superadmin proxy at the deployed super admin (DECISIONS D18; src/proxy.ts):
 // sets SUPERADMIN_ORIGIN (encrypted) and SUPERADMIN_PROXY_SECRET (sensitive) for Production only, then
 // redeploys the current production deployment so it picks them up, and waits for it to be ready.
 // Run by .github/workflows/superadmin-deploy.yml. Prints names and states, never a value.

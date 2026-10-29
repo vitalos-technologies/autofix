@@ -1,4 +1,4 @@
-// The desk's instructions for one call, built from the garage's profile and services (Autofix's
+// The desk's instructions for one call, built from the garage's profile and services (Pitline's
 // garage_profile and list_services tools). Guardrails that must hold whatever the model says are in code
 // (tools.ts, desk.ts); this text is how the desk behaves on the phone.
 

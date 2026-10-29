@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#071127">
     <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "historyCacheSize": 0, "refreshOnHistoryMiss": true, "selfRequestsOnly": true, "disableInheritance": true}'>
-    <title>{% block title %}Autofix Super Admin{% endblock %}</title>
+    <title>{% block title %}Pitline Super Admin{% endblock %}</title>
     <link rel="icon" href="{% static 'favicon.ico' %}" sizes="48x48">
     <link rel="icon" href="{% static 'brand/autofix-mark.svg' %}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{% static 'brand/apple-touch-icon.png' %}">
@@ -34,7 +34,7 @@
                   <li class="muted hidden sm:block" aria-hidden="true">/</li>
                   <li class="truncate font-medium" aria-current="page">{{ nav_active.label }}</li>
                 {% else %}
-                  <li class="truncate font-medium" aria-current="page">{% block breadcrumb_title %}Autofix Super Admin{% endblock %}</li>
+                  <li class="truncate font-medium" aria-current="page">{% block breadcrumb_title %}Pitline Super Admin{% endblock %}</li>
                 {% endif %}
               {% endblock %}
             </ol>
@@ -70,7 +70,7 @@
             <div hx-get="{% url 'core:health_footer' %}" hx-trigger="load" hx-swap="innerHTML" data-testid="health-footer">
               {% include "partials/skeleton.html" with kind="inline" %}
             </div>
-            <p class="muted">Autofix by Vitalos · internal system. Access is logged.</p>
+            <p class="muted">Pitline by Vitalos · internal system. Access is logged.</p>
           </div>
         </footer>
       {% endblock %}

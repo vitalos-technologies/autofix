@@ -184,7 +184,7 @@ export function FeatureArt({ kind }: { kind: "booking" | "diary" | "reminders" |
     return (
       <div className="w-[270px] space-y-3">
         <div className="rounded-[16px] rounded-bl-[6px] bg-white p-3.5 text-[13px] leading-5 text-navy-950 shadow-[0_16px_32px_-20px_rgba(7,17,39,0.35)]">
-          Kingsway Autocare: Hi Sam, MOT due 14 Mar. Book: kingsway.autofix…/r/… Reply STOP to opt out.
+          Kingsway Autocare: Hi Sam, MOT due 14 Mar. Book: kingsway.pitline…/r/… Reply STOP to opt out.
         </div>
         <div className="ml-auto w-fit rounded-[14px] bg-navy-950 px-4 py-3 text-white">
           <p className="text-[11px] tracking-[0.06em] text-white/75 uppercase">Won back this month</p>
@@ -206,7 +206,7 @@ export function FeatureArt({ kind }: { kind: "booking" | "diary" | "reminders" |
       </div>
       <div className="ml-6 flex items-start gap-2 rounded-[16px] rounded-tl-[6px] bg-blue-700 p-3.5 text-[13px] leading-5 text-white">
         <MessageSquareText size={16} className="mt-0.5 shrink-0" />
-        Sorry we missed you. Book online at kingsway.autofix… or we&apos;ll call you back.
+        Sorry we missed you. Book online at kingsway.pitline… or we&apos;ll call you back.
       </div>
     </div>
   );

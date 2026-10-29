@@ -129,7 +129,7 @@ export function renderInternalBookingEmail(input: InternalBookingEmailInput): Re
       status: appointmentStatus,
       tone: input.type === "confirmed" ? "success" : input.type === "cancelled" ? "cancelled" : "warning",
       title,
-      intro: `The booking is in your Autofix admin for ${brand.name}. The key details are included below.`,
+      intro: `The booking is in your Pitline admin for ${brand.name}. The key details are included below.`,
       contentHtml: detailCard(details),
       cta: { label: "View bookings", url: bookingsUrl },
     }),

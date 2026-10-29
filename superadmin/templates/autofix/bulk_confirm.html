@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Change status · Autofix Super Admin{% endblock %}
+{% block title %}Change status · Pitline Super Admin{% endblock %}
 {% block breadcrumb_title %}Garages{% endblock %}
 {% block content %}
   <div class="card mx-auto max-w-2xl p-6">
     <h1 class="text-3xl">Change status of {{ garages|length }} garage{{ garages|length|pluralize }}</h1>
-    <p class="muted mt-2 text-sm">Each change goes through Autofix's platform function on its own, with this reason, and appears in that garage's audit log. Garages already in the chosen status are left alone.</p>
+    <p class="muted mt-2 text-sm">Each change goes through Pitline's platform function on its own, with this reason, and appears in that garage's audit log. Garages already in the chosen status are left alone.</p>
     <ul class="mt-4 list-disc space-y-1 pl-5 text-sm">
       {% for garage in garages %}<li>{{ garage.name }} <span class="muted">({{ garage.get_status_display }})</span></li>{% endfor %}
     </ul>

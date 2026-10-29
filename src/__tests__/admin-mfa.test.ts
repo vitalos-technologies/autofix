@@ -40,10 +40,10 @@ describe("admin TOTP MFA", () => {
   it("uses a unique friendly name for every authenticator replacement", () => {
     const first = createMfaReplacementFriendlyName("11111111-1111-4111-8111-111111111111");
     const second = createMfaReplacementFriendlyName("22222222-2222-4222-8222-222222222222");
-    expect(first).toBe("Autofix Replacement 11111111");
-    expect(second).toBe("Autofix Replacement 22222222");
+    expect(first).toBe("Pitline Replacement 11111111");
+    expect(second).toBe("Pitline Replacement 22222222");
     expect(first).not.toBe(second);
-    expect(first).not.toBe("Autofix Replacement");
+    expect(first).not.toBe("Pitline Replacement");
   });
 
   it("allows only local admin return paths", () => {

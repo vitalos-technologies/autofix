@@ -20,7 +20,7 @@ const initialCreateState: CreateGarageState = { seq: 0, errors: {} };
 
 export type GarageWizardProps = {
   placesEnabled: boolean;
-  /** The free link with `__slug__` where the slug goes, e.g. `https://__slug__.autofix.vitalos.co.uk`. */
+  /** The free link with `__slug__` where the slug goes, e.g. `https://__slug__.pitline.co.uk`. */
   linkTemplate: string;
   ownerEmail: string;
 };

@@ -1,5 +1,5 @@
 # Local development: PostgreSQL 17 (the super admin's own database) plus the app with live reload.
-# Autofix data comes from the local Supabase (supabase start, in the repo root) as autofix_superadmin:
+# Pitline data comes from the local Supabase (supabase start, in the repo root) as autofix_superadmin:
 #   psql "postgres://postgres:postgres@127.0.0.1:54322/postgres" \
 #        -c "alter role autofix_superadmin with login password '<local-only password>'"
 #   AUTOFIX_DB_PASSWORD='<local-only password>' docker compose up --build

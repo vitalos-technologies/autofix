@@ -4,7 +4,7 @@ import { CLOUDFLARE_EMAIL_HEADERS, CLOUDFLARE_EMAIL_MAX_BYTES } from "@/lib/enqu
 import worker from "../../workers/enquiry-email/src/index";
 
 const secret = "worker-test-secret-that-is-longer-than-thirty-two-characters";
-const endpoint = "https://sobautofix.com/api/webhooks/cloudflare-email";
+const endpoint = "https://pitline.co.uk/api/webhooks/cloudflare-email";
 
 describe("Cloudflare enquiry Email Worker", () => {
   beforeEach(() => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("ok", { status: 200 }))));
@@ -12,8 +12,8 @@ describe("Cloudflare enquiry Email Worker", () => {
 
   it("preserves raw MIME and forwards signed envelope metadata", async () => {
     const raw = new TextEncoder().encode("From: customer@example.com\r\nSubject: Reply\r\n\r\nExact bytes");
-    const message = emailMessage(raw, "customer@example.com", "enquiry+token@reply.sobautofix.com");
-    await worker.email(message, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, SOB_AUTOFIX_INBOUND_ENDPOINT: endpoint }, {});
+    const message = emailMessage(raw, "customer@example.com", "enquiry+token@reply.pitline.co.uk");
+    await worker.email(message, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, PITLINE_INBOUND_ENDPOINT: endpoint }, {});
 
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
@@ -28,7 +28,7 @@ describe("Cloudflare enquiry Email Worker", () => {
       secret,
       timestamp: headers.get(CLOUDFLARE_EMAIL_HEADERS.timestamp) || "",
       envelopeFrom: "customer@example.com",
-      envelopeTo: "enquiry+token@reply.sobautofix.com",
+      envelopeTo: "enquiry+token@reply.pitline.co.uk",
       rawDigest,
       signature: headers.get(CLOUDFLARE_EMAIL_HEADERS.signature) || "",
     })).toBe(true);
@@ -41,21 +41,21 @@ describe("Cloudflare enquiry Email Worker", () => {
       headers: { [CLOUDFLARE_EMAIL_HEADERS.failureStage]: "signature" },
     }));
     const raw = new TextEncoder().encode("From: customer@example.com\r\n\r\nRetry me");
-    await expect(worker.email(emailMessage(raw, "customer@example.com", "token@reply.sobautofix.com"), {
+    await expect(worker.email(emailMessage(raw, "customer@example.com", "token@reply.pitline.co.uk"), {
       CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret,
-      SOB_AUTOFIX_INBOUND_ENDPOINT: endpoint,
+      PITLINE_INBOUND_ENDPOINT: endpoint,
     }, {})).rejects.toThrow("status 401 at signature");
   });
 
   it("rejects unrelated recipients and oversized messages without forwarding", async () => {
     const raw = new Uint8Array([1]);
-    const wrongDomain = emailMessage(raw, "customer@example.com", "token@sobautofix.com");
-    await worker.email(wrongDomain, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, SOB_AUTOFIX_INBOUND_ENDPOINT: endpoint }, {});
+    const wrongDomain = emailMessage(raw, "customer@example.com", "token@pitline.co.uk");
+    await worker.email(wrongDomain, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, PITLINE_INBOUND_ENDPOINT: endpoint }, {});
     expect(wrongDomain.setReject).toHaveBeenCalledOnce();
 
-    const oversized = emailMessage(raw, "customer@example.com", "token@reply.sobautofix.com");
+    const oversized = emailMessage(raw, "customer@example.com", "token@reply.pitline.co.uk");
     oversized.rawSize = CLOUDFLARE_EMAIL_MAX_BYTES + 1;
-    await worker.email(oversized, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, SOB_AUTOFIX_INBOUND_ENDPOINT: endpoint }, {});
+    await worker.email(oversized, { CLOUDFLARE_EMAIL_WEBHOOK_SECRET: secret, PITLINE_INBOUND_ENDPOINT: endpoint }, {});
     expect(oversized.setReject).toHaveBeenCalledOnce();
     expect(fetch).not.toHaveBeenCalled();
   });

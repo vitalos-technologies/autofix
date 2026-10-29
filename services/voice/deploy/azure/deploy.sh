@@ -22,7 +22,7 @@ LOCATION="${LOCATION:-uksouth}"
 APP="autofix-voice"
 ENVIRONMENT="cae-autofix-superadmin"
 REGISTRY="ghcr.io"
-AUTOFIX_BASE_URL="${AUTOFIX_BASE_URL:-https://autofix.vitalos.co.uk}"
+AUTOFIX_BASE_URL="${AUTOFIX_BASE_URL:-https://pitline.co.uk}"
 MIN_REPLICAS="${MIN_REPLICAS:-0}"
 MAX_REPLICAS="${MAX_REPLICAS:-2}"
 

@@ -101,7 +101,7 @@
   }
 }
 
-/* Autofix design tokens (design/tokens.css) */
+/* Pitline design tokens (design/tokens.css) */
 :root {
   --navy-950: #071127;
   --navy-900: #0c1d3d;
@@ -169,7 +169,7 @@
   --radius-card: 16px;
 }
 
-/* Autofix token extras: the remaining tokens as utilities
+/* Pitline token extras: the remaining tokens as utilities
    (text-accent-ink, border-navy-line, bg-plate-band, rounded-input, rounded-hero, rounded-plate). */
 @theme inline {
   --color-accent-ink: var(--garage-accent-ink);

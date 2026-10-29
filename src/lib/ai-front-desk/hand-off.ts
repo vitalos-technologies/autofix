@@ -42,7 +42,7 @@ export type VoiceDeskState = {
   serviceConfigured: boolean;
   /** The owner switched the front desk on. */
   enabled: boolean;
-  /** The garage has a number Twilio routes to Autofix. */
+  /** The garage has a number Twilio routes to Pitline. */
   hasNumber: boolean;
   /** This month's minutes reached the allowance. */
   overAllowance: boolean;
@@ -51,7 +51,7 @@ export type VoiceDeskState = {
 export function voiceDeskStatus(state: VoiceDeskState): { tone: "success" | "warning" | "info" | "neutral"; label: string; detail: string } {
   if (!state.enabled) return { tone: "neutral", label: "Off", detail: "Missed calls get your voicemail and a text back." };
   if (!state.serviceConfigured) return { tone: "warning", label: "Waiting for Vitalos", detail: "Vitalos is switching the AI front desk on for calls. Until then missed calls get your voicemail and a text back." };
-  if (!state.hasNumber) return { tone: "warning", label: "No Autofix number", detail: "Your garage needs an Autofix phone number for the AI front desk to answer calls. Ask Vitalos to add one." };
+  if (!state.hasNumber) return { tone: "warning", label: "No Pitline number", detail: "Your garage needs a Pitline phone number for the AI front desk to answer calls. Ask Vitalos to add one." };
   if (state.overAllowance) return { tone: "warning", label: "Allowance used", detail: "This month's AI minutes are used up, so missed calls get your voicemail and a text back until next month." };
   return { tone: "success", label: "Answering", detail: "Missed calls are answered by the AI front desk." };
 }

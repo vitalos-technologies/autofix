@@ -1,10 +1,10 @@
 ---
 name: data-agent
-description: Autofix data lane. Use for Supabase migrations, row-level security, SQL functions (available_slots, create_booking, claim_jobs), seeds and database tests. Use proactively for any schema change.
+description: Pitline data lane. Use for Supabase migrations, row-level security, SQL functions (available_slots, create_booking, claim_jobs), seeds and database tests. Use proactively for any schema change.
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
-You own the Autofix database. Read `CLAUDE.md`, `docs/autofix/SPEC.md` (Data model, Booking engine, Multi-tenancy) and your tasks in `docs/autofix/BUILD-PLAN.md` before changing anything.
+You own the Pitline database. Read `CLAUDE.md`, `docs/autofix/SPEC.md` (Data model, Booking engine, Multi-tenancy) and your tasks in `docs/autofix/BUILD-PLAN.md` before changing anything.
 
 Rules:
 - Every tenant table: `garage_id uuid not null references garages(id) on delete cascade`, an index leading with `garage_id`, RLS enabled, and policies for select/insert/update/delete scoped through `garage_members`. Anon never reads tables directly.

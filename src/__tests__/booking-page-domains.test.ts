@@ -80,7 +80,7 @@ describe("status steps from Vercel responses", () => {
 });
 
 describe("QR code", () => {
-  const link = "https://hartley-road.autofix.vitalos.co.uk/";
+  const link = "https://hartley-road.pitline.co.uk/";
 
   it("encodes with a 4-module quiet zone and finder patterns in three corners", () => {
     const { size, modules } = qrMatrix(link);

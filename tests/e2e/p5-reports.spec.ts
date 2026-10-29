@@ -181,13 +181,13 @@ test("each report downloads as a CSV attachment with only dates in its name", as
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download revenue by service as CSV" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^autofix-revenue-by-service-\d{4}-\d{2}-01-to-\d{4}-\d{2}-\d{2}\.csv$/);
+  expect(download.suggestedFilename()).toMatch(/^pitline-revenue-by-service-\d{4}-\d{2}-01-to-\d{4}-\d{2}-\d{2}\.csv$/);
 
   for (const kind of ["revenue-by-service", "revenue-by-technician", "bay-utilisation", "hours", "reminder-roi"]) {
     const response = await page.request.get(`${adminOrigin}/api/admin/reports/${kind}?range=this_month`);
     expect(response.status(), kind).toBe(200);
     expect(response.headers()["content-type"]).toBe("text/csv; charset=utf-8");
-    expect(response.headers()["content-disposition"]).toMatch(/^attachment; filename="autofix-/);
+    expect(response.headers()["content-disposition"]).toMatch(/^attachment; filename="pitline-/);
     const body = await response.text();
     expect(body.replace(/^﻿/, "").startsWith('"'), kind).toBe(true);
     expect(body).not.toContain(`RP${localRunId.slice(0, 5)}`.toUpperCase());

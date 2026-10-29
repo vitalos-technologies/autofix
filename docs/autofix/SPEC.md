@@ -1,16 +1,16 @@
-# Autofix — Backend Engine Spec
+# Pitline — Backend Engine Spec
 
 Version 1 · 25 Oct 2026 · Owner: Temitope Agbola
 Live doc (comments, edits): https://claude.ai/artifact/VyDyF3gpqZk5CdeFBMCDjA. If the two differ, the live doc wins; update this file to match.
 
 ## Summary and decisions
 
-Autofix runs as one Next.js app on Vercel and one Supabase Postgres database in London, serving every garage. It is forked from SOB Autofix, so the booking flow, admin, invoicing and email code start out already tested. The biggest change is replacing Cal.com with a scheduling engine of our own, so each garage's diary lives in our database.
+Pitline runs as one Next.js app on Vercel and one Supabase Postgres database in London, serving every garage. It is forked from SOB Autofix, so the booking flow, admin, invoicing and email code start out already tested. The biggest change is replacing Cal.com with a scheduling engine of our own, so each garage's diary lives in our database.
 
 | Area | Decision | Why |
 | --- | --- | --- |
 | Codebase | Fork `Isaacpyo/sobautofix` into a new `autofix` repo; keep Next.js 16, React 19, Supabase, Resend, zod, Sentry. Remove SOB-only content (articles, gallery, SEO landing pages) | Booking wizard, admin shell, MFA, invoicing and vehicle lookup are already built and tested |
-| Hosting | Vercel project `autofix` in the Vitalos team, on `autofix.vitalos.co.uk` and `*.autofix.vitalos.co.uk` | DNS records went live on 25 Oct 2026 |
+| Hosting | Vercel project `autofix` in the Vitalos team, on `pitline.co.uk` and `*.pitline.co.uk` | DNS records went live on 25 Oct 2026 |
 | Garage domains | Garage adds `book.theirgarage.co.uk` CNAME → `cname.vercel-dns-0.com`; the app adds the domain through the Vercel domains API; Vercel issues the certificate | No proxy layer; free on Pro, 50 domains on Hobby |
 | Database | Supabase Postgres, London region, one schema, `garage_id` on every tenant row, row-level security | Same as SOB; UK data residency |
 | Scheduling | Our own availability engine (bays, opening hours, service durations, buffers) | One Cal.com account per garage would not scale and splits the diary |
@@ -25,7 +25,7 @@ Autofix runs as one Next.js app on Vercel and one Supabase Postgres database in 
 ```mermaid
 flowchart TB
   C[Customer<br/>book.garage.co.uk] --> APP
-  S[Garage staff<br/>autofix.vitalos.co.uk] --> APP
+  S[Garage staff<br/>pitline.co.uk] --> APP
   M[Missed call<br/>forwarded via Twilio] --> APP
   A[AI agents<br/>Workforce, Askbridge] --> APP
   APP[Vercel · Next.js app autofix<br/>middleware matches Host → garage]
@@ -49,8 +49,8 @@ Every request is matched to a garage by its host name before anything renders, a
 
 | Host | Serves | Rewrite |
 | --- | --- | --- |
-| `autofix.vitalos.co.uk` | Garage admin, sign-up, super admin | `/app/…`, `/admin/…` |
-| `<slug>.autofix.vitalos.co.uk` | That garage's booking site (free link) | `/_site/<garageId>/…` |
+| `pitline.co.uk` | Garage admin, sign-up, super admin | `/app/…`, `/admin/…` |
+| `<slug>.pitline.co.uk` | That garage's booking site (free link) | `/_site/<garageId>/…` |
 | Any other verified host, e.g. `book.theirgarage.co.uk` | That garage's booking site | `/_site/<garageId>/…` |
 | `localhost:3000` (dev) | Admin; `?__garage=<slug>` or `<slug>.localhost:3000` for booking sites (dev only) | as above |
 | Unknown host | 404 page | none |
@@ -137,7 +137,7 @@ Time slots are worked out in Postgres from each garage's opening hours, bays and
 - Change or cancel: booking reference plus registration (as SOB does today), or the signed link in the confirmation. The cancellation cutoff is a garage setting.
 - Staff calendars: a private ICS feed per garage. Google Calendar two-way sync comes later.
 - `/api/bookings` keeps SOB's idempotency key, rate limits and Turnstile check.
-- SOB stays on Cal.com until Autofix is stable, then can move over as a tenant if wanted.
+- SOB stays on Cal.com until Pitline is stable, then can move over as a tenant if wanted.
 
 ## Vehicle data and MOT engine
 
@@ -151,7 +151,7 @@ Three sources are combined behind SOB's existing `VehicleLookupProvider` interfa
 
 **Lookup at booking step 1**: a `CompositeProvider` calls DVLA and DVSA in parallel and Vehicle Data Global only when the model is missing. Results are cached for 24 hours in `vehicle_facts`, keyed by a hash of the registration, holding vehicle facts only. SOB's rule stays: registrations never go in URLs or analytics. If every source fails, the customer enters the car by hand. Keep `mock.ts` as the dev/test provider.
 
-**SOB's MOT ban must be removed for the platform**: SOB's provider-normalisation layer discards MOT fields and `src/__tests__/content-guard.test.ts` blocks MOT content. In Autofix, MOT data flows through and is shown only when `garages.mot_enabled` is true.
+**SOB's MOT ban must be removed for the platform**: SOB's provider-normalisation layer discards MOT fields and `src/__tests__/content-guard.test.ts` blocks MOT content. In Pitline, MOT data flows through and is shown only when `garages.mot_enabled` is true.
 
 **Nightly MOT refresh** (job `mot.refresh`, 02:00)
 
@@ -192,11 +192,11 @@ Vercel Hobby allows only daily crons; every-10-minute sends need Vercel Pro (or 
 
 ## AI front desk and missed calls
 
-Autofix doesn't build its own AI. It exposes a small, garage-scoped tool API that the Workforce agent (calls and WhatsApp) and Askbridge (website chat) call into. Without the Front desk plan, missed calls still get an automatic text-back.
+Pitline doesn't build its own AI. It exposes a small, garage-scoped tool API that the Workforce agent (calls and WhatsApp) and Askbridge (website chat) call into. Without the Front desk plan, missed calls still get an automatic text-back.
 
 **Missed calls**
 
-1. The garage keeps its own number and sets "forward when busy or unanswered" to an Autofix UK number from Twilio, one per garage.
+1. The garage keeps its own number and sets "forward when busy or unanswered" to a Pitline UK number from Twilio, one per garage.
 2. Twilio's voice webhook hits `/api/webhooks/twilio/voice` (garage resolved from the called number) and logs a `calls` row.
 3. Growth plan: play a short message, take an optional voicemail, and send the text-back with a booking link within 60 seconds.
 4. Front desk plan: hand the call to the Workforce voice agent.
@@ -213,7 +213,7 @@ Autofix doesn't build its own AI. It exposes a small, garage-scoped tool API tha
 | `get_booking` | Status by reference plus registration | Read only |
 | `garage_profile` | Hours, address, policies, FAQs | Read only |
 
-**Askbridge** sits on booking pages as the chat widget. Each garage uses its own Askbridge workspace and pastes its site key into Autofix; Askbridge learns by crawling the garage's website, and Autofix sends it nothing ([askbridge.md](askbridge.md)). Customers book through the booking flow as usual.
+**Askbridge** sits on booking pages as the chat widget. Each garage uses its own Askbridge workspace and pastes its site key into Pitline; Askbridge learns by crawling the garage's website, and Pitline sends it nothing ([askbridge.md](askbridge.md)). Customers book through the booking flow as usual.
 
 **Guardrails**: no diagnosis or repair advice beyond the garage's own FAQ, always offer a human callback, per-garage on/off switch, and transcripts stored in `messages`.
 

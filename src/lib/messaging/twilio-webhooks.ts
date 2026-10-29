@@ -40,7 +40,7 @@ import { readVerifiedTwilioRequest, twilioWebhookUrl, twimlResponse, webhookErro
 // - voice, AI front desk (P5.12 voice desk, Pro): where a call is missed, a
 //   garage on Pro with the front desk switched on and AI minutes left this
 //   month (ai_front_desk_voice_ready()) hears the AI disclosure and is
-//   connected to Autofix's voice service over Twilio ConversationRelay (no
+//   connected to Pitline's voice service over Twilio ConversationRelay (no
 //   text-back queued); the service is woken while the disclosure plays.
 //   ?step=relay: a session that failed (service down) falls back to the
 //   voicemail and the text-back; one the service ended asking for a message

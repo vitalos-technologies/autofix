@@ -4,7 +4,7 @@ from django.apps import AppConfig
 class AutofixConfig(AppConfig):
     name = "apps.autofix"
     label = "autofix"
-    verbose_name = "Autofix (read-only)"
+    verbose_name = "Pitline (read-only)"
 
     def ready(self):
         from apps.core import palette

@@ -223,7 +223,7 @@ export function VehicleStep({ motEnabled, timeZone, initialVehicle, humanCheck }
         label="Continue"
         busy={pending && intent === "continue"}
         disabled={pending}
-        footnote={<span className="text-[11px] text-[#6a7686]">Powered by Autofix</span>}
+        footnote={<span className="text-[11px] text-[#6a7686]">Powered by Pitline</span>}
       />
     </>
   );

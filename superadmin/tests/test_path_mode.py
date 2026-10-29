@@ -1,4 +1,4 @@
-"""Path mode (DECISIONS D18): the app at autofix.vitalos.co.uk/superadmin behind the Autofix proxy."""
+"""Path mode (DECISIONS D18): the app at pitline.co.uk/superadmin behind the Pitline proxy."""
 
 import pytest
 from django.test import Client, RequestFactory
@@ -25,7 +25,7 @@ def path_mode(settings):
     settings.CSRF_COOKIE_PATH = f"{PREFIX}/"
     settings.STATIC_URL = f"{PREFIX}/static/"
     settings.SUPERADMIN_PROXY_SECRET = SECRET
-    settings.ALLOWED_HOSTS = ["autofix.vitalos.co.uk", "origin.internal", "testserver"]
+    settings.ALLOWED_HOSTS = ["pitline.co.uk", "origin.internal", "testserver"]
     # What django.setup() does for management commands, and the handler for each request.
     set_script_prefix(f"{PREFIX}/")
     yield
@@ -85,7 +85,7 @@ def test_health_probe_needs_no_secret(path_mode, db):
 
 
 def test_proxied_sign_in_page_lives_under_the_prefix(path_mode, db):
-    response = Client().get("/login/", HTTP_X_AUTOFIX_SUPERADMIN_HOST="autofix.vitalos.co.uk", **GATE)
+    response = Client().get("/login/", HTTP_X_AUTOFIX_SUPERADMIN_HOST="pitline.co.uk", **GATE)
     body = response.content.decode()
     assert response.status_code == 200
     assert 'action="/superadmin/login/' in body or "/superadmin/login/" in body
@@ -130,12 +130,12 @@ def test_client_ip_and_host_come_from_the_proxy_only_behind_the_gate(path_mode):
 
     headers = {
         "HTTP_X_AUTOFIX_SUPERADMIN_CLIENT_IP": "203.0.113.9",
-        "HTTP_X_AUTOFIX_SUPERADMIN_HOST": "autofix.vitalos.co.uk",
+        "HTTP_X_AUTOFIX_SUPERADMIN_HOST": "pitline.co.uk",
         "HTTP_HOST": "origin.internal",
         "REMOTE_ADDR": "10.0.0.5",
     }
     ProxyGateMiddleware(view)(RequestFactory().get("/", **headers, **GATE))
-    assert captured == {"ip": "203.0.113.9", "host": "autofix.vitalos.co.uk"}
+    assert captured == {"ip": "203.0.113.9", "host": "pitline.co.uk"}
 
 
 def test_proxy_headers_are_ignored_without_the_gate(settings):
@@ -185,9 +185,9 @@ def test_attention_links_carry_the_prefix(path_mode, superadmin, seeded):
 
 PATH_ENV = {
     "SUPERADMIN_PATH_PREFIX": PREFIX,
-    "ALLOWED_HOSTS": "autofix.vitalos.co.uk",
-    "CSRF_TRUSTED_ORIGINS": "https://autofix.vitalos.co.uk",
-    "AUTOFIX_SUPERADMIN_URL": "https://autofix.vitalos.co.uk/superadmin",
+    "ALLOWED_HOSTS": "pitline.co.uk",
+    "CSRF_TRUSTED_ORIGINS": "https://pitline.co.uk",
+    "AUTOFIX_SUPERADMIN_URL": "https://pitline.co.uk/superadmin",
 }
 
 

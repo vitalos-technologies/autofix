@@ -1,4 +1,4 @@
-"""Every page renders for the roles allowed to see it, with Autofix data present."""
+"""Every page renders for the roles allowed to see it, with Pitline data present."""
 
 import pytest
 from django.urls import reverse

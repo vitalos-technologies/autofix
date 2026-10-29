@@ -291,7 +291,7 @@ export default async function ManagePage({ params, searchParams }: ManagePagePro
               Look up another booking
             </button>
           </form>
-          <span className="text-[11px] text-grey-600">Powered by Autofix</span>
+          <span className="text-[11px] text-grey-600">Powered by Pitline</span>
         </div>
       </div>
     </BookingScreen>

@@ -1,7 +1,7 @@
 [project]
 name = "autofix-superadmin"
 version = "0.1.0"
-description = "Autofix Super Admin: Vitalos staff console over every Autofix garage."
+description = "Pitline Super Admin: Vitalos staff console over every Pitline garage."
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
@@ -23,7 +23,7 @@ ignore = ["DJ001", "E501"]  # ruff format owns line length; long literals are al
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S608"]
-# Every unmanaged Autofix model inherits AutofixModel.__str__.
+# Every unmanaged Pitline model inherits AutofixModel.__str__.
 "apps/autofix/models.py" = ["DJ008"]
 "e2e/*" = ["S101", "S105", "S106"]
 

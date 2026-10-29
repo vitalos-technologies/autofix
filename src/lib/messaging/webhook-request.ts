@@ -8,7 +8,7 @@ import { parseTwilioForm, verifyTwilioSignature } from "./twilio";
 // https://www.twilio.com/docs/usage/webhooks/webhooks-security).
 //
 // Behind Vercel or any other proxy the URL the app sees may not be the one
-// Twilio called. TWILIO_WEBHOOK_BASE_URL (e.g. https://autofix.vitalos.co.uk)
+// Twilio called. TWILIO_WEBHOOK_BASE_URL (e.g. https://pitline.co.uk)
 // pins the public origin (and an optional path prefix); without it the URL is
 // rebuilt from X-Forwarded-Proto / X-Forwarded-Host (first value), then Host.
 // Forged forwarding headers cannot help an attacker: the signature still

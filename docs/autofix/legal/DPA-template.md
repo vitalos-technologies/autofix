@@ -1,12 +1,12 @@
 # Data Processing Agreement (v1.0)
 
-Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Accepted on [date] by [name, role].
+Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Pitline service. Accepted on [date] by [name, role].
 
 ## 1. Scope
 
-1.1 Vitalos processes personal data on the Garage's behalf to provide Autofix: online booking, diary, customer and vehicle records, reminders, messaging, missed-call handling, invoicing and related support.
+1.1 Vitalos processes personal data on the Garage's behalf to provide Pitline: online booking, diary, customer and vehicle records, reminders, messaging, missed-call handling, invoicing and related support.
 
-1.2 This agreement follows Article 28 of the UK GDPR and the Data Protection Act 2018. It runs for as long as the Garage uses Autofix, plus the deletion period in clause 10.
+1.2 This agreement follows Article 28 of the UK GDPR and the Data Protection Act 2018. It runs for as long as the Garage uses Pitline, plus the deletion period in clause 10.
 
 ## 2. Processing details
 
@@ -15,13 +15,13 @@ Between **[Garage legal name]** ("the Garage", controller) and **Vitalos Technol
 | Data subjects | The Garage's customers and enquirers; the Garage's staff users |
 | Personal data | Names, mobile numbers, email addresses, postal addresses and postcodes (mobile visits), vehicle registrations and vehicle details, MOT and mileage history, booking details and notes, messages and call records (number, time, voicemail), invoices, consent records, staff account details |
 | Special category data | None intended. The Garage should not enter health or other special category data in notes |
-| Purpose | Providing Autofix to the Garage as described in clause 1.1 |
+| Purpose | Providing Pitline to the Garage as described in clause 1.1 |
 | Processing operations | Collection, storage, retrieval, organisation, transmission (SMS, WhatsApp, email), vehicle lookups, deletion |
 | Location | Primary database in London (UK). Some sub-processors operate outside the UK (clause 7) |
 
 ## 3. Instructions
 
-3.1 Vitalos processes the personal data only on the Garage's documented instructions. This agreement, the Garage's settings in Autofix and actions taken by its users are those instructions.
+3.1 Vitalos processes the personal data only on the Garage's documented instructions. This agreement, the Garage's settings in Pitline and actions taken by its users are those instructions.
 
 3.2 Vitalos will tell the Garage if it believes an instruction breaks data protection law.
 
@@ -49,7 +49,7 @@ Vitalos keeps appropriate technical and organisational measures in place (Annex 
 
 ## 8. Assistance
 
-8.1 Vitalos helps the Garage respond to data subject requests (access, correction, deletion, objection) through features in Autofix and, where needed, by support.
+8.1 Vitalos helps the Garage respond to data subject requests (access, correction, deletion, objection) through features in Pitline and, where needed, by support.
 
 8.2 Vitalos helps the Garage with security, breach notification and data protection impact assessments, taking into account the information available to Vitalos.
 

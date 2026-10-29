@@ -33,7 +33,7 @@ def autofix_models():
 
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
-    """Create the unmanaged Autofix tables in the ``autofix`` test database (the router never migrates it)."""
+    """Create the unmanaged Pitline tables in the ``autofix`` test database (the router never migrates it)."""
     with django_db_blocker.unblock():
         connection = connections["autofix"]
         existing = set(connection.introspection.table_names())
@@ -106,7 +106,7 @@ def client_for(db):
 
 @pytest.fixture
 def af():
-    """Insert Autofix rows (raw SQL into the test database; the ORM refuses to write them)."""
+    """Insert Pitline rows (raw SQL into the test database; the ORM refuses to write them)."""
     return AutofixFactory()
 
 

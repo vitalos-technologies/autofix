@@ -1,12 +1,12 @@
 // Environment for the voice service. Secrets come from Azure Container App secrets (secretref:) and are
 // never logged. Missing ANTHROPIC_API_KEY or VOICE_RELAY_SECRET leaves /readyz at 503 and refuses calls,
-// so Autofix's webhook falls back to the voicemail (Twilio reports the failed session).
+// so Pitline's webhook falls back to the voicemail (Twilio reports the failed session).
 
 export type Config = {
   port: number;
-  /** Shared with Autofix (Vercel VOICE_RELAY_SECRET): checks the relay claim; the key for /api/voice/v1/session. */
+  /** Shared with Pitline (Vercel VOICE_RELAY_SECRET): checks the relay claim; the key for /api/voice/v1/session. */
   relaySecret: string | null;
-  /** https origin of the Autofix admin host, e.g. https://autofix.vitalos.co.uk. */
+  /** https origin of the Pitline admin host, e.g. https://pitline.co.uk. */
   autofixBaseUrl: string;
   anthropicApiKey: string | null;
   model: string;
@@ -28,7 +28,7 @@ function text(value: string | undefined) {
 
 export function loadConfig(env: Readonly<Record<string, string | undefined>> = process.env): Config {
   const secret = text(env.VOICE_RELAY_SECRET);
-  const base = text(env.AUTOFIX_BASE_URL) ?? "https://autofix.vitalos.co.uk";
+  const base = text(env.AUTOFIX_BASE_URL) ?? "https://pitline.co.uk";
   if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)) {
     throw new Error("AUTOFIX_BASE_URL must be an https origin with no path");
   }

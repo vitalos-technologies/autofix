@@ -16,7 +16,7 @@ _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 # One-time set-password links carry a token in the path; never write it to the logs.
 _SECRET_PATH_RE = re.compile(r"^((?:/[a-z0-9-]+)?/account/set-password/)[^/]+/[^/]+/?$")
 HEALTH_PATH = "/healthz/"
-# Headers only the Autofix proxy (src/proxy.ts) may set. It strips any copies a browser sends.
+# Headers only the Pitline proxy (src/proxy.ts) may set. It strips any copies a browser sends.
 # A header name, not a secret.
 PROXY_SECRET_META = "HTTP_X_AUTOFIX_SUPERADMIN_PROXY"  # noqa: S105  # nosec B105
 PROXY_CLIENT_IP_META = "HTTP_X_AUTOFIX_SUPERADMIN_CLIENT_IP"
@@ -29,7 +29,7 @@ def loggable_path(path: str) -> str:
 
 
 class ProxyGateMiddleware:
-    """Path mode: answer only requests that came through the Autofix proxy.
+    """Path mode: answer only requests that came through the Pitline proxy.
 
     With ``SUPERADMIN_PROXY_SECRET`` set, a request must carry it in ``X-Autofix-Superadmin-Proxy``
     (compared in constant time) or it gets a bare 404 that says nothing about the app. Platform

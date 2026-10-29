@@ -19,7 +19,7 @@ export const GARAGES: AdminGarage[] = [
 
 export const USER: AdminUser = { name: "Dan Morris", email: "dan@hartleyroadmotors.co.uk" };
 
-export const BOOKING_PAGE_URL = "https://hartley-road.autofix.vitalos.co.uk";
+export const BOOKING_PAGE_URL = "https://hartley-road.pitline.co.uk";
 
 export const RESOURCES: DiaryResource[] = [
   { id: "bay-1", name: "Bay 1" },

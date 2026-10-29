@@ -1,11 +1,11 @@
-// Copy for the Autofix marketing page on the admin host (`/`). Kept as data, like the Answerd site's
+// Copy for the Pitline marketing page on the admin host (`/`). Kept as data, like the Answerd site's
 // content module, so wording changes don't touch layout. Every claim here is something the product does
 // today: no prices, no customer numbers, no testimonials until Temitope supplies real ones.
 
 export const marketing = {
-  name: "Autofix",
+  name: "Pitline",
   by: "by Vitalos",
-  metaTitle: "Autofix · Online booking for independent garages",
+  metaTitle: "Pitline · Online booking for independent garages",
   description:
     "Give your garage a booking page customers finish on their phone, a diary that never double-books a bay, and MOT and service reminders that bring cars back.",
 
@@ -30,7 +30,7 @@ export const marketing = {
 
   trustLabel: "What every garage gets",
   trust: [
-    { icon: "globe", label: "Your own booking domain", detail: "book.yourgarage.co.uk, or a free Autofix link" },
+    { icon: "globe", label: "Your own booking domain", detail: "book.yourgarage.co.uk, or a free Pitline link" },
     { icon: "shield", label: "No double bookings", detail: "Every bay is checked at the moment of booking" },
     { icon: "bell", label: "MOT and service reminders", detail: "Only to customers who said yes" },
     { icon: "phone", label: "Missed calls texted back", detail: "With a link to book, within a minute" },
@@ -94,7 +94,7 @@ export const marketing = {
   },
 
   // Two plans (DECISIONS D17). Essentials is what ships today. Pro lists its features; `shipped: false` marks
-  // the ones still being built ("Coming soon"), so the page only claims what Autofix does. Every new garage
+  // the ones still being built ("Coming soon"), so the page only claims what Pitline does. Every new garage
   // starts on a 14-day Pro trial (P5.2). Prices set by Temitope on 29 Oct 2026, excluding VAT; keep them
   // in step with PLAN_ESSENTIALS_PRICE_PENCE, PLAN_PRO_PRICE_PENCE and PLAN_EXTRA_SITE_PRICE_PENCE.
   plans: {
@@ -150,11 +150,11 @@ export const marketing = {
     items: [
       {
         q: "How long does it take to get started?",
-        a: "Minutes. Sign up, add your garage details, services and opening hours, and your booking page is live on a free yourgarage.autofix.vitalos.co.uk link straight away.",
+        a: "Minutes. Sign up, add your garage details, services and opening hours, and your booking page is live on a free yourgarage.pitline.co.uk link straight away.",
       },
       {
         q: "Can customers book on our own website address?",
-        a: "Yes. Add one DNS record (for example book.yourgarage.co.uk) and Autofix connects it, with its own security certificate. We show you exactly what to add.",
+        a: "Yes. Add one DNS record (for example book.yourgarage.co.uk) and Pitline connects it, with its own security certificate. We show you exactly what to add.",
       },
       {
         q: "Do customers need to download an app?",

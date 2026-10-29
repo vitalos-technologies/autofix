@@ -1,4 +1,4 @@
-"""Changes to Autofix: role, second factor, link and reason checks, the platform call, and our audit."""
+"""Changes to Pitline: role, second factor, link and reason checks, the platform call, and our audit."""
 
 from unittest import mock
 from urllib.parse import urlsplit
@@ -81,7 +81,7 @@ def test_unlinked_superadmin_cannot_change_autofix(client_for, unlinked_superadm
         {"plan": "essentials", "status": "active", "reason": REASON},
         **HX,
     )
-    assert response.status_code == 200 and b"not linked to an Autofix platform admin" in response.content
+    assert response.status_code == 200 and b"not linked to a Pitline platform admin" in response.content
     platform.assert_not_called()
 
 

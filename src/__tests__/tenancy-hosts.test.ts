@@ -2,35 +2,35 @@ import { describe, expect, it } from "vitest";
 import { classifyHost, freeLinkHost, isValidSlug, normaliseHost, type HostEnvironment } from "@/lib/tenancy/hosts";
 
 const production: HostEnvironment = {
-  NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk",
-  NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk",
+  NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk",
+  NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk",
   VERCEL_ENV: "production",
   DEV_TENANT_ROOT_DOMAIN: "localhost:3000",
 };
 
 const development: HostEnvironment = {
-  NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk",
-  NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk",
+  NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk",
+  NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk",
   DEV_TENANT_ROOT_DOMAIN: "localhost:3000",
 };
 
 describe("classifyHost", () => {
   it("serves the admin on the admin host", () => {
-    expect(classifyHost("autofix.vitalos.co.uk", production)).toEqual({ kind: "admin" });
-    expect(classifyHost("AUTOFIX.vitalos.co.uk:443", production)).toEqual({ kind: "admin" });
-    expect(classifyHost("autofix.vitalos.co.uk.", production)).toEqual({ kind: "admin" });
+    expect(classifyHost("pitline.co.uk", production)).toEqual({ kind: "admin" });
+    expect(classifyHost("PITLINE.co.uk:443", production)).toEqual({ kind: "admin" });
+    expect(classifyHost("pitline.co.uk.", production)).toEqual({ kind: "admin" });
   });
 
   it("maps free-link subdomains to a slug", () => {
-    expect(classifyHost("hartley-road.autofix.vitalos.co.uk", production)).toEqual({ kind: "subdomain", slug: "hartley-road" });
+    expect(classifyHost("hartley-road.pitline.co.uk", production)).toEqual({ kind: "subdomain", slug: "hartley-road" });
   });
 
   it("rejects reserved, malformed and nested free-link labels", () => {
-    expect(classifyHost("www.autofix.vitalos.co.uk", production)).toEqual({ kind: "unknown" });
-    expect(classifyHost("api.autofix.vitalos.co.uk", production)).toEqual({ kind: "unknown" });
-    expect(classifyHost("-bad.autofix.vitalos.co.uk", production)).toEqual({ kind: "unknown" });
-    expect(classifyHost("a.b.autofix.vitalos.co.uk", production)).toEqual({ kind: "unknown" });
-    expect(classifyHost("ab.autofix.vitalos.co.uk", production)).toEqual({ kind: "unknown" });
+    expect(classifyHost("www.pitline.co.uk", production)).toEqual({ kind: "unknown" });
+    expect(classifyHost("api.pitline.co.uk", production)).toEqual({ kind: "unknown" });
+    expect(classifyHost("-bad.pitline.co.uk", production)).toEqual({ kind: "unknown" });
+    expect(classifyHost("a.b.pitline.co.uk", production)).toEqual({ kind: "unknown" });
+    expect(classifyHost("ab.pitline.co.uk", production)).toEqual({ kind: "unknown" });
   });
 
   it("treats any other public hostname as a custom garage domain", () => {
@@ -51,7 +51,7 @@ describe("classifyHost", () => {
   it("ignores dev hosts and the __garage override in production", () => {
     expect(classifyHost("localhost:3000", production)).toEqual({ kind: "unknown" });
     expect(classifyHost("hartley-road.localhost:3000", production)).toEqual({ kind: "unknown" });
-    expect(classifyHost("autofix.vitalos.co.uk", production, "hartley-road")).toEqual({ kind: "admin" });
+    expect(classifyHost("pitline.co.uk", production, "hartley-road")).toEqual({ kind: "admin" });
   });
 
   it("serves the admin on localhost in development", () => {
@@ -72,8 +72,8 @@ describe("classifyHost", () => {
   });
 
   it("falls back to the platform defaults when env is unset", () => {
-    expect(classifyHost("autofix.vitalos.co.uk", {})).toEqual({ kind: "admin" });
-    expect(classifyHost("demo-b.autofix.vitalos.co.uk", {})).toEqual({ kind: "subdomain", slug: "demo-b" });
+    expect(classifyHost("pitline.co.uk", {})).toEqual({ kind: "admin" });
+    expect(classifyHost("demo-b.pitline.co.uk", {})).toEqual({ kind: "subdomain", slug: "demo-b" });
   });
 });
 
@@ -92,6 +92,6 @@ describe("host helpers", () => {
   });
 
   it("builds the free link host", () => {
-    expect(freeLinkHost("hartley-road", production)).toBe("hartley-road.autofix.vitalos.co.uk");
+    expect(freeLinkHost("hartley-road", production)).toBe("hartley-road.pitline.co.uk");
   });
 });

@@ -2,7 +2,7 @@
   "name": "autofix-voice",
   "version": "0.1.0",
   "private": true,
-  "description": "Autofix AI front desk on calls: Twilio ConversationRelay WebSocket + Claude, booking through Autofix's agent tool API.",
+  "description": "Pitline AI front desk on calls: Twilio ConversationRelay WebSocket + Claude, booking through Pitline's agent tool API.",
   "type": "module",
   "packageManager": "pnpm@10.12.1",
   "engines": {

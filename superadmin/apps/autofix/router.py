@@ -1,10 +1,10 @@
-"""Database router: Autofix models read from the ``autofix`` alias and are never migrated or written.
+"""Database router: Pitline models read from the ``autofix`` alias and are never migrated or written.
 
 - Reads of ``autofix`` models go to the ``autofix`` alias; everything else to ``default``.
 - ``db_for_write`` refuses ``autofix`` models outright (the models refuse too, and the database role
   holds SELECT only). Platform writes are SQL function calls in ``apps.autofix.db``, not ORM writes.
 - ``allow_migrate`` is False for the ``autofix`` alias (no app is ever migrated there) and for the
-  ``autofix`` app on any database, so ``migrate`` can never create or alter Autofix tables.
+  ``autofix`` app on any database, so ``migrate`` can never create or alter Pitline tables.
 """
 
 from .db import current_alias
@@ -25,7 +25,7 @@ class AutofixRouter:
 
     def db_for_write(self, model, **hints):
         if _is_autofix(model):
-            raise ReadOnlyModelError("Autofix models are read-only; use apps.autofix.services.")
+            raise ReadOnlyModelError("Pitline models are read-only; use apps.autofix.services.")
         return None
 
     def allow_relation(self, obj1, obj2, **hints):

@@ -177,9 +177,9 @@ def setup_link(user, base_url: str, *, request=None, actor=None, reason="setup_l
 
 @transaction.atomic
 def link_autofix_admin(user, admin_id, actor, request=None) -> bool:
-    """Link ``user`` to an Autofix platform admin (or unlink with None). SuperAdmin only, audited.
+    """Link ``user`` to a Pitline platform admin (or unlink with None). SuperAdmin only, audited.
 
-    The link decides whose name Autofix's own audit logs carry for this person's changes.
+    The link decides whose name Pitline's own audit logs carry for this person's changes.
     """
     if actor is not None and not is_superadmin(actor):
         raise PermissionDenied
@@ -188,7 +188,7 @@ def link_autofix_admin(user, admin_id, actor, request=None) -> bool:
     if new == old:
         return False
     if new and get_user_model().objects.filter(autofix_admin_id=new).exclude(pk=user.pk).exists():
-        raise ValidationError("That Autofix platform admin is already linked to another user.")
+        raise ValidationError("That Pitline platform admin is already linked to another user.")
     user.autofix_admin_id = new
     user.save(update_fields=["autofix_admin_id"])
     record(

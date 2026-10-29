@@ -60,8 +60,8 @@ vi.mock("@/lib/admin/audit", () => ({
   }),
 }));
 vi.mock("@/lib/email/resend", () => ({
-  getResendConfig: () => ({ apiKey: "k", from: "Autofix <notifications@autofix.vitalos.co.uk>", fromAddress: "notifications@autofix.vitalos.co.uk", replyTo: null }),
-  getResendReplyConfig: () => ({ inboundDomain: "reply.autofix.vitalos.co.uk" }),
+  getResendConfig: () => ({ apiKey: "k", from: "Pitline <notifications@pitline.co.uk>", fromAddress: "notifications@pitline.co.uk", replyTo: null }),
+  getResendReplyConfig: () => ({ inboundDomain: "reply.pitline.co.uk" }),
   sendTransactionalEmail: vi.fn(async (message: Record<string, unknown>) => {
     harness.sends.push(message);
     return { data: { id: "provider-email-id" }, error: null };
@@ -69,7 +69,7 @@ vi.mock("@/lib/email/resend", () => ({
   retrieveSentEmail: vi.fn(async () => ({ message_id: "<sent@autofix>" })),
   retrieveReceivedEmail: vi.fn(),
 }));
-vi.mock("@/lib/enquiries/inbound-config", () => ({ getEnquiryReplyDomain: () => "reply.autofix.vitalos.co.uk" }));
+vi.mock("@/lib/enquiries/inbound-config", () => ({ getEnquiryReplyDomain: () => "reply.pitline.co.uk" }));
 
 import { addInternalNote, markEnquiryThreadRead, processNormalizedInboundEmail, sendEnquiryReply } from "@/lib/enquiries/thread-repository";
 
@@ -107,9 +107,9 @@ describe("enquiry threads are scoped to one garage", () => {
     expect(harness.sends[0]).toMatchObject({
       senderName: "Hartley Road Motors",
       to: "customer@example.com",
-      replyTo: `enquiry+${replyToken}@reply.autofix.vitalos.co.uk`,
+      replyTo: `enquiry+${replyToken}@reply.pitline.co.uk`,
     });
-    expect(String(harness.sends[0]?.html)).toContain("Sent by Autofix on behalf of Hartley Road Motors");
+    expect(String(harness.sends[0]?.html)).toContain("Sent by Pitline on behalf of Hartley Road Motors");
     expect(harness.audits).toEqual([[garage.id, expect.objectContaining({ action: "enquiry.reply_sent", actorId })]]);
   });
 
@@ -128,7 +128,7 @@ describe("enquiry threads are scoped to one garage", () => {
       transport: "cloudflare",
       transportEventId: "event-1",
       envelopeFrom: "customer@example.com",
-      envelopeRecipients: [`enquiry+${replyToken}@reply.autofix.vitalos.co.uk`],
+      envelopeRecipients: [`enquiry+${replyToken}@reply.pitline.co.uk`],
       from: "Test Customer <customer@example.com>",
       recipients: [],
       messageId: "<reply@example.com>",
@@ -150,7 +150,7 @@ describe("enquiry threads are scoped to one garage", () => {
       transport: "cloudflare",
       transportEventId: "event-2",
       envelopeFrom: "someone@example.com",
-      envelopeRecipients: ["enquiry+00000000-0000-4000-8000-000000000000@reply.autofix.vitalos.co.uk"],
+      envelopeRecipients: ["enquiry+00000000-0000-4000-8000-000000000000@reply.pitline.co.uk"],
       from: "someone@example.com",
       recipients: [],
       messageId: null,

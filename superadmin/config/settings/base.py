@@ -21,7 +21,7 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 APP_ENVIRONMENT = env("APP_ENVIRONMENT", default="development")
 
 # --- Path mode (DECISIONS D18) -------------------------------------------------------------------
-# Production serves the super admin at https://autofix.vitalos.co.uk/superadmin: the Autofix app's
+# Production serves the super admin at https://pitline.co.uk/superadmin: the Pitline app's
 # proxy (src/proxy.ts) forwards /superadmin/* here with a shared secret header. Empty prefix: the app
 # answers at the root of its own host (local development, tests).
 URL_PREFIX = env("SUPERADMIN_PATH_PREFIX", default="").strip().rstrip("/")
@@ -100,7 +100,7 @@ TEMPLATES = [
 
 
 def autofix_database(url: str) -> dict:
-    """The ``autofix`` alias: Autofix's Supabase Postgres as the ``autofix_superadmin`` role.
+    """The ``autofix`` alias: Pitline's Supabase Postgres as the ``autofix_superadmin`` role.
 
     Read-only by default (the role's own default too); writes open ``SET TRANSACTION READ WRITE`` and
     go only through the platform functions (``apps.autofix.db``). Reads use schema ``superadmin``.
@@ -123,7 +123,7 @@ def autofix_database(url: str) -> dict:
 DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")}
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
-# Empty: Autofix pages say "Autofix data is not connected" (a placeholder SQLite file with no tables).
+# Empty: Pitline pages say "Pitline data is not connected" (a placeholder SQLite file with no tables).
 AUTOFIX_DATABASE_URL = env("AUTOFIX_DATABASE_URL", default="")
 AUTOFIX_DATABASE_CONFIGURED = bool(AUTOFIX_DATABASE_URL)
 DATABASES["autofix"] = autofix_database(
@@ -150,7 +150,7 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:overview"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
-# Sessions: 8 hour absolute lifetime, HTTP-only cookies scoped to the prefix, so the Autofix app on
+# Sessions: 8 hour absolute lifetime, HTTP-only cookies scoped to the prefix, so the Pitline app on
 # the same host never receives them (and the proxy forwards only these cookies here).
 COOKIE_PATH = f"{URL_PREFIX}/"
 COOKIE_NAME_PREFIX = ""  # "__Secure-" in production
@@ -175,13 +175,13 @@ AXES_SENSITIVE_PARAMETERS = ["password"]
 # Number of trusted reverse proxies in front of the app (Azure Container Apps ingress = 1).
 TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
 
-# django-otp: TOTP is mandatory for SuperAdmin and for anyone who enrolled a device. Autofix writes
+# django-otp: TOTP is mandatory for SuperAdmin and for anyone who enrolled a device. Pitline writes
 # (plan, status, retries, re-checks) also need a verified device, whatever the role.
-OTP_TOTP_ISSUER = "Autofix Super Admin"
+OTP_TOTP_ISSUER = "Pitline Super Admin"
 OTP_REQUIRED_FOR_SUPERADMIN = env.bool("OTP_REQUIRED_FOR_SUPERADMIN", default=True)
-# Every role, not just SuperAdmin (production default: the app shares an origin with Autofix).
+# Every role, not just SuperAdmin (production default: the app shares an origin with Pitline).
 OTP_REQUIRED_FOR_ALL = env.bool("OTP_REQUIRED_FOR_ALL", default=False)
-# A fresh authenticator code with each change to Autofix, each personal-data view, user changes and
+# A fresh authenticator code with each change to Pitline, each personal-data view, user changes and
 # API token creation (apps.accounts.stepup). Production default: on.
 AUTOFIX_STEP_UP = env.bool("AUTOFIX_STEP_UP", default=False)
 
@@ -192,9 +192,9 @@ DEFAULT_SIGNIN_EMAIL = env("DEFAULT_SIGNIN_EMAIL", default="").strip().lower()
 # This app sends no email (no messages to people). Passwords are set with `issue_setup_link`.
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# --- Autofix ------------------------------------------------------------------------------------
-# The Autofix app (Next.js) for the "View as support" hand-off: the read-only session itself starts
-# there, under the admin's own Autofix sign-in and MFA. Nothing is appended but the garage's id.
+# --- Pitline ------------------------------------------------------------------------------------
+# The Pitline app (Next.js) for the "View as support" hand-off: the read-only session itself starts
+# there, under the admin's own Pitline sign-in and MFA. Nothing is appended but the garage's id.
 AUTOFIX_APP_URL = env("AUTOFIX_APP_URL", default="http://localhost:3000").strip().rstrip("/")
 # This super admin's public address, returned as ``superadminUrl`` by the product status endpoint.
 AUTOFIX_SUPERADMIN_URL = env("AUTOFIX_SUPERADMIN_URL", default=APP_BASE_URL).strip().rstrip("/")
@@ -268,8 +268,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {"user": "600/hour"},
 }
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Autofix Super Admin API",
-    "DESCRIPTION": "Read-only API over Autofix garages, domains and jobs. No personal data. "
+    "TITLE": "Pitline Super Admin API",
+    "DESCRIPTION": "Read-only API over Pitline garages, domains and jobs. No personal data. "
     "Authenticate with `Authorization: Bearer <token>` using a token from Settings → API tokens.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,

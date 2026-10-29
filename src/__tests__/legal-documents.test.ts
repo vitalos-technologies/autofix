@@ -40,7 +40,7 @@ describe("renderPrivacyNotice", () => {
     expect(texts.join("\n")).not.toMatch(/not provided\]/);
     const whoWeAre = texts.find((text) => text.startsWith("**Who we are.**"));
     expect(whoWeAre).toBe(
-      "**Who we are.** Hartley Road Motors Ltd, 4 Hartley Road, Doncaster, DN1 2AB, is responsible for your personal data (\"we\"). Contact us at bookings@hartleyroad.example or 01302 000101. Our booking system, Autofix, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.",
+      "**Who we are.** Hartley Road Motors Ltd, 4 Hartley Road, Doncaster, DN1 2AB, is responsible for your personal data (\"we\"). Contact us at bookings@hartleyroad.example or 01302 000101. Our booking system, Pitline, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.",
     );
     expect(texts.at(-1)).toBe("Last updated 29 October 2026.");
     expect(texts.join("\n")).not.toContain("Shown on the garage's booking pages");
@@ -75,7 +75,7 @@ describe("renderDpa", () => {
     expect(DPA_VERSION).toBe("1.0");
     expect(dpa.draftNote).toBeNull();
     expect(texts[0]).toBe(
-      'Between **Hartley Road Motors Ltd** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Autofix service. Not yet accepted.',
+      'Between **Hartley Road Motors Ltd** ("the Garage", controller) and **Vitalos Technologies Ltd** ("Vitalos", processor), for the Pitline service. Not yet accepted.',
     );
     expect(unfilledPlaceholders(texts)).toEqual([]);
   });

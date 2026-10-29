@@ -416,9 +416,9 @@ describe("header, progress and summary", () => {
   });
 
   it("StickyActionBar renders a link or a busy button", () => {
-    const { rerender } = render(<StickyActionBar label="Continue" href="/service" footnote="Powered by Autofix" />);
+    const { rerender } = render(<StickyActionBar label="Continue" href="/service" footnote="Powered by Pitline" />);
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/service");
-    expect(screen.getByText("Powered by Autofix")).toBeInTheDocument();
+    expect(screen.getByText("Powered by Pitline")).toBeInTheDocument();
     rerender(<StickyActionBar label="Confirm booking" type="submit" busy />);
     const button = screen.getByRole("button", { name: "Confirm booking" });
     expect(button).toBeDisabled();

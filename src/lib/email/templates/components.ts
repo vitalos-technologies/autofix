@@ -32,7 +32,7 @@ export function notice(title: string, copy: string, brand?: Pick<EmailBrand, "ac
   return `<div style="margin:22px 0;padding:16px 18px;border-left:4px solid ${escapeHtml(brand?.accent ?? "#155fba")};background:#F4F7FA;color:#071127;font-size:15px;line-height:22px;"><strong>${escapeHtml(title)}</strong><br><span style="color:#586575;">${escapeHtml(copy)}</span></div>`;
 }
 
-/** "Sent by Autofix on behalf of Hartley Road Motors" (garage mail only). */
+/** "Sent by Pitline on behalf of Hartley Road Motors" (garage mail only). */
 export function onBehalfLine(brand: Pick<EmailBrand, "kind" | "name">) {
   return brand.kind === "garage" ? `Sent by ${PLATFORM_NAME} on behalf of ${brand.name}` : `Sent by ${PLATFORM_NAME}`;
 }

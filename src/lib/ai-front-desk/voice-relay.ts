@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 // Voice desk relay (P5.12 voice desk, DECISIONS AV1–AV10). Server only (node:crypto).
 //
-// A Pro garage's missed call is answered by Autofix's own voice service
+// A Pro garage's missed call is answered by Pitline's own voice service
 // (services/voice, Azure Container App `autofix-voice`). The voice webhook
 // speaks the disclosure, then `<Connect><ConversationRelay url=…>` points
 // Twilio at the service's WebSocket with a signed, short-lived claim in the

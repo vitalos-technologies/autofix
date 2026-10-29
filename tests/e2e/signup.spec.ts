@@ -69,7 +69,7 @@ async function confirmationTokenHash(email: string): Promise<{ tokenHash: string
         const id = found.messages?.[0]?.ID;
         if (id) {
           const message = (await (await fetch(`${mailOrigin}/api/v1/message/${id}`)).json()) as { HTML?: string; Subject?: string };
-          expect(message.Subject).toBe("Confirm your Autofix account");
+          expect(message.Subject).toBe("Confirm your Pitline account");
           const tokenHash = /token_hash=([0-9a-f]+)/.exec(message.HTML ?? "")?.[1];
           if (tokenHash) return { tokenHash, via: "mailpit" };
         }

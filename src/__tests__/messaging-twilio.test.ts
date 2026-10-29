@@ -64,7 +64,7 @@ describe("Twilio SMS adapter", () => {
     const { fetch, calls } = fakeFetch(json(201, { sid: "SM123", status: "accepted" }));
     const channel = createTwilioSmsChannel({ accountSid, authToken, messagingServiceSid, fetch, idempotencyCache: new Map() });
 
-    const result = await channel.send(message({ statusCallbackUrl: "https://autofix.vitalos.co.uk/api/webhooks/twilio/status" }));
+    const result = await channel.send(message({ statusCallbackUrl: "https://pitline.co.uk/api/webhooks/twilio/status" }));
 
     expect(result).toEqual({ ok: true, providerMessageId: "SM123", status: "queued" });
     expect(channel).toMatchObject({ kind: "sms", mode: "live" });
@@ -77,7 +77,7 @@ describe("Twilio SMS adapter", () => {
       To: "+447700900123",
       MessagingServiceSid: messagingServiceSid,
       Body: "Hi Sam, your MOT is due. Reply STOP to opt out.",
-      StatusCallback: "https://autofix.vitalos.co.uk/api/webhooks/twilio/status",
+      StatusCallback: "https://pitline.co.uk/api/webhooks/twilio/status",
     });
     expect(String(calls[0]?.init.body)).toContain("To=%2B447700900123");
   });
@@ -204,7 +204,7 @@ describe("Twilio WhatsApp adapter", () => {
     const { fetch, calls } = fakeFetch(json(201, { sid: "SM300", status: "queued" }));
     const channel = createTwilioWhatsAppChannel({ accountSid, authToken, whatsappFrom: "+447700900999", fetch, idempotencyCache: new Map() });
 
-    const result = await channel.send(message({ statusCallbackUrl: "https://autofix.vitalos.co.uk/api/webhooks/twilio/status" }));
+    const result = await channel.send(message({ statusCallbackUrl: "https://pitline.co.uk/api/webhooks/twilio/status" }));
 
     expect(result).toEqual({ ok: true, providerMessageId: "SM300", status: "queued" });
     expect(channel).toMatchObject({ kind: "whatsapp", mode: "live" });
@@ -214,7 +214,7 @@ describe("Twilio WhatsApp adapter", () => {
       To: "whatsapp:+447700900123",
       From: "whatsapp:+447700900999",
       Body: "Hi Sam, your MOT is due. Reply STOP to opt out.",
-      StatusCallback: "https://autofix.vitalos.co.uk/api/webhooks/twilio/status",
+      StatusCallback: "https://pitline.co.uk/api/webhooks/twilio/status",
     });
   });
 
@@ -293,7 +293,7 @@ describe("verifyTwilioSignature", () => {
   // An independent vector built here from the documented algorithm: URL, then
   // each POST param name+value sorted by name, no delimiters, HMAC-SHA1 with
   // the auth token, Base64.
-  const url = "https://hartley-road.autofix.vitalos.co.uk/api/webhooks/twilio/sms";
+  const url = "https://hartley-road.pitline.co.uk/api/webhooks/twilio/sms";
   const params = {
     To: "+447700900999",
     From: "+447700900123",
@@ -332,12 +332,12 @@ describe("verifyTwilioSignature", () => {
   });
 
   it("accepts a signature made with or without the default port", () => {
-    const withPort = "https://hartley-road.autofix.vitalos.co.uk:443/api/webhooks/twilio/sms";
+    const withPort = "https://hartley-road.pitline.co.uk:443/api/webhooks/twilio/sms";
     const signedWithPort = computeTwilioSignature(withPort, params, authToken);
     expect(verifyTwilioSignature({ url, params, signature: signedWithPort, authToken })).toBe(true);
     expect(verifyTwilioSignature({ url: withPort, params, signature: expected, authToken })).toBe(true);
     // A non-default port is never dropped.
-    const otherPort = computeTwilioSignature("https://hartley-road.autofix.vitalos.co.uk:8443/api/webhooks/twilio/sms", params, authToken);
+    const otherPort = computeTwilioSignature("https://hartley-road.pitline.co.uk:8443/api/webhooks/twilio/sms", params, authToken);
     expect(verifyTwilioSignature({ url, params, signature: otherPort, authToken })).toBe(false);
   });
 

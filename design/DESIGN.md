@@ -1,4 +1,4 @@
-# Autofix design system
+# Pitline design system
 
 Source of truth for every screen the UI agent builds. The visual language is SOB Autofix's (navy and electric blue, Barlow Condensed display type, registration-first booking), adjusted for a white-label product that many garages share.
 
@@ -6,13 +6,14 @@ Source of truth for every screen the UI agent builds. The visual language is SOB
 - Screen sources: `design/screens/*.dc.html`. Inline styles are the spec; `{{accent}}` means the garage's brand colour.
 - Static previews you can open in a browser: `design/preview/*.html`
 - Screenshots at 2x: `design/screenshots/*.png`. Read these before building a screen.
+- TODO(pitline-artwork, DECISIONS D22): the text says Pitline, but the artwork is still Autofix's. Replace when the new artwork lands: the wordmark and "Powered by" line in `design/screenshots/*.png`, the app icon (`src/app/icon.svg`) and the super admin mark and icons (`superadmin/static/brand/`, `superadmin/static/favicon.ico`).
 - Tokens: `design/tokens.css` (copy into `src/app/globals.css` in Phase 2)
 
 All names, cars, prices and figures in the screens are sample data. Never hard-code them.
 
 ## What changed from SOB, on purpose
 
-| SOB today | Autofix | Why |
+| SOB today | Pitline | Why |
 | --- | --- | --- |
 | 7-step booking wizard inside a dark hero card | 5 full-screen steps: Vehicle → Service → Time → Details → Confirmed | Fewer taps on a phone; one decision per screen |
 | White GB plate input | Yellow UK rear-plate input with a blue UK band | Recognisable at a glance, different from SOB |
@@ -112,7 +113,7 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 | Book 3 · Time | `Book-3-Time` | `/time` |
 | Book 4 · Details | `Book-4-Details` | `/details` |
 | Book 5 · Confirmed | `Book-5-Confirmed` | `/confirmed/[reference]` |
-| Admin · Dashboard | `Admin-Dashboard` | `autofix.vitalos.co.uk/app` |
+| Admin · Dashboard | `Admin-Dashboard` | `pitline.co.uk/app` |
 | Admin · Today (phone) | `Admin-Today-Phone` | same route, phone layout |
 | Admin · Reminders | `Admin-Reminders` | `/app/reminders` |
 | Admin · Booking page & domain | `Admin-Domain` | `/app/settings/booking-page` |
@@ -137,5 +138,5 @@ Built but not yet in the canvas (P3.10, in the Admin-Reminders / Admin-Dashboard
 2. Accessible as drawn: real `<button>`, `<a>`, `<label>`; `aria-pressed` on toggles; `role="switch"` + `aria-checked` on switches; icon buttons get `aria-label`. Text contrast 4.5:1.
 3. Icons: `lucide-react` (already in SOB), 18 to 22px, stroke 2.
 4. No emoji, gradients or decorative shadows.
-5. Garage brand appears only on customer screens and the admin garage switcher. The admin itself is Autofix-branded.
+5. Garage brand appears only on customer screens and the admin garage switcher. The admin itself is Pitline-branded.
 6. Lighthouse mobile at least 90 for performance and 100 for accessibility on booking routes (SOB's `lighthouserc.json` thresholds carry over).

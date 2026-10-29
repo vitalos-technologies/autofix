@@ -1,7 +1,7 @@
 {% if tab_error %}{% include "autofix/tabs/_error.html" %}{% else %}
 <div class="grid gap-6 lg:grid-cols-2" data-testid="tab-audit">
   <section class="card" aria-labelledby="platform-log-heading">
-    <h2 id="platform-log-heading" class="px-4 pt-4 text-xl">Autofix platform log</h2>
+    <h2 id="platform-log-heading" class="px-4 pt-4 text-xl">Pitline platform log</h2>
     <ul class="mt-2 divide-y divide-slate-100 text-sm dark:divide-slate-800">
       {% for entry in platform_audit %}
         <li class="px-4 py-2"><span class="font-medium">{{ entry.action }}</span><span class="muted block text-xs">{{ entry.created_at|date:"j M Y H:i" }} · {{ entry.actor_name }}</span>{% if entry.reason %}<span class="block text-xs break-words">{{ entry.reason }}</span>{% endif %}</li>

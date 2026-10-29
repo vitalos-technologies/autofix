@@ -72,11 +72,11 @@ def _prod_env(**overrides):
         "DJANGO_SETTINGS_MODULE": "config.settings.prod",
         "DJANGO_SECRET_KEY": "x" * 20 + "-not-a-real-secret-only-for-settings-tests-" + "y" * 20,
         "DATABASE_URL": "postgres://user@localhost:5432/db",
-        "ALLOWED_HOSTS": "superadmin.autofix.vitalos.co.uk",
-        "CSRF_TRUSTED_ORIGINS": "https://superadmin.autofix.vitalos.co.uk",
+        "ALLOWED_HOSTS": "superadmin.pitline.co.uk",
+        "CSRF_TRUSTED_ORIGINS": "https://superadmin.pitline.co.uk",
         # Explicit, so a developer's local .env cannot leak http URLs into this check.
-        "AUTOFIX_APP_URL": "https://autofix.vitalos.co.uk",
-        "AUTOFIX_SUPERADMIN_URL": "https://superadmin.autofix.vitalos.co.uk",
+        "AUTOFIX_APP_URL": "https://pitline.co.uk",
+        "AUTOFIX_SUPERADMIN_URL": "https://superadmin.pitline.co.uk",
         "AUTOFIX_DATABASE_URL": "postgres://autofix_superadmin@db.example.test:5432/postgres",
         "AUTOFIX_STATUS_TOKEN": "",
         "SUPERADMIN_PATH_PREFIX": "",
@@ -107,7 +107,7 @@ def test_production_settings_are_hardened():
         "import django;django.setup();from django.conf import settings as s;"
         "assert not s.DEBUG;assert s.SECURE_SSL_REDIRECT;assert s.SESSION_COOKIE_SECURE and s.CSRF_COOKIE_SECURE;"
         "assert s.SECURE_HSTS_SECONDS>=31536000;assert s.SESSION_COOKIE_AGE==28800;"
-        "assert s.ALLOWED_HOSTS==['superadmin.autofix.vitalos.co.uk'];assert s.SECURE_PROXY_SSL_HEADER;"
+        "assert s.ALLOWED_HOSTS==['superadmin.pitline.co.uk'];assert s.SECURE_PROXY_SSL_HEADER;"
         "assert 'Manifest' in s.STORAGES['staticfiles']['BACKEND'];"
         "db=s.DATABASES['default'];assert db['CONN_MAX_AGE']==0 and db['CONN_HEALTH_CHECKS'];"
         "assert db['DISABLE_SERVER_SIDE_CURSORS'];print('ok')"

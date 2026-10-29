@@ -15,8 +15,8 @@ import { BookingScreen, FeatureArt, FloatingCard, PhoneFrame, TodayScreen } from
 import { marketing } from "@/lib/marketing/content";
 import { cn } from "@/lib/utils";
 
-// The Autofix marketing page on the admin host (`/`). Same section order as the Answerd site (header,
-// hero, trust strip, how it works, features, phone band, for-the-business, FAQs, footer) in Autofix's
+// The Pitline marketing page on the admin host (`/`). Same section order as the Answerd site (header,
+// hero, trust strip, how it works, features, phone band, for-the-business, FAQs, footer) in Pitline's
 // navy and number-plate yellow. Server-rendered with no client JavaScript: the mobile menu and the FAQs
 // are native <details>.
 
