@@ -249,6 +249,40 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/Unavailable" }
         default: { $ref: "#/components/responses/Error" }
+  /log_call_summary:
+    post:
+      operationId: log_call_summary
+      tags: [usage]
+      summary: Record the AI front desk's note on the call it handled (voice desk per-call tokens only).
+      description: |
+        Only the token Autofix minted for one call (`POST /api/voice/v1/session`,
+        bound to that `CallSid`, expires) may call this, for that call; any other
+        token answers 403. The first summary stands: a repeat answers 200 with
+        `stored: false`. Staff see the summary on the missed call. Anything shaped
+        like a registration is masked before it is stored. 10 per token per 10 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogCallSummaryRequest" }
+            example: { callSid: "CA0123456789abcdef0123456789abcdef", summary: "Sam asked for a full service next Tuesday morning; booking request made. Wants a call back about tyres.", outcome: booked }
+      responses:
+        "201":
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogCallSummaryResponse" }
+        "200":
+          description: This call already had a summary (`stored` is false).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogCallSummaryResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     agentToken:
@@ -543,6 +577,22 @@ components:
       properties:
         booking: { $ref: "#/components/schemas/CreatedBooking" }
         replayed: { type: boolean }
+    LogCallSummaryRequest:
+      type: object
+      additionalProperties: false
+      required: [callSid, summary, outcome]
+      properties:
+        callSid: { type: string, pattern: "^CA[0-9a-fA-F]{32}$" }
+        summary: { type: string, minLength: 1, maxLength: 1000, description: "Plain words for staff. No registrations (masked if sent)." }
+        outcome: { type: string, enum: [booked, message, callback, answered, spam, dropped] }
+    LogCallSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [callSid, outcome, stored]
+      properties:
+        callSid: { type: string }
+        outcome: { type: string, enum: [booked, message, callback, answered, spam, dropped] }
+        stored: { type: boolean }
     ReportUsageRequest:
       type: object
       additionalProperties: false

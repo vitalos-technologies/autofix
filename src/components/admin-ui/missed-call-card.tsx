@@ -1,4 +1,4 @@
-import { MessageSquareText, PhoneMissed } from "lucide-react";
+import { Bot, MessageSquareText, PhoneMissed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "./badge";
 import { formatTime } from "./format";
@@ -20,6 +20,19 @@ export type MissedCallCardData = {
   voicemailHref: string | null;
   voicemailSeconds: number | null;
   textedBack: boolean;
+  /** What the AI front desk wrote about the call (P5.12 voice desk), or null when it didn't take it. */
+  aiSummary?: string | null;
+  /** booked, message, callback, answered, spam or dropped. */
+  aiOutcome?: string | null;
+};
+
+const AI_OUTCOME_LABEL: Record<string, string> = {
+  booked: "AI booked a request",
+  message: "AI took a message",
+  callback: "Wants a call back",
+  answered: "AI answered",
+  spam: "AI: spam",
+  dropped: "Caller hung up",
 };
 
 export type MissedCallCardProps = {
@@ -61,6 +74,15 @@ export function MissedCallCard({ call, timeZone, markHandledAction, tone = "ligh
         <strong>{who}</strong>
         {call.callerName && call.maskedNumber ? <span className={navy ? "text-[#d7dee8]" : "text-grey-700"}> · {call.maskedNumber}</span> : null}
       </p>
+      {call.aiSummary ? (
+        <div className={cn("flex flex-col gap-1 rounded-[10px] p-2.5 text-[14px]", navy ? "bg-white/10 text-white" : "bg-grey-50 text-grey-800")}>
+          <p className={cn("m-0 flex items-center gap-1.5 text-[12px] font-bold", navy ? "text-[#d7dee8]" : "text-grey-700")}>
+            <Bot size={14} strokeWidth={2.2} aria-hidden="true" />
+            {AI_OUTCOME_LABEL[call.aiOutcome ?? ""] ?? "AI front desk"}
+          </p>
+          <p className="m-0 leading-snug break-words">{call.aiSummary}</p>
+        </div>
+      ) : null}
       {call.voicemailHref ? <VoicemailPlayer href={call.voicemailHref} seconds={call.voicemailSeconds} tone={tone} /> : null}
       <div className="flex flex-wrap gap-2">
         {call.callBackHref ? (

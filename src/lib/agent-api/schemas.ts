@@ -10,8 +10,14 @@ import { bookingVehicleInputSchema, createBookingInputSchema, locationModes, mes
 import { planRequiredMessage } from "@/lib/plans/entitlements";
 import { registrationSchema } from "@/lib/vehicle/registration";
 
-export const agentTools = ["lookup_vehicle", "list_services", "available_slots", "create_booking", "get_booking", "garage_profile", "report_usage"] as const;
+export const agentTools = ["lookup_vehicle", "list_services", "available_slots", "create_booking", "get_booking", "garage_profile", "report_usage", "log_call_summary"] as const;
 export type AgentTool = (typeof agentTools)[number];
+
+/**
+ * Tools only a per-call token holds (voice desk: minted by `POST /api/voice/v1/session` for one CallSid).
+ * Tokens staff issue never carry them (the database refuses it).
+ */
+export const CALL_TOKEN_TOOLS: readonly AgentTool[] = ["log_call_summary"];
 
 /**
  * Who a token is for (P5.12, D17). `workforce` is the AI front desk on calls and WhatsApp and needs
@@ -169,6 +175,21 @@ export const reportUsageInputSchema = z.object({
 }).strict();
 export type ReportUsageInput = z.infer<typeof reportUsageInputSchema>;
 
+/** What the voice desk records about one call (`log_call_summary`). */
+export const callOutcomes = ["booked", "message", "callback", "answered", "spam", "dropped"] as const;
+export type CallOutcome = (typeof callOutcomes)[number];
+
+/**
+ * `log_call_summary` (voice desk): the AI front desk's note on the call it handled, shown to staff on the
+ * missed call. Only the token minted for that CallSid may write it, once. Registrations are removed.
+ */
+export const logCallSummaryInputSchema = z.object({
+  callSid: z.string().regex(/^CA[0-9a-fA-F]{32}$/, "Use the Twilio CallSid"),
+  summary: z.string().trim().min(1).max(1000),
+  outcome: z.enum(callOutcomes),
+}).strict();
+export type LogCallSummaryInput = z.infer<typeof logCallSummaryInputSchema>;
+
 export const agentInputSchemas = {
   lookup_vehicle: lookupVehicleInputSchema,
   list_services: emptyInputSchema,
@@ -177,6 +198,7 @@ export const agentInputSchemas = {
   get_booking: getBookingInputSchema,
   garage_profile: emptyInputSchema,
   report_usage: reportUsageInputSchema,
+  log_call_summary: logCallSummaryInputSchema,
 } as const satisfies Record<AgentTool, z.ZodType>;
 
 // ---------------------------------------------------------------------------
@@ -236,6 +258,13 @@ export type AgentUsageReport = {
   minutes: number;
   /** True when this conversation was already reported. */
   replayed: boolean;
+};
+
+export type AgentCallSummaryReport = {
+  callSid: string;
+  outcome: CallOutcome;
+  /** False when this call already had a summary (the first one stands). */
+  stored: boolean;
 };
 
 export type AgentGarageProfile = {
