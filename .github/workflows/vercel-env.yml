@@ -45,14 +45,20 @@ jobs:
           SECRET__DVSA_MOT_API_KEY: ${{ secrets.DVSA_MOT_API_KEY }}
           SECRET__DVSA_MOT_CLIENT_ID: ${{ secrets.DVSA_MOT_CLIENT_ID }}
           SECRET__DVSA_MOT_CLIENT_SECRET: ${{ secrets.DVSA_MOT_CLIENT_SECRET }}
-          # Off until autofix has its own repository secret: the name resolves to the organisation's
-          # shared key, which belongs to another product.
-          # SECRET__GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          # Autofix's own repository secret when there is one, else the organisation's shared key
+          # (Temitope, 29 Oct 2026: repository first, organisation second).
+          SECRET__GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           # Must stay a repository secret: without one this name falls back to the organisation's shared
           # Resend key (another product's account).
           SECRET__RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SECRET__RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
           SECRET__SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Stripe, test mode only (sync-vercel-env.mjs refuses a live key; so does the app)
+          SECRET__STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SECRET__STRIPE_BILLING_WEBHOOK_SECRET: ${{ secrets.STRIPE_BILLING_WEBHOOK_SECRET }}
+          SECRET__STRIPE_PAYMENTS_WEBHOOK_SECRET: ${{ secrets.STRIPE_PAYMENTS_WEBHOOK_SECRET }}
+          SECRET__STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+          SECRET__STRIPE_PRICE_EXTRA_SITE: ${{ secrets.STRIPE_PRICE_EXTRA_SITE }}
           SECRET__SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SECRET__SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SECRET__TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
@@ -65,13 +71,15 @@ jobs:
           SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           # Variables (Vercel "encrypted")
           VAR__ASKBRIDGE_SYNC_URL: ${{ vars.ASKBRIDGE_SYNC_URL }}
+          VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER }}
           VAR__COOKIE_CONFIGURATION_APPROVED: ${{ vars.COOKIE_CONFIGURATION_APPROVED }}
           VAR__DVSA_MOT_SCOPE: ${{ vars.DVSA_MOT_SCOPE }}
           VAR__DVSA_MOT_TOKEN_URL: ${{ vars.DVSA_MOT_TOKEN_URL }}
           VAR__ENQUIRY_NOTIFICATION_EMAIL: ${{ vars.ENQUIRY_NOTIFICATION_EMAIL }}
           VAR__ENQUIRY_REPLY_DOMAIN: ${{ vars.ENQUIRY_REPLY_DOMAIN }}
           VAR__LEGAL_COPY_APPROVED: ${{ vars.LEGAL_COPY_APPROVED }}
-          VAR__MESSAGING_MODE: ${{ vars.MESSAGING_MODE }}
+          # live: real texts and emails (Temitope, 29 Oct 2026). A repository variable overrides it.
+          VAR__MESSAGING_MODE: ${{ vars.MESSAGING_MODE || 'live' }}
           VAR__NEXT_PUBLIC_ADMIN_HOST: ${{ vars.NEXT_PUBLIC_ADMIN_HOST }}
           VAR__NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL: ${{ vars.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL }}
           VAR__NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
@@ -79,8 +87,21 @@ jobs:
           VAR__NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           VAR__NEXT_PUBLIC_TENANT_ROOT_DOMAIN: ${{ vars.NEXT_PUBLIC_TENANT_ROOT_DOMAIN }}
           VAR__NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          VAR__PAYMENTS_PROVIDER: ${{ vars.PAYMENTS_PROVIDER }}
+          VAR__PLACES_PROVIDER: ${{ vars.PLACES_PROVIDER }}
+          # Plans (D17): Essentials £20 and Pro £45 a month, excluding VAT (Temitope, 29 Oct 2026); the rest
+          # stay "to be confirmed" until set. A repository variable overrides any of them.
+          VAR__PLAN_ESSENTIALS_PRICE_PENCE: ${{ vars.PLAN_ESSENTIALS_PRICE_PENCE || '2000' }}
+          VAR__PLAN_PRO_PRICE_PENCE: ${{ vars.PLAN_PRO_PRICE_PENCE || '4500' }}
+          VAR__PLAN_ESSENTIALS_SMS_ALLOWANCE: ${{ vars.PLAN_ESSENTIALS_SMS_ALLOWANCE }}
+          VAR__PLAN_PRO_SMS_ALLOWANCE: ${{ vars.PLAN_PRO_SMS_ALLOWANCE }}
+          VAR__PLAN_PRO_AI_MINUTES: ${{ vars.PLAN_PRO_AI_MINUTES }}
+          VAR__PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE }}
+          VAR__SMS_SEGMENT_COST_PENCE: ${{ vars.SMS_SEGMENT_COST_PENCE }}
           VAR__RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
           VAR__RESEND_REPLY_TO: ${{ vars.RESEND_REPLY_TO }}
+          VAR__STRIPE_PRICE_PRO: ${{ vars.STRIPE_PRICE_PRO }}
+          VAR__STRIPE_PRICE_EXTRA_SITE: ${{ vars.STRIPE_PRICE_EXTRA_SITE }}
           VAR__SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           VAR__SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           VAR__VEHICLE_DATA_GLOBAL_BASE_URL: ${{ vars.VEHICLE_DATA_GLOBAL_BASE_URL }}
