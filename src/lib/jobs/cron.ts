@@ -24,6 +24,7 @@ const PERIOD: Partial<Record<JobKind, "day" | { minutes: number }>> = {
   "platform.close_impersonations": { minutes: 60 },
   "customers.enrich": "day",
   "payments.expire_deposits": { minutes: 5 },
+  "numbers.provision": "day",
 };
 
 /** Cron names and the kinds each queues, in drain order. */
@@ -40,6 +41,7 @@ export const CRON_JOBS = {
     "payments.expire_deposits",
     "accounts.statements",
     "accounting.sync",
+    "numbers.provision",
     "customers.enrich",
     "mot.refresh",
   ],
@@ -56,6 +58,7 @@ export const CRON_JOBS = {
   "payments.expire_deposits": ["payments.expire_deposits"],
   "accounts.statements": ["accounts.statements"],
   "accounting.sync": ["accounting.sync"],
+  "numbers.provision": ["numbers.provision"],
 } as const satisfies Record<string, readonly JobKind[]>;
 
 export type CronJobName = keyof typeof CRON_JOBS;

@@ -20,6 +20,8 @@ export const domainsCheckPayload = z.object({}).strict();
 /** P3.11: enrich a garage's imported vehicles (optionally one import's). */
 export const customersEnrichPayload = z.object({ garageId: uuid.optional(), importId: uuid.optional() }).strict();
 export const retentionPayload = z.object({ garageId: uuid.optional() }).strict();
+/** D22: no garage = the daily platform run (texting number + every waiting garage); with a garage, that garage. `attempt` counts bounded re-queues after a stop. */
+export const numbersProvisionPayload = z.object({ garageId: uuid.optional(), attempt: z.number().int().min(1).max(3).optional() }).strict();
 export const notificationsBookingPayload = z
   .object({
     type: z.enum(["created", "confirmed", "rescheduled", "cancelled"]),
