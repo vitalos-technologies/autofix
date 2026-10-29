@@ -83,9 +83,15 @@ describe("CSP per garage", () => {
     expect(directive(bookingSiteCsp({}), "frame-ancestors")).toBe("frame-ancestors 'self'");
   });
 
-  it("allows the Askbridge origin only when the widget is on", () => {
-    const on = bookingSiteCsp({ widgetOrigin: "https://widget.askbridge.example" });
-    for (const name of ["script-src", "connect-src", "frame-src"]) expect(directive(on, name)).toContain("https://widget.askbridge.example");
+  it("allows the Askbridge loader's origin for scripts and its API only when the chat is on", () => {
+    const on = bookingSiteCsp({ widgetOrigin: "https://askbridge.vitalos.co.uk" });
+    expect(directive(on, "script-src")).toBe("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://askbridge.vitalos.co.uk");
+    expect(directive(on, "connect-src")).toBe("connect-src 'self' https://challenges.cloudflare.com https://askbridge.vitalos.co.uk");
+    // Askbridge draws its panel in a shadow root, not a frame: its only frame is Turnstile's, already allowed.
+    expect(directive(on, "frame-src")).toBe("frame-src 'self' https://challenges.cloudflare.com");
+    // The launcher shows the workspace logo (https) and styles itself with inline <style> elements.
+    expect(directive(on, "img-src")).toContain("https:");
+    expect(directive(on, "style-src")).toBe("style-src 'self' 'unsafe-inline'");
     const off = bookingSiteCsp({ widgetOrigin: null });
     expect(off).not.toContain("askbridge");
   });
@@ -114,7 +120,7 @@ describe("proxy security headers", () => {
     clearHostCache();
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    process.env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL = "https://widget.askbridge.example/v1/widget.js";
+    process.env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL = "https://widget.askbridge.example/widget/v1/askbridge.js";
   });
 
   it("sends the garage's frame-ancestors and widget origin on its booking host", async () => {
@@ -122,7 +128,17 @@ describe("proxy security headers", () => {
     const csp = response.headers.get("content-security-policy") ?? "";
     expect(directive(csp, "frame-ancestors")).toBe("frame-ancestors 'self' https://www.hartleyroad.co.uk");
     expect(directive(csp, "script-src")).toContain("https://widget.askbridge.example");
+    expect(directive(csp, "connect-src")).toContain("https://widget.askbridge.example");
+    expect(directive(csp, "frame-src")).not.toContain("askbridge");
     expect(response.headers.get("x-frame-options")).toBeNull();
+  });
+
+  it("allows Askbridge's own origin when no loader URL is configured", async () => {
+    delete process.env.NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL;
+    const response = await proxy(request("https://book.hartleyroad.co.uk/"));
+    const csp = response.headers.get("content-security-policy") ?? "";
+    expect(directive(csp, "script-src")).toContain("https://askbridge.vitalos.co.uk");
+    expect(directive(csp, "connect-src")).toContain("https://askbridge.vitalos.co.uk");
   });
 
   it("does not allow other sites or the widget for a garage that has neither", async () => {

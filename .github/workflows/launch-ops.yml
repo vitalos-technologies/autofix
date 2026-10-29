@@ -19,6 +19,7 @@ on:
           - resend-domain
           - supabase-migrate
           - supabase-auth
+          - stripe-setup
       apply:
         description: Make the changes (otherwise only report what would change)
         type: boolean
@@ -67,3 +68,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # Stripe, test mode only (the task refuses a live key). Prices default to 4500 and 1500 pence.
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          PLAN_PRO_PRICE_PENCE: ${{ vars.PLAN_PRO_PRICE_PENCE }}
+          PLAN_EXTRA_SITE_PRICE_PENCE: ${{ vars.PLAN_EXTRA_SITE_PRICE_PENCE }}

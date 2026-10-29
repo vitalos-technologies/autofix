@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 set local timezone to 'UTC';
 
-select plan(68);
+select plan(71);
 
 -- P5.5 campaigns: campaign_segment_problem(), campaign_audience() through
 -- preview_campaign_audience(), schedule_campaign(), cancel_campaign(),
@@ -13,10 +13,12 @@ select plan(68);
 --
 -- Garages: P on paid Pro with MOTs (owner Pia, manager Max, technician Tim),
 -- E on Essentials (owner Eli), O on paid Pro without MOTs (owner Ola).
--- P's customers: Ava (text, 3-year-old car, MOT in March, last seen 18 months
--- ago for Diagnostics), Ben (email, 10-year-old car, MOT in July, seen 2
--- months ago), Cal (no consent), Dee (opted out), Eve (email channel, no
--- email), Fay (no car), Gus (text, never seen, booking coming up).
+-- P's customers: Ava (offers consent, text, 3-year-old car, MOT in March, last
+-- seen 18 months ago for Diagnostics), Ben (offers consent, email, 10-year-old
+-- car, MOT in July, seen 2 months ago), Cal (no consent), Dee (opted out), Eve
+-- (email channel, no email), Fay (no car), Gus (soft opt-in reminder consent,
+-- text, never seen, booking coming up), Hal (reminder consent only: not enough
+-- for campaigns since consent wording v1.0).
 
 update public.admin_mfa_policy set mandatory_mfa_enabled = false where singleton;
 
@@ -58,16 +60,27 @@ create function pg_temp.manager() returns void language sql as $$
   select pg_temp.as_member('31000000-0000-4000-8000-0000000000a2', 'a3100000-0000-4000-8000-000000000001');
 $$;
 
-insert into public.customers (id, garage_id, name, phone, email, preferred_contact, channel, reminder_consent, consent_at, consent_source, opted_out_at) values
-  ('a3100000-0000-4000-8000-000000000101', pg_temp.p(), 'Ava Able', '+447700931001', null, 'phone', 'sms', true, now() - interval '2 years', 'booking', null),
-  ('a3100000-0000-4000-8000-000000000102', pg_temp.p(), 'Ben Baker', '+447700931002', 'ben@example.test', 'email', 'email', true, now() - interval '2 years', 'booking', null),
-  ('a3100000-0000-4000-8000-000000000103', pg_temp.p(), 'Cal Cole', '+447700931003', null, 'phone', 'sms', false, null, null, null),
-  ('a3100000-0000-4000-8000-000000000104', pg_temp.p(), 'Dee Dean', '+447700931004', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', now() - interval '1 month'),
-  ('a3100000-0000-4000-8000-000000000105', pg_temp.p(), 'Eve Ennis', '+447700931005', null, 'email', 'email', true, now() - interval '1 year', 'booking', null),
-  ('a3100000-0000-4000-8000-000000000106', pg_temp.p(), 'Fay Ford', '+447700931006', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null),
-  ('a3100000-0000-4000-8000-000000000107', pg_temp.p(), 'Gus Grant', '+447700931007', null, 'phone', 'sms', true, now() - interval '1 year', 'import', null),
-  ('a3100000-0000-4000-8000-000000000201', pg_temp.e(), 'Eli Customer', '+447700931101', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null),
-  ('a3100000-0000-4000-8000-000000000301', pg_temp.o(), 'Ola Customer', '+447700931201', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null);
+insert into public.customers (id, garage_id, name, phone, email, preferred_contact, channel, reminder_consent, consent_at, consent_source, opted_out_at,
+                              offers_consent, offers_consent_at, offers_consent_source, offers_consent_text) values
+  ('a3100000-0000-4000-8000-000000000101', pg_temp.p(), 'Ava Able', '+447700931001', null, 'phone', 'sms', true, now() - interval '2 years', 'booking', null,
+   true, now() - interval '2 years', 'booking', 'Send me occasional offers from Campaign Pro. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000102', pg_temp.p(), 'Ben Baker', '+447700931002', 'ben@example.test', 'email', 'email', true, now() - interval '2 years', 'booking', null,
+   true, now() - interval '2 years', 'booking', 'Send me occasional offers from Campaign Pro. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000103', pg_temp.p(), 'Cal Cole', '+447700931003', null, 'phone', 'sms', false, null, null, null, false, null, null, null),
+  ('a3100000-0000-4000-8000-000000000104', pg_temp.p(), 'Dee Dean', '+447700931004', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', now() - interval '1 month',
+   true, now() - interval '1 year', 'booking', 'Send me occasional offers from Campaign Pro. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000105', pg_temp.p(), 'Eve Ennis', '+447700931005', null, 'email', 'email', true, now() - interval '1 year', 'booking', null,
+   true, now() - interval '1 year', 'booking', 'Send me occasional offers from Campaign Pro. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000106', pg_temp.p(), 'Fay Ford', '+447700931006', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null,
+   true, now() - interval '1 year', 'booking', 'Send me occasional offers from Campaign Pro. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000107', pg_temp.p(), 'Gus Grant', '+447700931007', null, 'phone', 'sms', true, now() - interval '1 year', 'soft_opt_in', null,
+   false, null, null, null),
+  ('a3100000-0000-4000-8000-000000000108', pg_temp.p(), 'Hal Hart', '+447700931008', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null,
+   false, null, null, null),
+  ('a3100000-0000-4000-8000-000000000201', pg_temp.e(), 'Eli Customer', '+447700931101', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null,
+   true, now() - interval '1 year', 'booking', 'Send me occasional offers from Campaign Ess. You can stop these any time.'),
+  ('a3100000-0000-4000-8000-000000000301', pg_temp.o(), 'Ola Customer', '+447700931201', null, 'phone', 'sms', true, now() - interval '1 year', 'booking', null,
+   true, now() - interval '1 year', 'booking', 'Send me occasional offers from Campaign Other. You can stop these any time.');
 insert into public.vehicles (id, garage_id, customer_id, registration, year, mot_expiry) values
   ('a3100000-0000-4000-8000-000000000401', pg_temp.p(), 'a3100000-0000-4000-8000-000000000101', 'CA31AVA', pg_temp.year_ago(3), make_date(extract(year from now())::integer + 1, 3, 15)),
   ('a3100000-0000-4000-8000-000000000402', pg_temp.p(), 'a3100000-0000-4000-8000-000000000102', 'CA31BEN', pg_temp.year_ago(10), make_date(extract(year from now())::integer + 1, 7, 1)),
@@ -75,6 +88,7 @@ insert into public.vehicles (id, garage_id, customer_id, registration, year, mot
   ('a3100000-0000-4000-8000-000000000404', pg_temp.p(), 'a3100000-0000-4000-8000-000000000104', 'CA31DEE', pg_temp.year_ago(4), null),
   ('a3100000-0000-4000-8000-000000000405', pg_temp.p(), 'a3100000-0000-4000-8000-000000000105', 'CA31EVE', pg_temp.year_ago(4), null),
   ('a3100000-0000-4000-8000-000000000407', pg_temp.p(), 'a3100000-0000-4000-8000-000000000107', 'CA31GUS', null, null),
+  ('a3100000-0000-4000-8000-000000000408', pg_temp.p(), 'a3100000-0000-4000-8000-000000000108', 'CA31HAL', pg_temp.year_ago(6), null),
   ('a3100000-0000-4000-8000-000000000501', pg_temp.e(), 'a3100000-0000-4000-8000-000000000201', 'CA31ELI', pg_temp.year_ago(2), null),
   ('a3100000-0000-4000-8000-000000000601', pg_temp.o(), 'a3100000-0000-4000-8000-000000000301', 'CA31OLA', pg_temp.year_ago(2), null);
 insert into public.bookings (id, garage_id, customer_id, vehicle_id, service_id, resource_id, starts_at, ends_at, during, status, source, price_pence) values
@@ -140,9 +154,14 @@ select pg_temp.manager();
 set local role authenticated;
 
 select is((select total from public.preview_campaign_audience('{}', 20) limit 1), 3,
-          'everyone = consented customers with an address and a car (Ava, Ben, Gus)');
+          'everyone = customers with offers consent or soft opt-in, an address and a car (Ava, Ben, Gus)');
 select is((select array_agg(customer_name order by customer_name) from public.preview_campaign_audience('{}', 20)),
-          array['Ava Able', 'Ben Baker', 'Gus Grant'], 'no consent, opted out, no address and no car are left out');
+          array['Ava Able', 'Ben Baker', 'Gus Grant'], 'no consent, reminder consent alone, opted out, no address and no car are left out');
+select is((select array_agg(customer_name || ':' || consent_basis order by customer_name) from public.preview_campaign_audience('{}', 20)),
+          array['Ava Able:offers', 'Ben Baker:offers', 'Gus Grant:soft_opt_in'], 'each row says why it may go: offers consent or soft opt-in');
+select is((select offers_total from public.preview_campaign_audience('{}', 1) limit 1), 2, 'and the count says how many ticked the offers box');
+select is((select row(total, offers_total)::text from public.preview_campaign_audience('{"car_age_min": 6, "car_age_max": 6}', 20)), '(0,0)',
+          'reminder consent alone (Hal) is not enough for a campaign');
 select is((select array_agg(customer_name) from public.preview_campaign_audience('{}', 1)), array['Ava Able'], 'the preview is limited');
 select is((select total from public.preview_campaign_audience('{}', 1) limit 1), 3, 'the count is not limited');
 select is((select array_agg(customer_name) from public.preview_campaign_audience('{"car_age_min": 5}', 20)), array['Ben Baker'],

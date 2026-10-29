@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { askbridgeScriptUrl } from "@/lib/askbridge/config";
 
 const publicEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
@@ -52,14 +53,14 @@ export function getEnvironmentReadiness() {
 }
 
 /**
- * Askbridge (P4.6): optional. The widget script is public (`NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL`); the
- * knowledge sync needs `ASKBRIDGE_SYNC_URL` and the signing secret `ASKBRIDGE_WEBHOOK_SECRET`
- * (server only). Missing values never block launch: the chat stays hidden and syncs stay queued.
+ * Askbridge (P4.6): optional, and needs no secrets. `NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL` overrides the loader
+ * URL (Askbridge's own when unset); a value that is set but invalid hides the chat and is reported here.
+ * Never blocks launch.
  */
-export const askbridgeVariables = ["NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL", "ASKBRIDGE_SYNC_URL", "ASKBRIDGE_WEBHOOK_SECRET"] as const;
+export const askbridgeVariables = ["NEXT_PUBLIC_ASKBRIDGE_WIDGET_URL"] as const;
 
 export function getAskbridgeEnvironmentReadiness(env: Readonly<Record<string, string | undefined>> = process.env) {
-  const missing: string[] = askbridgeVariables.filter((name) => !env[name]?.trim());
+  const missing: string[] = askbridgeScriptUrl(env) ? [] : [...askbridgeVariables];
   return { ready: missing.length === 0, missing };
 }
 

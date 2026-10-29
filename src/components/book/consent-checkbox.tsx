@@ -8,6 +8,13 @@ export const REMINDER_CONSENT_COPY = "Remind me when the MOT and service are due
 /** Consent copy when the garage has MOT switched off. */
 export const REMINDER_CONSENT_COPY_NO_MOT = "Remind me when the service is due. You can stop these any time.";
 
+/**
+ * Offers (campaigns) consent, a separate unticked box under the reminder one. `[Garage name]` is
+ * filled with fillGarageName() (offersConsentCopy() in src/lib/booking-flow/copy.ts); the filled text
+ * is stored with the consent.
+ */
+export const OFFERS_CONSENT_COPY = "Send me occasional offers from [Garage name]. You can stop these any time.";
+
 export type ConsentCheckboxProps = {
   name?: string;
   value?: string;
@@ -25,7 +32,7 @@ export type ConsentCheckboxProps = {
   className?: string;
 };
 
-/** Reminder consent: a real checkbox in a labelled card, never ticked for the customer. */
+/** Reminder consent (or, with `children`, offers consent): a real checkbox in a labelled card, never ticked for the customer. */
 export function ConsentCheckbox({
   name,
   value = "yes",

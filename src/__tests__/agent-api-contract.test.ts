@@ -276,6 +276,7 @@ describe("docs/autofix/agent-api.yaml", () => {
       ["create_booking", { ...bookingBody, garageId: OTHER_GARAGE_ID }],
       ["create_booking", { ...bookingBody, status: "confirmed" }],
       ["create_booking", { ...bookingBody, customer: { ...bookingBody.customer, reminderConsent: true } }],
+      ["create_booking", { ...bookingBody, customer: { ...bookingBody.customer, offersConsent: true } }],
       ["create_booking", { ...bookingBody, idempotencyKey: undefined }],
       ["get_booking", { reference: "HRM-4821" }],
     ];
@@ -410,7 +411,7 @@ describe("create_booking", () => {
     expect(result.body.booking).not.toHaveProperty("manageToken");
     const [garageId, input] = engine.createBooking.mock.calls[0]!;
     expect(garageId).toBe(GARAGE_ID);
-    expect(input).toMatchObject({ source: "ai_agent", customer: { reminderConsent: false }, vehicle: { registration: "AB12CDE" } });
+    expect(input).toMatchObject({ source: "ai_agent", customer: { reminderConsent: false, offersConsent: false }, vehicle: { registration: "AB12CDE" } });
     expect(calls).toEqual([expect.objectContaining({ tool: "create_booking", outcome: "OK", httpStatus: 201, bookingId: managed.id })]);
   });
 

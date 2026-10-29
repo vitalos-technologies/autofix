@@ -3,8 +3,9 @@
 // (campaign_segment_problem() in supabase/migrations/20261029000500_campaigns.sql) and evaluates it
 // (campaign_audience()); this file never decides who is in a segment, it only builds and describes it.
 //
-// Every segment is already limited to customers with stored consent (reminder_consent, not opted
-// out, not anonymised), an address for their channel and a car. The filters narrow that down.
+// Every segment is already limited to customers campaigns may go to (offers consent or the soft
+// opt-in route, campaign_consent_basis(); not opted out, not anonymised), an address for their
+// channel and a car. The filters narrow that down.
 
 import { z } from "zod";
 
@@ -157,7 +158,7 @@ export function describeSegment(segment: CampaignSegment, options: { serviceName
     lines.push(segment.service_history === "had" ? `Have had ${name}` : `Have never had ${name}`);
   }
   if (segment.channels?.length) lines.push(`Who hear from you by ${listWords(segment.channels.map((channel) => CHANNEL_NAMES[channel].toLowerCase()))}`);
-  if (lines.length === 0) lines.push("Every customer who agreed to hear from you");
+  if (lines.length === 0) lines.push("Every customer you may send offers to");
   return lines;
 }
 

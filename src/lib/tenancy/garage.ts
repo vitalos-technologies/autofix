@@ -47,8 +47,8 @@ export type Garage = {
   tagline: string | null;
   /** Invoice bank details from `settings.invoicePayment`; null hides the payment block. */
   invoicePayment: GarageInvoicePayment | null;
-  /** Askbridge widget id from `settings.askbridge` while the owner has it on (P4.6); otherwise null. */
-  askbridgeWidgetId?: string | null;
+  /** Askbridge site key from `settings.askbridge` while the owner has the chat on (P4.6); otherwise null. */
+  askbridgeSiteKey?: string | null;
 };
 
 type GarageDomainRow = { hostname: string; kind?: string | null; status?: string | null; deleted_at?: string | null; created_at?: string | null };
@@ -134,7 +134,7 @@ export function garageFromRow(row: GarageRow): Garage {
     customDomain: activeCustomDomain(row.garage_domains),
     tagline: text(row.settings?.tagline, 160),
     invoicePayment: invoicePaymentFrom(row.settings),
-    askbridgeWidgetId: askbridge.enabled ? askbridge.widgetId : null,
+    askbridgeSiteKey: askbridge.enabled ? askbridge.siteKey : null,
   };
 }
 

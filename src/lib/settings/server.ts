@@ -2,7 +2,6 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { recordAdminAudit } from "@/lib/admin/audit";
 import { clearSlotCache } from "@/lib/booking-engine/slots";
 import { canChangeGarage, canManageSetup, type SetupFormState } from "@/lib/settings/setup";
@@ -67,27 +66,6 @@ export function afterSetupChange(garageId: string, paths: string[]) {
   clearSlotCache(garageId);
   for (const path of paths) revalidatePath(path);
   revalidatePath("/_site/[garageId]", "layout");
-  syncAskbridgeAfterResponse();
-}
-
-/**
- * P4.6: a setup change queues `askbridge.sync` in SQL (only for garages with the chat on). Send it straight after
- * the response instead of waiting for the next cron (daily on Vercel Hobby). Never throws; leftovers wait for a drain.
- */
-export function syncAskbridgeAfterResponse() {
-  const run = async () => {
-    try {
-      const { drainJobs } = await import("@/lib/jobs/runner");
-      await drainJobs({ kinds: ["askbridge.sync"], budgetMs: 8_000 });
-    } catch {
-      // The queued job stays for the next drain.
-    }
-  };
-  try {
-    after(run);
-  } catch {
-    // Outside a request (tests, scripts): nothing to wait for.
-  }
 }
 
 /** Best-effort audit entry for a setup change (the change itself has already been saved). */

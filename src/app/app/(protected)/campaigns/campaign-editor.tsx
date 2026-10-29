@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Users } from "lucide-react";
 import { PlateChip } from "@/components/book";
-import { buttonClass, ChannelBadge, MessagePreview, Panel, SubmitButton, TemplateEditor } from "@/components/admin-ui";
+import { Badge, buttonClass, ChannelBadge, MessagePreview, Panel, SubmitButton, TemplateEditor } from "@/components/admin-ui";
 import type { AudiencePreview, CampaignService } from "@/lib/campaigns/admin";
 import { CAMPAIGN_CHANNELS, CHANNEL_NAMES, MONTH_NAMES, NOT_SEEN_CHOICES, type CampaignSegment } from "@/lib/campaigns/segment";
 import { CAMPAIGN_PLACEHOLDERS, checkCampaignTemplate } from "@/lib/campaigns/templates";
+import { CAMPAIGN_CONSENT_LABELS } from "@/lib/consent/offers";
 import type { TemplateVariables } from "@/lib/messaging/templates";
 import { initialSetupFormState, type SetupFormState } from "@/lib/settings/setup";
 import { formatRegistration } from "@/lib/vehicle/registration-format";
@@ -121,7 +122,8 @@ export function CampaignEditor({ values, services, motEnabled, sampleValues, sen
 
       <Panel title="Who gets it" className="gap-4">
         <p className={hintClass}>
-          Only customers who agreed to hear from you, haven&apos;t opted out and have a car on file. Leave a filter empty to include everyone.
+          Only customers who ticked the offers box when booking, or existing customers under the soft opt-in, who haven&apos;t opted out and
+          have a car on file. Reminder consent alone isn&apos;t enough. Leave a filter empty to include everyone.
         </p>
         <fieldset onChange={recount} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
           <legend className="sr-only">Filters</legend>
@@ -250,6 +252,12 @@ export function CampaignEditor({ values, services, motEnabled, sampleValues, sen
               Count again
             </button>
           </div>
+          {result && result.total > 0 ? (
+            <p className="m-0 text-[13px] text-grey-700">
+              Ticked the offers box: {result.offersTotal.toLocaleString("en-GB")}. Existing customers (soft opt-in):{" "}
+              {(result.total - result.offersTotal).toLocaleString("en-GB")}.
+            </p>
+          ) : null}
           {preview.status === "error" && preview.message ? (
             <p role="alert" className="m-0 text-[13px] font-semibold text-[#991b1b]">
               {preview.message}
@@ -262,7 +270,12 @@ export function CampaignEditor({ values, services, motEnabled, sampleValues, sen
                   <span className="min-w-0 font-semibold text-navy-950">{row.name}</span>
                   <span className="text-grey-700 tabular-nums">{row.contact}</span>
                   {row.registration ? <PlateChip registration={formatRegistration(row.registration)} className="rounded-[4px] px-1.5 py-px text-[13px]" /> : null}
-                  <ChannelBadge channel={row.channel} className="ml-auto" />
+                  <span className="ml-auto flex items-center gap-1.5">
+                    <Badge tone={row.basis === "offers" ? "success" : "neutral"} size="xs">
+                      {CAMPAIGN_CONSENT_LABELS[row.basis]}
+                    </Badge>
+                    <ChannelBadge channel={row.channel} />
+                  </span>
                 </li>
               ))}
             </ul>

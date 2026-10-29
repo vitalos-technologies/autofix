@@ -1,6 +1,4 @@
-# Privacy notice for customers of [Garage name] (draft v0.1)
-
-Draft for solicitor review; not legal advice. Shown on the garage's booking pages.
+# Privacy notice for customers of [Garage name] (v1.0)
 
 **Who we are.** [Garage legal name], [address], is responsible for your personal data ("we"). Contact us at [email] or [phone]. Our booking system, Autofix, is provided by Vitalos Technologies Ltd, which handles your data for us under a contract.
 

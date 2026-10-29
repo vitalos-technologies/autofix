@@ -27,6 +27,8 @@
  *     dates and last services relative to today, so hartley-road has MOT and
  *     service reminders due in the next 30 days, then schedule_reminders()
  *     for today. demo-b (MOT off) gets service reminders only.
+ *   - Offers consent (consent wording v1.0): a few customers ticked the
+ *     separate offers box when booking, so Campaigns has an audience.
  *
  * Environment
  *   Supabase URL and secret key, first match wins:
@@ -161,6 +163,14 @@ const REMINDER_CONSENT = {
     "+447700900205": "opted_out",
   },
 };
+
+// Offers (campaigns) consent, consent wording v1.0: its own box on the booking
+// page, apart from reminders. Only customers who have not opted out.
+const OFFERS_CONSENT = {
+  a: ["+447700900101", "+447700900105", "+447700900110"],
+  b: ["+447700900201"],
+};
+const OFFERS_WORDING = "Send me occasional offers from [Garage name]. You can stop these any time.";
 
 // MOT expiry in days from today, per registration. hartley-road: six due in
 // the next 30 days (one to a customer without consent, one opted out).
@@ -346,6 +356,19 @@ function consentFields(garage, garageKey, phone) {
   };
 }
 
+/** Offers consent columns (customers_offers_consent_check: consent needs its time, source and wording). */
+function offersFields(garage, garageKey, phone) {
+  if (!OFFERS_CONSENT[garageKey]?.includes(phone)) {
+    return { offers_consent: false, offers_consent_at: null, offers_consent_source: null, offers_consent_text: null };
+  }
+  return {
+    offers_consent: true,
+    offers_consent_at: "2026-01-15T10:00:00.000Z",
+    offers_consent_source: "booking",
+    offers_consent_text: OFFERS_WORDING.replaceAll("[Garage name]", garage.name),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Steps
 // ---------------------------------------------------------------------------
@@ -454,6 +477,7 @@ async function seedCustomersAndVehicles(supabase, garages, today) {
         channel: CHANNEL_FOR_CONTACT[preferredContact],
         anonymised_at: null,
         ...consentFields(garage, garageKey, phone),
+        ...offersFields(garage, garageKey, phone),
       });
       for (const [registration, make, model, year, colour, fuel] of vehicles) {
         const motDueIn = MOT_DUE_IN_DAYS[garageKey]?.[registration];

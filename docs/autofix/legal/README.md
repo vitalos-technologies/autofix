@@ -1,6 +1,6 @@
 # Legal drafts
 
-Drafts for review by a UK solicitor before the first paying garage. They are working templates, not legal advice.
+Approved by Temitope Agbola on 29 Oct 2026 as v1.0 (privacy notice, consent and messaging wording, DPA). A solicitor check of the DPA and the campaigns consent is still recommended before the first paying garage.
 
 | File | Who signs or sees it | Wired into the product |
 | --- | --- | --- |

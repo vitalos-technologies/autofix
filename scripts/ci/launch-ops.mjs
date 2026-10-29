@@ -2,6 +2,7 @@
 // variables (.github/workflows/launch-ops.yml), so nobody pastes a key into a chat or a terminal.
 //
 //   LAUNCH_TASK   report | vercel-domains | vercel-secrets | twilio-webhooks | resend-domain | supabase-migrate | supabase-auth
+//                 | stripe-setup
 //   LAUNCH_APPLY  "true" to change anything; otherwise every task only reports what it would do.
 //
 // Prints names, statuses, hosts and public DNS records only: never a secret value. Phone numbers are
@@ -11,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth"];
+const TASKS = ["report", "vercel-domains", "vercel-secrets", "twilio-webhooks", "resend-domain", "supabase-migrate", "supabase-auth", "stripe-setup"];
 // Cloudflare zone of vitalos.co.uk (docs/autofix/INFRA.md); CLOUDFLARE_ZONE_ID overrides it.
 const DEFAULT_ZONE_ID = "99115a2bb8d6630faff3cb8151e1f35c";
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -41,6 +42,8 @@ const MIGRATION_PROBES = [
   ["20261029001000", "accounting_connections?select=id"],
   ["20261029001100", "service_plans?select=id"],
   ["20261029001200", "ai_front_desk_settings?select=*"],
+  // 20261029001300 (askbridge_site_key) only changes functions and settings, which PostgREST can't probe.
+  ["20261029001400", "customers?select=offers_consent"],
 ];
 
 // Same cleaning as sync-vercel-env.mjs: no byte-order mark, no stray whitespace.
@@ -94,7 +97,7 @@ const KEYS = [
   "VERCEL_API_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID", "NEXT_PUBLIC_SITE_URL",
   "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID",
   "RESEND_API_KEY", "RESEND_ADMIN_API_KEY", "RESEND_FROM_EMAIL", "CLOUDFLARE_API_TOKEN",
-  "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_ACCESS_TOKEN",
+  "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_ACCESS_TOKEN", "STRIPE_SECRET_KEY",
 ];
 function keysLine() {
   console.log(`keys this run can see: ${KEYS.map((name) => `${name}=${env(name) ? "set" : "MISSING"}`).join(" ")}`);
@@ -176,17 +179,52 @@ const GENERATED_SECRETS = [
 ];
 const SECRET_TARGETS = ["production", "preview"];
 
+// Project, team and headers for the Vercel REST API (call only after `missing()` found all three names).
+function vercelApi() {
+  return {
+    project: encodeURIComponent(env("VERCEL_PROJECT_ID")),
+    team: `teamId=${encodeURIComponent(env("VERCEL_TEAM_ID"))}`,
+    headers: { Authorization: `Bearer ${env("VERCEL_API_TOKEN")}`, "Content-Type": "application/json" },
+  };
+}
+
+// The project's env vars (names, types and targets; no values).
+async function vercelEnvs({ project, team, headers }) {
+  const list = await call(`https://api.vercel.com/v9/projects/${project}/env?${team}`, { headers });
+  // A branch-only Preview value does not cover the other branches.
+  return { list, envs: list.ok ? (list.body?.envs ?? []).filter((entry) => !entry.gitBranch) : [] };
+}
+
+// Production reads its variables at build time: rebuild the current production deployment with them.
+async function redeployProduction({ project, team, headers }, readyMessage) {
+  const deployments = await call(`https://api.vercel.com/v6/deployments?projectId=${project}&target=production&state=READY&limit=1&${team}`, { headers });
+  const current = deployments.body?.deployments?.[0];
+  if (!deployments.ok || !current) return fail(`no ready production deployment to redeploy (${errorText(deployments)}); redeploy by hand`);
+  const redeploy = await call(`https://api.vercel.com/v13/deployments?${team}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: current.name, deploymentId: current.uid, target: "production" }),
+  });
+  if (!redeploy.ok) return fail(`redeploy: ${errorText(redeploy)}; redeploy by hand`);
+  console.log(`  redeploying production (${current.uid} -> ${redeploy.body.id})`);
+  const deadline = Date.now() + 12 * 60 * 1000;
+  for (;;) {
+    const state = (await call(`https://api.vercel.com/v13/deployments/${encodeURIComponent(redeploy.body.id)}?${team}`, { headers })).body?.readyState;
+    if (state === "READY") return console.log(`  ${readyMessage}`);
+    if (state === "ERROR" || state === "CANCELED") return fail(`the redeploy ended ${state}`);
+    if (Date.now() > deadline) return fail("the redeploy was not ready within 12 minutes; check it in Vercel");
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+  }
+}
+
 async function vercelSecrets() {
   heading("Vercel generated secrets");
   if (missing(["VERCEL_API_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID"])) return fail("Vercel is not configured");
-  const project = encodeURIComponent(env("VERCEL_PROJECT_ID"));
-  const team = `teamId=${encodeURIComponent(env("VERCEL_TEAM_ID"))}`;
-  const headers = { Authorization: `Bearer ${env("VERCEL_API_TOKEN")}`, "Content-Type": "application/json" };
+  const vercel = vercelApi();
+  const { project, team, headers } = vercel;
 
-  const list = await call(`https://api.vercel.com/v9/projects/${project}/env?${team}`, { headers });
+  const { list, envs } = await vercelEnvs(vercel);
   if (!list.ok) return fail(`env list: ${errorText(list)}`);
-  // A branch-only Preview value does not cover the other branches.
-  const envs = (list.body?.envs ?? []).filter((entry) => !entry.gitBranch);
 
   let productionChanged = false;
   for (const [name, encoding, bytes] of GENERATED_SECRETS) {
@@ -216,26 +254,7 @@ async function vercelSecrets() {
     }
   }
   if (!productionChanged) return;
-
-  // Production reads its variables at build time: rebuild the current production deployment with them.
-  const deployments = await call(`https://api.vercel.com/v6/deployments?projectId=${project}&target=production&state=READY&limit=1&${team}`, { headers });
-  const current = deployments.body?.deployments?.[0];
-  if (!deployments.ok || !current) return fail(`no ready production deployment to redeploy (${errorText(deployments)}); redeploy by hand`);
-  const redeploy = await call(`https://api.vercel.com/v13/deployments?${team}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ name: current.name, deploymentId: current.uid, target: "production" }),
-  });
-  if (!redeploy.ok) return fail(`redeploy: ${errorText(redeploy)}; redeploy by hand`);
-  console.log(`  redeploying production (${current.uid} -> ${redeploy.body.id})`);
-  const deadline = Date.now() + 12 * 60 * 1000;
-  for (;;) {
-    const state = (await call(`https://api.vercel.com/v13/deployments/${encodeURIComponent(redeploy.body.id)}?${team}`, { headers })).body?.readyState;
-    if (state === "READY") return console.log("  production redeployed with the new secrets");
-    if (state === "ERROR" || state === "CANCELED") return fail(`the redeploy ended ${state}`);
-    if (Date.now() > deadline) return fail("the redeploy was not ready within 12 minutes; check it in Vercel");
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
-  }
+  await redeployProduction(vercel, "production redeployed with the new secrets");
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -524,6 +543,314 @@ async function supabase() {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// Stripe, TEST MODE ONLY (P5.2 billing, P5.4 payments, P5.11 service plans; DECISIONS D17): the Pro and
+// extra-site prices, the billing and Connect webhook endpoints, and their ids and signing secrets in
+// Vercel production. BILLING_PROVIDER and PAYMENTS_PROVIDER are never set here: they are switched on later.
+// ---------------------------------------------------------------------------------------------------------
+
+// Monthly GBP prices, found again by lookup key. The amount is the plan setting (GitHub variable) or the
+// price Temitope set on 29 Oct 2026. A fixed product id makes the product easy to find again.
+const STRIPE_PRICES = [
+  { product: "autofix_pro", name: "Autofix Pro", lookupKey: "autofix_pro_monthly", amountName: "PLAN_PRO_PRICE_PENCE", defaultPence: 4500, envName: "STRIPE_PRICE_PRO" },
+  { product: "autofix_extra_site", name: "Autofix extra site", lookupKey: "autofix_extra_site_monthly", amountName: "PLAN_EXTRA_SITE_PRICE_PENCE", defaultPence: 1500, envName: "STRIPE_PRICE_EXTRA_SITE" },
+];
+
+// Exactly the events the handlers act on. Billing: src/lib/billing/stripe.ts (parseWebhook). Payments,
+// a Connect endpoint: src/lib/payments/stripe.ts (mapStripePaymentsEvent) and, for service plans,
+// src/lib/payments/stripe-direct-debit.ts (mapStripePlanEvent).
+const STRIPE_ENDPOINTS = [
+  {
+    path: "/api/webhooks/billing/stripe",
+    connect: false,
+    description: "Autofix plans (billing)",
+    secretName: "STRIPE_BILLING_WEBHOOK_SECRET",
+    events: ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"],
+  },
+  {
+    path: "/api/webhooks/payments/stripe",
+    connect: true,
+    description: "Autofix garage payments and service plans (Connect)",
+    secretName: "STRIPE_PAYMENTS_WEBHOOK_SECRET",
+    events: [
+      "account.updated",
+      "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+      "invoice.paid",
+      "invoice.payment_failed",
+    ],
+  },
+];
+
+// Stripe's REST API over fetch, form-encoded (no SDK, as src/lib/billing/stripe.ts). `fields` is a list of
+// [name, value] pairs, so an array field repeats its name.
+function stripeApi(key) {
+  const headers = { Authorization: `Bearer ${key}` };
+  return {
+    get: (pathAndQuery) => call(`https://api.stripe.com/v1${pathAndQuery}`, { headers }),
+    post: (pathname, fields) =>
+      call(`https://api.stripe.com/v1${pathname}`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(fields).toString(),
+      }),
+  };
+}
+
+const pounds = (pence) => `£${(pence / 100).toFixed(2)} a month`;
+const productionEntries = (envs, key) => envs.filter((entry) => entry.key === key && (entry.target ?? []).includes("production"));
+
+/** Creates `key` for Production, or replaces the value of the entry that covers Production. Never prints the value. */
+async function putProductionEnv({ project, team, headers }, envs, key, value, type) {
+  const [entry] = productionEntries(envs, key);
+  const result = entry
+    ? await call(`https://api.vercel.com/v9/projects/${project}/env/${encodeURIComponent(entry.id)}?${team}`, { method: "PATCH", headers, body: JSON.stringify({ value, type }) })
+    : await call(`https://api.vercel.com/v10/projects/${project}/env?${team}`, { method: "POST", headers, body: JSON.stringify({ key, value, type, target: ["production"] }) });
+  if (!result.ok) return { ok: false, error: errorText(result) };
+  console.log(`  ${key}: ${entry ? `replaced in Vercel (${(entry.target ?? []).join(", ")})` : "saved in Vercel production"} as ${type}`);
+  return { ok: true };
+}
+
+/** The product's id, found or created; null after a FAIL line. */
+async function stripeProduct(stripe, plan) {
+  const byId = await stripe.get(`/products/${plan.product}`);
+  if (byId.ok) return byId.body.id;
+  if (byId.status !== 404) {
+    fail(`product "${plan.name}": ${errorText(byId)}`);
+    return null;
+  }
+  // One made by hand under the same name is used rather than a second one.
+  const list = await stripe.get(`/products?${new URLSearchParams({ active: "true", limit: "100" })}`);
+  if (!list.ok) {
+    fail(`products: ${errorText(list)}`);
+    return null;
+  }
+  const named = (list.body?.data ?? []).find((product) => product.name === plan.name);
+  if (named) {
+    console.log(`  product "${plan.name}": found`);
+    return named.id;
+  }
+  const created = await stripe.post("/products", [["id", plan.product], ["name", plan.name], ["metadata[app]", "autofix"]]);
+  if (!created.ok) {
+    fail(`product "${plan.name}": create failed, ${errorText(created)}`);
+    return null;
+  }
+  console.log(`  product "${plan.name}": created`);
+  return created.body.id;
+}
+
+/** The plan's monthly amount in pence; null when its variable is not a whole number of pence. */
+function planPence(plan) {
+  const raw = env(plan.amountName);
+  if (raw === null) return plan.defaultPence;
+  return /^[1-9]\d{0,6}$/.test(raw) ? Number(raw) : null;
+}
+
+/** The price id for this plan, found by lookup key or (apply) created; null when there is none to use. */
+async function stripePrice(stripe, plan) {
+  const amount = planPence(plan);
+  const found = await stripe.get(`/prices?${new URLSearchParams({ "lookup_keys[]": plan.lookupKey, limit: "1" })}`);
+  if (!found.ok) {
+    fail(`${plan.lookupKey}: ${errorText(found)}`);
+    return null;
+  }
+  const price = found.body?.data?.[0];
+  if (price) {
+    const monthly = price.recurring?.interval === "month" && (price.recurring?.interval_count ?? 1) === 1;
+    if (price.unit_amount !== amount || price.currency !== "gbp" || !monthly) {
+      // A price's amount can't be changed in Stripe; whether to move the lookup key to a new price is a decision.
+      const has = `unit_amount ${price.unit_amount} ${String(price.currency).toUpperCase()} ${price.recurring ? `every ${price.recurring.interval_count ?? 1} ${price.recurring.interval}` : "one-off"}`;
+      fail(`${plan.lookupKey}: exists at ${has}, not unit_amount ${amount} GBP every 1 month; left unchanged`);
+      return null;
+    }
+    if (!price.active) {
+      fail(`${plan.lookupKey}: exists but is archived in Stripe; left unchanged`);
+      return null;
+    }
+    console.log(`  ${plan.lookupKey}: exists (${pounds(amount)}, active)`);
+    return price.id;
+  }
+  if (!apply) {
+    console.log(`  ${plan.lookupKey}: missing (would create "${plan.name}" at ${pounds(amount)})`);
+    return null;
+  }
+  const product = await stripeProduct(stripe, plan);
+  if (!product) return null;
+  const created = await stripe.post("/prices", [
+    ["product", product],
+    ["currency", "gbp"],
+    ["unit_amount", String(amount)],
+    ["recurring[interval]", "month"],
+    ["lookup_key", plan.lookupKey],
+    ["nickname", `${plan.name} monthly`],
+    ["metadata[app]", "autofix"],
+  ]);
+  if (!created.ok) {
+    fail(`${plan.lookupKey}: create failed, ${errorText(created)}`);
+    return null;
+  }
+  console.log(`  ${plan.lookupKey}: created (${pounds(amount)})`);
+  return created.body.id;
+}
+
+/** Puts the price id in Vercel production when it is missing there; true when production changed. */
+async function stripePriceEnv(vercel, envs, plan, priceId) {
+  const [entry] = productionEntries(envs, plan.envName);
+  if (!entry) {
+    if (!apply || !priceId) {
+      console.log(`  ${plan.envName}: not in Vercel production (${apply ? "no price to point at" : "would set"})`);
+      return false;
+    }
+    const saved = await putProductionEnv(vercel, envs, plan.envName, priceId, "encrypted");
+    if (!saved.ok) fail(`${plan.envName}: Vercel ${saved.error}`);
+    return saved.ok;
+  }
+  // A sensitive value can't be read back, so it can't be compared.
+  if (!priceId || entry.type === "sensitive") {
+    console.log(`  ${plan.envName}: set in Vercel production${priceId ? " (sensitive, not compared)" : ""}`);
+    return false;
+  }
+  const { project, team, headers } = vercel;
+  const read = await call(`https://api.vercel.com/v1/projects/${project}/env/${encodeURIComponent(entry.id)}?${team}`, { headers });
+  if (!read.ok) fail(`${plan.envName}: Vercel ${errorText(read)}`);
+  else if (read.body?.value === priceId) console.log(`  ${plan.envName}: set in Vercel production (the ${plan.lookupKey} price)`);
+  else fail(`${plan.envName}: Vercel production points at a different price than ${plan.lookupKey}; left unchanged (correct it in GitHub and run Sync Vercel env, or delete it in Vercel and run stripe-setup again)`);
+  return false;
+}
+
+/** Every webhook endpoint on the account; null after a FAIL line. */
+async function stripeEndpoints(stripe) {
+  const all = [];
+  let after = null;
+  for (let page = 0; page < 10; page += 1) {
+    const result = await stripe.get(`/webhook_endpoints?${new URLSearchParams({ limit: "100", ...(after ? { starting_after: after } : {}) })}`);
+    if (!result.ok) {
+      fail(`webhook endpoints: ${errorText(result)}`);
+      return null;
+    }
+    const data = result.body?.data ?? [];
+    all.push(...data);
+    if (!result.body?.has_more || !data.length) break;
+    after = data[data.length - 1].id;
+  }
+  return all;
+}
+
+/** Finds or (apply) creates one endpoint and saves a new signing secret in Vercel; true when production changed. */
+async function stripeEndpoint(stripe, vercel, envs, endpoints, spec) {
+  const url = `${siteOrigin()}${spec.path}`;
+  const label = `${spec.connect ? "Connect" : "account"} webhook ${spec.path}`;
+  // The API doesn't say whether an endpoint is a Connect one, so the URL (one path per endpoint) finds it.
+  const found = endpoints.find((endpoint) => endpoint.url === url);
+  if (found) {
+    const enabled = found.enabled_events ?? [];
+    const absent = enabled.includes("*") ? [] : spec.events.filter((event) => !enabled.includes(event));
+    console.log(`  ${label}: exists, ${found.status}${absent.length ? `, missing events ${absent.join(", ")}${apply ? "" : " (would add)"}` : ", every event enabled"}`);
+    if (found.status !== "enabled") fail(`${label} is ${found.status} in Stripe; enable it there`);
+    if (absent.length && apply) {
+      // Adding events keeps the signing secret; events already enabled stay enabled.
+      const events = [...new Set([...enabled, ...spec.events])];
+      const updated = await stripe.post(`/webhook_endpoints/${encodeURIComponent(found.id)}`, events.map((event) => ["enabled_events[]", event]));
+      if (updated.ok) console.log(`    events added: ${absent.join(", ")}`);
+      else fail(`${label}: adding events failed, ${errorText(updated)}`);
+    }
+    if (!vercel) return false;
+    if (productionEntries(envs, spec.secretName).length) {
+      console.log(`    ${spec.secretName}: set in Vercel production`);
+    } else {
+      // Stripe's API returns a signing secret only when the endpoint is made. Never delete or roll it here.
+      fail(
+        `${spec.secretName} is not in Vercel production, and the API only returns a signing secret when an endpoint is created; the endpoint was left as it is. ` +
+          `Either reveal its signing secret in Stripe (test mode) > Developers > Webhooks > ${url}, save it as the GitHub secret ${spec.secretName} and run Sync Vercel env; ` +
+          "or delete that endpoint in Stripe and run stripe-setup again.",
+      );
+    }
+    return false;
+  }
+  if (!apply) {
+    console.log(`  ${label}: missing (would create with ${spec.events.length} events and save ${spec.secretName} in Vercel production)`);
+    return false;
+  }
+  const created = await stripe.post("/webhook_endpoints", [
+    ["url", url],
+    ["description", spec.description],
+    ["metadata[app]", "autofix"],
+    ...(spec.connect ? [["connect", "true"]] : []),
+    ...spec.events.map((event) => ["enabled_events[]", event]),
+  ]);
+  if (!created.ok) {
+    fail(`${label}: create failed, ${errorText(created)}`);
+    return false;
+  }
+  console.log(`  ${label}: created with ${spec.events.length} events`);
+  const secret = created.body?.secret;
+  const saved = typeof secret === "string" && secret.startsWith("whsec_") ? await putProductionEnv(vercel, envs, spec.secretName, secret, "sensitive") : { ok: false, error: "Stripe returned no signing secret" };
+  if (!saved.ok) {
+    fail(
+      `${spec.secretName}: not saved in Vercel (${saved.error}). Reveal the new endpoint's signing secret in Stripe (test mode) > Developers > Webhooks > ${url}, ` +
+        `save it as the GitHub secret ${spec.secretName} and run Sync Vercel env; or delete that endpoint in Stripe and run stripe-setup again.`,
+    );
+  }
+  return saved.ok;
+}
+
+// Read only: whether Connect answers in test mode. Never creates a connected account.
+async function stripeConnect(stripe) {
+  const accounts = await stripe.get("/accounts?limit=1");
+  if (accounts.ok) return console.log(`  Connect: enabled in test mode (${accounts.body?.data?.length ? "has connected accounts" : "no connected accounts yet"})`);
+  const message = accounts.body?.error?.message ?? "";
+  if (/connect/i.test(message)) return console.log(`  Connect: does not look enabled in test mode (Stripe says: ${message})`);
+  console.log(`  Connect: could not tell (${errorText(accounts)})`);
+}
+
+async function stripeSetup() {
+  heading("Stripe (test mode)");
+  if (missing(["STRIPE_SECRET_KEY"])) return fail("Stripe is not configured");
+  // Test mode only, as the app (src/lib/billing/index.ts) and sync-vercel-env.mjs: a live key is never used.
+  if (!/^(sk|rk)_test_/.test(env("STRIPE_SECRET_KEY"))) {
+    return fail("STRIPE_SECRET_KEY is not a test-mode key (sk_test_ or rk_test_); live keys are refused, so nothing was read or changed");
+  }
+  const badAmounts = STRIPE_PRICES.filter((plan) => planPence(plan) === null).map((plan) => plan.amountName);
+  if (badAmounts.length) return fail(`${badAmounts.join(", ")} must be a whole number of pence; nothing was read or changed`);
+  const stripe = stripeApi(env("STRIPE_SECRET_KEY"));
+
+  // A new endpoint's signing secret goes straight to Vercel: without Vercel, nothing is created.
+  let vercel = null;
+  let envs = [];
+  if (missing(["VERCEL_API_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID"])) {
+    if (apply) return fail("Vercel is not configured; nothing was created in Stripe");
+  } else {
+    const api = vercelApi();
+    const listed = await vercelEnvs(api);
+    if (listed.list.ok) {
+      vercel = api;
+      envs = listed.envs;
+    } else {
+      fail(`Vercel env list: ${errorText(listed.list)}`);
+      if (apply) return console.log("  nothing was created in Stripe");
+    }
+  }
+
+  await stripeConnect(stripe);
+
+  let productionChanged = false;
+  for (const plan of STRIPE_PRICES) {
+    const priceId = await stripePrice(stripe, plan);
+    if (vercel && (await stripePriceEnv(vercel, envs, plan, priceId))) productionChanged = true;
+  }
+  const endpoints = await stripeEndpoints(stripe);
+  if (endpoints) {
+    for (const spec of STRIPE_ENDPOINTS) {
+      if (await stripeEndpoint(stripe, vercel, envs, endpoints, spec)) productionChanged = true;
+    }
+  }
+  console.log("  BILLING_PROVIDER, PAYMENTS_PROVIDER: not changed here (they are switched on separately)");
+  if (productionChanged) await redeployProduction(vercel, "production redeployed with the Stripe settings");
+}
+
+// ---------------------------------------------------------------------------------------------------------
 
 const run = {
   report: async () => {
@@ -533,6 +860,7 @@ const run = {
     await twilioWebhooks();
     await resendDomain();
     await supabase();
+    await stripeSetup();
   },
   "vercel-domains": vercelDomains,
   "vercel-secrets": vercelSecrets,
@@ -540,6 +868,7 @@ const run = {
   "resend-domain": resendDomain,
   "supabase-migrate": supabase,
   "supabase-auth": supabase,
+  "stripe-setup": stripeSetup,
 };
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {

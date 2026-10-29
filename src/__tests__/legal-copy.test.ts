@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book";
-import { reminderConsentCopy } from "@/lib/booking-flow/copy";
+import { OFFERS_CONSENT_COPY, REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book";
+import { offersConsentCopy, reminderConsentCopy } from "@/lib/booking-flow/copy";
 import { UNSUBSCRIBE_COPY, UNSUBSCRIBE_LINK_LINE } from "@/lib/consent/copy";
 import { parseLegalMarkdown } from "@/lib/legal/markdown";
 import { LEGAL_SOURCE_FILES, LEGAL_SOURCES } from "@/lib/legal/sources.generated";
@@ -28,6 +28,16 @@ describe("Book 4 consent wording", () => {
     expect(quotes).toContain(REMINDER_CONSENT_COPY_NO_MOT);
     expect(reminderConsentCopy(true)).toBe(REMINDER_CONSENT_COPY);
     expect(reminderConsentCopy(false)).toBe(REMINDER_CONSENT_COPY_NO_MOT);
+  });
+
+  it("the offers checkbox copy is the draft's wording, with the garage's name, in its own box", () => {
+    expect(quotes).toContain(OFFERS_CONSENT_COPY);
+    expect(OFFERS_CONSENT_COPY).toBe("Send me occasional offers from [Garage name]. You can stop these any time.");
+    expect(offersConsentCopy("Hartley Road Motors")).toBe("Send me occasional offers from Hartley Road Motors. You can stop these any time.");
+    // The details step shows it as a second checkbox, apart from the reminder one.
+    const details = readFileSync("src/app/%5Fsite/[garageId]/_components/details-step.tsx", "utf8");
+    expect(details).toMatch(/<ConsentCheckbox name="reminderConsent"[^>]*\/>/);
+    expect(details).toMatch(/<ConsentCheckbox name="offersConsent"[^>]*>\s*\{offersConsentCopy\(garageName\)\}\s*<\/ConsentCheckbox>/);
   });
 
   it("the line under Confirm booking matches the draft", () => {

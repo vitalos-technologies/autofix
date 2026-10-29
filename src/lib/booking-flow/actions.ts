@@ -28,6 +28,7 @@ import {
   maskMobile,
   normaliseUkPostcode,
   NOTE_MAX_LENGTH,
+  offersConsentCopy,
   postcodeDistrict,
   reminderConsentCopy,
   SYMPTOM_VALUES,
@@ -298,8 +299,10 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
   const extras = readBookingExtras(formData, offeredExtras, garage.serviceArea, garageHasFeature(garage, "courtesy_cars"));
   if (!extras.ok) Object.assign(fieldErrors, extras.fieldErrors);
   if (Object.keys(fieldErrors).length > 0 || !extras.ok) return { seq, fieldErrors };
-  // Consent only when the box was ticked; the wording stored is the wording this garage shows.
+  // Consent only when a box was ticked; the wording stored is the wording this garage shows.
+  // Reminders and offers are separate boxes and separate consents.
   const reminderConsent = formData.get("reminderConsent") === "yes";
+  const offersConsent = formData.get("offersConsent") === "yes";
 
   const ip = await clientIp();
   if (!(await consumeRateLimit(ip, "booking_create", 20, 600)) || !(await consumeRateLimit(garage.id, "booking_create_garage", 300, 3600))) {
@@ -334,6 +337,8 @@ export async function confirmBookingAction(previous: DetailsFormState, formData:
       channel,
       reminderConsent,
       ...(reminderConsent ? { consentText: reminderConsentCopy(garage.motEnabled) } : {}),
+      offersConsent,
+      ...(offersConsent ? { offersConsentText: offersConsentCopy(garage.name) } : {}),
     },
     vehicle: {
       registration: vehicle.registration,

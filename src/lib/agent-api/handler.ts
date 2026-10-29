@@ -153,7 +153,7 @@ export function agentService(service: OnlineService): AgentService {
   };
 }
 
-/** The `garage_profile` response for a garage record. Shared with the Askbridge knowledge sync (P4.6). */
+/** The `garage_profile` response for a garage record. */
 export function agentGarageProfile(garage: AgentGarageRecord): AgentGarageProfile {
   return {
     garage: {
@@ -244,7 +244,7 @@ const tools: { [T in AgentTool]: (input: z.output<(typeof agentInputSchemas)[T]>
     // Always a request for staff to confirm: source ai_agent makes create_booking() store `requested`.
     const result = await getBookingEngine().createBooking(garageId, {
       ...input,
-      customer: { ...input.customer, reminderConsent: false },
+      customer: { ...input.customer, reminderConsent: false, offersConsent: false },
       source: "ai_agent",
     });
     if (!result.ok) {

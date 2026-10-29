@@ -194,6 +194,10 @@ export type CustomerDetail = CustomerListItem & {
   channel: string;
   consentAt: string | null;
   consentText: string | null;
+  /** Offers (campaigns) consent, apart from reminders. Read-only here: only the customer gives it, when booking. */
+  offersConsent: boolean;
+  offersConsentAt: string | null;
+  offersOptedOutAt: string | null;
   createdAt: string;
   importFile: { fileName: string; createdAt: string; declared: boolean } | null;
   bookings: CustomerBooking[];
@@ -216,6 +220,10 @@ type DetailRow = CustomerRow & {
   channel: string;
   consent_at: string | null;
   consent_text: string | null;
+  offers_consent: boolean | null;
+  offers_consent_at: string | null;
+  offers_consent_text: string | null;
+  offers_opted_out_at: string | null;
   created_at: string;
   anonymised_at: string | null;
   customer_imports: Related<{ file_name: string; created_at: string; declaration_accepted_at: string | null }>;
@@ -237,7 +245,7 @@ export async function getCustomerDetail(client: SupabaseClient, customerId: stri
   if (!UUID.test(customerId)) return null;
   const { data, error } = await client
     .from("customers")
-    .select(`id,name,phone,email,reminder_consent,consent_source,consent_at,consent_text,opted_out_at,preferred_contact,channel,created_at,anonymised_at,vehicles(${VEHICLE_COLUMNS}),customer_imports(file_name,created_at,declaration_accepted_at)`)
+    .select(`id,name,phone,email,reminder_consent,consent_source,consent_at,consent_text,opted_out_at,offers_consent,offers_consent_at,offers_consent_text,offers_opted_out_at,preferred_contact,channel,created_at,anonymised_at,vehicles(${VEHICLE_COLUMNS}),customer_imports(file_name,created_at,declaration_accepted_at)`)
     .eq("id", customerId)
     .maybeSingle();
   if (error || !data) return null;
@@ -266,7 +274,10 @@ export async function getCustomerDetail(client: SupabaseClient, customerId: stri
   if (row.consent_at) {
     history.push({ at: row.consent_at, kind: "consent", label: consentSourceLabel(row.consent_source), detail: row.consent_text ?? undefined });
   }
-  if (row.opted_out_at) history.push({ at: row.opted_out_at, kind: "opt_out", label: "Opted out of reminders" });
+  if (row.offers_consent_at) {
+    history.push({ at: row.offers_consent_at, kind: "consent", label: "Ticked the offers box when booking", detail: row.offers_consent_text ?? undefined });
+  }
+  if (row.opted_out_at) history.push({ at: row.opted_out_at, kind: "opt_out", label: "Opted out of reminders and offers" });
   if (importRow) {
     history.push({
       at: importRow.created_at,
@@ -287,6 +298,9 @@ export async function getCustomerDetail(client: SupabaseClient, customerId: stri
     channel: row.channel,
     consentAt: row.consent_at,
     consentText: row.consent_text,
+    offersConsent: Boolean(row.offers_consent),
+    offersConsentAt: row.offers_consent_at,
+    offersOptedOutAt: row.offers_opted_out_at,
     createdAt: row.created_at,
     importFile: importRow
       ? { fileName: importRow.file_name, createdAt: importRow.created_at, declared: Boolean(importRow.declaration_accepted_at) }

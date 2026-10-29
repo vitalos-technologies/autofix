@@ -16,6 +16,7 @@ import {
 } from "@/components/admin-ui";
 import { PlateChip } from "@/components/book/plate-chip";
 import { CustomerPlansPanel } from "@/components/service-plans/panels";
+import { campaignAllowed, offersStatusText } from "@/lib/consent/offers";
 import { formatUkMobile } from "@/lib/customers/csv";
 import { getCustomerDetail, type CustomerBooking, type CustomerVehicle } from "@/lib/customers/queries";
 import { getAdminContext } from "@/lib/tenancy/admin";
@@ -72,6 +73,15 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   ];
 
   const remindersOn = customer.reminderConsent && !customer.optedOutAt;
+  const offersFields = {
+    offersConsent: customer.offersConsent,
+    reminderConsent: customer.reminderConsent,
+    consentSource: customer.consentSource,
+    offersOptedOutAt: customer.offersOptedOutAt,
+    optedOutAt: customer.optedOutAt,
+  };
+  // One opt-out stops reminders and offers alike (STOP does the same).
+  const canOptOut = remindersOn || campaignAllowed(offersFields);
 
   return (
     <div className="flex flex-col gap-5">
@@ -100,22 +110,27 @@ export default async function CustomerPage({ params, searchParams }: { params: P
 
         <Panel
           title="Reminders and consent"
-          actions={remindersOn ? (
+          actions={canOptOut ? (
             <form action={optOutCustomerAction}>
               <input type="hidden" name="customerId" value={customer.id} />
               <SubmitButton className={buttonClass("secondary", "sm")}>
-                <BellOff size={17} strokeWidth={2} aria-hidden="true" /> Opt out of reminders
+                <BellOff size={17} strokeWidth={2} aria-hidden="true" /> Opt out of reminders and offers
               </SubmitButton>
             </form>
           ) : null}
         >
           <p className="m-0 text-[14px] text-grey-700">
             {customer.optedOutAt
-              ? `Opted out on ${formatInstant(customer.optedOutAt, timezone)}. No reminders are sent; booking messages still are.`
+              ? `Opted out on ${formatInstant(customer.optedOutAt, timezone)}. No reminders or offers are sent; booking messages still are.`
               : customer.reminderConsent
-                ? "This customer gets MOT and service reminders. Use the button if they ask you to stop."
+                ? "This customer gets MOT and service reminders. Use the button if they ask you to stop (it stops offers too)."
                 : "No reminder consent on record, so no reminders are sent."}
           </p>
+          {customer.optedOutAt ? null : (
+            <p className="m-0 text-[14px] text-grey-700">
+              {offersStatusText(offersFields)}
+            </p>
+          )}
           {customer.history.length ? (
             <ol className="m-0 flex list-none flex-col gap-3 border-l-2 border-grey-200 p-0 pl-4" aria-label="Consent history">
               {customer.history.map((event, index) => (

@@ -1,6 +1,6 @@
-# Consent and messaging wording (draft v0.3)
+# Consent and messaging wording (v1.0)
 
-Draft for solicitor review; not legal advice. Covers PECR (marketing texts and calls) and UK GDPR transparency.
+Covers PECR (marketing texts and calls) and UK GDPR transparency. Approved by Temitope Agbola on 29 Oct 2026 as v1.0 (from v0.3, adding the separate offers consent).
 
 ## Book 4 (details step)
 
@@ -18,6 +18,12 @@ Under the confirm button:
 
 Store: `reminder_consent = true`, `consent_at`, `consent_source = 'booking'`, and the exact wording shown (`consent_text`, which also identifies the wording version).
 
+Offers checkbox, unticked by default, separate from reminders:
+
+> Send me occasional offers from [Garage name]. You can stop these any time.
+
+Store the offers consent apart from reminder consent: that it was given, when, where (`booking`), and the exact wording shown.
+
 ## Existing customers (soft opt-in route)
 
 Only for customers whose details the garage collected during a booking or sale of a similar service, and who were given a chance to opt out then. Every message must offer an opt-out. Store `consent_source = 'soft_opt_in'` with the date of the original transaction.
@@ -25,6 +31,10 @@ Only for customers whose details the garage collected during a booking or sale o
 Import declaration the garage must tick before reminders are scheduled for imported customers:
 
 > I confirm these customers gave their details to [Garage name] when buying or booking a service, were told they could opt out of reminders, and have not opted out, or have given consent to receive reminders.
+
+## Campaigns (offers)
+
+Campaigns (seasonal offers, win-backs) go only to customers who ticked the offers box, or to existing customers under the soft opt-in above (offers for the garage's own similar services). Never after an opt-out. Every campaign message carries the opt-out line, and STOP stops reminders and offers alike.
 
 ## SMS templates (default; garage may edit within the rules)
 

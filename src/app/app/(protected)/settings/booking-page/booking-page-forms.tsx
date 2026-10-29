@@ -108,29 +108,30 @@ export function EmbedOriginsForm({ origins, canEdit }: { origins: string[]; canE
   );
 }
 
-const ASKBRIDGE_FIELDS = { widgetId: "askbridge-widget-id" };
+const ASKBRIDGE_FIELDS = { siteKey: "askbridge-site-key" };
 
-/** Askbridge chat on the booking page: widget id and on/off. */
-export function AskbridgeForm({ enabled, widgetId, canEdit }: { enabled: boolean; widgetId: string | null; canEdit: boolean }) {
-  const [state, formAction] = useActionState<SetupFormState<"widgetId">, FormData>(saveAskbridgeAction, initialSetupFormState);
-  const [id, setId] = useState(widgetId ?? "");
+/** Askbridge chat on the booking page: the garage's Askbridge site key and on/off. */
+export function AskbridgeForm({ enabled, siteKey, canEdit }: { enabled: boolean; siteKey: string | null; canEdit: boolean }) {
+  const [state, formAction] = useActionState<SetupFormState<"siteKey">, FormData>(saveAskbridgeAction, initialSetupFormState);
+  const [key, setKey] = useState(siteKey ?? "");
   const [on, setOn] = useState(enabled);
   useFocusOnError(state, ASKBRIDGE_FIELDS);
   return (
     <form action={formAction} noValidate className="flex flex-col gap-3">
       <TextInputField
-        id="askbridge-widget-id"
-        name="widgetId"
-        label="Askbridge widget ID"
-        hint="From your Askbridge account, under Install."
-        value={id}
-        onChange={(event) => setId(event.target.value)}
+        id="askbridge-site-key"
+        name="siteKey"
+        label="Askbridge site key"
+        hint="It starts with pk_."
+        value={key}
+        onChange={(event) => setKey(event.target.value)}
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}
         maxLength={64}
         disabled={!canEdit}
-        error={state.fieldErrors?.widgetId}
+        error={state.fieldErrors?.siteKey}
+        className="font-mono text-[14px]"
       />
       <CheckboxField id="askbridge-enabled" name="enabled" label="Show the chat on my booking page" checked={on} onChange={(event) => setOn(event.target.checked)} disabled={!canEdit} />
       <FormMessage state={state} />

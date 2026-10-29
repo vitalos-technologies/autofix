@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book";
+import { OFFERS_CONSENT_COPY, REMINDER_CONSENT_COPY, REMINDER_CONSENT_COPY_NO_MOT } from "@/components/book";
+import { fillGarageName } from "@/lib/consent/copy";
 import { createFakeBookingEngine, FAKE_SERVICE_IDS, type FakeBookingEngine } from "@/lib/booking-engine/fake";
 import { parseLegalMarkdown } from "@/lib/legal/markdown";
 import { LEGAL_SOURCES } from "@/lib/legal/sources.generated";
@@ -334,6 +335,33 @@ describe("step 4 · details and confirm", () => {
     const draftQuotes = parseLegalMarkdown(LEGAL_SOURCES.consentWording).flatMap((block) => (block.kind === "quote" ? [block.text] : []));
     expect(draftQuotes).toContain(created[1]!.customer.consentText);
     expect(draftQuotes).toContain(created[2]!.customer.consentText);
+  });
+
+  it("stores offers consent apart from reminders, only when its own box is ticked, with the garage's name in the wording", async () => {
+    const offersWording = "Send me occasional offers from Hartley Road Motors. You can stop these any time.";
+    await toDetails();
+    await run(confirmBookingAction, initialDetailsFormState, { ...details, reminderConsent: "yes" });
+    expect(created[0]!.customer).toMatchObject({ reminderConsent: true, offersConsent: false });
+    expect(created[0]!.customer).not.toHaveProperty("offersConsentText");
+
+    await toDetails();
+    await run(confirmBookingAction, initialDetailsFormState, { ...details, offersConsent: "yes" });
+    expect(created[1]!.customer).toMatchObject({ reminderConsent: false, offersConsent: true, offersConsentText: offersWording });
+    expect(created[1]!.customer).not.toHaveProperty("consentText");
+
+    await toDetails();
+    await run(confirmBookingAction, initialDetailsFormState, { ...details, reminderConsent: "yes", offersConsent: "yes" });
+    expect(created[2]!.customer).toMatchObject({ reminderConsent: true, consentText: REMINDER_CONSENT_COPY, offersConsent: true, offersConsentText: offersWording });
+
+    // Only the exact value the checkbox sends counts as ticked.
+    await toDetails();
+    await run(confirmBookingAction, initialDetailsFormState, { ...details, offersConsent: "on" });
+    expect(created[3]!.customer.offersConsent).toBe(false);
+
+    // The stored wording is the approved one (docs/autofix/legal/consent-and-messaging-wording.md) with this garage's name.
+    const draftQuotes = parseLegalMarkdown(LEGAL_SOURCES.consentWording).flatMap((block) => (block.kind === "quote" ? [block.text] : []));
+    expect(draftQuotes).toContain(OFFERS_CONSENT_COPY);
+    expect(created[1]!.customer.offersConsentText).toBe(fillGarageName(OFFERS_CONSENT_COPY, harness.garage.name));
   });
 
   it("sends the customer back to the time step with alternatives when the slot has gone", async () => {

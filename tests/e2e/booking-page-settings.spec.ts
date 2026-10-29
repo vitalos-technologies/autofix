@@ -6,7 +6,8 @@
  * The spec makes its own garage, an owner and a manager (verified TOTP), and removes them afterwards.
  * Checks: free link + QR download, connect a custom domain (DNS table, status steps, Check now and its
  * 5-minute throttle, remove), the embed sites → the garage host's CSP frame-ancestors (no X-Frame-Options)
- * while the admin host stays SAMEORIGIN, the chat setting, the manager's read-only view, and axe with no
+ * while the admin host stays SAMEORIGIN, the chat setting (Askbridge site key; the loader and its API are
+ * answered by the test, never the real Askbridge), the manager's read-only view, and axe with no
  * violations at 390 and 1440 with no horizontal scroll.
  */
 import AxeBuilder from "@axe-core/playwright";
@@ -155,31 +156,68 @@ test("embed sites become the garage host's frame-ancestors; the admin host stays
   expect(adminPage.headers()["content-security-policy"]).toBe("frame-ancestors 'self'");
 });
 
-test("Askbridge chat: validated widget id, on and off", async () => {
+test("Askbridge chat: validated site key, on and off", async () => {
+  const siteKey = "pk_0123456789abcdef0123456789abcdef";
   await page.goto(`${adminOrigin}${PATH}`);
   const chat = page.locator("#askbridge");
+  // The steps name this garage's booking page address to add in Askbridge.
+  await expect(chat.locator("code", { hasText: garage.slug }).first()).toBeVisible();
   await chat.getByLabel("Show the chat on my booking page").check();
   await chat.getByRole("button", { name: "Save chat" }).click();
-  await expect(chat.getByLabel("Askbridge widget ID")).toBeFocused();
+  await expect(chat.getByLabel("Askbridge site key")).toBeFocused();
 
-  await chat.getByLabel("Askbridge widget ID").fill("wid_e2e_garage");
+  await chat.getByLabel("Askbridge site key").fill("wid_e2e_garage");
   await chat.getByRole("button", { name: "Save chat" }).click();
-  await expect(chat.getByText(/The Askbridge chat shows on your booking page/)).toBeVisible();
-  const { data } = await service.from("garages").select("settings").eq("id", garage.id).single();
-  expect((data?.settings as { askbridge?: unknown }).askbridge).toEqual({ enabled: true, widgetId: "wid_e2e_garage" });
-  const { data: jobs } = await service.from("jobs").select("kind").eq("garage_id", garage.id).eq("kind", "askbridge.sync");
-  expect(jobs?.length).toBeGreaterThanOrEqual(1);
+  await expect(chat.getByText(/isn't an Askbridge site key/).first()).toBeVisible();
+  await expect(chat.getByLabel("Askbridge site key")).toBeFocused();
 
-  // With a widget script configured in the build, the booking host loads it and its CSP allows that origin.
-  const connected = !(await chat.getByText("Askbridge isn't connected to Autofix yet").isVisible());
-  if (connected) {
+  await chat.getByLabel("Askbridge site key").fill(siteKey);
+  await chat.getByRole("button", { name: "Save chat" }).click();
+  await expect(chat.getByText("Saved. The Askbridge chat is on for your booking page.")).toBeVisible();
+  const { data } = await service.from("garages").select("settings").eq("id", garage.id).single();
+  expect((data?.settings as { askbridge?: unknown }).askbridge).toEqual({ enabled: true, siteKey });
+  const { data: jobs } = await service.from("jobs").select("kind").eq("garage_id", garage.id).eq("kind", "askbridge.sync");
+  expect(jobs).toEqual([]);
+
+  // The booking host loads Askbridge's loader with data-site and async, and its CSP lets it run and call its
+  // API. The loader and the API are answered here, so the test never reaches the real Askbridge.
+  const unavailable = await chat.getByText("The chat can't load on booking pages right now.").isVisible();
+  if (!unavailable) {
     const visitor = await page.context().browser()!.newContext({ viewport: { width: 390, height: 844 } });
+    await visitor.route(
+      (url) => /\/(askbridge|widget)\.js$/.test(url.pathname),
+      (route) =>
+        route.fulfill({
+          contentType: "text/javascript",
+          body: `(() => {
+            const s = document.currentScript;
+            const site = s.getAttribute("data-site");
+            fetch(new URL(s.src).origin + "/api/v1/visitor/config?site=" + encodeURIComponent(site), { credentials: "omit" })
+              .then((r) => r.json())
+              .then((c) => { window.__askbridge = { site, ok: c.ok === true }; })
+              .catch((e) => { window.__askbridge = { site, error: String(e) }; });
+          })();`,
+        }),
+    );
+    await visitor.route("**/api/v1/visitor/config?*", (route) =>
+      route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: '{"ok":true}' }),
+    );
     const site = await visitor.newPage();
     const response = await site.goto(`${siteOrigin}/`);
-    const src = await site.locator("script#askbridge-widget").getAttribute("src", { timeout: 15_000 });
+    const script = site.locator("script#askbridge-widget");
+    const src = await script.getAttribute("src", { timeout: 15_000 });
     expect(src).toBeTruthy();
-    expect(response?.headers()["content-security-policy"]).toContain(new URL(src!).origin);
-    await expect(site.locator("script#askbridge-widget")).toHaveAttribute("data-widget-id", "wid_e2e_garage");
+    const csp = response?.headers()["content-security-policy"] ?? "";
+    const sourcesOf = (name: string) => csp.split(";").map((part) => part.trim().split(/\s+/)).find(([directive]) => directive === name)?.slice(1) ?? [];
+    const loaderOrigin = new URL(src!).origin;
+    expect(sourcesOf("script-src")).toContain(loaderOrigin);
+    expect(sourcesOf("connect-src")).toContain(loaderOrigin);
+    expect(sourcesOf("frame-src")).not.toContain(loaderOrigin);
+    await expect(script).toHaveAttribute("data-site", siteKey);
+    expect(await script.evaluate((element) => (element as HTMLScriptElement).async)).toBe(true);
+    expect(await script.evaluate((element) => element.getAttributeNames().filter((name) => name.startsWith("data-")).sort())).toEqual(["data-nscript", "data-site"]);
+    await site.waitForFunction(() => (window as { __askbridge?: unknown }).__askbridge !== undefined, null, { timeout: 15_000 });
+    expect(await site.evaluate(() => (window as { __askbridge?: unknown }).__askbridge)).toEqual({ site: siteKey, ok: true });
     await visitor.close();
   }
 
