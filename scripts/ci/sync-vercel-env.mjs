@@ -51,7 +51,7 @@ const unset = [...new Set(Object.keys(process.env)
 if (unset.length) console.log(`not set in GitHub (skipped): ${unset.join(", ")}`);
 
 // Modes and plan settings are not secret: show their values so the log says what production runs.
-const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
+const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|TWILIO_NUMBERS_MODE|TWILIO_NUMBER_CAP|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
 for (const [key, { value, type }] of byKey) if (type === "encrypted" && SHOWN.test(key)) console.log(`value ${key}=${value}`);
 
 // Stripe is test mode only (DECISIONS D17, P5.2/P5.4): a live key never reaches Vercel.

@@ -109,7 +109,7 @@ Routes (garage from host): `GET /api/services`, `GET /api/slots?service=&from=&t
 | `reminder_sends` (tenant) | `rule_id`, `vehicle_id`, `customer_id`, `kind`, `due_date`, `offset_days`, `send_at`, `channel`, `status` (`scheduled`/`sending`/`sent`/`delivered`/`failed`/`cancelled`/`skipped`), `skip_reason`, `provider_msg_id`, `link_token_hash`, `link_expires_at`, `opened_at`, `booking_id`, `body` (rendered), `sent_at`; unique (`garage_id`, `vehicle_id`, `kind`, `due_date`, `offset_days`) so scheduling is idempotent |
 | `messages` (tenant) | `customer_id`, `channel`, `direction` (`inbound`/`outbound`), `to_address`, `from_address`, `body`, `provider`, `provider_msg_id` (unique when set), `status`, `reminder_send_id`, `booking_id`, `call_id`, `error_code` |
 | `calls` (tenant) | `provider_call_sid` (unique), `from_number`, `to_number`, `status`, `missed` bool, `voicemail_url`, `duration_s`, `text_back_message_id`, `handled_at`, `handled_by` |
-| `garage_phone_numbers` (tenant) | `number` E.164 unique, `purpose` (`forwarding`), `provider_sid` — maps Twilio's called number → garage |
+| `garage_phone_numbers` (tenant) | `number` E.164 unique, `purpose` (`forwarding`), `provider_sid` — maps Twilio's called number → garage; `ring_garage_first` since D22 (see "Twilio numbers") |
 | `jobs` (platform, service role only) | `kind`, `garage_id` (nullable), `payload jsonb`, `dedupe_key` (unique when set), `run_at`, `status` (`queued`/`running`/`done`/`failed`), `attempts`, `max_attempts` default 5, `locked_until`, `last_error` |
 | `vehicle_facts` (platform, service role only) | `reg_hash` pk (HMAC-SHA-256 of the normalised reg with `VEHICLE_FACTS_PEPPER`), `facts jsonb`, `fetched_at` — no customer data |
 
@@ -170,6 +170,7 @@ Job kinds (`JOB_KINDS`, drained in this order; payloads are ids and dates only, 
 | `domains.check` | `{}` | `runDomainsCheck()` over `garage_domains` (custom, `pending_dns`/`verifying`; `verification.pending_since` restarts the 48 h window); Vercel rate limit → re-queued after Retry-After; no Vercel configuration → logged, done |
 | `retention` | `{garageId?}` | fan-out: every garage (A24), then deletes `vehicle_facts` older than 30 days and `done`/`failed` jobs finished more than 14 days ago; per garage: `apply_enquiry_retention` + `apply_message_retention` |
 | `customers.enrich` | `{garageId?, importId?}` | fan-out: garages with `vehicles.enrichment_status = pending`; per garage: `enrichImportedVehicles()` within the attempt, re-queued while `remaining` (now; after Retry-After; 15 min when only failed lookups remain). The import action queues it for the rest of an import |
+| `numbers.provision` | `{garageId?, attempt?}` | D22: the texting mobile and the garages' AI desk numbers once the Twilio account is upgraded (see "Twilio numbers"); daily, and per garage when its owner switches the AI front desk on |
 | `mot.refresh` | `{garageId?, after?}` | fan-out: active garages with MOT on; per garage: vehicles of consenting, not opted-out, not anonymised owners where `mot_checked_at` is null or > 30 days old, or > 20 h old with expiry unknown or ≤ 60 days ahead, 25 at a time in id order (`after` cursor), via `getConfiguredMotHistoryLookup()` (DVSA; mock outside production); a different expiry updates the vehicle and cancels its `scheduled` MOT reminders for other dates (`due_date_changed`), then `schedule_reminders()`; rate limit → continuation after Retry-After |
 
 Runner: one claim at a time per kind; attempt timeout per kind (12–18 s; handlers get `deadline` 3 s earlier to stop starting work); success `finish_job`; `JobError(retry: false)` → `fail_job(…, false)`; anything else → `fail_job` with backoff; `jobs.last_error` and logs carry safe codes only (`db_<code>`, our codes, class names). Logs: one JSON line per job (`scope: jobs`, `event`, `job_id`, `kind`, `garage_id`, `ms`, `outcome`, counts).
@@ -178,7 +179,7 @@ Routes and auth:
 
 | Route | Auth | Does |
 | --- | --- | --- |
-| `GET /api/cron/[job]` (`daily`, `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention`, `platform.close_impersonations`, `customers.enrich`) | `Authorization: Bearer $CRON_SECRET`, constant-time (SHA-256 digests), secret ≥ 16 chars | queues the fan-out kinds with key `cron:<kind>:<UTC day or slot>`, drains every kind for ≤ 20 s; 401/404/503/500 (drain failed); counts only |
+| `GET /api/cron/[job]` (`daily`, `reminders.schedule`, `reminders.send`, `mot.refresh`, `domains.check`, `retention`, `platform.close_impersonations`, `customers.enrich`, `numbers.provision`, …) | `Authorization: Bearer $CRON_SECRET`, constant-time (SHA-256 digests), secret ≥ 16 chars | queues the fan-out kinds with key `cron:<kind>:<UTC day or slot>`, drains every kind for ≤ 20 s; 401/404/503/500 (drain failed); counts only |
 | `POST /api/jobs/drain` | same | optional strict JSON `{kinds?, budgetMs? (1000–50000)}`; 401/400/415/422/503 |
 | `POST /api/webhooks/twilio/{sms,whatsapp,status,voice}` | `X-Twilio-Signature` on the raw body against `TWILIO_WEBHOOK_BASE_URL` (else forwarded proto/host) + path + query; no `TWILIO_AUTH_TOKEN` → 503; form-encoded only (415), ≤ 64 KB (413) | claim the event, then: inbound text → `messages` (garage only from `garage_phone_numbers` with `provider_sid`), STOP/START via `apply_messaging_keyword`, HELP → `messages.reply` job drained after the response (skipped when `OptOutType` is set); a STOP to an unrouted number opts out the number at every garage that texted it in 12 months; status → `messages` / `reminder_sends` forward only (`isLaterStatus`; reminders only `sent` → `delivered`/`failed`, error `twilio:<code>`); voice → `calls` row and P4.1's dial-through / voicemail / text-back flow ("Missed calls" below; `<Reject/>` when unrouted). Always TwiML 200 except 403/415/413/503 above and 500 when the work failed (the event is `failed`, so Twilio's retry runs it again) |
 | `GET /r/[token]` (garage host → `/_site/[garageId]/r/[token]`) | the token; rate limit 30 / 10 min per garage + IP (`reminder_link`) | 303 to `/time` (service with a workshop mode) or `/service` (no matching service, mobile-only service, review), sealed `af_booking` draft `{vehicle {registration, make, model, motExpiry only with MOT on}, serviceId, locationMode, reminderSendId, idempotencyKey}`, first `opened_at`; problems → 303 `/r?link=expired\|invalid\|limited\|unavailable` (`/r` page). `Referrer-Policy: no-referrer`, `no-store` |
@@ -206,7 +207,7 @@ Voice flow (`POST /api/webhooks/twilio/voice`, one URL; `?step=` is part of the 
 | `?step=recording` (`RecordingStatus` completed) | `voice:<CallSid>:recording` | `voicemail_url`, `voicemail_duration_s` (by CallSid) | empty |
 | status callbacks (completed, no-answer, …) | `voice:<CallSid>:<status>` | status forward only, `duration_s` | empty |
 
-The garage's own phone is a `garage_phone_numbers` row with `purpose = forwarding` and **no** `provider_sid` (entered by the owner), UK geographic, 03 or mobile only, never the called number; it is skipped when `ForwardedFrom` is that number or the caller rang this garage on another call in the last 2 minutes (our forward coming back). A repeated incoming request gets the same TwiML without writes.
+The garage's own phone is a `garage_phone_numbers` row with `purpose = forwarding` and **no** `provider_sid` (entered by the owner), UK geographic, 03 or mobile only, never the called number; it is skipped when `ForwardedFrom` is that number or the caller rang this garage on another call in the last 2 minutes (our forward coming back), and never rung for a called number with `ring_garage_first = false` (an AI desk number the garage's phone diverts to, D22, A432; outcome `call_forwarded_missed` when it goes to the voicemail). A repeated incoming request gets the same TwiML without writes.
 
 Job `calls.text_back` (`{garageId, callId}`, `src/lib/calls/text-back.ts`): skips answered, withheld, already-texted calls, non-UK-mobile numbers and calls older than 10 minutes; needs the garage's `missed_call` rule enabled; skips opted-out customers and numbers whose latest STOP/START to the garage was STOP; renders the rule template (`{garage}`, `{link}` = booking page, `{first_name}` for a known customer; a missing value sends nothing) with the opt-out line; channel WhatsApp when the rule (or, for `customer`, the caller's customer record) says so, else SMS; claims through `claim_call_text_back`, sends from the two-way number (no quiet hours: a reply to a live caller), records the result on the message, never retries after the claim.
 
@@ -561,6 +562,42 @@ Jobs: none new (the existing `calls.text_back` is reused; `billing.close_usage` 
 Env: `VOICE_RELAY_URL`, `VOICE_RELAY_SECRET` (server only, Sensitive; set by `voice-deploy.yml`; `.env.example` under `# P5.12`). `playwright.garage.config.ts` passes a local-only `AGENT_TOKEN_PEPPER` to the production server so the e2e can issue tokens.
 
 Voice desk additions (D20): agent tool `log_call_summary` (per-call tokens only: `{callSid, summary, outcome}` → `{callSid, outcome, stored}`; registrations masked; 10 per token per 10 min); `agent_tokens.call_sid`/`expires_at` (expired tokens answer 401); `calls.ai_summary`/`ai_outcome`/`ai_handled_at`; SQL `issue_voice_call_token()`, `record_ai_call_summary()`, `ai_front_desk_voice_ready()` (service role); route `POST /api/voice/v1/session` (admin host only).
+
+## Twilio numbers (D22; DECISIONS A431–A438)
+
+One mechanism buys the platform's texting mobile and each Pro garage's AI front desk number, and does nothing but record "waiting for the upgrade" while the Twilio account is a trial.
+
+### Schema (`supabase/migrations/20261029003400_twilio_numbers.sql`; pgTAP `043_twilio_numbers`)
+
+| Object | Notes |
+| --- | --- |
+| `garage_phone_numbers.ring_garage_first` (+) | `boolean not null default true`, service role only. `false` on a number bought for the AI desk: the voice webhook never rings the garage's own phone first (its phone diverts missed calls here, so that would loop, A432) |
+| `ai_front_desk_numbers` (tenant, pk `garage_id`) | `status` (`pending`/`waiting_upgrade`/`waiting_bundle`/`cap_reached`/`not_configured`/`ready`/`failed`), `reason` (safe code `^[a-z0-9_.:-]{1,80}$`), `number`, `provider_sid` (`PN` + 32 hex, unique, kept for good), `checked_at`, `ready_at`. `ready` needs number, SID and `ready_at`. Members of the selected garage read; no staff grants; service role select/insert/update (no delete, A436) |
+| `twilio_number_provisioning` (platform, A10, one row `singleton`) | `account_type`, `numbers_held`, `number_cap`, `texting_status`/`texting_reason`/`texting_number`/`texting_sid`, `checked_at`, `lease_holder`/`lease_until`. RLS on, no policies, service role only |
+
+| SQL (service role only, `security definer`, `search_path = ''`) | What |
+| --- | --- |
+| `claim_number_provisioning(p_holder uuid, p_seconds int) → boolean` / `release_number_provisioning(p_holder) → boolean` | The lease: one run counts and buys at a time (1–600 s, runs out by itself) |
+| `ai_front_desk_numbers_due(p_garage_id uuid default null, p_limit int default 50)` | Garages that are `active`/`onboarding`, Pro (`garage_has_feature`), with the desk on and not already `ready` with a routed number: `garage_id, garage_phone, status, provider_sid, number, routed_number, routed_sid`; least recently checked first |
+| `attach_ai_front_desk_number(p_garage_id, p_number, p_provider_sid, p_ring_garage_first boolean default null) → jsonb` | One transaction: the routing row (`purpose forwarding`, `provider_sid`, `ring_garage_first`; null keeps an existing row's) and the state `ready`; `P0001 NUMBER_TAKEN` (another garage's number or SID), `ALREADY_PROVISIONED` (a different SID on record); audited `ai_front_desk.number_ready` once |
+| `set_ai_front_desk_number_status(p_garage_ids uuid[], p_status, p_reason) → int` | Any state but `ready`; never clears a recorded number or SID |
+
+### App
+
+| Module | Exports |
+| --- | --- |
+| `src/lib/messaging/twilio-numbers-contract.ts` | `TwilioNumbersClient` (`getAccount`, `listNumbers`, `listServiceNumbers`, `findApprovedBundle(kind, endUserType?)`, `findAddress`, `searchAvailable(kind, {contains, sms, limit})`, `buyNumber`, `addToService`), `TwilioNumbersError` (`kind`, `reason` = `twilio:<code>`), `mapTwilioNumbersError` |
+| `src/lib/messaging/twilio-numbers.ts` | Live client `createTwilioNumbersClient` (docs and dates in its header; purchases never retried, reads retried once), `getTwilioNumbersReadiness(env)`, `getTwilioNumbersClient(env)` (`TWILIO_NUMBERS_MODE`: `mock` default; `live` only with `VERCEL_ENV=production` and the Twilio credentials; else throws `configuration_required`), `sharedMockTwilioNumbersClient()` |
+| `src/lib/messaging/twilio-numbers-mock.ts` | `createMockTwilioNumbersClient(options)` (trial by default; `state.mutations` lists every purchase and service change), `mockNumberSid` |
+| `src/lib/phone-numbers/provision.ts` | `provisionNumbers({client, repo, config, scope, canStartPurchase})` → `ProvisionSummary`; `NumbersRepo`; `TEXTING_NUMBER_NAME` (`Autofix texts`), `deskNumberName(garageId)` (`Autofix desk <id>`) |
+| `src/lib/phone-numbers/repository.ts` | `createSupabaseNumbersRepo(db)` (service role), `loadAiDeskNumber(client, garageId)` (RLS, with the routing row's `ring_garage_first`) |
+| `src/lib/phone-numbers/config.ts` | `readNumbersConfig(env)`: `cap` (`TWILIO_NUMBER_CAP`, default 20), `voiceUrl` (https `TWILIO_WEBHOOK_BASE_URL` or `NEXT_PUBLIC_SITE_URL` + `/api/webhooks/twilio/voice`), `platformNumbers` |
+| `src/lib/phone-numbers/area-code.ts` | `ukAreaCode(phone)` (`1302`, `114`, `20`, null for mobiles and 03), `areaCodePattern` (`+441302`) |
+| `src/lib/phone-numbers/state.ts` (client-safe) | `NUMBER_STATUSES`, `AiDeskNumber`, `aiDeskNumberView(number, {enabled})`, `ukDialString`, `mobileDivertCodes` (`**61*`, `**67*`, `**62*`, `**004*`, `##004#`), `landlineDivertText` |
+| `src/lib/jobs/handlers/numbers-provision.ts` | `numbers.provision` (`{garageId?, attempt? 1–3}`): takes the lease (120 s), runs the step, releases; a stop (429, 5xx, deadline, unconfirmed purchase) or a busy lease queues one more run (key `numbers.provision:continue:<job id>`), at most three in a row without progress |
+| `src/app/app/(protected)/settings/ai-front-desk/ai-desk-number-panel.tsx` | "Your AI desk number": the state, the number (tel link, Copy) and the divert instructions; `setAiFrontDeskAction` queues `numbers.provision` for the garage when switched on (key `numbers.provision:<garage>:<UTC minute>`) and drains it after the response |
+
+The step, per run: settle what needs no purchase (a routed number becomes `ready`; a recorded SID is routed again); read the account (`Trial` → `waiting_upgrade`, nothing else; not active → `failed`); no https origin → `not_configured`; count the account's numbers; texting (platform run only): the Messaging Service's SMS-capable number, else the account's `Autofix texts`, else buy a GB mobile with the mobile bundle and add it to the service; garages: the account's `Autofix desk <id>`, else buy a GB local number (area code first) with the local business bundle and route it with `ring_garage_first = false`. Cap, bundle and refusal states as in A433–A437. Autofix's own line is never touched (A420, A435).
 
 ## Campaigns (Phase 5, P5.5; DECISIONS A326–A333)
 

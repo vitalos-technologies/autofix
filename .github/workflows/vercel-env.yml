@@ -112,6 +112,12 @@ jobs:
           VAR__STRIPE_PRICE_EXTRA_SITE: ${{ vars.STRIPE_PRICE_EXTRA_SITE }}
           VAR__SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           VAR__SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # Twilio numbers (D22, A431): live lets the daily numbers.provision job buy the texting mobile and each Pro
+          # garage's AI desk number once the account is upgraded and the bundles are approved (purchases approved by
+          # Temitope, 29 Oct 2026; the app honours live on production only). Up to TWILIO_NUMBER_CAP numbers on the
+          # account in total (Temitope's proposal of 20, to confirm). A repository variable overrides either.
+          VAR__TWILIO_NUMBERS_MODE: ${{ vars.TWILIO_NUMBERS_MODE || 'live' }}
+          VAR__TWILIO_NUMBER_CAP: ${{ vars.TWILIO_NUMBER_CAP || '20' }}
           VAR__VEHICLE_DATA_GLOBAL_BASE_URL: ${{ vars.VEHICLE_DATA_GLOBAL_BASE_URL }}
           VAR__VEHICLE_DATA_GLOBAL_PACKAGE: ${{ vars.VEHICLE_DATA_GLOBAL_PACKAGE }}
           VAR__VEHICLE_LOOKUP_PROVIDER: ${{ vars.VEHICLE_LOOKUP_PROVIDER }}
