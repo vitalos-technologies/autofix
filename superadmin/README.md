@@ -1,6 +1,6 @@
 # Pitline Super Admin
 
-The Vitalos staff console over every garage on Pitline: health, plans, bookings, messaging, domains, jobs and onboarding, with an append-only audit trail. It replicates the [Vitalos platform Super Admin](https://github.com/vitalos-technologies/vitalos-platform/tree/main/superadmin) (ADR-026) with the Pitline by Vitalos look (navy `#071127`, number-plate yellow `#f6c700`, Barlow Condensed and Inter). Address: `https://pitline.co.uk/superadmin`, through the Pitline app's proxy (not deployed yet; [DECISIONS](../docs/autofix/DECISIONS.md) "Waiting on Temitope").
+The Vitalos staff console over every garage on Pitline: health, plans, bookings, messaging, domains, jobs and onboarding, with an append-only audit trail. It replicates the [Vitalos platform Super Admin](https://github.com/vitalos-technologies/vitalos-platform/tree/main/superadmin) (ADR-026) with the Pitline brand kit (DECISIONS D22: Navy `#0f2747`, Electric Blue `#2563eb`, Signal Orange `#f97316`, Inter; the reversed logo on Navy). Address: `https://pitline.co.uk/superadmin`, through the Pitline app's proxy (not deployed yet; [DECISIONS](../docs/autofix/DECISIONS.md) "Waiting on Temitope").
 
 Stack: Python 3.12, Django 5.2 LTS, HTMX 2 (django-htmx), Tailwind CSS v4 (standalone CLI, no Node), PostgreSQL 17, django-simple-history, django-axes, django-otp, django-csp, Django REST Framework with drf-spectacular, WhiteNoise and gunicorn. Decision record: [DECISIONS D18](../docs/autofix/DECISIONS.md) (assumptions A400–A414).
 

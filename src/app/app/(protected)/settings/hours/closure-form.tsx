@@ -33,7 +33,7 @@ export function ClosureForm({ today }: { today: string }) {
   }, [state]);
 
   return (
-    <form action={formAction} noValidate className="flex flex-col gap-3.5 border-t border-[#eef2f6] pt-3.5">
+    <form action={formAction} noValidate className="flex flex-col gap-3.5 border-t border-[#f1f5f9] pt-3.5">
       <h3 className="m-0 font-sans text-[15px] font-bold tracking-normal text-navy-950">Add a closure</h3>
       <div className="grid gap-3.5 sm:grid-cols-2">
         <TextInputField

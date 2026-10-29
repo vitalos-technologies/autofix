@@ -87,7 +87,7 @@ export default async function ServicesSetupPage({ searchParams }: PageProps) {
         <Panel id="archived" title="Archived" padding="flush" actions={<span className="text-[13px] text-grey-600">Hidden from customers</span>}>
           <ul className="m-0 list-none p-0">
             {services.archived.map((service) => (
-              <li key={service.id} className="flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-[#eef2f6] py-3 first:border-t-0">
+              <li key={service.id} className="flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-[#f1f5f9] py-3 first:border-t-0">
                 <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
                   <span className="text-[15px] font-bold text-grey-700">{service.name}</span>
                   <span className="text-[13px] text-grey-600">{serviceSummary(service)}</span>
@@ -116,7 +116,7 @@ function serviceSummary(service: SetupService) {
 
 function ServiceRow({ service, canEdit, motEnabled, first, last }: { service: SetupService; canEdit: boolean; motEnabled: boolean; first: boolean; last: boolean }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-[#eef2f6] py-3.5 first:border-t-0">
+    <li className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-[#f1f5f9] py-3.5 first:border-t-0">
       <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
         <span className="text-[15px] font-bold text-navy-950">{service.name}</span>
         <span className="text-[13px] text-grey-600">{serviceSummary(service)}</span>

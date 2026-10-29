@@ -14,7 +14,7 @@ import { formatPounds, lineBalance, longDate, periodLabel, STATEMENT_STATUS_LABE
 
 export type StatementGarage = Pick<Garage, "name" | "legalName" | "logoUrl" | "invoicePayment" | "email" | "phone" | "companyNumber" | "address">;
 
-const c = { navy: "#071127", blue: "#1974E2", pale: "#EAF3FF", grey: "#F4F7FA", border: "#DCE6F2", text: "#111827", secondary: "#5F6B7A", green: "#237A57" } as const;
+const c = { navy: "#0f2747", blue: "#2563EB", pale: "#EFF6FF", grey: "#F8FAFC", border: "#E2E8F0", text: "#111827", secondary: "#5F6B7A", green: "#237A57" } as const;
 
 const s = StyleSheet.create({
   page: { paddingTop: 40, paddingBottom: 60, paddingHorizontal: 38, fontFamily: "Helvetica", fontSize: 9.2, color: c.text, lineHeight: 1.38 },

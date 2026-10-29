@@ -121,7 +121,7 @@ export function SymptomChips({
             maxLength={noteMaxLength}
             rows={3}
             className={cn(
-              "min-h-24 w-full resize-y rounded-input border border-grey-300 bg-white px-3.5 py-3 text-[16px] leading-normal text-navy-950 placeholder:text-[#6a7686]",
+              "min-h-24 w-full resize-y rounded-input border border-grey-300 bg-white px-3.5 py-3 text-[16px] leading-normal text-navy-950 placeholder:text-[#64748b]",
               focusRing,
             )}
           />

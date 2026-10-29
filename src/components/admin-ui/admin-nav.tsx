@@ -126,15 +126,39 @@ export type AdminNavGroupsProps = {
   groups: AdminNavGroup[];
   /** Current path, for `aria-current="page"`. Omit it to follow the browser's path. */
   activeHref?: string;
-  /** `navy` for the desktop sidebar, `light` for the phone "More" page. */
-  tone?: "navy" | "light";
+  /** `sidebar` for the desktop sidebar (white, brand kit D22), `light` for the phone "More" page, `navy` on dark. */
+  tone?: "sidebar" | "navy" | "light";
   className?: string;
 };
 
 /** The three nav groups as lists of links. The current page gets `aria-current="page"`. */
-export function AdminNavGroups({ groups, activeHref, tone = "navy", className }: AdminNavGroupsProps) {
+const TONES = {
+  sidebar: {
+    heading: "text-grey-600",
+    focus: focusRing,
+    active: "bg-[#eff6ff] font-bold text-[#1d4ed8]",
+    inactive: "font-semibold text-grey-700 hover:bg-grey-100 hover:text-navy-950",
+    pro: "bg-grey-100 text-grey-700",
+  },
+  navy: {
+    heading: "text-[#7d8ca1]",
+    focus: focusRingOnDark,
+    active: "bg-white font-bold text-navy-950",
+    inactive: "font-semibold text-[#c9d4e2] hover:bg-navy-900 hover:text-white",
+    pro: "bg-navy-900 text-[#c9d4e2]",
+  },
+  light: {
+    heading: "text-grey-600",
+    focus: focusRing,
+    active: "bg-navy-950 font-bold text-white",
+    inactive: "border border-grey-200 bg-white font-semibold text-navy-950 hover:border-grey-300",
+    pro: "bg-grey-100 text-navy-950",
+  },
+} as const;
+
+export function AdminNavGroups({ groups, activeHref, tone = "sidebar", className }: AdminNavGroupsProps) {
   const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
-  const navy = tone === "navy";
+  const styles = TONES[tone];
 
   return (
     <div className={cn("flex flex-col gap-[22px]", className)}>
@@ -146,7 +170,7 @@ export function AdminNavGroups({ groups, activeHref, tone = "navy", className }:
               id={headingId}
               className={cn(
                 "m-0 px-2.5 pb-1.5 text-[11px] leading-[normal] font-bold tracking-[0.1em] uppercase",
-                navy ? "text-[#7d8ca1]" : "text-grey-600",
+                styles.heading,
               )}
             >
               {group.label}
@@ -163,14 +187,10 @@ export function AdminNavGroups({ groups, activeHref, tone = "navy", className }:
                       activeHref={activeHref}
                       className={cn(
                         "flex min-h-11 items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[14px] leading-[normal] no-underline transition-colors",
-                        navy ? focusRingOnDark : focusRing,
+                        styles.focus,
                       )}
-                      activeClassName={navy ? "bg-white font-bold text-navy-950" : "bg-navy-950 font-bold text-white"}
-                      inactiveClassName={
-                        navy
-                          ? "font-semibold text-[#c9d4e2] hover:bg-navy-900 hover:text-white"
-                          : "border border-grey-200 bg-white font-semibold text-navy-950 hover:border-grey-300"
-                      }
+                      activeClassName={styles.active}
+                      inactiveClassName={styles.inactive}
                     >
                       <Icon size={18} strokeWidth={2} aria-hidden="true" className="shrink-0" />
                       <span className="min-w-0 grow truncate">{item.label}</span>
@@ -178,7 +198,7 @@ export function AdminNavGroups({ groups, activeHref, tone = "navy", className }:
                         <span
                           className={cn(
                             "ml-auto inline-flex items-center gap-1 rounded-full px-[7px] py-[2px] text-[11px] font-bold",
-                            navy ? "bg-navy-900 text-[#c9d4e2]" : "bg-grey-100 text-navy-950",
+                            styles.pro,
                           )}
                         >
                           <Lock size={11} strokeWidth={2.4} aria-hidden="true" />

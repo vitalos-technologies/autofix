@@ -36,7 +36,7 @@ export function BookingSummaryBar({
       <PlateChip registration={registration} size="md" />
       <div className="flex min-w-0 grow flex-col gap-0.5">
         <p className="m-0 text-[14px] font-bold">{[service, mode].filter(Boolean).join(" · ")}</p>
-        <p className="m-0 text-[12.5px] text-[#b8c4d4]">{formatSummaryWhen(start, timeZone)}</p>
+        <p className="m-0 text-[12.5px] text-[#94a3b8]">{formatSummaryWhen(start, timeZone)}</p>
       </div>
       {editHref ? (
         <Link

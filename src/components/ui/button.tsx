@@ -3,10 +3,10 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "reac
 import { cn } from "@/lib/utils";
 
 const styles = {
-  primary: "bg-[#155FBA] text-white shadow-[0_12px_32px_rgba(25,116,226,.28)] hover:bg-[#1974E2]",
-  secondary: "border border-[#67B9FF]/45 bg-transparent text-white hover:border-[#1974E2] hover:bg-[#1974E2]/10",
-  outline: "border border-[#1974E2]/25 bg-white text-[#071127] hover:border-[#1974E2]/60 hover:bg-[#F4F7FA]",
-  ghost: "bg-transparent text-current hover:bg-[#1974E2]/10",
+  primary: "bg-[#2563EB] text-white shadow-[0_12px_32px_rgba(37,99,235,.28)] hover:bg-[#1D4ED8]",
+  secondary: "border border-[#67B9FF]/45 bg-transparent text-white hover:border-[#2563EB] hover:bg-[#2563EB]/10",
+  outline: "border border-[#2563EB]/25 bg-white text-[#0f2747] hover:border-[#2563EB]/60 hover:bg-[#F8FAFC]",
+  ghost: "bg-transparent text-current hover:bg-[#2563EB]/10",
 };
 
 type Shared = { children: ReactNode; variant?: keyof typeof styles; className?: string };

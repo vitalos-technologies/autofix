@@ -163,7 +163,7 @@ export function TodayView() {
           <div className={sideColumn}>
             <Panel id="needs-ok" title="Needs your OK" count={2} countLabel="2 bookings waiting">
               <ul className="m-0 flex list-none flex-col p-0">
-                <li className="border-b border-[#eef2f6] pb-3.5">
+                <li className="border-b border-[#f1f5f9] pb-3.5">
                   <ApprovalCard
                     bookingId="bk-1"
                     registration="AB12CDE"

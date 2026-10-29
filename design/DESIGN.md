@@ -1,12 +1,12 @@
 # Pitline design system
 
-Source of truth for every screen the UI agent builds. The visual language is SOB Autofix's (navy and electric blue, Barlow Condensed display type, registration-first booking), adjusted for a white-label product that many garages share.
+Source of truth for every screen the UI agent builds. The visual language is the Pitline brand kit's (Navy, Electric Blue and Signal Orange, Inter throughout; D22) on SOB Autofix's registration-first booking flow, adjusted for a white-label product that many garages share.
 
 - Live design canvas (editable, comments): https://claude.ai/artifact/UYRN7ayr8LpWS5U59221mP
 - Screen sources: `design/screens/*.dc.html`. Inline styles are the spec; `{{accent}}` means the garage's brand colour.
 - Static previews you can open in a browser: `design/preview/*.html`
 - Screenshots at 2x: `design/screenshots/*.png`. Read these before building a screen.
-- TODO(pitline-artwork, DECISIONS D22): the text says Pitline, but the artwork is still Autofix's. Replace when the new artwork lands: the wordmark and "Powered by" line in `design/screenshots/*.png`, the app icon (`src/app/icon.svg`) and the super admin mark and icons (`superadmin/static/brand/`, `superadmin/static/favicon.ico`).
+- Brand kit (DECISIONS D22): logos, icons and the social card in `design/brand/pitline/` (see its README). They are stand-ins drawn from the written kit. TODO(pitline-artwork): replace them with the official vector files, then re-run `design/tools/build_brand.py`. The screenshots in `design/screenshots/*.png` still show the old artwork.
 - Tokens: `design/tokens.css` (copy into `src/app/globals.css` in Phase 2)
 
 All names, cars, prices and figures in the screens are sample data. Never hard-code them.
@@ -27,22 +27,26 @@ All names, cars, prices and figures in the screens are sample data. Never hard-c
 
 ### Colour
 
+Brand kit palette (D22): Navy `#0f2747` (brand, headings, dark surfaces), Electric Blue `#2563eb` (primary action, links), Signal Orange `#f97316` (the main call to action, highlights; focus rings use `#ea580c` on light surfaces for 3:1), Steel Gray `#64748b` (secondary text, UI), Light Gray `#e2e8f0` (surfaces, borders), White. In CSS: `--pitline-*`, Tailwind `brand-navy`, `brand-blue`, `brand-orange`, `brand-steel`, `brand-light`, `focus`. White text on Signal Orange is 2.8:1, so text on orange is Navy (5.4:1).
+
+Logo placement: the garage admin (`/app`, onboarding, sign-in) uses the Navy monochrome logo on a white sidebar; the Django super admin uses the reversed logo on Navy (stacked on sign-in and in the expanded sidebar, the mark alone when collapsed); everything else (marketing, emails, "Powered by" on booking pages, the social card) uses the primary colour logo. Icons come from the brand app icon.
+
 | Token | Value | Use |
 | --- | --- | --- |
-| `--navy-950` | `#071127` | Booking header, admin sidebar, dark cards, H1 text |
-| `--navy-900` | `#0c1d3d` | Hover on navy |
-| `--navy-line` | `#22385f` | Borders on navy |
-| `--garage-accent` | per garage, default `#155fba` | Primary buttons, selected states, progress, links |
-| `--blue-700` | `#1446a5` | UK band on the plate; link hover |
+| `--navy-950` | `#0f2747` | Booking header, dark cards, H1 text |
+| `--navy-900` | `#16325a` | Hover on navy |
+| `--navy-line` | `#2a4468` | Borders on navy |
+| `--garage-accent` | per garage (default `#155fba`); `#2563eb` on Pitline's own pages | Primary buttons, selected states, progress, links |
+| `--blue-700` | `#1d4ed8` | UK band on the plate; link hover |
 | `--plate-yellow` | `#f6c700` | Registration plates everywhere (input and chips) |
 | `--plate-ink` | `#111111` | Text on plates |
-| `--grey-50` | `#f4f7fa` | App background |
-| `--grey-100` | `#eef1f5` | Neutral chips |
-| `--grey-200` | `#e4eaf0` | Card borders, dividers |
-| `--grey-300` | `#cfd8e3` | Input and secondary button borders |
-| `--grey-600` | `#586575` | Secondary text (5.9:1 on white) |
-| `--grey-700` | `#3d4a5a` | Body text on light chips |
-| `--grey-800` | `#202a36` | Body text |
+| `--grey-50` | `#f8fafc` | App background |
+| `--grey-100` | `#f1f5f9` | Neutral chips |
+| `--grey-200` | `#e2e8f0` | Card borders, dividers |
+| `--grey-300` | `#cbd5e1` | Input and secondary button borders |
+| `--grey-600` | `#64748b` | Secondary text (4.8:1 on white) |
+| `--grey-700` | `#475569` | Body text on light chips |
+| `--grey-800` | `#1e293b` | Body text |
 | `--success-600` / `--success-bg` / `--success-ink` | `#16a34a` / `#e7f6ec` / `#166534` | Ready, booked, confirmed |
 | `--warning-bg` / `--warning-ink` | `#fdf1d3` / `#6e4a06` | Waiting parts, pending |
 | `--info-bg` / `--info-ink` | `#dbe8fb` / `#0d3b7a` | In bay, sent |
@@ -54,17 +58,17 @@ Accent options shown in Branding: `#155fba` blue, `#0f766e` teal, `#b9451a` oran
 
 | Role | Font | Size / weight / line height |
 | --- | --- | --- |
-| Booking H1 | Barlow Condensed | 34 to 38px / 800 / 0.98 |
-| Confirmation H1 | Barlow Condensed | 44px / 800 / 0.95 |
-| Admin H1 | Barlow Condensed | 40px / 800 / 1 |
-| KPI numbers | Barlow Condensed | 36 to 40px / 700 |
-| Plate text | Barlow Condensed | 36px input, 14 to 17px chips / 700 / letter-spacing 0.05 to 0.08em |
+| Booking H1 | Inter | 34 to 38px / 800 / 0.98 |
+| Confirmation H1 | Inter | 44px / 800 / 0.95 |
+| Admin H1 | Inter | 40px / 800 / 1 |
+| KPI numbers | Inter | 36 to 40px / 700 |
+| Plate text | Inter | 36px input, 14 to 17px chips / 700 / letter-spacing 0.05 to 0.08em |
 | Body | Inter | 15 to 16px / 400 |
 | Labels, buttons | Inter | 14 to 16px / 600 to 700 |
 | Eyebrows | Inter | 12px / 600 to 700 / uppercase / letter-spacing 0.06 to 0.1em |
 | Code (DNS records) | JetBrains Mono | 13 to 14px / 500 |
 
-Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as SOB does.
+Load with `next/font/google` (`Inter`, `JetBrains_Mono`). Inter replaces Barlow Condensed everywhere (brand kit, D22); the super admin self-hosts the same Inter file.
 
 ### Shape and spacing
 
@@ -90,11 +94,11 @@ Load with `next/font/google` (`Barlow_Condensed`, `Inter`, `JetBrains_Mono`), as
 | `StickyActionBar` | Booking 1 to 4 | White bar, 54px accent button whose label states the next step or the chosen time |
 | `BookingSummaryBar` | Booking 4 | Navy card: plate chip, service, time, Edit |
 | `ConsentCheckbox` | Booking 4 | Unticked by default: "Remind me when the MOT and service are due". A second, separate one under it for offers (consent wording v1.0), also unticked: "Send me occasional offers from [Garage name]. You can stop these any time." |
-| `ConfirmationCard` | Booking 5 | Reference in Barlow, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
+| `ConfirmationCard` | Booking 5 | Reference in Inter, 2×2 facts, Add to calendar / Change or cancel / WhatsApp |
 | `BookingStatusChip` | Manage booking | Customer-facing status: 999px chip with a dot, success / warning / info / neutral / danger (same colour pairs as `StatusPill`) |
 | `AdminShell` | Admin desktop | Navy sidebar (garage switcher, 3 groups), white top bar (search, booking page link, bell, avatar); stacks on phones |
 | `AdminTabBar` | Admin phone | 5 tabs: Today, Diary, New (accent), Customers, More |
-| `KpiCard` | Admin | Label, Barlow number, one-line context; the "won back" card is navy |
+| `KpiCard` | Admin | Label, Inter number, one-line context; the "won back" card is navy |
 | `DiaryGrid` | Admin Today and Diary | Rows = resources, columns = 30-minute slots 08:00 to 17:00, blocks coloured by status, red "now" line, scrolls sideways under 820px |
 | `JobCard` | Admin phone Today | Time + resource, plate chip + model, service, status pill; the active one shows Add photos / Send quote / Mark ready |
 | `ApprovalCard` | "Needs your OK" | Plate, source (online, missed call, AI agent), customer + service + time, Accept + second action |

@@ -54,8 +54,8 @@ export function invoiceFileName(invoice: Pick<Invoice, "invoice_number">) {
 }
 
 const c = {
-  navy: "#071127", blue: "#1974E2", paleBlue: "#EAF3FF", white: "#FFFFFF",
-  softGrey: "#F4F7FA", border: "#DCE6F2", text: "#111827", secondary: "#5F6B7A", green: "#237A57",
+  navy: "#0f2747", blue: "#2563EB", paleBlue: "#EFF6FF", white: "#FFFFFF",
+  softGrey: "#F8FAFC", border: "#E2E8F0", text: "#111827", secondary: "#5F6B7A", green: "#237A57",
   red: "#A43A44", amber: "#9A6500", muted: "#667586",
 } as const;
 
@@ -78,7 +78,7 @@ const s = StyleSheet.create({
   value: { marginTop: 4, fontFamily: "Helvetica-Bold", color: c.navy, fontSize: 10 }, bodyValue: { marginTop: 4, color: c.text },
   details: { flexDirection: "row", marginTop: 16, gap: 25 }, detailColumn: { flexGrow: 1, flexBasis: 0 },
   sectionRule: { marginTop: 5, height: 1, backgroundColor: c.border }, customerName: { marginTop: 9, fontFamily: "Helvetica-Bold", fontSize: 11.2, color: c.navy },
-  detailLine: { marginTop: 3, color: c.secondary }, registrationPanel: { alignSelf: "flex-start", marginTop: 9, paddingVertical: 6, paddingHorizontal: 9, backgroundColor: "#EAF3FF", borderLeftWidth: 3, borderLeftColor: c.blue },
+  detailLine: { marginTop: 3, color: c.secondary }, registrationPanel: { alignSelf: "flex-start", marginTop: 9, paddingVertical: 6, paddingHorizontal: 9, backgroundColor: "#EFF6FF", borderLeftWidth: 3, borderLeftColor: c.blue },
   registration: { fontFamily: "Helvetica-Bold", fontSize: 14, color: c.navy, letterSpacing: 0.7 }, vehicleName: { marginTop: 7, fontFamily: "Helvetica-Bold", fontSize: 10.2, color: c.navy }, service: { marginTop: 5, color: c.blue, fontFamily: "Helvetica-Bold" },
   issuer: { marginTop: 13, paddingTop: 8, borderTopWidth: 1, borderTopColor: c.border, flexDirection: "row", justifyContent: "space-between" },
   issuerBlock: { width: "48%" }, issuerDetails: { marginTop: 5, color: c.secondary, fontSize: 8.2 },

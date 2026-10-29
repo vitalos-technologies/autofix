@@ -21,7 +21,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     items: invoice.invoice_items.map((item) => ({ description: item.description, quantity: String(item.quantity), unitPrice: penceInput(item.unit_price_pence) })),
   };
   const serviceCategories = catalogue.map((system) => ({ id: system.key, name: system.name, services: system.services.map((service) => service.name) }));
-  return <><BackLink href={`/app/invoices/${id}`}>Back to draft</BackLink><header className="mt-5"><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Draft invoice</p><h1 className="mt-1 text-4xl font-extrabold text-[#071127]">Edit invoice</h1><p className="mt-2 text-grey-600">Financial and snapshot details remain editable until this draft is issued.</p></header><InvoiceForm initial={initial} serviceCategories={serviceCategories} /></>;
+  return <><BackLink href={`/app/invoices/${id}`}>Back to draft</BackLink><header className="mt-5"><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Draft invoice</p><h1 className="mt-1 text-4xl font-extrabold text-[#0f2747]">Edit invoice</h1><p className="mt-2 text-grey-600">Financial and snapshot details remain editable until this draft is issued.</p></header><InvoiceForm initial={initial} serviceCategories={serviceCategories} /></>;
 }
 
 function penceInput(value: number | string) { const pence = BigInt(value); return `${pence / 100n}.${String(pence % 100n).padStart(2, "0")}`; }

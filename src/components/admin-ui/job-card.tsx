@@ -77,7 +77,7 @@ export function JobCard({
           <PlateChip registration={registration} />
           {vehicle ? <span className="truncate text-[12.5px] text-grey-600">{vehicle}</span> : null}
           {courtesyCar ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#e8f0fb] px-1.5 py-0.5 text-[11px] font-bold text-[#0f3f80]">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#e8f0fb] px-1.5 py-0.5 text-[11px] font-bold text-[#1e40af]">
               <CarFront size={12} strokeWidth={2.4} aria-hidden="true" />
               Courtesy car
             </span>

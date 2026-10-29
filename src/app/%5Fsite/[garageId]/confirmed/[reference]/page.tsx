@@ -10,6 +10,7 @@ import { whatsappHref } from "@/lib/tenancy/contact";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
 import { BOOKING_COLUMN, BookingScreen } from "../../_components/booking-screen";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 export const metadata: Metadata = {
   title: "Booking confirmed",
@@ -92,7 +93,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
           </span>
           <div className="flex flex-col gap-2">
             <h1 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold text-white">{requested ? "Request sent" : "You're booked in"}</h1>
-            <p className="m-0 text-[15px] leading-normal text-[#b8c4d4]">
+            <p className="m-0 text-[15px] leading-normal text-[#94a3b8]">
               {requested ? `${garage.name} will check the job and confirm the time with you. ` : null}
               <SentTo booked={booked} />
             </p>
@@ -135,7 +136,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
           >
             Book another car
           </Link>
-          <span className="text-[11px] text-[#8796ab]">Powered by Pitline</span>
+          <PoweredByPitline onDark />
         </div>
       </div>
     </div>

@@ -93,7 +93,7 @@ export function BookingRulesForm({ initial, canEdit, offersMobile }: { initial: 
             checked={approveOnline}
             onChange={(event) => setApproveOnline(event.target.checked)}
           />
-          <div className="flex flex-col gap-4 border-t border-[#eef2f6] pt-4">
+          <div className="flex flex-col gap-4 border-t border-[#f1f5f9] pt-4">
             <h3 className="m-0 font-sans text-[15px] font-bold tracking-normal text-navy-950">Mobile visits</h3>
             <TextInputField
               id="rules-mobileTravelMin"

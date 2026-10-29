@@ -5,25 +5,25 @@
  * See design/DESIGN.md for usage.
  */
 :root {
-  --navy-950: #071127;
-  --navy-900: #0c1d3d;
-  --navy-line: #22385f;
-  --blue-700: #1446a5;
+  --navy-950: #0f2747;
+  --navy-900: #16325a;
+  --navy-line: #2a4468;
+  --blue-700: #1d4ed8;
 
   --garage-accent: #155fba;
   --garage-accent-ink: #ffffff;
 
   --plate-yellow: #f6c700;
   --plate-ink: #111111;
-  --plate-band: #1446a5;
+  --plate-band: #1d4ed8;
 
-  --grey-50: #f4f7fa;
-  --grey-100: #eef1f5;
-  --grey-200: #e4eaf0;
-  --grey-300: #cfd8e3;
-  --grey-600: #586575;
-  --grey-700: #3d4a5a;
-  --grey-800: #202a36;
+  --grey-50: #f8fafc;
+  --grey-100: #f1f5f9;
+  --grey-200: #e2e8f0;
+  --grey-300: #cbd5e1;
+  --grey-600: #64748b;
+  --grey-700: #475569;
+  --grey-800: #1e293b;
 
   --success-600: #16a34a;
   --success-bg: #e7f6ec;

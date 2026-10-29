@@ -62,7 +62,7 @@ export function AutomationRow({
     <div
       className={cn(
         "flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-3 font-sans leading-[normal] sm:py-3.5",
-        divider && "border-b border-[#eef2f6]",
+        divider && "border-b border-[#f1f5f9]",
         className,
       )}
     >

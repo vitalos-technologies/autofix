@@ -62,7 +62,7 @@ export function MissedCallCard({ call, timeZone, markHandledAction, tone = "ligh
       <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
         <PhoneMissed size={18} strokeWidth={2} aria-hidden="true" className={navy ? "text-[#f6d55c]" : "text-grey-700"} />
         <span className={cn("text-[12px] font-bold tracking-[0.06em] uppercase", navy ? "text-[#f6d55c]" : "text-grey-700")}>Missed call</span>
-        <span className={cn("text-[12px]", navy ? "text-[#b8c4d4]" : "text-grey-600")}>· {formatTime(call.at, timeZone)}</span>
+        <span className={cn("text-[12px]", navy ? "text-[#94a3b8]" : "text-grey-600")}>· {formatTime(call.at, timeZone)}</span>
         {call.textedBack ? (
           <Badge tone="success" size="sm" className="gap-1 font-bold whitespace-nowrap">
             <MessageSquareText size={14} strokeWidth={2.2} aria-hidden="true" />

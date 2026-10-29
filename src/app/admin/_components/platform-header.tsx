@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
+import { PitlineLogo } from "@/components/brand/pitline-logo";
 import { buttonClass, focusRingOnDark } from "@/components/admin-ui/styles";
 import { signOutPlatformAction } from "@/lib/platform/actions";
 import { cn } from "@/lib/utils";
@@ -18,8 +19,8 @@ export function PlatformHeader({ email, showNav }: { email: string; showNav: boo
   return (
     <header className="bg-navy-950 text-white">
       <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 lg:px-8">
-        <p className="m-0 flex min-h-11 items-center gap-2 font-display text-[20px] font-extrabold tracking-[-0.01em]">
-          Pitline <span className="rounded-full bg-[#1e3a6b] px-2 py-0.5 font-sans text-[12px] font-bold tracking-[0.06em] uppercase">Platform</span>
+        <p className="m-0 flex min-h-11 items-center gap-2.5">
+          <PitlineLogo variant="reversed" title="Pitline" className="h-7" /> <span className="rounded-full bg-[#1e3a6b] px-2 py-0.5 font-sans text-[12px] font-bold tracking-[0.06em] uppercase">Platform</span>
         </p>
         {showNav ? (
           <nav aria-label="Platform" className="order-3 flex w-full gap-1 sm:order-none sm:w-auto">

@@ -24,14 +24,14 @@ export default async function AdminTrashPage() {
   const total = sections.reduce((sum, section) => sum + section.items.length, 0);
 
   return <>
-    <div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-700"><Trash2 size={23} /></span><div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Recovery area</p><h1 className="mt-1 text-4xl font-extrabold text-[#071127]">Trash</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-grey-600">Restore records to their original CMS list or permanently remove eligible records. Items remain recoverable until permanent deletion.</p></div></div>
-    <p className="mt-6 text-sm font-bold text-[#586575]">{total} trashed {total === 1 ? "item" : "items"}</p>
+    <div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-700"><Trash2 size={23} /></span><div><p className="text-xs font-extrabold tracking-widest text-accent uppercase">Recovery area</p><h1 className="mt-1 text-4xl font-extrabold text-[#0f2747]">Trash</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-grey-600">Restore records to their original CMS list or permanently remove eligible records. Items remain recoverable until permanent deletion.</p></div></div>
+    <p className="mt-6 text-sm font-bold text-[#64748b]">{total} trashed {total === 1 ? "item" : "items"}</p>
     <div className="mt-2 grid gap-8">
       {sections.map((section) => <section key={section.entity} aria-labelledby={`trash-${section.entity}`}>
-        <div className="flex items-end justify-between gap-4"><div><h2 id={`trash-${section.entity}`} className="text-2xl font-extrabold text-[#071127]">{section.label}</h2>{section.note && <p className="mt-1 max-w-3xl text-xs leading-5 text-amber-800">{section.note}</p>}</div><span className="text-sm font-bold text-grey-600">{section.items.length}</span></div>
+        <div className="flex items-end justify-between gap-4"><div><h2 id={`trash-${section.entity}`} className="text-2xl font-extrabold text-[#0f2747]">{section.label}</h2>{section.note && <p className="mt-1 max-w-3xl text-xs leading-5 text-amber-800">{section.note}</p>}</div><span className="text-sm font-bold text-grey-600">{section.items.length}</span></div>
         <AdminBulkActions entity={section.entity} mode="trash" action={manageTrashAction}>
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[#E4EAF0] bg-white">
-            {section.items.map((item) => <div key={item.id} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-t border-[#E4EAF0] px-3 py-3 first:border-t-0"><AdminItemCheckbox id={item.id} label={`Select ${item.title}`} /><div className="min-w-0"><p className="truncate font-extrabold text-[#071127]">{item.title}</p><p className="mt-1 truncate text-xs capitalize text-grey-600">{item.detail}</p></div><time dateTime={item.deletedAt} className="text-xs font-semibold text-grey-600">{formatDate(item.deletedAt)}</time></div>)}
+          <div className="mt-3 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+            {section.items.map((item) => <div key={item.id} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-t border-[#E2E8F0] px-3 py-3 first:border-t-0"><AdminItemCheckbox id={item.id} label={`Select ${item.title}`} /><div className="min-w-0"><p className="truncate font-extrabold text-[#0f2747]">{item.title}</p><p className="mt-1 truncate text-xs capitalize text-grey-600">{item.detail}</p></div><time dateTime={item.deletedAt} className="text-xs font-semibold text-grey-600">{formatDate(item.deletedAt)}</time></div>)}
             {!section.items.length && <p className="px-5 py-7 text-sm text-grey-600">No {section.label.toLowerCase()} in trash.</p>}
           </div>
         </AdminBulkActions>

@@ -28,7 +28,7 @@ function hasPrefix(pathname: string, prefix: string) {
 function notFound() {
   return new NextResponse(
     "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Page not found</title></head>"
-      + "<body style=\"font-family:system-ui,sans-serif;margin:0;padding:40px 20px;color:#202a36;background:#f4f7fa\"><h1 style=\"margin:0 0 8px;color:#071127\">Page not found</h1>"
+      + "<body style=\"font-family:system-ui,sans-serif;margin:0;padding:40px 20px;color:#1e293b;background:#f8fafc\"><h1 style=\"margin:0 0 8px;color:#0f2747\">Page not found</h1>"
       + "<p style=\"margin:0;line-height:1.5\">There is no booking page at this address. Check the link you were given, or contact the garage.</p></body></html>",
     { status: 404, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } },
   );

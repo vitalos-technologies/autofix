@@ -34,7 +34,7 @@ export function qrSvg(text: string, options: { title?: string; foreground?: stri
     }
   });
   const title = options.title ? `<title>${escapeXml(options.title)}</title>` : "";
-  const fill = /^#[0-9a-f]{6}$/i.test(options.foreground ?? "") ? options.foreground : "#071127";
+  const fill = /^#[0-9a-f]{6}$/i.test(options.foreground ?? "") ? options.foreground : "#0f2747";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img">${title}<rect width="${size}" height="${size}" fill="#ffffff"/><path fill="${fill}" d="${path}"/></svg>`;
 }
 

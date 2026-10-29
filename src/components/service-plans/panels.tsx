@@ -126,7 +126,7 @@ export async function CustomerPlansPanel({ admin, customerId, flash }: { admin: 
         {subscriptions.map((subscription, index) => {
           const usage = usages[index];
           return (
-            <li key={subscription.id} className="flex flex-col gap-1.5 border-t border-[#eef2f6] py-3 first:border-t-0 first:pt-0">
+            <li key={subscription.id} className="flex flex-col gap-1.5 border-t border-[#f1f5f9] py-3 first:border-t-0 first:pt-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[15px] font-bold text-navy-950">{subscription.planName}</span>
                 <SubscriptionStatusBadge status={subscription.status} />
@@ -176,8 +176,8 @@ export async function InvoicePlanPanel({ admin, invoiceId, flash }: { admin: Adm
   const returnTo = `/app/invoices/${invoiceId}`;
 
   return (
-    <section id="service-plan" className="scroll-mt-20 rounded-2xl border border-[#E4EAF0] bg-white p-5">
-      <h2 className="text-lg font-extrabold text-[#071127]">{subscription ? `On ${subscription.planName}` : "Service plan"}</h2>
+    <section id="service-plan" className="scroll-mt-20 rounded-2xl border border-[#E2E8F0] bg-white p-5">
+      <h2 className="text-lg font-extrabold text-[#0f2747]">{subscription ? `On ${subscription.planName}` : "Service plan"}</h2>
       <PlanNotice flash={planFlash(flash?.done, flash?.error)} className="mt-3" />
       {applied ? (
         <p className="mt-2 text-sm text-grey-700">

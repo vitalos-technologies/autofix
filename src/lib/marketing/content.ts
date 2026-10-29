@@ -22,18 +22,19 @@ export const marketing = {
     badge: "Built for independent garages",
     headline: "Your garage,",
     highlight: "fully booked.",
-    subline:
-      "A booking page customers finish on their phone in under a minute, a diary that never double-books a bay, and reminders that bring cars back for their MOT and service.",
+    // Brand kit (D22): tagline, subline and the "Built for independent garages" line.
+    subline: "Online booking, reminders and AI front desk tools for independent garages.",
     secondary: { label: "See how it works", href: "#how-it-works" },
     notes: ["Live on your free link in minutes", "Your own domain when you're ready", "Works on any phone"],
   },
 
   trustLabel: "What every garage gets",
+  // The kit's three feature lines, then reminders.
   trust: [
-    { icon: "globe", label: "Your own booking domain", detail: "book.yourgarage.co.uk, or a free Pitline link" },
-    { icon: "shield", label: "No double bookings", detail: "Every bay is checked at the moment of booking" },
+    { icon: "globe", label: "Online booking pages", detail: "Let customers book 24/7" },
+    { icon: "shield", label: "No double bookings", detail: "Keep your diary in sync" },
+    { icon: "phone", label: "AI front desk for calls", detail: "Never miss a customer" },
     { icon: "bell", label: "MOT and service reminders", detail: "Only to customers who said yes" },
-    { icon: "phone", label: "Missed calls texted back", detail: "With a link to book, within a minute" },
   ],
 
   howItWorks: {

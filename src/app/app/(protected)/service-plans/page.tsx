@@ -28,7 +28,7 @@ function SubscriptionList({ subscriptions, timeZone }: { subscriptions: PlanSubs
   return (
     <ul className="m-0 flex list-none flex-col p-0">
       {subscriptions.map((subscription) => (
-        <li key={subscription.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#eef2f6] py-3 first:border-t-0">
+        <li key={subscription.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#f1f5f9] py-3 first:border-t-0">
           <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
             <Link href={`/app/customers/${subscription.customerId}#service-plan`} className={cn(textLinkClass, "self-start text-[15px] font-bold")}>
               {subscription.customerName ?? "Customer"}

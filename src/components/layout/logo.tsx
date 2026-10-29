@@ -1,20 +1,26 @@
-import { Wrench } from "lucide-react";
 import Link from "next/link";
+import { PitlineLogo, type PitlineLogoVariant } from "@/components/brand/pitline-logo";
 import { cn } from "@/lib/utils";
 
 /**
- * The Pitline wordmark for the admin and sign-in screens. The admin is
- * Pitline-branded; garage logos appear only on customer screens.
+ * The Pitline logo as a home link. The admin and sign-in screens use the Navy monochrome logo
+ * (brand kit, D22); the marketing page passes `primary`. `inverse` is the reversed logo for Navy
+ * backgrounds. Garage logos appear only on customer screens.
  */
-export function Logo({ inverse = false, compact = false, className }: { inverse?: boolean; compact?: boolean; className?: string }) {
+export function Logo({
+  variant = "mono",
+  inverse = false,
+  compact = false,
+  className,
+}: {
+  variant?: PitlineLogoVariant;
+  inverse?: boolean;
+  compact?: boolean;
+  className?: string;
+}) {
   return (
-    <Link href="/app" className={cn("inline-flex shrink-0 items-center gap-2 rounded-lg", className)} aria-label="Pitline home">
-      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-lg bg-[#155fba] text-white", compact ? "size-8" : "size-10")}>
-        <Wrench size={compact ? 17 : 21} strokeWidth={2.25} />
-      </span>
-      <span aria-hidden="true" className={cn("font-display font-extrabold leading-none tracking-tight", compact ? "text-2xl" : "text-[1.9rem]", inverse ? "text-white" : "text-[#071127]")}>
-        Pitline
-      </span>
+    <Link href="/app" className={cn("inline-flex shrink-0 items-center rounded-lg", className)} aria-label="Pitline home">
+      <PitlineLogo variant={inverse ? "reversed" : variant} className={compact ? "h-7" : "h-9"} />
     </Link>
   );
 }

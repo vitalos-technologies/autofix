@@ -28,6 +28,7 @@ import {
 } from "@/components/book";
 import { ACCENT_PALETTE, garageAccentStyle } from "@/lib/branding/accent";
 import { cn } from "@/lib/utils";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 /* Sample data for the gallery only. Components never hard-code any of this. */
 const GARAGE = { name: "Hartley Road Motors", phone: "+441302000000", location: "Doncaster · Diagnostics & repairs" };
@@ -79,7 +80,7 @@ const SLOTS_BST: TimeSlot[] = [
 
 /* Text inputs are page markup (not in the component list); shown here so Book 4 can be compared. */
 const GALLERY_INPUT =
-  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#6a7686] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
+  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#64748b] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
 
 const ACCENTS = [...ACCENT_PALETTE.map((value) => ({ value, label: value })), { value: "#ffcc00", label: "#ffcc00 (darkened)" }];
 
@@ -210,7 +211,7 @@ export function ComponentGallery() {
                 </p>
               </div>
             </div>
-            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote="Powered by Pitline" />
+            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote={<PoweredByPitline />} />
           </Frame>
 
           {/* Book 2 · Service */}
@@ -359,7 +360,7 @@ export function ComponentGallery() {
               </span>
               <div className="flex flex-col gap-2">
                 <h3 className="m-0 font-display text-[44px] leading-[0.95] font-extrabold tracking-[-0.01em] text-white">You&apos;re booked in</h3>
-                <p className="m-0 text-[15px] leading-normal text-[#b8c4d4]">We&apos;ve texted your confirmation to 07••• •••412.</p>
+                <p className="m-0 text-[15px] leading-normal text-[#94a3b8]">We&apos;ve texted your confirmation to 07••• •••412.</p>
               </div>
               <ConfirmationCard
                 reference="HRM-4821"
@@ -372,7 +373,7 @@ export function ComponentGallery() {
                 whatsappHref="#af-gallery"
               />
               <a href="#af-gallery" className="text-[13px] text-[#9cc8ff] underline">Book another car</a>
-              <span className="text-[11px] text-[#8796ab]">Powered by Pitline</span>
+              <PoweredByPitline onDark />
             </div>
           </Frame>
 

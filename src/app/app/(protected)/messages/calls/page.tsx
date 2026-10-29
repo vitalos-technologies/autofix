@@ -100,7 +100,7 @@ export default async function CallsPage() {
           {calls.length > 0 ? (
             <ul className="m-0 flex list-none flex-col p-0">
               {calls.map((call) => (
-                <li key={call.id} className="border-t border-[#eef2f6] first:border-t-0">
+                <li key={call.id} className="border-t border-[#f1f5f9] first:border-t-0">
                   <CallItem call={call} timeZone={timeZone} today={today} />
                 </li>
               ))}

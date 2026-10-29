@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Bell, Wrench } from "lucide-react";
+import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "./account-menu";
+import { PitlineLogo } from "@/components/brand/pitline-logo";
 import { AdminNavGroups } from "./admin-nav";
 import { AdminSearch, DEFAULT_SEARCH_PLACEHOLDER } from "./admin-search";
 import { AdminShellProvider } from "./admin-shell-context";
@@ -51,20 +52,18 @@ export type AdminShellProps = {
   className?: string;
 };
 
-function AutofixMark() {
+function AdminLogo() {
   return (
-    <div className="flex items-center gap-2.5 px-2">
-      <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-[9px] bg-accent text-accent-ink">
-        <Wrench size={18} strokeWidth={2.2} />
-      </span>
-      <span className="font-display text-[22px] leading-none font-extrabold tracking-[0.01em] text-white">Pitline</span>
+    <div className="px-2.5 pt-1">
+      <PitlineLogo variant="mono" title="Pitline" className="h-8" />
     </div>
   );
 }
 
 /**
- * The admin frame (design/screens/Admin-Dashboard.dc.html). From 1024px: navy sidebar (Pitline mark,
- * garage switcher, nav groups) and a white top bar (search, booking page link, bell, account menu).
+ * The admin frame (design/screens/Admin-Dashboard.dc.html). From 1024px: a white sidebar (the Navy
+ * monochrome Pitline logo, brand kit D22; garage switcher; nav groups) and a white top bar (search,
+ * booking page link, bell, account menu).
  * Under 1024px: no sidebar or top bar; `AdminTabBar` is fixed to the bottom and each page's
  * `PageHeader` carries search and the account menu. The admin is Pitline-branded: only the garage
  * tiles in the switcher use garage colours.
@@ -108,12 +107,12 @@ export function AdminShell({
           Skip to content
         </a>
 
-        <div className="hidden bg-navy-950 text-[#c9d4e2] lg:block">
+        <div className="hidden border-r border-grey-200 bg-white text-grey-700 lg:block">
           {/* The whole sidebar is the Main navigation landmark: mark, garage switcher and sections. */}
           <nav aria-label="Main" className="sticky top-0 flex max-h-dvh flex-col gap-[22px] overflow-y-auto px-3.5 py-5">
-            <AutofixMark />
-            <GarageSwitcher garages={garages} currentGarageId={currentGarageId} switchGarageAction={switchGarageAction} groupHref={groupOverviewHref} />
-            <AdminNavGroups groups={nav} activeHref={activeHref} />
+            <AdminLogo />
+            <GarageSwitcher garages={garages} currentGarageId={currentGarageId} switchGarageAction={switchGarageAction} groupHref={groupOverviewHref} tone="light" />
+            <AdminNavGroups groups={nav} activeHref={activeHref} tone="sidebar" />
           </nav>
         </div>
 

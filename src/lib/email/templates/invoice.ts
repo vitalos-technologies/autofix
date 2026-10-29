@@ -38,7 +38,7 @@ export function renderInvoiceEmail(input: InvoiceEmailInput): RenderedEmail {
       tone: paid ? "success" : "info",
       title: `Invoice ${input.invoiceNumber}`,
       intro: `Hello ${input.customerName}. ${attachmentCopy}`,
-      contentHtml: `<p style="margin:0 0 22px;color:#071127;font-size:30px;font-weight:700;line-height:36px;">${input.amount}</p>${detailCard(details)}${notice("PDF invoice attached", attachmentCopy, brand)}`,
+      contentHtml: `<p style="margin:0 0 22px;color:#0f2747;font-size:30px;font-weight:700;line-height:36px;">${input.amount}</p>${detailCard(details)}${notice("PDF invoice attached", attachmentCopy, brand)}`,
     }),
     text: [plainTextHeader(brand), "", paid ? "PAID / SETTLED" : "INVOICE · UNPAID", "", `Invoice ${input.invoiceNumber}`, input.amount, "", `Hello ${input.customerName},`, "", attachmentCopy, "", detailsText(details), "", "PDF invoice attached", "", "If you have any questions, reply to this email.", plainTextFooter(brand)].join("\n"),
   };

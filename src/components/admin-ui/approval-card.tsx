@@ -129,7 +129,7 @@ export function ApprovalCard({
         <p className="m-0 flex items-center gap-2">
           <span aria-hidden="true" className="size-2 rounded-full bg-plate" />
           <span className="text-[12px] font-bold tracking-[0.06em] text-[#f6d55c] uppercase">{SOURCE_EYEBROWS[source]}</span>
-          {received ? <span className="text-[12px] text-[#b8c4d4]">· {received}</span> : null}
+          {received ? <span className="text-[12px] text-[#94a3b8]">· {received}</span> : null}
         </p>
       ) : (
         <p className="m-0 flex flex-wrap items-center gap-x-2.5 gap-y-1">

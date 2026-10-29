@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { BookingScreen } from "../_components/booking-screen";
 import { HealthCheckDecisions } from "../_components/health-check-decisions";
 import { ManageNotice, managePrimaryAction } from "../_components/manage-ui";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 export const metadata: Metadata = {
   title: "Your car's health check",
@@ -197,7 +198,7 @@ export default async function HealthCheckCustomerPage({ params, searchParams }: 
           </ManageNotice>
         )}
         {canDecide ? null : <CallGarage garage={garage} />}
-        <p className="m-0 text-center text-[11px] text-grey-600">Powered by Pitline</p>
+        <p className="m-0 text-center"><PoweredByPitline /></p>
       </div>
     </BookingScreen>
   );

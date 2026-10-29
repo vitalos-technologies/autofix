@@ -269,7 +269,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
                 </thead>
                 <tbody>
                   {week.rows.map((row) => (
-                    <tr key={row.id} className="border-t border-[#eef2f6]">
+                    <tr key={row.id} className="border-t border-[#f1f5f9]">
                       <th scope="row" className="py-2 pr-2 align-top text-[13px] font-bold text-navy-950">
                         <span className="block truncate">{row.id === UNASSIGNED_ROW ? "Unassigned" : row.name}</span>
                       </th>

@@ -36,7 +36,7 @@ export default async function MessagesPage() {
             {inbox.conversations.length > 0 ? (
               <ul className="m-0 flex list-none flex-col p-0">
                 {inbox.conversations.map((conversation) => (
-                  <li key={conversation.customerId} className="border-t border-[#eef2f6] first:border-t-0">
+                  <li key={conversation.customerId} className="border-t border-[#f1f5f9] first:border-t-0">
                     <Link
                       href={`/app/messages/${conversation.customerId}`}
                       className={cn("flex min-h-[64px] items-center gap-3 rounded-input py-3 text-inherit no-underline hover:bg-grey-50", focusRing)}
@@ -80,7 +80,7 @@ export default async function MessagesPage() {
               </p>
               <ul className="m-0 flex list-none flex-col p-0">
                 {inbox.unknown.map((message) => (
-                  <li key={message.id} className="flex flex-col gap-1 border-t border-[#eef2f6] py-2.5 first:border-t-0 first:pt-0">
+                  <li key={message.id} className="flex flex-col gap-1 border-t border-[#f1f5f9] py-2.5 first:border-t-0 first:pt-0">
                     <span className="flex items-center justify-between gap-2 text-[13px]">
                       <strong className="font-semibold text-navy-950">{message.maskedNumber}</strong>
                       <time dateTime={message.at} className="text-grey-600 tabular-nums">

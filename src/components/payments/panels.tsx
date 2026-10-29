@@ -40,7 +40,7 @@ function PaymentList({ rows, timeZone, canAct, returnTo }: { rows: PaymentRow[];
         const attention = attentionLabel(row.attention);
         const sent = notifiedLine(row, timeZone);
         return (
-          <li key={row.id} className="flex flex-col gap-1.5 border-t border-[#eef2f6] py-3 first:border-t-0 first:pt-0">
+          <li key={row.id} className="flex flex-col gap-1.5 border-t border-[#f1f5f9] py-3 first:border-t-0 first:pt-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[15px] font-bold text-navy-950">
                 {paymentKindLabel(row.kind)} · {formatPounds(row.status === "paid" ? (row.amount_paid_pence ?? row.amount_pence) : row.amount_pence)}
@@ -91,7 +91,7 @@ export async function BookingPaymentsPanel({ admin, bookingId, status, flash }: 
       )}
       {status === "no_show" && canAct && liveFee?.status !== "paid" ? (
         fee && setup.active ? (
-          <form action={chargeNoShowFeeAction} className="flex flex-col gap-2 border-t border-[#eef2f6] pt-3.5">
+          <form action={chargeNoShowFeeAction} className="flex flex-col gap-2 border-t border-[#f1f5f9] pt-3.5">
             <input type="hidden" name="bookingId" value={bookingId} />
             <SubmitButton className={buttonClass(liveFee ? "secondary" : "primary", "md", "w-full sm:w-fit")}>
               <CreditCard size={17} strokeWidth={2} aria-hidden="true" />
@@ -100,7 +100,7 @@ export async function BookingPaymentsPanel({ admin, bookingId, status, flash }: 
             <p className="m-0 text-[13px] text-grey-600">The customer gets a payment link by text, WhatsApp or email.</p>
           </form>
         ) : (
-          <p className="m-0 border-t border-[#eef2f6] pt-3.5 text-[14px] text-grey-700">
+          <p className="m-0 border-t border-[#f1f5f9] pt-3.5 text-[14px] text-grey-700">
             {setup.active ? "Set a no-show fee to charge one by link. " : "Connect a payment account to charge a no-show fee. "}
             <Link href="/app/payments/settings" className={textLinkClass}>Payment settings</Link>
           </p>
@@ -124,8 +124,8 @@ export async function InvoicePaymentLinkPanel({ admin, invoiceId, invoiceStatus,
   const pending = rows.find((row) => row.status === "pending");
 
   return (
-    <section id="payments" className="scroll-mt-20 rounded-2xl border border-[#E4EAF0] bg-white p-5">
-      <h2 className="flex items-center gap-2 text-lg font-extrabold text-[#071127]">
+    <section id="payments" className="scroll-mt-20 rounded-2xl border border-[#E2E8F0] bg-white p-5">
+      <h2 className="flex items-center gap-2 text-lg font-extrabold text-[#0f2747]">
         <CreditCard size={18} aria-hidden="true" /> Pay by link {setup.hasFeature ? null : <ProBadge />}
       </h2>
       <div className="mt-3 flex flex-col gap-3">

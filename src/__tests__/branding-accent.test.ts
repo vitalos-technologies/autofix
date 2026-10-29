@@ -31,7 +31,7 @@ describe("contrastRatio", () => {
   it("matches the WCAG reference values", () => {
     expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
     expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
-    expect(contrastRatio("#586575", "#ffffff")).toBeCloseTo(5.9, 1);
+    expect(contrastRatio("#64748b", "#ffffff")).toBeCloseTo(4.76, 1);
   });
 
   it("is symmetric", () => {

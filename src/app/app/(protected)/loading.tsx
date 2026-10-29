@@ -1,5 +1,5 @@
 function SkeletonBlock({ className }: { className: string }) {
-  return <div aria-hidden="true" className={`rounded-lg bg-[#E4EAF0] ${className}`} />;
+  return <div aria-hidden="true" className={`rounded-lg bg-[#E2E8F0] ${className}`} />;
 }
 
 export default function AdminLoading() {
@@ -23,19 +23,19 @@ export default function AdminLoading() {
 
       <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="rounded-2xl border border-[#E4EAF0] bg-white p-6">
+          <div key={index} className="rounded-2xl border border-[#E2E8F0] bg-white p-6">
             <SkeletonBlock className="h-3 w-24" />
             <SkeletonBlock className="mt-5 h-9 w-16" />
           </div>
         ))}
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-[#E4EAF0] bg-white">
-        <div className="flex items-center justify-between gap-4 border-b border-[#E4EAF0] bg-[#F8FAFC] px-5 py-4">
+      <div className="mt-8 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+        <div className="flex items-center justify-between gap-4 border-b border-[#E2E8F0] bg-[#F8FAFC] px-5 py-4">
           <SkeletonBlock className="h-4 w-36" />
           <SkeletonBlock className="h-4 w-20" />
         </div>
-        <div className="divide-y divide-[#E4EAF0]">
+        <div className="divide-y divide-[#E2E8F0]">
           {Array.from({ length: 5 }, (_, index) => (
             <div key={index} className="grid gap-4 px-5 py-5 sm:grid-cols-[1.4fr_.8fr_.6fr] sm:items-center">
               <div>

@@ -7,14 +7,14 @@
  */
 @layer base {
   :root {
-    --brand-blue: #1974e2;
+    --brand-blue: #2563eb;
     --brand-blue-bright: #168bff;
     --brand-blue-light: #67b9ff;
-    --brand-blue-dark: #1446a5;
-    --brand-navy: #071127;
-    --brand-navy-light: #0c1d3d;
-    --brand-black: #030712;
-    --silver: #dce6f2;
+    --brand-blue-dark: #1d4ed8;
+    --brand-navy: #0f2747;
+    --brand-navy-light: #16325a;
+    --brand-black: #0f2747;
+    --silver: #e2e8f0;
     --grey-400: #9aa7b6;
     --success: #16a34a;
     --warning: #f59e0b;
@@ -50,7 +50,7 @@
   }
 
   :focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--garage-accent) 60%, transparent);
+    outline: 3px solid var(--focus-ring);
   }
 
   ::selection {
@@ -64,7 +64,7 @@
     background:
       linear-gradient(rgba(103, 185, 255, 0.055) 1px, transparent 1px),
       linear-gradient(90deg, rgba(103, 185, 255, 0.055) 1px, transparent 1px),
-      linear-gradient(135deg, #030712, #071127 72%);
+      linear-gradient(135deg, #0f2747, #0f2747 72%);
     background-size: 52px 52px, 52px 52px, auto;
   }
 
@@ -101,27 +101,39 @@
   }
 }
 
-/* Pitline design tokens (design/tokens.css) */
+/* Pitline design tokens (design/tokens.css; brand kit, DECISIONS D22) */
 :root {
-  --navy-950: #071127;
-  --navy-900: #0c1d3d;
-  --navy-line: #22385f;
-  --blue-700: #1446a5;
+  /* Brand palette. Signal Orange is for the main call to action and highlights; focus rings use
+     orange-600 on light surfaces (#f97316 on white is 2.8:1, under the 3:1 a focus ring needs). */
+  --pitline-navy: #0f2747;
+  --pitline-blue: #2563eb;
+  --pitline-orange: #f97316;
+  --pitline-orange-600: #ea580c;
+  --pitline-steel: #64748b;
+  --pitline-light: #e2e8f0;
+  --focus-ring: var(--pitline-orange-600);
+  --focus-ring-on-dark: var(--pitline-orange);
 
-  --garage-accent: #155fba;
+  --navy-950: #0f2747;
+  --navy-900: #16325a;
+  --navy-line: #2a4468;
+  --blue-700: #1d4ed8;
+
+  /* Pitline surfaces (admin, sign-up, marketing): Electric Blue. Booking sites set the garage's own. */
+  --garage-accent: #2563eb;
   --garage-accent-ink: #ffffff;
 
   --plate-yellow: #f6c700;
   --plate-ink: #111111;
-  --plate-band: #1446a5;
+  --plate-band: #1d4ed8;
 
-  --grey-50: #f4f7fa;
-  --grey-100: #eef1f5;
-  --grey-200: #e4eaf0;
-  --grey-300: #cfd8e3;
-  --grey-600: #586575;
-  --grey-700: #3d4a5a;
-  --grey-800: #202a36;
+  --grey-50: #f8fafc;
+  --grey-100: #f1f5f9;
+  --grey-200: #e2e8f0;
+  --grey-300: #cbd5e1;
+  --grey-600: #64748b;
+  --grey-700: #475569;
+  --grey-800: #1e293b;
 
   --success-600: #16a34a;
   --success-bg: #e7f6ec;
@@ -162,7 +174,15 @@
   --color-info-bg: var(--info-bg);
   --color-info-ink: var(--info-ink);
   --color-danger: var(--danger-600);
-  --font-display: var(--font-barlow-condensed), "Barlow Condensed", "Arial Narrow", sans-serif;
+  --color-brand-navy: var(--pitline-navy);
+  --color-brand-blue: var(--pitline-blue);
+  --color-brand-orange: var(--pitline-orange);
+  --color-brand-orange-600: var(--pitline-orange-600);
+  --color-brand-steel: var(--pitline-steel);
+  --color-brand-light: var(--pitline-light);
+  --color-focus: var(--focus-ring);
+  --color-focus-on-dark: var(--focus-ring-on-dark);
+  --font-display: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
   --radius-control: 14px;
@@ -180,4 +200,9 @@
   --radius-input: 12px;
   --radius-hero: 18px;
   --radius-plate: 10px;
+}
+
+/* Garage booking sites focus in the garage's own colour, not Pitline's orange. */
+[data-garage] {
+  --focus-ring: var(--garage-accent);
 }

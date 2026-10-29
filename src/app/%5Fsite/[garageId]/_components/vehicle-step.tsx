@@ -11,6 +11,7 @@ import type { DraftVehicle } from "@/lib/booking-flow/vehicle";
 import { cn } from "@/lib/utils";
 import { FormAlert } from "./booking-screen";
 import { TextField } from "./text-field";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 const FORM_ID = "vehicle-form";
 
@@ -223,7 +224,7 @@ export function VehicleStep({ motEnabled, timeZone, initialVehicle, humanCheck }
         label="Continue"
         busy={pending && intent === "continue"}
         disabled={pending}
-        footnote={<span className="text-[11px] text-[#6a7686]">Powered by Pitline</span>}
+        footnote={<PoweredByPitline />}
       />
     </>
   );

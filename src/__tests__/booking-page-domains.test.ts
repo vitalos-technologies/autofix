@@ -98,9 +98,9 @@ describe("QR code", () => {
     const svg = qrSvg(link, { title: "Book <online> & go" });
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true);
     expect(svg).toContain("<title>Book &lt;online&gt; &amp; go</title>");
-    expect(svg).toMatch(/<path fill="#071127" d="M\d/);
+    expect(svg).toMatch(/<path fill="#0f2747" d="M\d/);
     expect(svg).not.toMatch(/script|href/i);
-    expect(qrSvg(link, { foreground: "red" })).toContain('fill="#071127"');
+    expect(qrSvg(link, { foreground: "red" })).toContain('fill="#0f2747"');
   });
 
   it("writes a valid greyscale PNG", () => {

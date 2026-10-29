@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-react";
+import { PitlineLogo } from "@/components/brand/pitline-logo";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { OnboardingProgress } from "./onboarding-progress";
@@ -17,8 +17,8 @@ export type OnboardingFrameProps = {
 };
 
 /**
- * Phone-first page for sign-up and onboarding, outside the admin shell: a Pitline bar, the step
- * progress, a Barlow H1 and the step's content in a single column (560px, 720px when wide).
+ * Phone-first page for sign-up and onboarding, outside the admin shell: a Pitline bar (the Navy
+ * monochrome logo, as in the admin), the step progress, an H1 and the step's content in a single column (560px, 720px when wide).
  * The content column is the page's <main> (the root layout has none, A85).
  */
 export function OnboardingFrame({ step, eyebrow, title, description, children, headerAction, width = "narrow" }: OnboardingFrameProps) {
@@ -26,12 +26,7 @@ export function OnboardingFrame({ step, eyebrow, title, description, children, h
     <div className="min-h-screen bg-grey-50 font-sans text-grey-800">
       <header className="border-b border-grey-200 bg-white">
         <div className={cn("mx-auto flex min-h-16 items-center justify-between gap-3 px-5", width === "wide" ? "max-w-[720px]" : "max-w-[560px]")}>
-          <span className="inline-flex items-center gap-2">
-            <span aria-hidden="true" className="grid size-9 place-items-center rounded-lg bg-[#155fba] text-white">
-              <Wrench size={18} strokeWidth={2.25} />
-            </span>
-            <span className="font-display text-[26px] leading-none font-extrabold tracking-tight text-navy-950">Pitline</span>
-          </span>
+          <PitlineLogo variant="mono" title="Pitline" className="h-8" />
           {headerAction}
         </div>
       </header>

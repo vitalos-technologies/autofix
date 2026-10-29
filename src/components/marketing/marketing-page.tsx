@@ -9,35 +9,30 @@ import {
   Menu,
   PhoneCall,
   ShieldCheck,
-  Wrench,
 } from "lucide-react";
 import { BookingScreen, FeatureArt, FloatingCard, PhoneFrame, TodayScreen } from "@/components/marketing/illustrations";
+import { PitlineLogo } from "@/components/brand/pitline-logo";
 import { marketing } from "@/lib/marketing/content";
 import { cn } from "@/lib/utils";
 
 // The Pitline marketing page on the admin host (`/`). Same section order as the Answerd site (header,
-// hero, trust strip, how it works, features, phone band, for-the-business, FAQs, footer) in Pitline's
-// navy and number-plate yellow. Server-rendered with no client JavaScript: the mobile menu and the FAQs
+// hero, trust strip, how it works, features, phone band, for-the-business, FAQs, footer) in the Pitline
+// brand kit (D22): Navy, Electric Blue, and Signal Orange for the main call to action. Server-rendered with no client JavaScript: the mobile menu and the FAQs
 // are native <details>.
 
 const shell = "mx-auto w-full max-w-[1180px] px-4 md:px-6";
 const primaryButton =
-  "inline-flex min-h-[54px] items-center justify-center gap-2 rounded-control bg-plate px-6 text-[16px] font-semibold text-plate-ink shadow-[0_14px_30px_-14px_rgba(246,199,0,0.9)] transition hover:-translate-y-0.5 hover:bg-[#ffd21f] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700 [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5";
+  "inline-flex min-h-[54px] items-center justify-center gap-2 rounded-control bg-brand-orange px-6 text-[16px] font-semibold text-navy-950 shadow-[0_14px_30px_-14px_rgba(249,115,22,0.9)] transition hover:-translate-y-0.5 hover:bg-[#fb923c] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5";
 const outlineButton =
-  "inline-flex min-h-[54px] items-center justify-center gap-2 rounded-control border border-grey-300 bg-white px-6 text-[16px] font-semibold text-navy-950 transition hover:-translate-y-0.5 hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700";
+  "inline-flex min-h-[54px] items-center justify-center gap-2 rounded-control border border-grey-300 bg-white px-6 text-[16px] font-semibold text-navy-950 transition hover:-translate-y-0.5 hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 const trustIcons = { globe: Globe, shield: ShieldCheck, bell: BellRing, phone: PhoneCall } as const;
 
 function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <Link href="/" aria-label={`${marketing.name} home`} className="inline-flex min-h-11 items-center gap-2.5 rounded-[10px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
-      <span className="grid size-9 place-items-center rounded-[10px] bg-plate text-navy-950">
-        <Wrench size={19} strokeWidth={2.4} aria-hidden="true" />
-      </span>
-      <span className="flex items-baseline gap-1.5">
-        <span className={cn("font-display text-[26px] leading-none font-bold tracking-[0.01em]", inverse ? "text-white" : "text-navy-950")}>{marketing.name}</span>
-        <span className={cn("hidden text-[12px] font-medium sm:inline", inverse ? "text-white/75" : "text-grey-600")}>{marketing.by}</span>
-      </span>
+    <Link href="/" aria-label={`${marketing.name} home`} className="inline-flex min-h-11 items-center gap-2.5 rounded-[10px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus">
+      <PitlineLogo variant={inverse ? "reversed" : "primary"} className="h-9" />
+      <span className={cn("hidden text-[12px] font-medium sm:inline", inverse ? "text-white/75" : "text-grey-600")}>{marketing.by}</span>
     </Link>
   );
 }
@@ -58,7 +53,7 @@ function Header() {
           <Link href={marketing.login.href} className="inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-semibold whitespace-nowrap text-navy-950 transition hover:bg-grey-50">
             {marketing.login.label}
           </Link>
-          <Link href={marketing.start.href} className="hidden min-h-11 items-center gap-1.5 rounded-control bg-plate px-4 text-[15px] font-semibold whitespace-nowrap text-plate-ink transition hover:bg-[#ffd21f] sm:inline-flex">
+          <Link href={marketing.start.href} className="hidden min-h-11 items-center gap-1.5 rounded-control bg-brand-orange px-4 text-[15px] font-semibold whitespace-nowrap text-navy-950 transition hover:bg-[#ffd21f] sm:inline-flex">
             {marketing.start.label}
           </Link>
           <details className="group relative lg:hidden">
@@ -71,7 +66,7 @@ function Header() {
                   {item.label}
                 </a>
               ))}
-              <Link href={marketing.start.href} className="mt-1 flex min-h-11 items-center justify-center rounded-[12px] bg-plate px-3 text-[16px] font-semibold text-plate-ink">
+              <Link href={marketing.start.href} className="mt-1 flex min-h-11 items-center justify-center rounded-[12px] bg-brand-orange px-3 text-[16px] font-semibold text-navy-950">
                 {marketing.start.label}
               </Link>
             </nav>
@@ -85,7 +80,7 @@ function Header() {
 function Hero() {
   const { hero } = marketing;
   return (
-    <section aria-labelledby="hero-heading" className="relative overflow-hidden bg-[radial-gradient(60%_55%_at_85%_20%,rgba(246,199,0,0.18),transparent_70%)]">
+    <section aria-labelledby="hero-heading" className="relative overflow-hidden bg-[radial-gradient(60%_55%_at_85%_20%,rgba(37,99,235,0.14),transparent_70%)]">
       <div className={cn(shell, "grid items-center gap-12 pt-12 pb-16 md:pt-16 md:pb-28 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:pt-20")}>
         <div className="mk-fade-up">
           <p className="inline-flex items-center gap-2 rounded-full border border-grey-200 bg-white px-3.5 py-1.5 text-[13px] font-semibold text-navy-950 shadow-[0_6px_16px_-12px_rgba(7,17,39,0.4)]">
@@ -97,9 +92,9 @@ function Hero() {
           </p>
           <h1 id="hero-heading" className="mt-5 font-display text-[54px] leading-[0.95] font-bold tracking-[-0.01em] text-navy-950 sm:text-[68px] lg:text-[80px]">
             {hero.headline}{" "}
-            <span className="relative inline-block whitespace-nowrap">
-              <span aria-hidden="true" className="absolute inset-x-[-4px] bottom-[0.08em] h-[0.32em] -skew-x-6 rounded-[4px] bg-plate" />
-              <span className="relative">{hero.highlight}</span>
+            <span className="relative inline-block whitespace-nowrap text-brand-blue">
+              {hero.highlight}
+              <span aria-hidden="true" className="absolute bottom-[-0.08em] left-[0.04em] h-[0.09em] w-[1.4em] rounded-full bg-brand-orange" />
             </span>
           </h1>
           <p className="mt-5 max-w-[540px] text-[18px] leading-[1.6] text-grey-700">{hero.subline}</p>
@@ -153,7 +148,7 @@ function TrustStrip() {
             const Icon = trustIcons[item.icon];
             return (
               <li key={item.label} className="flex items-start gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-navy-950 text-plate" aria-hidden="true">
+                <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-navy-950 text-brand-orange" aria-hidden="true">
                   <Icon size={20} />
                 </span>
                 <span>
@@ -172,7 +167,7 @@ function TrustStrip() {
 function SectionHeading({ id, eyebrow, heading, intro, inverse = false }: { id: string; eyebrow?: string; heading: string; intro?: string; inverse?: boolean }) {
   return (
     <div className="max-w-[640px]">
-      {eyebrow ? <p className={cn("text-[13px] font-semibold tracking-[0.12em] uppercase", inverse ? "text-plate" : "text-blue-700")}>{eyebrow}</p> : null}
+      {eyebrow ? <p className={cn("text-[13px] font-semibold tracking-[0.12em] uppercase", inverse ? "text-brand-orange" : "text-blue-700")}>{eyebrow}</p> : null}
       <h2 id={id} className={cn("mt-2 font-display text-[40px] leading-[1] font-bold md:text-[52px]", inverse ? "text-white" : "text-navy-950")}>
         {heading}
       </h2>
@@ -191,7 +186,7 @@ function HowItWorks() {
           <span aria-hidden="true" className="absolute top-[52px] right-[16%] left-[16%] hidden border-t-2 border-dashed border-grey-300 md:block" />
           {howItWorks.steps.map((step, index) => (
             <li key={step.title} className="relative rounded-card border border-grey-200 bg-white p-6 shadow-[0_16px_36px_-30px_rgba(7,17,39,0.45)]">
-              <span aria-hidden="true" className="grid size-14 place-items-center rounded-[14px] bg-plate font-display text-[30px] leading-none font-bold text-plate-ink shadow-[0_0_0_6px_#fff]">
+              <span aria-hidden="true" className="grid size-14 place-items-center rounded-[14px] bg-brand-orange font-display text-[30px] leading-none font-bold text-navy-950 shadow-[0_0_0_6px_#fff]">
                 {index + 1}
               </span>
               <h3 className="mt-5 text-[24px] leading-tight font-bold text-navy-950">
@@ -274,7 +269,7 @@ function ForGarages() {
               </li>
             ))}
           </ul>
-          <p className="mt-8 rounded-card border-l-4 border-plate bg-grey-50 px-5 py-4 text-[15px] leading-[1.6] text-grey-700">{garages.note}</p>
+          <p className="mt-8 rounded-card border-l-4 border-brand-orange bg-grey-50 px-5 py-4 text-[15px] leading-[1.6] text-grey-700">{garages.note}</p>
         </div>
         <div aria-hidden="true" className="relative mx-auto w-full max-w-[420px] pb-4">
           <div className="rounded-hero border border-grey-200 bg-white p-5 shadow-[0_24px_48px_-30px_rgba(7,17,39,0.45)]">
@@ -353,13 +348,13 @@ function Plans() {
                   <span className="text-[15px] text-white/80">{plans.priceUnit}</span>
                 </p>
               </div>
-              <p className="rounded-full bg-plate px-3 py-1 text-[13px] font-semibold text-plate-ink">{plans.pro.status}</p>
+              <p className="rounded-full bg-brand-orange px-3 py-1 text-[13px] font-semibold text-navy-950">{plans.pro.status}</p>
             </div>
-            <p className="mt-6 text-[15px] font-semibold text-plate">{plans.pro.lead}</p>
+            <p className="mt-6 text-[15px] font-semibold text-brand-orange">{plans.pro.lead}</p>
             <ul className="mt-3 flex-1 space-y-3">
               {plans.pro.features.map((feature) => (
                 <li key={feature.label} className="flex items-start gap-3 text-[15px] leading-[1.5] text-white/90">
-                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-plate text-plate-ink" aria-hidden="true">
+                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-orange text-navy-950" aria-hidden="true">
                     <Check size={12} strokeWidth={3} />
                   </span>
                   <span>
@@ -433,7 +428,7 @@ function Footer() {
           </div>
           {footer.columns.map((column) => (
             <nav key={column.title} aria-label={`Footer: ${column.title}`}>
-              <h2 className="font-sans text-[13px] font-semibold tracking-[0.1em] text-plate uppercase">{column.title}</h2>
+              <h2 className="font-sans text-[13px] font-semibold tracking-[0.1em] text-brand-orange uppercase">{column.title}</h2>
               <ul className="mt-3 space-y-1">
                 {column.links.map((link) => (
                   <li key={link.href}>

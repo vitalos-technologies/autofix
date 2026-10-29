@@ -48,7 +48,7 @@ describe("garage facts instead of single-business config", () => {
   it("keeps the admin Pitline-branded", () => {
     const shell = readFileSync(join(root, "src/components/admin-ui/admin-shell.tsx"), "utf8");
     const logo = readFileSync(join(root, "src/components/layout/logo.tsx"), "utf8");
-    expect(shell).toContain(">Pitline<");
+    expect(shell).toContain('<PitlineLogo variant="mono" title="Pitline"');
     expect(logo).toContain("Pitline");
     expect(existsSync(join(root, "src/app/icon.svg"))).toBe(true);
   });

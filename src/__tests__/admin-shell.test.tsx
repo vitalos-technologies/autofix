@@ -30,7 +30,7 @@ describe("admin layout", () => {
     expect(layout).toContain("getAdminNotificationSummary(admin.client)");
     // Layouts do not re-render on client navigation, so the shell follows the browser path itself.
     expect(layout).not.toContain("activeHref=");
-    expect(read("src/components/admin-ui/admin-shell.tsx")).toContain(">Pitline<");
+    expect(read("src/components/admin-ui/admin-shell.tsx")).toContain('<PitlineLogo variant="mono" title="Pitline"');
   });
 
   it("leaves <main> to the admin shell, the booking site layout and standalone pages", () => {
