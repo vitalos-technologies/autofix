@@ -719,14 +719,30 @@ async function supabase() {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Stripe, TEST MODE ONLY (P5.2 billing, P5.4 payments, P5.11 service plans; DECISIONS D17): the Pro and
+// Stripe (P5.2 billing, P5.4 payments, P5.11 service plans; DECISIONS D17): the Essentials, Pro and
 // extra-site prices, the billing and Connect webhook endpoints, and their ids and signing secrets in
-// Vercel production. BILLING_PROVIDER and PAYMENTS_PROVIDER are never set here: they are switched on later.
+// Vercel production. Test mode unless STRIPE_LIVE_MODE is "true". BILLING_PROVIDER and PAYMENTS_PROVIDER
+// are never set here: they are switched on separately.
 // ---------------------------------------------------------------------------------------------------------
 
-// Monthly GBP prices, found again by lookup key. The amount is the plan setting (GitHub variable) or the
-// price Temitope set on 29 Oct 2026. A fixed product id makes the product easy to find again.
+// Live mode only on purpose, as the app reads it: with STRIPE_LIVE_MODE "true" only a live key is used,
+// otherwise only a test key.
+const stripeLive = () => env("STRIPE_LIVE_MODE") === "true";
+const stripeMode = () => (stripeLive() ? "live" : "test");
+
+/** Why this key can't be used in this run's mode; null when it can. */
+function stripeKeyRefusal(key) {
+  if (stripeLive()) {
+    return /^(sk|rk)_live_/.test(key ?? "") ? null : "STRIPE_LIVE_MODE is true but STRIPE_SECRET_KEY is not a live key (sk_live_ or rk_live_); test keys are refused in live mode";
+  }
+  return /^(sk|rk)_test_/.test(key ?? "") ? null : "STRIPE_SECRET_KEY is not a test-mode key (sk_test_ or rk_test_); a live key is used only when STRIPE_LIVE_MODE is true";
+}
+
+// Monthly GBP prices, found again by lookup key, excluding VAT (tax_behavior exclusive, so Stripe Tax adds
+// it when BILLING_COLLECT_VAT is on). The amount is the plan setting (GitHub variable) or the price
+// Temitope set on 29 Oct 2026. A fixed product id makes the product easy to find again.
 const STRIPE_PRICES = [
+  { product: "autofix_essentials", name: "Pitline Essentials", lookupKey: "autofix_essentials_monthly", amountName: "PLAN_ESSENTIALS_PRICE_PENCE", defaultPence: 2000, envName: "STRIPE_PRICE_ESSENTIALS" },
   { product: "autofix_pro", name: "Pitline Pro", lookupKey: "autofix_pro_monthly", amountName: "PLAN_PRO_PRICE_PENCE", defaultPence: 4500, envName: "STRIPE_PRICE_PRO" },
   { product: "autofix_extra_site", name: "Pitline extra site", lookupKey: "autofix_extra_site_monthly", amountName: "PLAN_EXTRA_SITE_PRICE_PENCE", defaultPence: 1500, envName: "STRIPE_PRICE_EXTRA_SITE" },
 ];
@@ -740,7 +756,7 @@ const STRIPE_ENDPOINTS = [
     connect: false,
     description: "Pitline plans (billing)",
     secretName: "STRIPE_BILLING_WEBHOOK_SECRET",
-    events: ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"],
+    events: ["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"],
   },
   {
     path: "/api/webhooks/payments/stripe",
@@ -780,6 +796,8 @@ const productionEntries = (envs, key) => envs.filter((entry) => entry.key === ke
 
 /** Creates `key` for Production, or replaces the value of the entry that covers Production. Never prints the value. */
 async function putProductionEnv({ project, team, headers }, envs, key, value, type) {
+  // A Stripe API key of the other mode never reaches Vercel.
+  if (/^(sk|rk)_(test|live)_/.test(value) && stripeKeyRefusal(value)) return { ok: false, error: `refused, ${stripeKeyRefusal(value)}` };
   const [entry] = productionEntries(envs, key);
   const result = entry
     ? await call(`https://api.vercel.com/v9/projects/${project}/env/${encodeURIComponent(entry.id)}?${team}`, { method: "PATCH", headers, body: JSON.stringify({ value, type }) })
@@ -789,10 +807,33 @@ async function putProductionEnv({ project, team, headers }, envs, key, value, ty
   return { ok: true };
 }
 
+/** What Vercel production holds for `key`: { missing }, { sensitive } (can't be read back), { value } or { error }. */
+async function productionValue({ project, team, headers }, envs, key) {
+  const [entry] = productionEntries(envs, key);
+  if (!entry) return { missing: true };
+  if (entry.type === "sensitive") return { sensitive: true };
+  const read = await call(`https://api.vercel.com/v1/projects/${project}/env/${encodeURIComponent(entry.id)}?${team}`, { headers });
+  return read.ok ? { value: clean(read.body?.value) } : { error: errorText(read) };
+}
+
+const shownValue = (found) => (found.missing ? "not set" : found.sensitive ? "sensitive" : found.error ? `unreadable (${found.error})` : found.value);
+
+/** Keeps the product's display name (it shows on Checkout and invoices) as the plan's; logs or FAILs. */
+async function stripeProductName(stripe, plan, product) {
+  if (!product || typeof product !== "object" || product.name === plan.name) return;
+  if (!apply) return console.log(`  product ${product.id}: named "${product.name}" (would rename to "${plan.name}")`);
+  const renamed = await stripe.post(`/products/${encodeURIComponent(product.id)}`, [["name", plan.name]]);
+  if (renamed.ok) console.log(`  product ${product.id}: renamed to "${plan.name}"`);
+  else fail(`product ${product.id}: rename to "${plan.name}" failed, ${errorText(renamed)}`);
+}
+
 /** The product's id, found or created; null after a FAIL line. */
 async function stripeProduct(stripe, plan) {
   const byId = await stripe.get(`/products/${plan.product}`);
-  if (byId.ok) return byId.body.id;
+  if (byId.ok) {
+    await stripeProductName(stripe, plan, byId.body);
+    return byId.body.id;
+  }
   if (byId.status !== 404) {
     fail(`product "${plan.name}": ${errorText(byId)}`);
     return null;
@@ -827,7 +868,7 @@ function planPence(plan) {
 /** The price id for this plan, found by lookup key or (apply) created; null when there is none to use. */
 async function stripePrice(stripe, plan) {
   const amount = planPence(plan);
-  const found = await stripe.get(`/prices?${new URLSearchParams({ "lookup_keys[]": plan.lookupKey, limit: "1" })}`);
+  const found = await stripe.get(`/prices?${new URLSearchParams({ "lookup_keys[]": plan.lookupKey, "expand[]": "data.product", limit: "1" })}`);
   if (!found.ok) {
     fail(`${plan.lookupKey}: ${errorText(found)}`);
     return null;
@@ -845,7 +886,19 @@ async function stripePrice(stripe, plan) {
       fail(`${plan.lookupKey}: exists but is archived in Stripe; left unchanged`);
       return null;
     }
-    console.log(`  ${plan.lookupKey}: exists (${pounds(amount)}, active)`);
+    // Plan prices exclude VAT. Stripe lets an unspecified tax behaviour be set once; a set one is final.
+    const tax = price.tax_behavior ?? "unspecified";
+    if (tax === "inclusive") {
+      fail(`${plan.lookupKey}: tax_behavior is inclusive, but plan prices exclude VAT; left unchanged (Stripe can't change it, a new price is a decision)`);
+      return null;
+    }
+    console.log(`  ${plan.lookupKey}: exists (${pounds(amount)}, active, tax ${tax}${tax === "exclusive" || apply ? "" : ", would set exclusive"})`);
+    if (tax !== "exclusive" && apply) {
+      const updated = await stripe.post(`/prices/${encodeURIComponent(price.id)}`, [["tax_behavior", "exclusive"]]);
+      if (updated.ok) console.log("    tax_behavior set to exclusive");
+      else fail(`${plan.lookupKey}: setting tax_behavior exclusive failed, ${errorText(updated)}`);
+    }
+    await stripeProductName(stripe, plan, price.product);
     return price.id;
   }
   if (!apply) {
@@ -859,6 +912,7 @@ async function stripePrice(stripe, plan) {
     ["currency", "gbp"],
     ["unit_amount", String(amount)],
     ["recurring[interval]", "month"],
+    ["tax_behavior", "exclusive"],
     ["lookup_key", plan.lookupKey],
     ["nickname", `${plan.name} monthly`],
     ["metadata[app]", "autofix"],
@@ -867,31 +921,49 @@ async function stripePrice(stripe, plan) {
     fail(`${plan.lookupKey}: create failed, ${errorText(created)}`);
     return null;
   }
-  console.log(`  ${plan.lookupKey}: created (${pounds(amount)})`);
+  console.log(`  ${plan.lookupKey}: created (${pounds(amount)}, tax exclusive)`);
   return created.body.id;
 }
 
-/** Puts the price id in Vercel production when it is missing there; true when production changed. */
-async function stripePriceEnv(vercel, envs, plan, priceId) {
-  const [entry] = productionEntries(envs, plan.envName);
-  if (!entry) {
+/** Puts the price id in Vercel production when it is missing there or names a price this mode doesn't have; true when production changed. */
+async function stripePriceEnv(stripe, vercel, envs, plan, priceId) {
+  const current = await productionValue(vercel, envs, plan.envName);
+  const save = async () => {
+    const saved = await putProductionEnv(vercel, envs, plan.envName, priceId, "encrypted");
+    if (!saved.ok) fail(`${plan.envName}: Vercel ${saved.error}`);
+    return saved.ok;
+  };
+  if (current.missing) {
     if (!apply || !priceId) {
       console.log(`  ${plan.envName}: not in Vercel production (${apply ? "no price to point at" : "would set"})`);
       return false;
     }
-    const saved = await putProductionEnv(vercel, envs, plan.envName, priceId, "encrypted");
-    if (!saved.ok) fail(`${plan.envName}: Vercel ${saved.error}`);
-    return saved.ok;
+    return save();
   }
   // A sensitive value can't be read back, so it can't be compared.
-  if (!priceId || entry.type === "sensitive") {
-    console.log(`  ${plan.envName}: set in Vercel production${priceId ? " (sensitive, not compared)" : ""}`);
+  if (!priceId || current.sensitive) {
+    console.log(`  ${plan.envName}: set in Vercel production${priceId ? ` (sensitive, not compared; if it is not the ${stripeMode()}-mode ${plan.lookupKey} price, delete it in Vercel and run stripe-setup again)` : ""}`);
     return false;
   }
-  const { project, team, headers } = vercel;
-  const read = await call(`https://api.vercel.com/v1/projects/${project}/env/${encodeURIComponent(entry.id)}?${team}`, { headers });
-  if (!read.ok) fail(`${plan.envName}: Vercel ${errorText(read)}`);
-  else if (read.body?.value === priceId) console.log(`  ${plan.envName}: set in Vercel production (the ${plan.lookupKey} price)`);
+  if (current.error) {
+    fail(`${plan.envName}: Vercel ${current.error}`);
+    return false;
+  }
+  if (current.value === priceId) {
+    console.log(`  ${plan.envName}: set in Vercel production (the ${plan.lookupKey} price)`);
+    return false;
+  }
+  // A price from the other mode (or one deleted) is unknown to this key, so it is replaced; another price
+  // in this mode is a decision.
+  const known = /^price_[A-Za-z0-9]+$/.test(current.value) ? await stripe.get(`/prices/${encodeURIComponent(current.value)}`) : { status: 404 };
+  if (known.status === 404) {
+    if (!apply) {
+      console.log(`  ${plan.envName}: Vercel production names a price this ${stripeMode()}-mode account doesn't have (would replace with ${plan.lookupKey})`);
+      return false;
+    }
+    return save();
+  }
+  if (!known.ok) fail(`${plan.envName}: checking the price Vercel production names, ${errorText(known)}`);
   else fail(`${plan.envName}: Vercel production points at a different price than ${plan.lookupKey}; left unchanged (correct it in GitHub and run Sync Vercel env, or delete it in Vercel and run stripe-setup again)`);
   return false;
 }
@@ -934,12 +1006,13 @@ async function stripeEndpoint(stripe, vercel, envs, endpoints, spec) {
     }
     if (!vercel) return false;
     if (productionEntries(envs, spec.secretName).length) {
-      console.log(`    ${spec.secretName}: set in Vercel production`);
+      // Not comparable (sensitive): after a switch of mode it must be this mode's endpoint secret.
+      console.log(`    ${spec.secretName}: set in Vercel production (must be this ${stripeMode()}-mode endpoint's signing secret)`);
     } else {
       // Stripe's API returns a signing secret only when the endpoint is made. Never delete or roll it here.
       fail(
         `${spec.secretName} is not in Vercel production, and the API only returns a signing secret when an endpoint is created; the endpoint was left as it is. ` +
-          `Either reveal its signing secret in Stripe (test mode) > Developers > Webhooks > ${url}, save it as the GitHub secret ${spec.secretName} and run Sync Vercel env; ` +
+          `Either reveal its signing secret in Stripe (${stripeMode()} mode) > Developers > Webhooks > ${url}, save it as the GitHub secret ${spec.secretName} and run Sync Vercel env; ` +
           "or delete that endpoint in Stripe and run stripe-setup again.",
       );
     }
@@ -965,29 +1038,43 @@ async function stripeEndpoint(stripe, vercel, envs, endpoints, spec) {
   const saved = typeof secret === "string" && secret.startsWith("whsec_") ? await putProductionEnv(vercel, envs, spec.secretName, secret, "sensitive") : { ok: false, error: "Stripe returned no signing secret" };
   if (!saved.ok) {
     fail(
-      `${spec.secretName}: not saved in Vercel (${saved.error}). Reveal the new endpoint's signing secret in Stripe (test mode) > Developers > Webhooks > ${url}, ` +
+      `${spec.secretName}: not saved in Vercel (${saved.error}). Reveal the new endpoint's signing secret in Stripe (${stripeMode()} mode) > Developers > Webhooks > ${url}, ` +
         `save it as the GitHub secret ${spec.secretName} and run Sync Vercel env; or delete that endpoint in Stripe and run stripe-setup again.`,
     );
   }
   return saved.ok;
 }
 
-// Read only: whether Connect answers in test mode. Never creates a connected account.
+// Read only: whether Connect answers in this mode. Never creates a connected account.
 async function stripeConnect(stripe) {
+  const mode = stripeMode();
   const accounts = await stripe.get("/accounts?limit=1");
-  if (accounts.ok) return console.log(`  Connect: enabled in test mode (${accounts.body?.data?.length ? "has connected accounts" : "no connected accounts yet"})`);
+  if (accounts.ok) return console.log(`  Connect: enabled in ${mode} mode (${accounts.body?.data?.length ? "has connected accounts" : "no connected accounts yet"})`);
   const message = accounts.body?.error?.message ?? "";
-  if (/connect/i.test(message)) return console.log(`  Connect: does not look enabled in test mode (Stripe says: ${message})`);
+  if (/connect/i.test(message)) return console.log(`  Connect: does not look enabled in ${mode} mode (Stripe says: ${message})`);
   console.log(`  Connect: could not tell (${errorText(accounts)})`);
 }
 
+// Read only: with BILLING_COLLECT_VAT on, Checkout uses Stripe Tax, which needs a head office address and a
+// UK registration in Stripe (Settings > Tax).
+async function stripeTax(stripe) {
+  if (env("BILLING_COLLECT_VAT") !== "true") return;
+  const settings = await stripe.get("/tax/settings");
+  if (!settings.ok) return console.log(`  Stripe Tax: could not tell (${errorText(settings)})`);
+  if (settings.body?.status === "active") return console.log("  Stripe Tax: active");
+  fail(`Stripe Tax is ${settings.body?.status ?? "not set up"} in ${stripeMode()} mode, but BILLING_COLLECT_VAT is on; finish Settings > Tax in Stripe`);
+}
+
 async function stripeSetup() {
-  heading("Stripe (test mode)");
+  heading(`Stripe (${stripeMode()} mode)`);
+  const vatSetting = env("BILLING_COLLECT_VAT");
+  console.log(`  billing: Stripe ${stripeMode()} mode (STRIPE_LIVE_MODE ${env("STRIPE_LIVE_MODE") ?? "not set"}), VAT ${vatSetting === "true" ? "on" : "off"} (BILLING_COLLECT_VAT ${vatSetting ?? "not set"})`);
+  if (![null, "true", "false"].includes(env("STRIPE_LIVE_MODE"))) console.log("  note: STRIPE_LIVE_MODE is neither true nor false, so it counts as test mode");
+  if (![null, "true", "false"].includes(vatSetting)) console.log("  note: BILLING_COLLECT_VAT is neither true nor false, so VAT counts as off");
   if (missing(["STRIPE_SECRET_KEY"])) return fail("Stripe is not configured");
-  // Test mode only, as the app (src/lib/billing/index.ts) and sync-vercel-env.mjs: a live key is never used.
-  if (!/^(sk|rk)_test_/.test(env("STRIPE_SECRET_KEY"))) {
-    return fail("STRIPE_SECRET_KEY is not a test-mode key (sk_test_ or rk_test_); live keys are refused, so nothing was read or changed");
-  }
+  // Test mode unless STRIPE_LIVE_MODE is true, as the app (src/lib/billing/index.ts) and sync-vercel-env.mjs.
+  const refusal = stripeKeyRefusal(env("STRIPE_SECRET_KEY"));
+  if (refusal) return fail(`${refusal}, so nothing was read or changed`);
   const badAmounts = STRIPE_PRICES.filter((plan) => planPence(plan) === null).map((plan) => plan.amountName);
   if (badAmounts.length) return fail(`${badAmounts.join(", ")} must be a whole number of pence; nothing was read or changed`);
   const stripe = stripeApi(env("STRIPE_SECRET_KEY"));
@@ -1009,12 +1096,24 @@ async function stripeSetup() {
     }
   }
 
+  // What production runs: its key, prices and webhook secrets must all be from one mode.
+  if (vercel) {
+    const liveMode = await productionValue(vercel, envs, "STRIPE_LIVE_MODE");
+    const vat = await productionValue(vercel, envs, "BILLING_COLLECT_VAT");
+    console.log(`  Vercel production: STRIPE_LIVE_MODE=${shownValue(liveMode)} BILLING_COLLECT_VAT=${shownValue(vat)}`);
+    const productionMode = liveMode.value === "true" ? "live" : liveMode.missing || liveMode.value !== undefined ? "test" : null;
+    if (productionMode && productionMode !== stripeMode()) {
+      fail(`Vercel production runs billing in ${productionMode} mode but this run is ${stripeMode()} mode; run Sync Vercel env so its STRIPE_SECRET_KEY and STRIPE_LIVE_MODE match these prices`);
+    }
+  }
+
   await stripeConnect(stripe);
+  await stripeTax(stripe);
 
   let productionChanged = false;
   for (const plan of STRIPE_PRICES) {
     const priceId = await stripePrice(stripe, plan);
-    if (vercel && (await stripePriceEnv(vercel, envs, plan, priceId))) productionChanged = true;
+    if (vercel && (await stripePriceEnv(stripe, vercel, envs, plan, priceId))) productionChanged = true;
   }
   const endpoints = await stripeEndpoints(stripe);
   if (endpoints) {

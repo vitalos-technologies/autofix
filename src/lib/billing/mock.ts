@@ -17,6 +17,12 @@ export function createMockBillingProvider(): BillingProvider {
     async setExtraSites() {
       return { ok: true };
     },
+    async changePlan() {
+      return { ok: false, code: "no_subscription" };
+    },
+    async setCancelAtPeriodEnd() {
+      return { ok: false, code: "no_subscription" };
+    },
     parseWebhook() {
       return null;
     },

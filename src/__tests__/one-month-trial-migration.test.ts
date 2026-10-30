@@ -36,3 +36,13 @@ describe("one-month free trial migration (DECISIONS D25)", () => {
     );
   });
 });
+
+describe("card-first billing migration (DECISIONS D26)", () => {
+  const cardFirst = sqlStatements(readFileSync(join(process.cwd(), "supabase", "migrations", "20261030000200_card_first_billing.sql"), "utf8"));
+
+  it("adds card_required, false for every garage that exists today", () => {
+    expect(migrationFiles.indexOf("20261030000200_card_first_billing.sql")).toBeGreaterThan(migrationFiles.indexOf(FILE));
+    expect(cardFirst).toContain("alter table public.garages\n  add column card_required boolean not null default false");
+    expect(cardFirst.filter((statement) => statement.startsWith("update"))).toEqual([]);
+  });
+});

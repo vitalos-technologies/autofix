@@ -34,7 +34,7 @@ describe("marketing page (/ on the admin host)", () => {
     render(<HomePage />);
     const essentials = screen.getByRole("article", { name: "Essentials" });
     const pro = screen.getByRole("article", { name: "Pro" });
-    expect(within(essentials).getByText("Available now")).toBeInTheDocument();
+    expect(within(essentials).getByText("1 month free")).toBeInTheDocument();
     expect(within(essentials).getAllByRole("listitem")).toHaveLength(marketing.plans.essentials.features.length);
     expect(within(pro).getByText("1 month free")).toBeInTheDocument();
     const items = within(pro).getAllByRole("listitem");

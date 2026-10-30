@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { BillingProvider, SubscriptionState, SubscriptionStatus } from "./provider";
 
-// Stripe Billing for Pitline's own plans (P5.2), TEST MODE ONLY, over Stripe's REST API with fetch
-// (no SDK). Checkout (mode=subscription) to upgrade, the customer portal, a quantity line for extra
-// sites, and signed webhooks (`Stripe-Signature`, HMAC-SHA-256 over "<t>.<raw body>", 5-minute
+// Stripe Billing for Pitline's own plans (P5.2), over Stripe's REST API with fetch (no SDK). Test mode
+// unless STRIPE_LIVE_MODE=true (D26). Checkout (mode=subscription, card always collected, the garage's
+// free month as the Stripe trial: D26) for either plan, plan changes and cancel-at-period-end on the
+// subscription, the customer portal, a quantity line for extra sites, and signed webhooks (`Stripe-Signature`, HMAC-SHA-256 over "<t>.<raw body>", 5-minute
 // tolerance). The garage id travels as `client_reference_id` and subscription metadata `garage_id`,
 // and is checked against our own row by apply_billing_subscription(); never a registration or email.
 
@@ -11,11 +12,18 @@ export type StripeBillingConfig = {
   secretKey: string;
   webhookSecret: string;
   proPriceId: string;
+  /** Essentials monthly price; null until stripe-setup has created it (Essentials checkout is then unavailable). */
+  essentialsPriceId: string | null;
   extraSitePriceId: string | null;
-  /** UK VAT as a Stripe tax rate (txr_…, exclusive): added to the Pro and extra-site lines at checkout.
-   *  Prices are shown without VAT; it appears only where the garage pays (D25). Null: no VAT is added. */
-  vatTaxRateId: string | null;
+  /** STRIPE_LIVE_MODE=true: only live keys, and only live events are applied (D26). */
+  liveMode: boolean;
+  /** BILLING_COLLECT_VAT=true: Checkout adds VAT with Stripe Tax (D26). Prices are ex-VAT (tax_behavior exclusive). */
+  collectVat: boolean;
 };
+
+/** Stripe needs a trial to end at least 48 hours ahead; a shorter remainder starts billing at once. */
+const MIN_TRIAL_MS = 48 * 60 * 60 * 1000;
+const PLAN_DESCRIPTIONS = { essentials: "Pitline Essentials", pro: "Pitline Pro" } as const;
 
 type Fetch = typeof fetch;
 
@@ -81,6 +89,7 @@ type StripeSubscription = {
 };
 
 export function subscriptionState(subscription: StripeSubscription, config: Pick<StripeBillingConfig, "proPriceId" | "extraSitePriceId">): SubscriptionState | null {
+  // Pro when a Pro price is on the subscription; any other plan line (the Essentials price) is Essentials.
   const garageId = subscription.metadata?.garage_id;
   if (!garageId || !UUID.test(garageId) || !subscription.id) return null;
   const items = subscription.items?.data ?? [];
@@ -115,20 +124,44 @@ export function createStripeBillingProvider(config: StripeBillingConfig, fetcher
     return { ok: response.ok, json };
   }
 
+  async function get(path: string) {
+    const response = await fetcher(`${API}${path}`, { headers: { Authorization: `Bearer ${config.secretKey}` }, signal: AbortSignal.timeout(10_000) });
+    const json = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    return { ok: response.ok, json };
+  }
+
+  function priceFor(plan: "essentials" | "pro") {
+    return plan === "pro" ? config.proPriceId : config.essentialsPriceId;
+  }
+
   return {
     kind: "stripe",
-    async startUpgrade({ garage, customerRef, successUrl, cancelUrl }) {
+    async startUpgrade({ garage, customerRef, successUrl, cancelUrl, plan = "pro", trialEndsAt = null, now = new Date() }) {
+      const price = priceFor(plan);
+      if (!price) return { kind: "error", code: "configuration_required" };
+      // The free month is the Stripe trial, so "£0.00 due today" and the card is charged when it ends.
+      const trialEnd = trialEndsAt ? Date.parse(trialEndsAt) : Number.NaN;
+      const trial = Number.isFinite(trialEnd) && trialEnd - now.getTime() >= MIN_TRIAL_MS ? Math.floor(trialEnd / 1000) : undefined;
+      const vat = config.collectVat;
       try {
         const { ok, json } = await call("/checkout/sessions", {
           mode: "subscription",
-          "line_items[0][price]": config.proPriceId,
+          "line_items[0][price]": price,
           "line_items[0][quantity]": 1,
-          "line_items[0][tax_rates][0]": config.vatTaxRateId ?? undefined,
+          payment_method_collection: "always",
           client_reference_id: garage.id,
           "metadata[garage_id]": garage.id,
           "subscription_data[metadata][garage_id]": garage.id,
+          "subscription_data[description]": PLAN_DESCRIPTIONS[plan],
+          "subscription_data[trial_end]": trial,
+          "subscription_data[trial_settings][end_behavior][missing_payment_method]": trial ? "cancel" : undefined,
           customer: customerRef ?? undefined,
           customer_email: customerRef ? undefined : garage.email ?? undefined,
+          // VAT only where the garage pays, and only once Vitalos collects it (D26).
+          "automatic_tax[enabled]": vat ? "true" : undefined,
+          "tax_id_collection[enabled]": vat ? "true" : undefined,
+          "customer_update[address]": vat && customerRef ? "auto" : undefined,
+          "customer_update[name]": vat && customerRef ? "auto" : undefined,
           success_url: successUrl,
           cancel_url: cancelUrl,
           allow_promotion_codes: "true",
@@ -155,9 +188,37 @@ export function createStripeBillingProvider(config: StripeBillingConfig, fetcher
       try {
         const { ok } = await call(
           "/subscription_items",
-          { subscription: subscriptionRef, price: config.extraSitePriceId, quantity: Math.max(0, Math.min(100, count)), proration_behavior: "create_prorations", "tax_rates[0]": config.vatTaxRateId ?? undefined },
+          { subscription: subscriptionRef, price: config.extraSitePriceId, quantity: Math.max(0, Math.min(100, count)), proration_behavior: "create_prorations" },
           `extra-sites:${garageId}:${subscriptionRef}:${count}`,
         );
+        return ok ? { ok: true } : { ok: false, code: "provider_error" };
+      } catch {
+        return { ok: false, code: "provider_error" };
+      }
+    },
+    async changePlan({ subscriptionRef, plan }) {
+      const price = priceFor(plan);
+      if (!price) return { ok: false, code: "configuration_required" };
+      try {
+        const current = await get(`/subscriptions/${encodeURIComponent(subscriptionRef)}`);
+        const items = (current.json?.items as { data?: { id?: string; price?: { id?: string } }[] } | undefined)?.data ?? [];
+        const planItem = items.find((item) => item.price?.id === config.proPriceId || (config.essentialsPriceId !== null && item.price?.id === config.essentialsPriceId));
+        if (!current.ok || !planItem?.id) return { ok: false, code: "provider_error" };
+        if (planItem.price?.id === price) return { ok: true };
+        const { ok } = await call(`/subscriptions/${encodeURIComponent(subscriptionRef)}`, {
+          "items[0][id]": planItem.id,
+          "items[0][price]": price,
+          proration_behavior: "create_prorations",
+          description: PLAN_DESCRIPTIONS[plan],
+        });
+        return ok ? { ok: true } : { ok: false, code: "provider_error" };
+      } catch {
+        return { ok: false, code: "provider_error" };
+      }
+    },
+    async setCancelAtPeriodEnd({ subscriptionRef, cancel }) {
+      try {
+        const { ok } = await call(`/subscriptions/${encodeURIComponent(subscriptionRef)}`, { cancel_at_period_end: cancel ? "true" : "false" });
         return ok ? { ok: true } : { ok: false, code: "provider_error" };
       } catch {
         return { ok: false, code: "provider_error" };
@@ -174,8 +235,8 @@ export function createStripeBillingProvider(config: StripeBillingConfig, fetcher
       const eventId = typeof event.id === "string" ? event.id : "";
       const type = typeof event.type === "string" ? event.type : "";
       if (!eventId || !type) return null;
-      // Test mode only: a live event is never applied.
-      if (event.livemode === true) return { kind: "ignored", eventId, type };
+      // Only events of the mode we run in are applied: a test event never changes a live garage (D26).
+      if (Boolean(event.livemode) !== config.liveMode) return { kind: "ignored", eventId, type };
       if (type.startsWith("customer.subscription.") && event.data?.object) {
         const state = subscriptionState(event.data.object, config);
         if (!state) return { kind: "ignored", eventId, type };

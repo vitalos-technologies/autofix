@@ -24,12 +24,17 @@ vi.mock("@/app/signup/garage/actions", () => ({
 
 import { GarageWizard } from "@/app/signup/garage/garage-wizard";
 
+const TEST_PLANS = [
+  { id: "essentials" as const, name: "Essentials", price: "£20 a month", detail: "Run the garage." },
+  { id: "pro" as const, name: "Pro", price: "£45 a month", detail: "Grow the garage." },
+];
+
 function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
 }
 
 async function openLinkStep() {
-  render(<GarageWizard placesEnabled={false} linkTemplate="https://__slug__.pitline.co.uk" ownerEmail="owner@example.test" />);
+  render(<GarageWizard placesEnabled={false} linkTemplate="https://__slug__.pitline.co.uk" ownerEmail="owner@example.test" plans={TEST_PLANS} cardFirst={false} />);
   fill("Garage name", "Kingsway Autocare");
   fill("Phone number", "01302 123456");
   fill("Address line 1", "1 Kingsway");

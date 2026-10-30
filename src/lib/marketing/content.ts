@@ -97,18 +97,18 @@ export const marketing = {
 
   // Two plans (DECISIONS D17). Essentials is what ships today. Pro lists its features; `shipped: false` marks
   // the ones still being built ("Coming soon"), so the page only claims what Pitline does. Every new garage
-  // starts on a one-month Pro trial (D25). Prices set by Temitope on 29 Oct 2026, excluding VAT, which is shown
-  // only at checkout (D25), not here; keep them in step with PLAN_ESSENTIALS_PRICE_PENCE, PLAN_PRO_PRICE_PENCE and PLAN_EXTRA_SITE_PRICE_PENCE.
+  // gets one month free on the plan it picks (D25, D26), with a card added up front and nothing charged until
+  // the month ends. Prices set by Temitope on 29 Oct 2026; VAT is never shown here (D26); keep them in step with PLAN_ESSENTIALS_PRICE_PENCE, PLAN_PRO_PRICE_PENCE and PLAN_EXTRA_SITE_PRICE_PENCE.
   plans: {
     id: "plans",
     heading: "Two plans",
-    intro: "Essentials runs the garage. Pro grows it. Every new garage gets Pro free for one month, then chooses.",
+    intro: "Essentials runs the garage. Pro grows it. Both are free for your first month.",
     priceUnit: "a month",
     essentials: {
       name: "Essentials",
       tagline: "Run the garage",
       price: "£20",
-      status: "Available now",
+      status: "1 month free",
       features: [
         "Booking page on a free link or your own domain",
         "Registration lookup with MOT due dates",
@@ -141,7 +141,7 @@ export const marketing = {
         { label: "Courtesy cars, collection and delivery", shipped: true },
         { label: "Several sites under one login", shipped: true },
       ],
-      note: "Try every Pro feature free for one month, then choose Pro or Essentials. Nothing you set up is lost if you choose Essentials. Each extra site is £15 a month.",
+      note: "Your first month is free on either plan: add a card when you sign up and nothing is charged until the month ends. Cancel before then and you pay nothing. Switch plans any time; nothing you set up on Pro is lost if you move to Essentials. Each extra site is £15 a month.",
     },
     cta: { label: "Start with Essentials", href: "/signup" },
   },
@@ -172,7 +172,7 @@ export const marketing = {
       },
       {
         q: "How much does it cost?",
-        a: "Essentials is £20 a month and Pro is £45 a month. On Pro, each extra site is £15 a month. Every new garage gets Pro free for one month, so you can set up your garage and try everything first.",
+        a: "Essentials is £20 a month and Pro is £45 a month. On Pro, each extra site is £15 a month. Your first month is free on either plan: you add a card when you sign up, £0 is taken that day, and you can cancel before the month ends without paying anything.",
       },
       {
         q: "We don't do MOTs. Does that matter?",

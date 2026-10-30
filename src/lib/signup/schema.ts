@@ -144,6 +144,11 @@ export function parseGarageForm(form: FormData | Record<string, unknown>): Parse
   return { ok: true, value: { ...details.value, slug: slug.value, placeId, openingHours } };
 }
 
+/** The plan chosen at sign-up (D26); anything else is Pro, the default. */
+export function parseSignupPlan(raw: FormDataEntryValue | null | undefined): "essentials" | "pro" {
+  return raw === "essentials" ? "essentials" : "pro";
+}
+
 /** `create_garage()`'s jsonb payload. */
 export function createGaragePayload(input: GarageInput) {
   return {

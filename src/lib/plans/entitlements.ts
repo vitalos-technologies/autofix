@@ -45,13 +45,26 @@ export function trialDaysLeft(state: PlanState, now: Date = new Date()): number 
   return Math.max(1, Math.ceil(((time(state.trialEndsAt) as number) - now.getTime()) / DAY_MS));
 }
 
-/** The label under the garage name in the switcher: "Pro trial · 9 days left", "Pro", "Essentials". */
+/** Whole days left in the free month on either plan (D26), rounded up; 0 when it has ended or there is none. */
+export function freeDaysLeft(state: PlanState, now: Date = new Date()): number {
+  const ends = time(state.trialEndsAt);
+  if (ends === null || ends <= now.getTime()) return 0;
+  return Math.max(1, Math.ceil((ends - now.getTime()) / DAY_MS));
+}
+
+/**
+ * The label under the garage name in the switcher: "Pro trial · 9 days left", "Essentials · 9 free days
+ * left" (the free month on Essentials, D26), "Pro", "Essentials".
+ */
 export function planLabel(state: PlanState, now: Date = new Date()): string {
   if (isOnTrial(state, now)) {
     const days = trialDaysLeft(state, now);
     return `Pro trial · ${days} ${days === 1 ? "day" : "days"} left`;
   }
-  return effectivePlan(state, now) === "pro" ? "Pro" : "Essentials";
+  const plan = effectivePlan(state, now);
+  const free = plan === "essentials" && state.plan === "essentials" ? freeDaysLeft(state, now) : 0;
+  if (free) return `Essentials · ${free} free ${free === 1 ? "day" : "days"} left`;
+  return plan === "pro" ? "Pro" : "Essentials";
 }
 
 export class PlanRequiredError extends Error {

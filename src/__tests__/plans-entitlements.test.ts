@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { allowanceFor, formatPlanPrice, formatTrialLength, getPlansConfig } from "@/lib/plans/config";
 import {
   effectivePlan,
+  freeDaysLeft,
   hasFeature,
   isOnTrial,
   isPlanRequiredDatabaseError,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/plans/entitlements";
 import { ESSENTIALS_FEATURES, FEATURES, PRO_FEATURES, proFeatureForPath } from "@/lib/plans/features";
 import { usageLine } from "@/lib/plans/usage";
+import { parseSignupPlan } from "@/lib/signup/schema";
 
 const NOW = new Date("2026-10-28T12:00:00Z");
 const trial = { plan: "pro", trialEndsAt: "2026-11-05T09:00:00Z", planChosen: null };
@@ -138,5 +140,30 @@ describe("plans: prices and allowances are placeholders until Temitope sets them
     expect(usageLine("sms_segments", 120, 100)).toEqual({ metric: "sms_segments", used: 120, allowance: 100, overage: 20, percent: 100 });
     expect(usageLine("sms_segments", 25, 100).percent).toBe(25);
     expect(usageLine("ai_minutes", 0, 0).percent).toBe(0);
+  });
+});
+
+describe("the free month on either plan (D26)", () => {
+  const now = new Date("2026-10-30T12:00:00Z");
+  const essentialsMonth = { plan: "essentials", trialEndsAt: "2026-11-30T12:00:00Z", planChosen: null };
+
+  it("labels Essentials in its free month, and plain Essentials after it", () => {
+    expect(freeDaysLeft(essentialsMonth, now)).toBe(31);
+    expect(planLabel(essentialsMonth, now)).toBe("Essentials · 31 free days left");
+    expect(planLabel({ ...essentialsMonth, trialEndsAt: "2026-10-31T00:00:00Z" }, now)).toBe("Essentials · 1 free day left");
+    expect(planLabel({ ...essentialsMonth, trialEndsAt: "2026-10-29T00:00:00Z" }, now)).toBe("Essentials");
+    expect(effectivePlan(essentialsMonth, now)).toBe("essentials");
+  });
+
+  it("keeps the Pro trial label, and an expired unchosen Pro trial is not called free", () => {
+    expect(planLabel({ plan: "pro", trialEndsAt: "2026-11-30T12:00:00Z", planChosen: null }, now)).toBe("Pro trial · 31 days left");
+    expect(planLabel({ plan: "pro", trialEndsAt: "2026-10-29T00:00:00Z", planChosen: null }, now)).toBe("Essentials");
+  });
+
+  it("reads the plan picked at sign-up, defaulting to Pro", () => {
+    expect(parseSignupPlan("essentials")).toBe("essentials");
+    expect(parseSignupPlan("pro")).toBe("pro");
+    expect(parseSignupPlan(null)).toBe("pro");
+    expect(parseSignupPlan("enterprise")).toBe("pro");
   });
 });
