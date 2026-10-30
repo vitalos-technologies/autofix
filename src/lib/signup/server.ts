@@ -6,6 +6,8 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { GARAGE_COOKIE, GARAGE_COOKIE_OPTIONS } from "@/lib/tenancy/admin";
 import { clearHostCache } from "@/lib/tenancy/resolve";
 import { garageBaseUrl, type GarageUrlSubject, type UrlEnvironment } from "@/lib/tenancy/urls";
+import { billingSelfServe, getBillingReadiness } from "@/lib/billing";
+import type { Plan } from "@/lib/plans/features";
 import { createGaragePayload, type GarageInput } from "./schema";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { slugProblem } from "./slug";
@@ -70,15 +72,22 @@ export function createGarageError(message: string | null | undefined): Extract<C
 
 /**
  * Creates the garage for `user` and selects it (`af_garage`), so the owner lands in it.
- * Also stores the owner's display name as their admin profile.
+ * Also stores the owner's display name as their admin profile, and the plan they chose (D26): one
+ * month free on it (the trial_ends_at default). `plan_chosen` stays empty until billing confirms it,
+ * so an unpaid Pro month still ends on Essentials. With Stripe billing on, the garage is card first.
  */
-export async function createGarageForUser(user: User, input: GarageInput, displayName: string | null): Promise<CreateGarageResult> {
+export async function createGarageForUser(user: User, input: GarageInput, displayName: string | null, plan: Plan = "pro"): Promise<CreateGarageResult> {
   const service = createAdminClient();
   if (!service) return { ok: false, code: "UNAVAILABLE" };
   const { data, error } = await service.rpc("create_garage", { p_user_id: user.id, p_garage: createGaragePayload(input) });
   if (error) return createGarageError(error.message);
   const result = data as { garage_id?: string; slug?: string } | null;
   if (!result?.garage_id) return { ok: false, code: "UNAVAILABLE" };
+  const cardRequired = billingSelfServe(getBillingReadiness());
+  if (plan !== "pro" || cardRequired) {
+    const { error: planError } = await service.from("garages").update({ plan, card_required: cardRequired }).eq("id", result.garage_id);
+    if (planError) return { ok: false, code: "UNAVAILABLE" };
+  }
 
   const name = displayName?.trim();
   if (name) {

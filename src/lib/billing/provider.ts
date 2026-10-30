@@ -1,9 +1,9 @@
-// Billing provider interface (P5.2): how a garage pays Vitalos for Pro and extra sites. Two
-// implementations: Stripe Billing in TEST MODE only (./stripe.ts) and a mock (./mock.ts) used until
-// Temitope supplies Stripe test keys. With the mock, "Upgrade" becomes "Request Pro": the request is
+// Billing provider interface (P5.2): how a garage pays Vitalos for its plan and extra sites. Two
+// implementations: Stripe Billing (./stripe.ts; test mode unless STRIPE_LIVE_MODE=true, D26) and a
+// mock (./mock.ts) used while Stripe is not configured. With the mock, "Upgrade" becomes "Request Pro": the request is
 // recorded (plan_requests) and Vitalos sees it in /admin; a platform admin then sets the plan.
 //
-// Live Stripe keys are refused (DECISIONS: agents use test mode; live needs Temitope's approval).
+// A live Stripe key is refused unless STRIPE_LIVE_MODE=true, and a test key is refused when it is (D26).
 
 export type BillingProviderKind = "mock" | "stripe";
 
@@ -36,8 +36,23 @@ export type UpgradeResult =
 
 export interface BillingProvider {
   readonly kind: BillingProviderKind;
-  /** Pro checkout for the garage. `customerRef` reuses an existing provider customer. */
-  startUpgrade(input: { garage: BillingGarage; customerRef: string | null; successUrl: string; cancelUrl: string }): Promise<UpgradeResult>;
+  /**
+   * Checkout for a plan (default Pro), card always collected. `trialEndsAt` (the garage's free month,
+   * D26) becomes the provider's trial, so nothing is charged until then. `customerRef` reuses a customer.
+   */
+  startUpgrade(input: {
+    garage: BillingGarage;
+    customerRef: string | null;
+    successUrl: string;
+    cancelUrl: string;
+    plan?: "essentials" | "pro";
+    trialEndsAt?: string | null;
+    now?: Date;
+  }): Promise<UpgradeResult>;
+  /** Moves an existing subscription to another plan (prorated). */
+  changePlan(input: { subscriptionRef: string; plan: "essentials" | "pro" }): Promise<{ ok: boolean; code?: string }>;
+  /** Cancels at the end of the current period (or the free month), or undoes that. */
+  setCancelAtPeriodEnd(input: { subscriptionRef: string; cancel: boolean }): Promise<{ ok: boolean; code?: string }>;
   /** The provider's self-serve page (change card, cancel, invoices), or null when there is none. */
   openPortal(input: { customerRef: string | null; returnUrl: string }): Promise<{ url: string } | null>;
   /** Sets how many sites beyond the first the garage pays for (multi-site, P5.9). */

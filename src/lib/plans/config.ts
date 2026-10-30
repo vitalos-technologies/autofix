@@ -19,8 +19,9 @@ export type PlanConfig = {
 export type PlansConfig = Record<Plan, PlanConfig> & {
   /** Monthly price of each site beyond the first (multi-site, Pro). PLACEHOLDER until set. */
   extraSitePricePence: number | null;
-  /** Length of the Pro trial for new garages. Set by D17; the database default matches. */
-  trialDays: number;
+  /** Length of the Pro trial for new garages, in calendar months (D25: one month, as a new company). The
+   *  database default matches (garages.trial_ends_at = now() + interval '1 month'). */
+  trialMonths: number;
 };
 
 /** The env vars that set each placeholder (server only; none is NEXT_PUBLIC_). */
@@ -54,8 +55,13 @@ export function getPlansConfig(env: Env = {}): PlansConfig {
       aiMinutesAllowance: wholeNumber(env[PLAN_CONFIG_ENV.proAiMinutes]), // PLACEHOLDER
     },
     extraSitePricePence: wholeNumber(env[PLAN_CONFIG_ENV.extraSitePrice]), // PLACEHOLDER
-    trialDays: 14,
+    trialMonths: 1,
   };
+}
+
+/** "one month", "2 months": the trial length in copy. */
+export function formatTrialLength(months: number): string {
+  return months === 1 ? "one month" : `${months} months`;
 }
 
 export type UsageMetric = "sms_segments" | "ai_minutes";

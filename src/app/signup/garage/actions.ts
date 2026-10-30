@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getPlacesProvider, cleanPlacesQuery } from "@/lib/places/provider";
 import { isPlaceId, PlacesLookupError, type PlaceDetails, type PlaceSummary } from "@/lib/places/types";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { parseGarageForm, parseSlug, type FieldErrors, type GarageField } from "@/lib/signup/schema";
+import { parseGarageForm, parseSignupPlan, parseSlug, type FieldErrors, type GarageField } from "@/lib/signup/schema";
 import { availableSlugs, createGarageForUser, getSignupSession, requestIp, signupDisplayName } from "@/lib/signup/server";
 import { SLUG_PROBLEM_MESSAGES, slugAlternatives } from "@/lib/signup/slug";
 import { ONBOARDING_PATHS } from "@/components/onboarding/steps";
@@ -101,7 +101,7 @@ export async function createGarageAction(previous: CreateGarageState, formData: 
     return { seq, errors: {}, message: "Too many garages set up from here. Wait an hour and try again." };
   }
 
-  const result = await createGarageForUser(session.user, parsed.value, signupDisplayName(session.user));
+  const result = await createGarageForUser(session.user, parsed.value, signupDisplayName(session.user), parseSignupPlan(formData.get("plan")));
   if (!result.ok) {
     const errors: FieldErrors<GarageField> = {};
     if (result.code === "SLUG_TAKEN" || result.code === "SLUG_RESERVED") errors.slug = CREATE_MESSAGES[result.code];

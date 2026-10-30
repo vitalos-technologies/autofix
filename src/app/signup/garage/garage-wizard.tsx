@@ -29,6 +29,10 @@ export type GarageWizardProps = {
   /** The free link with `__slug__` where the slug goes, e.g. `https://__slug__.pitline.co.uk`. */
   linkTemplate: string;
   ownerEmail: string;
+  /** The two plans with their monthly price, e.g. "£20 a month" (D26: both start with one month free). */
+  plans: { id: "essentials" | "pro"; name: string; price: string; detail: string }[];
+  /** Stripe billing is on: a card is added after sign-up, nothing charged today (D26). */
+  cardFirst: boolean;
 };
 
 function nationalPhone(e164: string | null) {
@@ -38,7 +42,7 @@ function nationalPhone(e164: string | null) {
 }
 
 /** Steps 1 (find or enter the garage) and 2 (booking link). One server call creates the garage at the end. */
-export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: GarageWizardProps) {
+export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail, plans, cardFirst }: GarageWizardProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [details, setDetails] = useState<Details>({ ...EMPTY, email: ownerEmail });
   const [errors, setErrors] = useState<FieldErrors<GarageField>>({});
@@ -357,6 +361,27 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
               <p className="m-0 mt-1 font-mono text-[14px] break-all text-navy-950" data-testid="link-preview">{preview}</p>
             </div>
           </section>
+
+          <fieldset className="m-0 flex flex-col gap-3 rounded-card border border-grey-200 bg-white p-5">
+            <legend className="float-left mb-1 w-full p-0 text-[17px] font-bold text-navy-950">Your plan</legend>
+            <p className="m-0 text-[14px] leading-6 text-grey-700">
+              Both plans are free for one month.{" "}
+              {cardFirst ? "You'll add a card next, and nothing is charged today. Cancel any time before the month ends." : "You can change plan later in Settings."}
+            </p>
+            {plans.map((plan) => (
+              <label
+                key={plan.id}
+                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-input border border-grey-300 bg-white px-3.5 py-3 has-[:checked]:border-[#1d4ed8] has-[:checked]:bg-[#eff6ff]"
+              >
+                <input type="radio" name="plan" value={plan.id} defaultChecked={plan.id === "pro"} className="mt-0.5 size-5 shrink-0 accent-[#1d4ed8]" />
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-[15px] font-bold text-navy-950">{plan.name}</span>
+                  <span className="text-[14px] text-grey-700">1 month free, then {plan.price}</span>
+                  <span className="text-[13px] text-grey-600">{plan.detail}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
 
           {state.message ? (
             <div data-form-message tabIndex={-1} className="outline-none">

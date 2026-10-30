@@ -50,8 +50,8 @@ $$;
 select is((select column_default from information_schema.columns
            where table_schema = 'public' and table_name = 'garages' and column_name = 'plan'),
           '''pro''::text', 'new garages start on Pro');
-select ok((select trial_ends_at between now() + interval '13 days 23 hours' and now() + interval '14 days 1 minute'
-           from public.garages where id = pg_temp.t()), 'new garages get a 14-day trial');
+select ok((select trial_ends_at between now() + interval '1 month' - interval '1 minute' and now() + interval '1 month' + interval '1 minute'
+           from public.garages where id = pg_temp.t()), 'new garages get a one-month trial (D25)');
 select throws_ok($$update public.garages set plan = 'growth' where id = 'a1728000-0000-4000-8000-000000000001'$$,
                  '23514', null, 'old plan names are refused');
 select throws_ok($$update public.garages set plan = 'trial' where id = 'a1728000-0000-4000-8000-000000000001'$$,

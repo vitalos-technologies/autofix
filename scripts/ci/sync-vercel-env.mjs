@@ -50,16 +50,24 @@ const unset = [...new Set(Object.keys(process.env)
   .map((name) => name.replace(/^(SECRET|VAR)__/, "")))].filter((key) => !byKey.has(key)).sort();
 if (unset.length) console.log(`not set in GitHub (skipped): ${unset.join(", ")}`);
 
-// Modes and plan settings are not secret: show their values so the log says what production runs.
-const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
-for (const [key, { value, type }] of byKey) if (type === "encrypted" && SHOWN.test(key)) console.log(`value ${key}=${value}`);
-
-// Stripe is test mode only (DECISIONS D17, P5.2/P5.4): a live key never reaches Vercel.
+// Stripe runs live only on purpose (STRIPE_LIVE_MODE "true", as the app): then only a live key reaches
+// Vercel, otherwise only a test key. A refused key leaves Vercel's key and mode as they were, so they
+// never disagree.
+const stripeLive = byKey.get("STRIPE_LIVE_MODE")?.value === "true";
 const stripeKey = byKey.get("STRIPE_SECRET_KEY");
-if (stripeKey && !/^(sk|rk)_test_/.test(stripeKey.value)) {
+if (stripeKey && !(stripeLive ? /^(sk|rk)_live_/ : /^(sk|rk)_test_/).test(stripeKey.value)) {
   byKey.delete("STRIPE_SECRET_KEY");
-  console.error("skipped STRIPE_SECRET_KEY: not a test-mode key (sk_test_ or rk_test_); live keys are refused");
+  byKey.delete("STRIPE_LIVE_MODE");
+  console.error(
+    stripeLive
+      ? "skipped STRIPE_SECRET_KEY and STRIPE_LIVE_MODE: STRIPE_LIVE_MODE is true but the key is not a live key (sk_live_ or rk_live_); test keys are refused in live mode"
+      : "skipped STRIPE_SECRET_KEY and STRIPE_LIVE_MODE: not a test-mode key (sk_test_ or rk_test_); a live key is used only when STRIPE_LIVE_MODE is true",
+  );
 }
+
+// Modes and plan settings are not secret: show their values so the log says what production runs.
+const SHOWN = /^(MESSAGING_MODE|BILLING_PROVIDER|BILLING_COLLECT_VAT|STRIPE_LIVE_MODE|PAYMENTS_PROVIDER|PLACES_PROVIDER|VEHICLE_LOOKUP_PROVIDER|VERCEL_DOMAINS_MODE|PLAN_[A-Z_]+|SMS_SEGMENT_COST_PENCE|LEGAL_COPY_APPROVED|COOKIE_CONFIGURATION_APPROVED)$/;
+for (const [key, { value, type }] of byKey) if (type === "encrypted" && SHOWN.test(key)) console.log(`value ${key}=${value}`);
 
 const url = `https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env?upsert=true&teamId=${encodeURIComponent(teamId)}`;
 

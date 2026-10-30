@@ -3,7 +3,9 @@ import Link from "next/link";
 import { buttonClass, textLinkClass } from "@/components/admin-ui/styles";
 import { Notice } from "@/components/onboarding/field";
 import { OnboardingFrame } from "@/components/onboarding/onboarding-frame";
+import { billingSelfServe, getBillingReadiness } from "@/lib/billing";
 import { resolvePlacesMode } from "@/lib/places/provider";
+import { formatPlanPrice, getPlansConfig } from "@/lib/plans/config";
 import { getSignupSession, onboardingBookingUrl } from "@/lib/signup/server";
 import { signOutOfSignupAction } from "../actions";
 import { ContinueForm } from "./continue-form";
@@ -44,12 +46,19 @@ export default async function SignupGaragePage({ searchParams }: { searchParams:
     );
   }
 
+  const config = getPlansConfig(process.env);
+  const price = (pence: number | null) => (pence === null ? "price to be confirmed" : formatPlanPrice(pence));
   return (
     <OnboardingFrame headerAction={signOut}>
       <GarageWizard
         placesEnabled={resolvePlacesMode() !== "off"}
         linkTemplate={onboardingBookingUrl({ slug: "__slug__" })}
         ownerEmail={session.user.email ?? ""}
+        plans={[
+          { id: "essentials", name: "Essentials", price: price(config.essentials.monthlyPricePence), detail: "Run the garage: bookings, diary, reminders, messages and invoices." },
+          { id: "pro", name: "Pro", price: price(config.pro.monthlyPricePence), detail: "Everything in Essentials, plus health checks, payments, the AI front desk and more." },
+        ]}
+        cardFirst={billingSelfServe(getBillingReadiness())}
       />
     </OnboardingFrame>
   );

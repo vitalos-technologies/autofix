@@ -34,9 +34,9 @@ describe("marketing page (/ on the admin host)", () => {
     render(<HomePage />);
     const essentials = screen.getByRole("article", { name: "Essentials" });
     const pro = screen.getByRole("article", { name: "Pro" });
-    expect(within(essentials).getByText("Available now")).toBeInTheDocument();
+    expect(within(essentials).getByText("1 month free")).toBeInTheDocument();
     expect(within(essentials).getAllByRole("listitem")).toHaveLength(marketing.plans.essentials.features.length);
-    expect(within(pro).getByText("14-day free trial")).toBeInTheDocument();
+    expect(within(pro).getByText("1 month free")).toBeInTheDocument();
     const items = within(pro).getAllByRole("listitem");
     expect(items).toHaveLength(marketing.plans.pro.features.length);
     marketing.plans.pro.features.forEach((feature, index) => {
@@ -47,9 +47,10 @@ describe("marketing page (/ on the admin host)", () => {
     // Only Pro features that have shipped are claimed as available (P5.3–P5.12: every Pro feature has shipped).
     expect(marketing.plans.pro.features.filter((feature) => feature.shipped).length).toBe(10);
     expect(within(essentials).getByRole("link", { name: "Start with Essentials" })).toHaveAttribute("href", "/signup");
-    // Prices set by Temitope on 29 Oct 2026 (excluding VAT).
-    expect(essentials).toHaveTextContent("£20 a month + VAT");
-    expect(pro).toHaveTextContent("£45 a month + VAT");
+    // Prices set by Temitope on 29 Oct 2026 (excluding VAT, which shows only at checkout: D25).
+    expect(essentials).toHaveTextContent("£20 a month");
+    expect(pro).toHaveTextContent("£45 a month");
+    expect(document.body).not.toHaveTextContent(/VAT/);
   });
 
   it("answers every FAQ in a native disclosure", () => {
