@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Enquiry from {{ enquiry.name }} · Autofix Super Admin{% endblock %}
+{% block title %}Enquiry from {{ enquiry.name }} · Pitline Super Admin{% endblock %}
 {% block breadcrumbs %}
   <li class="muted hidden sm:block"><a href="{% url 'autofix:enquiries' %}" class="hover:underline">Enquiries</a></li>
   <li class="muted hidden sm:block" aria-hidden="true">/</li>
@@ -46,13 +46,13 @@
             <button type="submit" class="btn btn-primary mt-4">Save</button>
           </form>
         {% else %}
-          <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Your account is not linked to an Autofix platform admin, so changes are off. A SuperAdmin links it in Settings → Users.</p>
+          <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">Your account is not linked to a Pitline platform admin, so changes are off. A SuperAdmin links it in Settings → Users.</p>
           {% if enquiry.notes %}<p class="mt-4 text-sm font-medium">Internal notes</p><p class="mt-1 text-sm break-words whitespace-pre-wrap">{{ enquiry.notes }}</p>{% endif %}
         {% endif %}
       </section>
       <section class="card p-4 sm:p-5" aria-labelledby="history-heading" data-testid="enquiry-history">
         <h2 id="history-heading" class="text-xl">History</h2>
-        <p class="muted text-xs">From Autofix's platform log.</p>
+        <p class="muted text-xs">From Pitline's platform log.</p>
         {% if history is None %}
           <p class="muted mt-3 text-sm">The history could not be read just now.</p>
         {% else %}

@@ -27,7 +27,7 @@ export type KpiCardProps = {
 
 const trendColours = {
   default: { positive: "text-success-ink", negative: "text-[#b91c1c]", neutral: "text-grey-600" },
-  navy: { positive: "text-[#8ff0b0]", negative: "text-[#fca5a5]", neutral: "text-[#b8c4d4]" },
+  navy: { positive: "text-[#8ff0b0]", negative: "text-[#fca5a5]", neutral: "text-[#94a3b8]" },
 } as const;
 
 /** One figure: label, Barlow number and a line of context. A `<dl>` so the label is tied to the value. */
@@ -43,7 +43,7 @@ export function KpiCard({ label, value, secondaryValue, context, trend, tone = "
         className,
       )}
     >
-      <dt className={cn("text-[13px] font-semibold", navy ? "text-[#b8c4d4]" : "text-grey-600")}>{label}</dt>
+      <dt className={cn("text-[13px] font-semibold", navy ? "text-[#94a3b8]" : "text-grey-600")}>{label}</dt>
       <dd
         className={cn(
           "m-0 font-display leading-none font-bold tracking-normal",
@@ -60,7 +60,7 @@ export function KpiCard({ label, value, secondaryValue, context, trend, tone = "
         <dd
           className={cn(
             "m-0 text-[12.5px]",
-            trend ? cn("font-semibold", trendColours[tone][trend.tone ?? "positive"]) : navy ? "text-[#b8c4d4]" : "text-grey-600",
+            trend ? cn("font-semibold", trendColours[tone][trend.tone ?? "positive"]) : navy ? "text-[#94a3b8]" : "text-grey-600",
           )}
         >
           {line}

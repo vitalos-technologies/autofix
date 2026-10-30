@@ -163,7 +163,7 @@ export function TodayView() {
           <div className={sideColumn}>
             <Panel id="needs-ok" title="Needs your OK" count={2} countLabel="2 bookings waiting">
               <ul className="m-0 flex list-none flex-col p-0">
-                <li className="border-b border-[#eef2f6] pb-3.5">
+                <li className="border-b border-[#f1f5f9] pb-3.5">
                   <ApprovalCard
                     bookingId="bk-1"
                     registration="AB12CDE"
@@ -290,7 +290,7 @@ export function RemindersView() {
  * Booking page & domain (Admin-Domain)
  * ---------------------------------------------------------------------------------------------- */
 
-const FREE_LINK = "hartley-road.autofix.vitalos.co.uk";
+const FREE_LINK = "hartley-road.pitline.co.uk";
 const CUSTOM_HOST = "book.hartleyroadmotors.co.uk";
 const DNS_STEPS_EMAIL = `mailto:?subject=${encodeURIComponent("Please add this DNS record")}&body=${encodeURIComponent(
   `Please add this record to the DNS for hartleyroadmotors.co.uk:\n\nType: CNAME\nName: book\nValue: cname.vercel-dns-0.com\n\nThanks!`,
@@ -623,7 +623,7 @@ export function StatesView() {
       </Panel>
 
       <Panel id="embed" title="EmbedSnippet (teal garage)">
-        <EmbedSnippet bookingUrl="https://donvalley.autofix.vitalos.co.uk" accent="#0f766e" garageName="Don Valley Autos" defaultKind="embed" />
+        <EmbedSnippet bookingUrl="https://donvalley.pitline.co.uk" accent="#0f766e" garageName="Don Valley Autos" defaultKind="embed" />
       </Panel>
 
       <div className={twoColumns}>

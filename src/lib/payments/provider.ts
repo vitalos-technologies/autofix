@@ -27,7 +27,7 @@ export type ConnectGarage = { id: string; name: string; email: string | null };
 export type ConnectResult =
   /** Send the owner to the provider's onboarding; `accountRef` is stored as pending first. */
   | { kind: "redirect"; url: string; accountRef: string }
-  /** Connected without leaving Autofix (the mock). */
+  /** Connected without leaving Pitline (the mock). */
   | { kind: "connected"; account: AccountState }
   | { kind: "error"; code: "provider_error" };
 

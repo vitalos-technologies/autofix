@@ -1,6 +1,6 @@
 """CI only: forward 127.0.0.1:<listen> to <host>:<port> inside a container's network namespace.
 
-The production image refuses a plain-text Autofix database unless it is on localhost. In CI the local
+The production image refuses a plain-text Pitline database unless it is on localhost. In CI the local
 Supabase runs in another container, so the app container shares this relay's network namespace and
 reaches Supabase at 127.0.0.1, as the production check expects.
 

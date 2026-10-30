@@ -10,29 +10,29 @@ export function LoginForm({ resetComplete = false }: { resetComplete?: boolean }
   const [state, action, pending] = useActionState(loginWithPassword, { message: "" });
   return (
     <form action={action} className="mt-8 grid gap-5">
-      <label className="text-sm font-bold text-[#071127]">
+      <label className="text-sm font-bold text-[#0f2747]">
         Email
         <input
           name="email"
           type="email"
           required
           autoComplete="username"
-          className="mt-2 block min-h-12 w-full rounded-xl border border-[#D7E0E9] px-4"
+          className="mt-2 block min-h-12 w-full rounded-xl border border-[#CBD5E1] px-4"
         />
       </label>
-      <label className="text-sm font-bold text-[#071127]">
-        <span className="flex items-center justify-between gap-3">Password<Link href="/app/forgot-password" className="text-xs font-bold text-[#1974E2] hover:underline">Forgot password?</Link></span>
+      <label className="text-sm font-bold text-[#0f2747]">
+        <span className="flex items-center justify-between gap-3">Password<Link href="/app/forgot-password" className="text-xs font-bold text-[#2563EB] hover:underline">Forgot password?</Link></span>
         <input
           name="password"
           type="password"
           required
           autoComplete="current-password"
-          className="mt-2 block min-h-12 w-full rounded-xl border border-[#D7E0E9] px-4"
+          className="mt-2 block min-h-12 w-full rounded-xl border border-[#CBD5E1] px-4"
         />
       </label>
       {resetComplete && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800" role="status">Password updated. Sign in with your new password.</p>}
       {state.message && (
-        <p className="rounded-lg bg-[#F4F7FA] p-3 text-sm text-[#586575]" role="alert">
+        <p className="rounded-lg bg-[#F8FAFC] p-3 text-sm text-[#475569]" role="alert">
           {state.message}
         </p>
       )}

@@ -22,7 +22,7 @@ export default function ContactPage() {
     <>
       <SkipLink />
       <MarketingHeader base="/" current="/contact" />
-      <main id="main" className="bg-[radial-gradient(60%_45%_at_90%_0%,rgba(246,199,0,0.16),transparent_70%)]">
+      <main id="main" className="bg-[radial-gradient(60%_45%_at_90%_0%,rgba(37,99,235,0.14),transparent_70%)]">
         <div className={cn(shell, "pt-10 pb-16 md:pt-14 md:pb-24")}>
           <div className="max-w-[760px]">
             <p className="text-[13px] font-semibold tracking-[0.12em] text-blue-700 uppercase">{contact.eyebrow}</p>
@@ -35,14 +35,14 @@ export default function ContactPage() {
             </div>
             <aside aria-labelledby="contact-next-heading" className="flex flex-col gap-5">
               <section className="rounded-hero bg-navy-950 p-6 text-white shadow-[0_24px_48px_-24px_rgba(7,17,39,0.6)] md:p-7">
-                <span className="grid size-11 place-items-center rounded-[12px] bg-plate text-navy-950" aria-hidden="true">
+                <span className="grid size-11 place-items-center rounded-[12px] bg-brand-orange text-navy-950" aria-hidden="true">
                   <MessageSquareText size={21} />
                 </span>
                 <h2 id="contact-next-heading" className="mt-4 text-[22px] leading-tight font-bold">{contact.aside.heading}</h2>
                 <ol className="mt-4 space-y-3">
                   {contact.aside.steps.map((step, index) => (
                     <li key={step} className="flex items-start gap-3 text-[15px] leading-[1.5] text-white/90">
-                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-plate font-display text-[15px] leading-none font-bold text-plate-ink" aria-hidden="true">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-orange font-display text-[15px] leading-none font-bold text-navy-950" aria-hidden="true">
                         {index + 1}
                       </span>
                       {step}
@@ -56,7 +56,7 @@ export default function ContactPage() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="group flex min-h-[60px] items-center justify-between gap-3 rounded-card border border-grey-200 bg-white px-5 py-3 transition hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+                      className="group flex min-h-[60px] items-center justify-between gap-3 rounded-card border border-grey-200 bg-white px-5 py-3 transition hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
                       <span>
                         <span className="block text-[13px] text-grey-600">{link.lead}</span>

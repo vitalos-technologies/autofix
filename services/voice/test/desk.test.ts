@@ -59,7 +59,7 @@ describe("a booking call end to end", () => {
 });
 
 describe("when things go wrong", () => {
-  it("Autofix refuses the session: the caller is told and sent to the voicemail; no minutes are reported", async () => {
+  it("Pitline refuses the session: the caller is told and sent to the voicemail; no minutes are reported", async () => {
     const { engine } = scriptedEngine([]);
     const autofix = fakeAutofix({}, { refuse: "FRONT_DESK_OFF" });
     const { call, ws } = start(engine, autofix);

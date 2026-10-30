@@ -24,7 +24,7 @@ export default async function SignupGaragePage({ searchParams }: { searchParams:
         {link === "invalid" ? <Notice tone="warning" role="status">That confirmation link has been used or has expired. If you already confirmed your email, sign in to carry on.</Notice> : null}
         <ContinueForm />
         <p className="m-0 text-[14px] text-grey-600">
-          New to Autofix? <Link href="/signup" className={textLinkClass}>Create an account</Link>
+          New to Pitline? <Link href="/signup" className={textLinkClass}>Create an account</Link>
         </p>
       </OnboardingFrame>
     );

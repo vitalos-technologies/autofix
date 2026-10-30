@@ -67,7 +67,7 @@ export default async function ResourcesSetupPage({ searchParams }: PageProps) {
           {resources.length ? (
             <ul className="m-0 list-none p-0">
               {resources.map((resource, index) => (
-                <li key={resource.id} className="flex flex-col gap-2 border-t border-[#eef2f6] py-3 first:border-t-0">
+                <li key={resource.id} className="flex flex-col gap-2 border-t border-[#f1f5f9] py-3 first:border-t-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <div className="flex min-w-0 flex-[1_1_120px] flex-col gap-1">
                       <span className={cn("text-[15px] font-bold", resource.active ? "text-navy-950" : "text-grey-700")}>{resource.name}</span>
@@ -105,7 +105,7 @@ export default async function ResourcesSetupPage({ searchParams }: PageProps) {
                   </div>
                   {canEdit ? (
                     <details className="group">
-                      <summary className={cn("inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent underline underline-offset-2 [&::-webkit-details-marker]:hidden", focusRing)}>
+                      <summary className={cn("inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent-text underline underline-offset-2 [&::-webkit-details-marker]:hidden", focusRing)}>
                         Rename or delete <span className="sr-only">{resource.name}</span>
                       </summary>
                       <div className="mt-2 flex flex-col gap-3 rounded-input bg-grey-50 p-3">

@@ -147,7 +147,7 @@ export async function startPlatformEnrolmentAction(): Promise<PlatformEnrolment>
   for (const stale of factors?.all.filter((item) => item.factor_type === "totp" && item.status === "unverified") ?? []) {
     await admin.client.auth.mfa.unenroll({ factorId: stale.id });
   }
-  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: `Autofix platform ${crypto.randomUUID().slice(0, 8)}` });
+  const { data, error } = await admin.client.auth.mfa.enroll({ factorType: "totp", friendlyName: `Pitline platform ${crypto.randomUUID().slice(0, 8)}` });
   if (error || !data || data.type !== "totp") return { error: "The authenticator could not be set up. Try again." };
   return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
 }

@@ -8,6 +8,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# Autofix agents
+# Pitline agents
 
 Any coding agent working here: read `CLAUDE.md` first. It lists the spec, build plan, design system and the rules that must never break (tenancy by host, no double bookings, registration privacy, secrets, messaging consent).

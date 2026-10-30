@@ -61,7 +61,7 @@ export function OpeningHoursForm({ initial, canEdit }: { initial: WeekWindows; c
                 role="group"
                 aria-labelledby={`hours-day-${day}-name`}
                 aria-describedby={error ? errorId : undefined}
-                className="flex flex-col gap-2 border-t border-[#eef2f6] py-3 outline-none first:border-t-0 sm:flex-row sm:items-start sm:gap-4"
+                className="flex flex-col gap-2 border-t border-[#f1f5f9] py-3 outline-none first:border-t-0 sm:flex-row sm:items-start sm:gap-4"
               >
                 <div className="flex min-h-11 items-center justify-between gap-3 sm:w-[120px] sm:shrink-0">
                   <span id={`hours-day-${day}-name`} className="text-[15px] font-bold text-navy-950">
@@ -118,7 +118,7 @@ export function OpeningHoursForm({ initial, canEdit }: { initial: WeekWindows; c
                     <button
                       type="button"
                       onClick={() => update(day, [...rows, defaultRow(rows)])}
-                      className={buttonClass("ghost", "sm", "w-fit gap-1.5 px-2 text-accent")}
+                      className={buttonClass("ghost", "sm", "w-fit gap-1.5 px-2 text-accent-text")}
                     >
                       <Plus size={18} strokeWidth={2} aria-hidden="true" />
                       {rows.length ? "Add more hours" : "Open this day"}

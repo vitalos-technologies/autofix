@@ -175,7 +175,7 @@ def test_garage_detail_shows_actions_by_role(client_for, superadmin, support, fi
 
 def test_plan_tab_explains_a_missing_link(client_for, unlinked_superadmin, seeded):
     url = reverse("autofix:garage_tab", args=[seeded["hartley"].pk, "plan"])
-    assert b"not linked to an Autofix platform admin" in client_for(unlinked_superadmin).get(url).content
+    assert b"not linked to a Pitline platform admin" in client_for(unlinked_superadmin).get(url).content
 
 
 def test_plan_tab_shows_history_from_the_platform_log(client_for, finance, seeded):
@@ -193,4 +193,4 @@ def test_domains_page_offers_recheck_only_for_pending_custom_domains(client_for,
 
 def test_domains_page_filters(client_for, support, seeded):
     body = client_for(support).get(reverse("autofix:domains"), {"kind": "subdomain"}).content.decode()
-    assert "hartley-road.autofix.vitalos.co.uk" in body and "book.demob.example" not in body
+    assert "hartley-road.pitline.co.uk" in body and "book.demob.example" not in body

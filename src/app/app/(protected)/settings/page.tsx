@@ -37,21 +37,21 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <p className="text-xs font-extrabold tracking-widest text-accent uppercase">Configuration</p>
-      <h1 className="mt-2 text-4xl font-extrabold text-[#071127]">Settings</h1>
-      <p className="mt-3 text-[#586575]">Manage the details {current.name || "your garage"} shows on its booking page, emails and invoices.</p>
+      <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">Configuration</p>
+      <h1 className="mt-2 text-4xl font-extrabold text-[#0f2747]">Settings</h1>
+      <p className="mt-3 text-[#475569]">Manage the details {current.name || "your garage"} shows on its booking page, emails and invoices.</p>
       {saved === "1" && <p role="status" className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-800">Settings saved.</p>}
       {error && errorMessages[error] && <p role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">{errorMessages[error]}</p>}
-      {!canEdit && <p className="mt-5 rounded-xl border border-[#D7E0E9] bg-white p-4 text-sm text-[#586575]">Only a garage owner can change these details.</p>}
+      {!canEdit && <p className="mt-5 rounded-xl border border-[#CBD5E1] bg-white p-4 text-sm text-[#475569]">Only a garage owner can change these details.</p>}
 
-      <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
-        <Link href="/app/settings" aria-current="page" className="rounded-lg bg-[#071127] px-4 py-2 text-sm font-bold text-white">Settings</Link>
-        <Link href="/app/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-accent">Security</Link>
-        <Link href="/app/settings/agreements" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-accent">Agreements</Link>
+      <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#CBD5E1] bg-white p-1">
+        <Link href="/app/settings" aria-current="page" className="rounded-lg bg-[#0f2747] px-4 py-2 text-sm font-bold text-white">Settings</Link>
+        <Link href="/app/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC] hover:text-accent-text">Security</Link>
+        <Link href="/app/settings/agreements" className="rounded-lg px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC] hover:text-accent-text">Agreements</Link>
       </nav>
 
       <div className="mt-8 grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav aria-label="Settings sections" className="rounded-2xl border border-[#E4EAF0] bg-white p-2 lg:sticky lg:top-6">
+        <nav aria-label="Settings sections" className="rounded-2xl border border-[#E2E8F0] bg-white p-2 lg:sticky lg:top-6">
           <p className="px-3 pb-2 pt-2 text-[0.65rem] font-extrabold uppercase tracking-[0.16em] text-grey-600">General</p>
           <SettingsLink href="#business-profile" label="Business profile" icon={<Building2 />} active />
           <SettingsLink href="#contact-details" label="Contact details" icon={<Contact />} />
@@ -85,8 +85,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <AdminField label="Google Maps URL"><input name="googleMapsUrl" type="url" defaultValue={current.googleMapsUrl} /></AdminField>
             </SettingsSection>
 
-            <div className="sticky bottom-4 z-10 flex justify-end rounded-2xl border border-[#D7E0E9] bg-white/95 p-4 shadow-[0_12px_35px_rgba(7,17,39,0.12)] backdrop-blur">
-              <button disabled={!canEdit} className="min-h-12 w-full rounded-xl bg-[#1974E2] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Save all settings</button>
+            <div className="sticky bottom-4 z-10 flex justify-end rounded-2xl border border-[#CBD5E1] bg-white/95 p-4 shadow-[0_12px_35px_rgba(7,17,39,0.12)] backdrop-blur">
+              <button disabled={!canEdit} className="min-h-12 w-full rounded-xl bg-[#2563EB] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Save all settings</button>
             </div>
           </form>
 
@@ -103,19 +103,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 }
 
 function SettingsLink({ href, label, icon, active = false }: { href: string; label: string; icon: React.ReactNode; active?: boolean }) {
-  const className = `flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-bold transition-colors ${active ? "bg-[#071127] text-white" : "text-[#586575] hover:bg-[#F4F7FA] hover:text-accent"}`;
+  const className = `flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-bold transition-colors ${active ? "bg-[#0f2747] text-white" : "text-[#475569] hover:bg-[#F8FAFC] hover:text-accent-text"}`;
   return <a href={href} className={className}><span className="[&_svg]:size-[17px]" aria-hidden="true">{icon}</span>{label}</a>;
 }
 
 function ManagementSection({ id, icon, title, description, href, action }: { id: string; icon: React.ReactNode; title: string; description: string; href: string; action: string }) {
   return (
-    <section id={id} className="scroll-mt-6 rounded-2xl border border-[#E4EAF0] bg-white p-6" aria-labelledby={`${id}-heading`}>
+    <section id={id} className="scroll-mt-6 rounded-2xl border border-[#E2E8F0] bg-white p-6" aria-labelledby={`${id}-heading`}>
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-accent [&_svg]:size-5" aria-hidden="true">{icon}</span>
-          <div><h2 id={`${id}-heading`} className="text-xl font-bold text-[#071127]">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-[#586575]">{description}</p></div>
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EFF6FF] text-accent-text [&_svg]:size-5" aria-hidden="true">{icon}</span>
+          <div><h2 id={`${id}-heading`} className="text-xl font-bold text-[#0f2747]">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-[#475569]">{description}</p></div>
         </div>
-        <Link href={href} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#BCD6F6] px-4 text-sm font-bold text-accent hover:bg-[#EAF3FF]">{action}</Link>
+        <Link href={href} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#BCD6F6] px-4 text-sm font-bold text-accent-text hover:bg-[#EFF6FF]">{action}</Link>
       </div>
     </section>
   );
@@ -123,10 +123,10 @@ function ManagementSection({ id, icon, title, description, href, action }: { id:
 
 function SettingsSection({ id, icon, title, description, children }: { id: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-6 rounded-2xl border border-[#E4EAF0] bg-white p-6" aria-labelledby={`${id}-heading`}>
+    <section id={id} className="scroll-mt-6 rounded-2xl border border-[#E2E8F0] bg-white p-6" aria-labelledby={`${id}-heading`}>
       <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EAF3FF] text-accent [&_svg]:size-5" aria-hidden="true">{icon}</span>
-        <div><h2 id={`${id}-heading`} className="text-xl font-bold text-[#071127]">{title}</h2><p className="mt-1 text-sm leading-6 text-[#586575]">{description}</p></div>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EFF6FF] text-accent-text [&_svg]:size-5" aria-hidden="true">{icon}</span>
+        <div><h2 id={`${id}-heading`} className="text-xl font-bold text-[#0f2747]">{title}</h2><p className="mt-1 text-sm leading-6 text-[#475569]">{description}</p></div>
       </div>
       <div className="mt-6 grid gap-5 md:grid-cols-2">{children}</div>
     </section>

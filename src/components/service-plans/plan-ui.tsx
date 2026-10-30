@@ -22,7 +22,7 @@ export const planInputClass = cn(
 );
 export const planLabelClass = "text-[14px] font-semibold text-grey-800";
 export const planSummaryClass = cn(
-  "inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent underline underline-offset-2 [&::-webkit-details-marker]:hidden",
+  "inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent-text underline underline-offset-2 [&::-webkit-details-marker]:hidden",
   focusRing,
 );
 

@@ -2,7 +2,7 @@ name: Voice desk deploy
 
 # Deploys autofix-voice (services/voice: the AI front desk on calls, Twilio ConversationRelay + Claude) to
 # Azure Container Apps in the super admin's environment (cae-autofix-superadmin, rg-autofix-superadmin),
-# scale to zero, and connects the Autofix app to it (Vercel VOICE_RELAY_URL and VOICE_RELAY_SECRET,
+# scale to zero, and connects the Pitline app to it (Vercel VOICE_RELAY_URL and VOICE_RELAY_SECRET,
 # production redeploy). Run by hand: Actions > Voice desk deploy > Run workflow.
 #   CHECK   reports which secrets are set (names only) and deploys nothing.
 #   DEPLOY  deploys. Without ANTHROPIC_API_KEY the service is deployed but the app is not pointed at it, so
@@ -103,7 +103,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker buildx build --push -t "$IMAGE" \
             --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
-            --label org.opencontainers.image.description="Autofix voice desk" .
+            --label org.opencontainers.image.description="Pitline voice desk" .
           docker logout ghcr.io
 
       - uses: actions/setup-python@v5
@@ -156,7 +156,7 @@ jobs:
           echo "relay without a claim: $code"
           [[ "$code" == 403 || "$code" == 503 ]]
 
-      - name: Point the Autofix app at it (Vercel env, production redeploy)
+      - name: Point the Pitline app at it (Vercel env, production redeploy)
         if: inputs.confirm == 'DEPLOY'
         env:
           VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
@@ -166,7 +166,7 @@ jobs:
           set -a; . "$RUNNER_TEMP/voice.env"; set +a
           echo "::add-mask::$VOICE_RELAY_SECRET"
           if [[ "$VOICE_CLAUDE_READY" != yes ]]; then
-            echo "::warning::No Claude key on the service yet: the Autofix app is not pointed at it, so missed calls keep the voicemail and text-back."
+            echo "::warning::No Claude key on the service yet: the Pitline app is not pointed at it, so missed calls keep the voicemail and text-back."
             exit 0
           fi
           node scripts/ci/voice-vercel.mjs

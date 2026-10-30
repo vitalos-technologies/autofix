@@ -18,7 +18,7 @@ import { jobContext, jobRow, recordingQueue } from "./support/jobs";
 
 const GARAGE_ID = "a0000000-0000-4000-8000-00000000000a";
 const TUESDAY_11 = new Date("2026-10-27T11:00:00Z");
-const PROD_ENV = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk" };
+const PROD_ENV = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk" };
 const garage: CampaignSendGarage = { id: GARAGE_ID, slug: "hartley-road", customDomain: null, name: "Hartley Road Motors", timezone: "Europe/London", status: "active" };
 
 let sequence = 0;
@@ -153,9 +153,9 @@ describe("composing and sending", () => {
     const { result, calls } = await run([[send]]);
     const [outbox] = getMockOutbox();
     expect(outbox).toMatchObject({ kind: "sms", garageId: GARAGE_ID, to: "+447700900123", idempotencyKey: `campaign_send:${send.id}` });
-    const token = /https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/c\/([A-Za-z0-9_-]{22})/.exec(outbox!.body)?.[1];
+    const token = /https:\/\/hartley-road\.pitline\.co\.uk\/c\/([A-Za-z0-9_-]{22})/.exec(outbox!.body)?.[1];
     expect(token).toBeTruthy();
-    expect(outbox!.body).toBe(`Hartley Road Motors: Hi Sam, winter check for your Ford Focus (AB12 CDE)? Book: https://hartley-road.autofix.vitalos.co.uk/c/${token}\nReply STOP to opt out.`);
+    expect(outbox!.body).toBe(`Hartley Road Motors: Hi Sam, winter check for your Ford Focus (AB12 CDE)? Book: https://hartley-road.pitline.co.uk/c/${token}\nReply STOP to opt out.`);
     expect(calls.prepared[0]!.linkHash).toBe(createHash("sha256").update(token!).digest("hex"));
     expect(calls.prepared[0]!.linkExpiresAt).toEqual(new Date(TUESDAY_11.getTime() + REMINDER_LINK_TTL_MS));
     expect(result).toMatchObject({ outcome: "sent", counts: { claimed: 1, sent: 1 } });
@@ -174,7 +174,7 @@ describe("composing and sending", () => {
     const [email] = getMockOutbox();
     expect(email).toMatchObject({ kind: "email", to: "sam@example.com", subject: "Winter is coming, Sam" });
     expect(email!.body.startsWith("Hello Sam, Hartley Road Motors here.")).toBe(true);
-    const link = /\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
+    const link = /\nStop reminders: https:\/\/hartley-road\.pitline\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
     expect(verifyUnsubscribeToken(GARAGE_ID, link![1]!, env)).toBe(send.customer_id);
     expect(email!.body).not.toMatch(/reply stop/i);
   });

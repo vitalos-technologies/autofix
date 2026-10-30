@@ -48,19 +48,19 @@ def _database() -> Check:
 
 
 def _autofix(now) -> Check:
-    """Autofix's Supabase Postgres as autofix_superadmin: reachable, and read-only by default."""
+    """Pitline's Supabase Postgres as autofix_superadmin: reachable, and read-only by default."""
     from django.db import connections
 
     from apps.autofix import selectors
     from apps.autofix.db import ALIAS, AutofixUnavailable, is_configured
 
     if not is_configured():
-        return Check("autofix", "Autofix data", "fail", "Not connected: set AUTOFIX_DATABASE_URL")
+        return Check("autofix", "Pitline data", "fail", "Not connected: set AUTOFIX_DATABASE_URL")
     started = time.monotonic()
     try:
         counts = selectors.garage_counts()
     except AutofixUnavailable:
-        return Check("autofix", "Autofix data", "fail", "Not reachable")
+        return Check("autofix", "Pitline data", "fail", "Not reachable")
     elapsed = round((time.monotonic() - started) * 1000)
     connection = connections[ALIAS]
     details = [
@@ -78,10 +78,10 @@ def _autofix(now) -> Check:
         details.append(("Sessions", "Read-only by default" if read_only else "NOT read-only"))
         if not read_only:
             return Check(
-                "autofix", "Autofix data", "warn", "Connected, but sessions are not read-only", details
+                "autofix", "Pitline data", "warn", "Connected, but sessions are not read-only", details
             )
     return Check(
-        "autofix", "Autofix data", "warn" if elapsed > 800 else "ok", f"Connected ({elapsed} ms)", details
+        "autofix", "Pitline data", "warn" if elapsed > 800 else "ok", f"Connected ({elapsed} ms)", details
     )
 
 
@@ -90,11 +90,11 @@ def _jobs(now) -> Check:
     from apps.autofix.db import AutofixUnavailable, is_configured
 
     if not is_configured():
-        return Check("jobs", "Autofix job queue", "info", "Not connected")
+        return Check("jobs", "Pitline job queue", "info", "Not connected")
     try:
         health = selectors.job_health(now=now)
     except AutofixUnavailable:
-        return Check("jobs", "Autofix job queue", "fail", "Could not be read")
+        return Check("jobs", "Pitline job queue", "fail", "Could not be read")
     failed, stuck = health["totals"]["failed"], len(health["expired"])
     delay = health["queue_delay"]
     details = [
@@ -103,12 +103,12 @@ def _jobs(now) -> Check:
         ("Oldest due job waiting", _when(health["oldest_queued_at"]) or "None"),
     ]
     if stuck or (delay and delay > STALE_QUEUE):
-        return Check("jobs", "Autofix job queue", "warn", "Jobs are waiting longer than they should", details)
+        return Check("jobs", "Pitline job queue", "warn", "Jobs are waiting longer than they should", details)
     if failed:
         return Check(
-            "jobs", "Autofix job queue", "warn", f"{failed} failed job{'s' if failed != 1 else ''}", details
+            "jobs", "Pitline job queue", "warn", f"{failed} failed job{'s' if failed != 1 else ''}", details
         )
-    return Check("jobs", "Autofix job queue", "ok", "Up to date", details)
+    return Check("jobs", "Pitline job queue", "ok", "Up to date", details)
 
 
 def _status_endpoint() -> Check:

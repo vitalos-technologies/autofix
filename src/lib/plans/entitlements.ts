@@ -64,7 +64,7 @@ export class PlanRequiredError extends Error {
 }
 
 export function planRequiredMessage(feature: Feature): string {
-  return `${FEATURES[feature].label} is part of Autofix Pro. The garage owner can upgrade in Settings, Plan.`;
+  return `${FEATURES[feature].label} is part of Pitline Pro. The garage owner can upgrade in Settings, Plan.`;
 }
 
 /** The body of a 403 for Pro-only work: `{code: "PLAN_REQUIRED", feature, plan: "pro", message}`. */

@@ -75,7 +75,7 @@ export type InvoiceLineInput = {
   quantity: string;
   unitPricePence: number;
   lineTotalPence: number;
-  /** VAT on the line in pence. Autofix invoices carry no VAT yet (VAT_NOT_CONFIGURED), so 0. */
+  /** VAT on the line in pence. Pitline invoices carry no VAT yet (VAT_NOT_CONFIGURED), so 0. */
   taxPence: number;
 };
 

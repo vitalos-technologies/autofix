@@ -24,7 +24,7 @@ function claimBody(now = NOW) {
 function request(body: unknown, key: string | null = SECRET) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (key) headers[VOICE_SERVICE_KEY_HEADER] = key;
-  return new Request("https://autofix.vitalos.co.uk/api/voice/v1/session", { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) });
+  return new Request("https://pitline.co.uk/api/voice/v1/session", { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) });
 }
 
 describe("POST /api/voice/v1/session", () => {

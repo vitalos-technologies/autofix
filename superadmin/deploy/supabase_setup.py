@@ -1,11 +1,11 @@
-"""Prepare Autofix's Supabase project for the super admin (DECISIONS D18, A415). Run by the deploy workflow.
+"""Prepare Pitline's Supabase project for the super admin (DECISIONS D18, A415). Run by the deploy workflow.
 
 Over the Supabase Management API (SUPABASE_ACCESS_TOKEN), with no plaintext password ever sent:
 
 1. Checks the role migration (20261028004000_superadmin_role.sql) is applied; stops otherwise.
 2. Ensures the super admin's own role and schema: role ``superadmin_app`` (login, search_path
    ``superadmin_app``, nothing granted outside its schema), which creates its tables in schema ``superadmin_app``, for its users,
-   sessions and audit trail. Autofix's Data API only serves the schemas listed in its settings, so this
+   sessions and audit trail. Pitline's Data API only serves the schemas listed in its settings, so this
    schema is never exposed there.
 3. Gives ``autofix_superadmin`` (and ``superadmin_app``) a login password, but only when the deploy has
    no connection string for it yet: passwords are generated here and set as SCRAM-SHA-256 verifiers, so

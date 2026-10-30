@@ -27,7 +27,7 @@ function time(at: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
 }
 
-const STATUS_TONES = { neutral: "text-[#b8c4d4]", success: "text-[#8ff0b0]", danger: "text-[#fca5a5]" } as const;
+const STATUS_TONES = { neutral: "text-[#94a3b8]", success: "text-[#8ff0b0]", danger: "text-[#fca5a5]" } as const;
 
 function Item({ item, name, timeZone }: { item: ThreadItem; name: string; timeZone: string }) {
   if (item.type === "day") {

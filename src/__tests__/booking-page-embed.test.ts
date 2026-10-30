@@ -14,7 +14,7 @@ vi.mock("@/lib/tenancy/resolve", async (importOriginal) => {
   return {
     ...original,
     resolveHost: (host: string | null, options: Parameters<typeof original.resolveHost>[1] = {}) =>
-      original.resolveHost(host, { ...options, lookup, env: { NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" } }),
+      original.resolveHost(host, { ...options, lookup, env: { NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" } }),
   };
 });
 
@@ -142,7 +142,7 @@ describe("proxy security headers", () => {
   });
 
   it("does not allow other sites or the widget for a garage that has neither", async () => {
-    const response = await proxy(request("https://plain-garage.autofix.vitalos.co.uk/time"));
+    const response = await proxy(request("https://plain-garage.pitline.co.uk/time"));
     const csp = response.headers.get("content-security-policy") ?? "";
     expect(directive(csp, "frame-ancestors")).toBe("frame-ancestors 'self'");
     expect(csp).not.toContain("askbridge");
@@ -150,7 +150,7 @@ describe("proxy security headers", () => {
   });
 
   it("keeps the admin host and unknown hosts same-origin only", async () => {
-    for (const url of ["https://autofix.vitalos.co.uk/app/settings/booking-page", "https://nobody.autofix.vitalos.co.uk/"]) {
+    for (const url of ["https://pitline.co.uk/app/settings/booking-page", "https://nobody.pitline.co.uk/"]) {
       const response = await proxy(request(url));
       expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
       expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'self'");
@@ -169,7 +169,7 @@ describe("host cache", () => {
         return { id: garages.hartley.id, slug: "hartley-road", status: "active" };
       },
     };
-    const env = { NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk" };
+    const env = { NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk" };
     clearHostCache();
     await realResolveHost("book.cache-test.co.uk", { lookup, env, now: 0 });
     await realResolveHost("book.cache-test.co.uk", { lookup, env, now: 1 });

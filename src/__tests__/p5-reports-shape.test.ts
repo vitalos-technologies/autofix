@@ -116,7 +116,7 @@ describe("P5.6 report shaping", () => {
   });
 
   it("file names hold the report and dates only", () => {
-    expect(reportFileName("bay-utilisation", { from: "2026-10-01", to: "2026-10-31" })).toBe("autofix-bay-utilisation-2026-10-01-to-2026-10-31.csv");
+    expect(reportFileName("bay-utilisation", { from: "2026-10-01", to: "2026-10-31" })).toBe("pitline-bay-utilisation-2026-10-01-to-2026-10-31.csv");
     expect(isReportKind("hours")).toBe(true);
     expect(isReportKind("../etc")).toBe(false);
   });

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Jobs · Autofix Super Admin{% endblock %}
+{% block title %}Jobs · Pitline Super Admin{% endblock %}
 {% block content %}
   <h1>Jobs</h1>
-  <p class="muted mt-1 text-sm">Autofix's Postgres job queue: reminders, domain checks, MOT refreshes and more. Payloads are never shown; errors are masked.</p>
+  <p class="muted mt-1 text-sm">Pitline's Postgres job queue: reminders, domain checks, MOT refreshes and more. Payloads are never shown; errors are masked.</p>
   <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="kpi" data-testid="kpi-queued"><p class="kpi-label">Queued</p><p class="kpi-value">{{ health.totals.queued }}</p><p class="kpi-time">{% if health.oldest_queued_at %}Oldest due {{ health.oldest_queued_at|date:"j M H:i" }}{% else %}Nothing waiting{% endif %}</p></div>
     <div class="kpi"><p class="kpi-label">Running</p><p class="kpi-value">{{ health.totals.running }}</p><p class="kpi-time">{{ health.expired|length }} with an expired lock</p></div>
@@ -13,7 +13,7 @@
 
   <section class="card mt-6 overflow-x-auto" tabindex="0" aria-labelledby="failures-heading">
     <h2 id="failures-heading" class="px-4 pt-4 text-xl">Recent failures</h2>
-    {% if can_retry %}<p class="muted px-4 text-xs">Retry puts the job back in the queue now with fresh attempts, through Autofix's platform_retry_job. Give a reason; it is logged.</p>{% endif %}
+    {% if can_retry %}<p class="muted px-4 text-xs">Retry puts the job back in the queue now with fresh attempts, through Pitline's platform_retry_job. Give a reason; it is logged.</p>{% endif %}
     <table class="table-base mt-2" data-testid="failures-table">
       <caption class="sr-only">The 20 latest failed jobs</caption>
       <thead><tr><th scope="col">Job</th><th scope="col">Garage</th><th scope="col">Attempts</th><th scope="col">Failed</th><th scope="col">Error</th>{% if can_retry %}<th scope="col">Retry</th>{% endif %}</tr></thead>

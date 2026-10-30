@@ -23,22 +23,22 @@ ACTIONS = {
     "users.activated": "Reactivated a user",
     "users.deactivated": "Deactivated a user",
     "users.owner_set": "Set the primary owner",
-    "users.autofix_link_changed": "Changed a user's Autofix platform admin link",
+    "users.autofix_link_changed": "Changed a user's Pitline platform admin link",
     "audit.exported": "Exported the audit trail",
-    "audit.autofix_exported": "Exported the Autofix platform log",
-    # Autofix. Summaries name garages and ids, never customers, registrations or contact details.
+    "audit.autofix_exported": "Exported the Pitline platform log",
+    # Pitline. Summaries name garages and ids, never customers, registrations or contact details.
     "autofix.garage_updated": "Changed a garage's plan or status",
-    "autofix.garage_update_refused": "Tried to change a garage (refused by Autofix)",
+    "autofix.garage_update_refused": "Tried to change a garage (refused by Pitline)",
     "autofix.garages_exported": "Exported garages",
     "autofix.job_retried": "Retried a failed job",
-    "autofix.domain_check_requested": "Asked Autofix to re-check a domain",
+    "autofix.domain_check_requested": "Asked Pitline to re-check a domain",
     "autofix.view_as_support": "Handed off to View as support",
     "autofix.personal_data_viewed": "Viewed customer details on a garage's bookings",
     "autofix.voicemail_played": "Played a garage's voicemail",
     # Contact page enquiries. Summaries carry the enquiry's short id and topic, never the sender's details.
     "autofix.enquiry_viewed": "Opened a contact page enquiry",
     "autofix.enquiry_updated": "Changed an enquiry's status or notes",
-    "autofix.enquiry_update_refused": "Tried to change an enquiry (refused by Autofix)",
+    "autofix.enquiry_update_refused": "Tried to change an enquiry (refused by Pitline)",
 }
 
 

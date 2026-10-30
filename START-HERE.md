@@ -1,14 +1,14 @@
-# Autofix — start here
+# Pitline — start here
 
-This folder is the Claude Code setup for Autofix, Vitalos's multi-tenant garage booking platform. It holds the spec, build plan, design system and agent setup. The app code comes from SOB Autofix when you run `/bootstrap`. Repo: https://github.com/vitalos-technologies/autofix
+This folder is the Claude Code setup for Pitline, Vitalos's multi-tenant garage booking platform. It holds the spec, build plan, design system and agent setup. The app code comes from SOB Autofix when you run `/bootstrap`. Repo: https://github.com/vitalos-technologies/pitline
 
 ## Steps
 
 **In Claude Code cloud (recommended)**
 
-1. Install the Claude GitHub App on `vitalos-technologies/autofix` and `Isaacpyo/sobautofix` (github.com/apps/claude → Configure).
-2. In the Claude desktop app's Code tab, choose a **Cloud** environment and the `vitalos-technologies/autofix` repo.
-3. Run `/bootstrap`. It brings in SOB's code and history, overlays the Autofix files, runs the baseline and pushes.
+1. Install the Claude GitHub App on `vitalos-technologies/pitline` and `Isaacpyo/sobautofix` (github.com/apps/claude → Configure).
+2. In the Claude desktop app's Code tab, choose a **Cloud** environment and the `vitalos-technologies/pitline` repo.
+3. Run `/bootstrap`. It brings in SOB's code and history, overlays the Pitline files, runs the baseline and pushes.
 4. Run `/build` to run Phases 1–4 back to back without stopping (or `/phase <n>` for one phase at a time). Use `/status` any time.
 
 **In a local folder**

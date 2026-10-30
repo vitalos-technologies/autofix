@@ -6,13 +6,13 @@ import { formatPence } from "./money";
 import { exportDate, invoiceExportFilterDescription, type InvoiceExportFilters, type InvoiceExportRow } from "./export";
 import { invoiceStatusLabel, sourceLabel } from "./types";
 
-const colours = { navy: "#071127", blue: "#1974E2", pale: "#F4F7FA", border: "#DCE6F2", muted: "#667586", white: "#FFFFFF", green: "#237A57" };
+const colours = { navy: "#0f2747", blue: "#2563EB", pale: "#F8FAFC", border: "#E2E8F0", muted: "#667586", white: "#FFFFFF", green: "#237A57" };
 const styles = StyleSheet.create({
   page: { padding: 34, paddingBottom: 52, fontFamily: "Helvetica", fontSize: 8, color: colours.navy },
   header: { marginHorizontal: -34, marginTop: -34, paddingHorizontal: 34, paddingVertical: 24, backgroundColor: colours.navy, color: colours.white },
   eyebrow: { color: "#67B9FF", fontSize: 8, fontFamily: "Helvetica-Bold", letterSpacing: 1.2 },
   title: { marginTop: 6, fontSize: 24, fontFamily: "Helvetica-Bold" },
-  subtitle: { marginTop: 7, color: "#DCE6F2", fontSize: 9 },
+  subtitle: { marginTop: 7, color: "#E2E8F0", fontSize: 9 },
   metrics: { marginTop: 18, flexDirection: "row", gap: 10 },
   metric: { flexGrow: 1, flexBasis: 0, padding: 12, backgroundColor: colours.pale, borderTopWidth: 3, borderTopColor: colours.blue },
   metricLabel: { color: colours.muted, fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase" },

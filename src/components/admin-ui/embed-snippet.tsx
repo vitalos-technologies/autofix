@@ -129,7 +129,7 @@ export function EmbedSnippet({ bookingUrl, accent, garageName, tabs, defaultKind
         >
           <div className="flex min-w-0 flex-col overflow-hidden rounded-input bg-navy-950">
             <div className="flex items-center justify-between gap-3 border-b border-navy-line py-1 pr-1.5 pl-4">
-              <span className="text-[12px] font-semibold tracking-[0.06em] text-[#b8c4d4] uppercase">{tab.language}</span>
+              <span className="text-[12px] font-semibold tracking-[0.06em] text-[#94a3b8] uppercase">{tab.language}</span>
               <CopyButton value={tab.code} label="Copy" srSuffix={`${tab.label} code`} variant="onDark" size="sm" icon />
             </div>
             <pre

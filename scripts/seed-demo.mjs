@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local demo data for Autofix (P1.9): `pnpm db:seed`.
+ * Local demo data for Pitline (P1.9): `pnpm db:seed`.
  *
  * LOCAL ONLY. The script refuses any Supabase URL that is not a local CLI
  * stack (plain http on a loopback host; any port, since CI runners shift

@@ -197,7 +197,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
                   <div className="flex items-center gap-2">
                     <h2 id={headingId} className="m-0 font-sans text-[16px] font-bold tracking-normal text-navy-950">
                       {formatShortDateKey(weekDay.date)}
-                      {weekDay.isToday ? <span className="ml-2 text-[12px] font-bold tracking-[0.08em] text-accent uppercase">Today</span> : null}
+                      {weekDay.isToday ? <span className="ml-2 text-[12px] font-bold tracking-[0.08em] text-accent-text uppercase">Today</span> : null}
                     </h2>
                     <Link href={diaryDayHref(weekDay.date)} className={cn(textLinkClass, "ml-auto text-[14px]")}>
                       Day view<span className="sr-only">, {formatShortDateKey(weekDay.date)}</span>
@@ -254,7 +254,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
                           href={diaryDayHref(weekDay.date)}
                           className={cn(
                             "flex min-h-11 flex-col justify-center rounded-[10px] px-2 no-underline hover:bg-grey-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                            weekDay.isToday ? "text-accent" : "text-navy-950",
+                            weekDay.isToday ? "text-accent-text" : "text-navy-950",
                           )}
                         >
                           <span className="text-[13px] font-bold">{formatShortDateKey(weekDay.date)}</span>
@@ -269,7 +269,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
                 </thead>
                 <tbody>
                   {week.rows.map((row) => (
-                    <tr key={row.id} className="border-t border-[#eef2f6]">
+                    <tr key={row.id} className="border-t border-[#f1f5f9]">
                       <th scope="row" className="py-2 pr-2 align-top text-[13px] font-bold text-navy-950">
                         <span className="block truncate">{row.id === UNASSIGNED_ROW ? "Unassigned" : row.name}</span>
                       </th>

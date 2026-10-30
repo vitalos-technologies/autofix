@@ -39,7 +39,7 @@ export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSi
 
 /** Underlined accent text link, at least 44px tall for touch. */
 export const textLinkClass = cn(
-  "inline-flex min-h-11 items-center font-semibold text-accent underline underline-offset-2 hover:text-blue-700",
+  "inline-flex min-h-11 items-center font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700",
   focusRing,
 );
 

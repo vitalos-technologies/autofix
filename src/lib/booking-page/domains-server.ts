@@ -93,7 +93,7 @@ export async function connectCustomDomain(garageId: string, input: string, deps:
   }
   const { data: claimed, error: claimError } = await deps.service.from("garage_domains").select("id").eq("hostname", hostname).is("deleted_at", null).limit(1);
   if (claimError) return { ok: false, code: "unavailable", message: "We couldn't check that address just now. Try again in a minute." };
-  if (claimed?.length) return { ok: false, code: "taken", message: `${hostname} is already connected to another garage on Autofix.` };
+  if (claimed?.length) return { ok: false, code: "taken", message: `${hostname} is already connected to another garage on Pitline.` };
 
   const cnameTarget = deps.cnameTarget ?? getDomainCnameTarget();
   let records: DnsRecordInstruction[];
@@ -119,7 +119,7 @@ export async function connectCustomDomain(garageId: string, input: string, deps:
   const now = deps.now ?? new Date();
   const inserted = await deps.rls.from("garage_domains").insert({ garage_id: garageId, hostname }).select("id").single();
   if (inserted.error || !inserted.data) {
-    if (inserted.error?.code === "23505") return { ok: false, code: "taken", message: `${hostname} is already connected to another garage on Autofix.` };
+    if (inserted.error?.code === "23505") return { ok: false, code: "taken", message: `${hostname} is already connected to another garage on Pitline.` };
     if (inserted.error?.code === "42501") return { ok: false, code: "unavailable", message: "You don't have permission to change this." };
     return { ok: false, code: "unavailable", message: "That address could not be saved. Try again." };
   }

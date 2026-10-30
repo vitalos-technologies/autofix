@@ -86,7 +86,7 @@ export default async function CourtesyCarsPage({ searchParams }: PageProps) {
           <Panel title="Your courtesy cars" padding="flush">
             <ul className="m-0 list-none p-0">
               {loaded[0].map((car) => (
-                <li key={car.id} className="flex flex-wrap items-center gap-2.5 border-t border-[#eef2f6] py-3 first:border-t-0">
+                <li key={car.id} className="flex flex-wrap items-center gap-2.5 border-t border-[#f1f5f9] py-3 first:border-t-0">
                   <span className="text-[15px] font-bold text-navy-950">{car.name}</span>
                   <PlateChip registration={car.registration} />
                   <span className="text-[13px] text-grey-600">{formatMiles(car.mileage)}</span>
@@ -155,7 +155,7 @@ export default async function CourtesyCarsPage({ searchParams }: PageProps) {
             <Panel id="needs-ok" title="Needs your OK" count={requests.length + unassigned.length} countLabel={`${requests.length + unassigned.length} to sort out`}>
               <ul className="m-0 flex list-none flex-col p-0">
                 {requests.map((request) => (
-                  <li key={request.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#eef2f6] py-3 first:border-t-0">
+                  <li key={request.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#f1f5f9] py-3 first:border-t-0">
                     <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
                       <span className="text-[14.5px] font-bold text-navy-950">Courtesy car asked for{request.customerName ? ` by ${request.customerName}` : ""}</span>
                       <span className="text-[13px] text-grey-600">
@@ -177,7 +177,7 @@ export default async function CourtesyCarsPage({ searchParams }: PageProps) {
                   </li>
                 ))}
                 {unassigned.map((leg) => (
-                  <li key={leg.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#eef2f6] py-3 first:border-t-0">
+                  <li key={leg.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#f1f5f9] py-3 first:border-t-0">
                     <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
                       <span className="text-[14.5px] font-bold text-navy-950">
                         {LEG_LABELS[leg.leg]} needs a van{leg.customerName ? `: ${leg.customerName}` : ""}
@@ -231,7 +231,7 @@ export default async function CourtesyCarsPage({ searchParams }: PageProps) {
             ) : (
               <ul className="m-0 flex list-none flex-col p-0">
                 {legs.map((leg) => (
-                  <li key={leg.id} className="flex flex-col gap-0.5 border-t border-[#eef2f6] py-2.5 first:border-t-0">
+                  <li key={leg.id} className="flex flex-col gap-0.5 border-t border-[#f1f5f9] py-2.5 first:border-t-0">
                     <span className="flex flex-wrap items-center gap-2">
                       <Truck size={16} strokeWidth={2} aria-hidden="true" className="text-grey-600" />
                       <span className="text-[14px] font-bold text-navy-950">
@@ -309,7 +309,7 @@ function CarCard({
               key={day.dateKey}
               className={cn(
                 "flex min-h-11 flex-col items-center justify-center rounded-[8px] border text-[11.5px] leading-tight font-semibold",
-                busy ? "border-[#0f3f80] bg-[#0f3f80] text-white" : "border-grey-200 bg-grey-50 text-grey-700",
+                busy ? "border-[#1e40af] bg-[#1e40af] text-white" : "border-grey-200 bg-grey-50 text-grey-700",
                 day.dateKey === today && "outline-2 outline-offset-1 outline-accent outline-solid",
               )}
             >

@@ -37,7 +37,7 @@ export default async function InvitePage() {
 
   const session = await getSignupSession();
   const role = ROLE_LABELS[preview.role];
-  const intro = `${preview.garageName} has invited you to join their team on Autofix as ${role === "Front desk" ? "front desk" : role.toLowerCase()}.`;
+  const intro = `${preview.garageName} has invited you to join their team on Pitline as ${role === "Front desk" ? "front desk" : role.toLowerCase()}.`;
   const sessionEmail = session?.user.email?.toLowerCase();
 
   return (

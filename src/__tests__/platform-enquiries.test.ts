@@ -107,7 +107,7 @@ describe("notifyPlatformEnquiry", () => {
   });
 
   it("emails the recipient once per enquiry, with the sender as Reply-To", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://autofix.vitalos.co.uk");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://pitline.co.uk");
     const env = { PLATFORM_ENQUIRY_EMAIL: "hello@vitalos.example" };
     const channel = createMockChannel("email");
     expect(await notifyPlatformEnquiry(enquiry, { env, channel })).toEqual({ status: "sent" });
@@ -125,7 +125,7 @@ describe("notifyPlatformEnquiry", () => {
     });
     expect(sent!.body).toContain("Mondays suit us.");
     expect(sent!.body).toContain("Shah Motors");
-    expect(sent!.body).toContain(`https://autofix.vitalos.co.uk/superadmin/enquiries/${enquiry.id}/`);
+    expect(sent!.body).toContain(`https://pitline.co.uk/superadmin/enquiries/${enquiry.id}/`);
     expect(sent!.html).toContain("We would like a demo for our two sites.<br>Mondays suit us.");
   });
 

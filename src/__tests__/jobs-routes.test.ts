@@ -37,7 +37,7 @@ function summary(overrides: Partial<DrainSummary> = {}): DrainSummary {
 }
 
 function cron(authorization?: string) {
-  return new Request("https://autofix.vitalos.co.uk/api/cron/daily", { headers: authorization ? { authorization } : {} });
+  return new Request("https://pitline.co.uk/api/cron/daily", { headers: authorization ? { authorization } : {} });
 }
 
 beforeEach(() => {
@@ -101,7 +101,7 @@ describe("GET /api/cron/[job]", () => {
 
 describe("POST /api/jobs/drain", () => {
   function drainRequest(body?: unknown, authorization = `Bearer ${SECRET}`, contentType = "application/json") {
-    return new Request("https://autofix.vitalos.co.uk/api/jobs/drain", {
+    return new Request("https://pitline.co.uk/api/jobs/drain", {
       method: "POST",
       headers: { authorization, "content-type": contentType },
       body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),

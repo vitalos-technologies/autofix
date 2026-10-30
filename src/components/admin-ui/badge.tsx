@@ -6,7 +6,7 @@ export type BadgeTone = "neutral" | "info" | "warning" | "success" | "danger" | 
 
 /**
  * Chip colours (design/DESIGN.md "Colour"). Every pair passes 4.5:1:
- * neutral #3d4a5a on #eef1f5, info #0d3b7a on #dbe8fb, warning #6e4a06 on #fdf1d3,
+ * neutral #475569 on #f1f5f9, info #0d3b7a on #dbe8fb, warning #6e4a06 on #fdf1d3,
  * success #166534 on #e7f6ec, danger #991b1b on #fdecec.
  */
 export const badgeTones: Record<BadgeTone, string> = {

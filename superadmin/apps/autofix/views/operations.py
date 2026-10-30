@@ -1,4 +1,4 @@
-"""Jobs, messaging, domains, sign-ups, activity, team, the Autofix platform log and product status."""
+"""Jobs, messaging, domains, sign-ups, activity, team, the Pitline platform log and product status."""
 
 import hmac
 import logging
@@ -285,7 +285,7 @@ def activity(request):
             remote = [
                 {
                     "when": entry.created_at,
-                    "source": "Autofix",
+                    "source": "Pitline",
                     "actor": entry.actor_name,
                     "text": entry.action.replace("platform.", "").replace("_", " ").capitalize(),
                     "summary": entry.target_garage.name
@@ -295,7 +295,7 @@ def activity(request):
                 for entry in selectors.recent_platform_activity(ACTIVITY_LIMIT)
             ]
         except AutofixUnavailable:
-            error = "Autofix activity could not be read just now."
+            error = "Pitline activity could not be read just now."
     entries = sorted(chain(local, remote), key=lambda item: item["when"], reverse=True)[:ACTIVITY_LIMIT]
     return render(request, "autofix/activity.html", {"entries": entries, "source": source, "error": error})
 
@@ -323,7 +323,7 @@ def team(request):
     try:
         admins = selectors.platform_admins()
     except AutofixUnavailable:
-        error = "Autofix platform admins could not be read just now."
+        error = "Pitline platform admins could not be read just now."
     linked = {str(user.autofix_admin_id) for user in users if user.autofix_admin_id}
     return render(
         request,
@@ -338,7 +338,7 @@ def team(request):
     )
 
 
-# --- Autofix platform log (Audit → Autofix) -----------------------------------------------------
+# --- Pitline platform log (Audit → Pitline) -----------------------------------------------------
 
 PLATFORM_COLUMNS = [
     Column("when", "When", sort_field="created_at", mono=True, nowrap=True),
@@ -381,11 +381,11 @@ def platform_audit(request):
             selectors.platform_audit(filters),
             PLATFORM_COLUMNS,
             _platform_row,
-            caption="Autofix platform log: every super admin action in Autofix",
+            caption="Pitline platform log: every super admin action in Pitline",
             target_id=PLATFORM_TARGET,
             url=reverse("autofix:platform_audit"),
             default_sort="when",
-            empty_message="No Autofix platform actions match these filters.",
+            empty_message="No Pitline platform actions match these filters.",
         )
         actions = selectors.platform_actions()
     except AutofixUnavailable as error:
@@ -463,6 +463,6 @@ def product_status(request):
     try:
         body = status.payload()
     except AutofixUnavailable:
-        logger.warning("Product status unavailable: Autofix data could not be read")
+        logger.warning("Product status unavailable: Pitline data could not be read")
         return _json({"error": "unavailable"}, 503)
     return _json(body)

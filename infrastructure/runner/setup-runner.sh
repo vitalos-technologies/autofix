@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a GitHub Actions self-hosted runner for vitalos-technologies/autofix on the AWS build VM.
+# Install a GitHub Actions self-hosted runner for vitalos-technologies/pitline on the AWS build VM.
 # Runbook: infrastructure/RUNNER.md. Run as root on vitalos-workforce-build (SSM send-command or an SSM session).
 #
 # Adapted from workforce's infrastructure/runner/setup-runner.sh (branch ops/runner-capacity). Differences:
@@ -19,7 +19,7 @@
 #   RUNNER_NAME=autofix-build-vm-2 RUNNER_DIR=/home/ghrunner-autofix/actions-runner-2 bash setup-runner.sh
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/vitalos-technologies/autofix}"
+REPO_URL="${REPO_URL:-https://github.com/vitalos-technologies/pitline}"
 RUNNER_USER="${RUNNER_USER:-ghrunner-autofix}"
 RUNNER_NAME_PREFIX="${RUNNER_NAME_PREFIX:-autofix-build-vm}"
 RUNNER_NAME="${RUNNER_NAME:-${RUNNER_NAME_PREFIX}-1}"

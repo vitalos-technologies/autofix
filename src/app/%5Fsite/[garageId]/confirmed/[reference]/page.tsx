@@ -10,6 +10,7 @@ import { whatsappHref } from "@/lib/tenancy/contact";
 import { requireSiteGarage } from "@/lib/tenancy/garage";
 import { cn } from "@/lib/utils";
 import { BOOKING_COLUMN, BookingScreen } from "../../_components/booking-screen";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 import { manageTextLink } from "../../_components/manage-ui";
 
 export const metadata: Metadata = {
@@ -69,7 +70,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
             <Search size={18} strokeWidth={2} aria-hidden="true" />
             Find your booking
           </Link>
-          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent underline underline-offset-2">
+          <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent-text underline underline-offset-2">
             Book a car in
           </Link>
         </div>
@@ -134,7 +135,7 @@ export default async function ConfirmedPage({ params }: ConfirmedPageProps) {
           <Link href="/" className={manageTextLink}>
             Book another car
           </Link>
-          <span className="text-[11.5px] text-grey-600">Powered by Autofix</span>
+          <PoweredByPitline className="text-[11.5px]" />
         </div>
       </div>
     </div>

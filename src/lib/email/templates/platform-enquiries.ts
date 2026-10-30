@@ -35,7 +35,7 @@ export function renderPlatformEnquiryNotification(input: PlatformEnquiryEmailInp
       tone: "info",
       title: input.topic,
       intro: `${input.name} sent a message from the contact page. Reply to this email to answer them.`,
-      contentHtml: `${detailCard(details)}<div style="margin-top:22px;"><p style="margin:0 0 8px;color:#586575;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Message</p><div style="padding:16px 18px;border:1px solid #DCE6F2;border-radius:12px;color:#071127;font-size:15px;line-height:23px;overflow-wrap:anywhere;">${textToHtml(input.message)}</div></div>`,
+      contentHtml: `${detailCard(details)}<div style="margin-top:22px;"><p style="margin:0 0 8px;color:#475569;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Message</p><div style="padding:16px 18px;border:1px solid #E2E8F0;border-radius:12px;color:#0f2747;font-size:15px;line-height:23px;overflow-wrap:anywhere;">${textToHtml(input.message)}</div></div>`,
       cta: { label: "Open in the super admin", url: input.url },
     }),
     text: [

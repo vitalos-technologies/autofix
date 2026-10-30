@@ -19,7 +19,7 @@ const ACCEPT_MESSAGES = {
   INVITE_NOT_FOUND: "This invite has been used or withdrawn. Ask the garage for a new one.",
   INVITE_EXPIRED: "This invite has expired. Ask the garage to send it again.",
   INVITE_EMAIL_MISMATCH: "You're signed in with a different email address from the one invited.",
-  GARAGE_UNAVAILABLE: "This garage isn't taking new staff on Autofix right now.",
+  GARAGE_UNAVAILABLE: "This garage isn't taking new staff on Pitline right now.",
 } as const;
 
 async function inviteToken() {
@@ -67,7 +67,7 @@ export async function signInAndAcceptAction(previous: InviteActionState, formDat
 }
 
 /**
- * New to Autofix: the invite link proves the address, so the account is created already confirmed
+ * New to Pitline: the invite link proves the address, so the account is created already confirmed
  * (service role), signed in and joined in one go.
  */
 export async function createAccountAndAcceptAction(previous: InviteActionState, formData: FormData): Promise<InviteActionState> {

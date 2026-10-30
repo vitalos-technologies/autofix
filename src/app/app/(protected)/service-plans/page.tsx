@@ -28,7 +28,7 @@ function SubscriptionList({ subscriptions, timeZone }: { subscriptions: PlanSubs
   return (
     <ul className="m-0 flex list-none flex-col p-0">
       {subscriptions.map((subscription) => (
-        <li key={subscription.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#eef2f6] py-3 first:border-t-0">
+        <li key={subscription.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#f1f5f9] py-3 first:border-t-0">
           <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
             <Link href={`/app/customers/${subscription.customerId}#service-plan`} className={cn(textLinkClass, "self-start text-[15px] font-bold")}>
               {subscription.customerName ?? "Customer"}
@@ -77,7 +77,7 @@ export default async function ServicePlansPage({ searchParams }: PageProps) {
         {live.length > 0 ? (
           <div role="alert" className="rounded-card border border-[#f1d9a8] bg-warning-bg px-4 py-3.5 text-[14px] font-semibold text-warning-ink">
             {live.length === 1 ? "1 customer is" : `${live.length} customers are`} still on a plan. Their Direct Debits keep being collected:
-            Autofix hasn&apos;t cancelled them. Honour their plans, or cancel each one from the customer&apos;s page, or upgrade to Pro again.
+            Pitline hasn&apos;t cancelled them. Honour their plans, or cancel each one from the customer&apos;s page, or upgrade to Pro again.
           </div>
         ) : null}
         <PlanNotice flash={flash} />

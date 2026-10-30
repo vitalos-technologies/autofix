@@ -126,7 +126,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   ];
 
   const peopleRow = (person: AccountPerson) => (
-    <li key={person.linkId} className="flex flex-wrap items-center gap-3 border-t border-[#eef2f6] py-3 first:border-t-0">
+    <li key={person.linkId} className="flex flex-wrap items-center gap-3 border-t border-[#f1f5f9] py-3 first:border-t-0">
       <span className="flex min-w-0 grow flex-col gap-0.5">
         <span className="flex flex-wrap items-center gap-2">
           <Link href={`/app/customers/${person.customerId}`} className={cn(textLinkClass, "text-[15px] font-bold")}>{person.name}</Link>
@@ -256,7 +256,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             {detail.statements.length ? (
               <ul className="m-0 flex list-none flex-col p-0" aria-label="Statements, newest first">
                 {detail.statements.map((statement) => (
-                  <li key={statement.id} className="border-t border-[#eef2f6] py-3 first:border-t-0">
+                  <li key={statement.id} className="border-t border-[#f1f5f9] py-3 first:border-t-0">
                     <Link href={`/app/accounts/statements/${statement.id}`} className="flex min-h-11 items-center gap-3 text-navy-950 no-underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent">
                       <FileText size={18} strokeWidth={2} aria-hidden="true" className="shrink-0 text-grey-600" />
                       <span className="flex min-w-0 grow flex-col">
@@ -277,7 +277,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               </p>
             )}
             {canEdit ? (
-              <form action={generateStatementAction} className="flex flex-col gap-2 border-t border-[#eef2f6] pt-3.5">
+              <form action={generateStatementAction} className="flex flex-col gap-2 border-t border-[#f1f5f9] pt-3.5">
                 <input type="hidden" name="accountId" value={account.id} />
                 <label htmlFor="statement-month" className="text-[14px] font-semibold text-grey-800">Make or refresh a statement</label>
                 <div className="flex gap-2">

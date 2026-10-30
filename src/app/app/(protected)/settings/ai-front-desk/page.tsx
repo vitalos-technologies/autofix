@@ -62,7 +62,7 @@ function TokenRow({ token, timeZone, canEdit }: { token: AgentTokenRow; timeZone
 
 /**
  * Settings · AI front desk (P5.12, D17: Pro; voice desk AV1–AV10). The owner's switch for answering
- * missed calls with Autofix's AI front desk, whether calls are being answered, a test-call guide, this
+ * missed calls with Pitline's AI front desk, whether calls are being answered, a test-call guide, this
  * month's AI minutes against the Pro allowance (the same numbers as Settings · Plan), and agent tokens
  * for other Vitalos agents (raw token shown once).
  */
@@ -174,7 +174,7 @@ export default async function AiFrontDeskSettingsPage({ searchParams }: PageProp
                 <dd className="m-0 text-grey-700">{calls.detail}</dd>
               </div>
               <div className="flex flex-col gap-0.5">
-                <dt className="font-semibold text-navy-950">Your Autofix number</dt>
+                <dt className="font-semibold text-navy-950">Your Pitline number</dt>
                 <dd className="m-0 text-grey-700">
                   {autofixNumber ? <a href={telHref(autofixNumber) ?? undefined} className={textLinkClass}>{formatPhoneForDisplay(autofixNumber)}</a> : "Not set up yet"}
                 </dd>
@@ -185,7 +185,7 @@ export default async function AiFrontDeskSettingsPage({ searchParams }: PageProp
           <Panel id="test-call" title="Try a test call">
             <ol className="m-0 flex list-decimal flex-col gap-2 pl-5 text-[14px] leading-snug text-grey-800">
               <li>Switch the AI front desk on above.</li>
-              <li>From a mobile, call {autofixNumber ? <strong>{formatPhoneForDisplay(autofixNumber)}</strong> : "your Autofix number"}. If your own phone rings first, let it ring out.</li>
+              <li>From a mobile, call {autofixNumber ? <strong>{formatPhoneForDisplay(autofixNumber)}</strong> : "your Pitline number"}. If your own phone rings first, let it ring out.</li>
               <li>You&apos;ll hear: &ldquo;Hi, you&apos;re through to the automated assistant for {garage.name}.&rdquo; Ask for a time for a service, then book it.</li>
               <li>Hang up. The booking request shows in Bookings for you to confirm, and the call shows under Missed calls with what it was about.</li>
             </ol>

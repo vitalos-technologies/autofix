@@ -89,7 +89,7 @@ test("free link, QR code and the page at 390 and 1440", async () => {
   await expect(page.getByRole("navigation", { name: "Setup pages" }).getByRole("link", { name: "Booking page" })).toHaveAttribute("aria-current", "page");
   const freeLink = page.locator("#free-link");
   // A production build shows the real free link (garageBaseUrl), whatever host serves the admin.
-  const freeHost = `${garage.slug}.autofix.vitalos.co.uk`;
+  const freeHost = `${garage.slug}.pitline.co.uk`;
   await expect(freeLink.locator("code")).toHaveText(freeHost);
   await expect(freeLink.getByRole("button", { name: /Copy/ })).toBeVisible();
 

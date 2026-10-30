@@ -62,7 +62,7 @@ export function verifyBookingCalendarSignature(garageId: string, reference: stri
 /** Globally unique event UID: references repeat across garages, slugs do not. */
 export function bookingCalendarUid(garage: Pick<CalendarGarage, "slug">, reference: string) {
   const safeReference = reference.toUpperCase().replace(/[^A-Z0-9-]/g, "");
-  const domain = normaliseHost(process.env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN) ?? "autofix.vitalos.co.uk";
+  const domain = normaliseHost(process.env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN) ?? "pitline.co.uk";
   return `${safeReference}.${garage.slug}@${domain}`;
 }
 
@@ -117,7 +117,7 @@ export function buildBookingCalendar(details: BookingCalendarDetails) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Autofix//Booking Calendar//EN",
+    "PRODID:-//Pitline//Booking Calendar//EN",
     "CALSCALE:GREGORIAN",
     `METHOD:${cancelled ? "CANCEL" : "REQUEST"}`,
     `X-WR-TIMEZONE:${escapeCalendarText(details.timezone)}`,

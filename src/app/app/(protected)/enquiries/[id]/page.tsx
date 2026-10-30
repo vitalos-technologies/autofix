@@ -70,23 +70,23 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
       <BackLink href="/app/enquiries">Back to enquiries</BackLink>
       <div className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,.85fr)]">
         <div className="min-w-0">
-      <div className="lg:sticky lg:top-0 lg:z-20 lg:bg-[#F4F7FA]">
-      <header className="rounded-2xl border border-[#E4EAF0] bg-white p-5 shadow-sm sm:p-7">
+      <div className="lg:sticky lg:top-0 lg:z-20 lg:bg-[#F8FAFC]">
+      <header className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <p className="text-xs font-extrabold tracking-widest text-accent uppercase">{formatType(enquiry.type)} enquiry</p>
-            <h1 className="mt-2 text-3xl font-extrabold text-[#071127]">{customer?.name || "Customer enquiry"}</h1>
-            {vehicleSummary && <p className="mt-3 font-bold text-[#071127]">{vehicleSummary}</p>}
-            {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#586575] uppercase">{enquiry.vehicles.registration}</p>}
-            {enquiry.location_postcode && <p className="mt-2 text-sm text-[#586575]">Location: {enquiry.location_postcode}</p>}
+            <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">{formatType(enquiry.type)} enquiry</p>
+            <h1 className="mt-2 text-3xl font-extrabold text-[#0f2747]">{customer?.name || "Customer enquiry"}</h1>
+            {vehicleSummary && <p className="mt-3 font-bold text-[#0f2747]">{vehicleSummary}</p>}
+            {enquiry.vehicles?.registration && <p className="mt-1 text-sm font-extrabold tracking-wider text-[#475569] uppercase">{enquiry.vehicles.registration}</p>}
+            {enquiry.location_postcode && <p className="mt-2 text-sm text-[#475569]">Location: {enquiry.location_postcode}</p>}
           </div>
           <form action={updateEnquiryStatus} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="id" value={enquiry.id} />
             <label htmlFor="enquiry-status" className="sr-only">Enquiry status</label>
-            <select id="enquiry-status" name="status" defaultValue={enquiry.status} className="min-h-11 rounded-xl border border-[#D7E0E9] bg-white px-3 text-sm font-bold">
+            <select id="enquiry-status" name="status" defaultValue={enquiry.status} className="min-h-11 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm font-bold">
               <option value="new">New</option><option value="contacted">Contacted</option><option value="booked">Booked</option><option value="closed">Closed</option>
             </select>
-            <button className="min-h-11 rounded-xl bg-[#071127] px-4 text-sm font-bold text-white">Update</button>
+            <button className="min-h-11 rounded-xl bg-[#0f2747] px-4 text-sm font-bold text-white">Update</button>
           </form>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
@@ -95,7 +95,7 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
           {whatsappNumber && <ActionLink href={`https://wa.me/${whatsappNumber.replace(/^\+/, "")}`} icon={<MessageCircle size={16} />} label="WhatsApp" external />}
           {linkedInvoice
             ? <ActionLink href={`/app/invoices/${linkedInvoice.id}`} icon={<ReceiptText size={16} />} label={`Invoice ${linkedInvoice.invoice_number || "Draft"}`} />
-            : <AdminLoadingLink href={`/app/invoices/new?source=enquiry&enquiryId=${enquiry.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#D7E0E9] px-3 text-sm font-bold text-[#071127] hover:border-[#1974E2]" loadingTitle="Preparing invoice" loadingDescription="Please wait while the enquiry details are added to a new invoice."><ReceiptText size={16} />Create invoice</AdminLoadingLink>}
+            : <AdminLoadingLink href={`/app/invoices/new?source=enquiry&enquiryId=${enquiry.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#CBD5E1] px-3 text-sm font-bold text-[#0f2747] hover:border-[#2563EB]" loadingTitle="Preparing invoice" loadingDescription="Please wait while the enquiry details are added to a new invoice."><ReceiptText size={16} />Create invoice</AdminLoadingLink>}
         </div>
       </header>
       </div>
@@ -104,19 +104,19 @@ export default async function EnquiryConversationPage({ params }: { params: Prom
 
       <section aria-labelledby="thread-heading" className="mt-4 rounded-2xl border border-[#D6E3F0] bg-[#EAF2FA] p-3 sm:p-4">
         <div className="flex items-center justify-between gap-4">
-          <h2 id="thread-heading" className="text-xl font-extrabold text-[#071127]">Conversation</h2>
+          <h2 id="thread-heading" className="text-xl font-extrabold text-[#0f2747]">Conversation</h2>
           <span className="text-sm text-grey-600">{messages.length} {messages.length === 1 ? "message" : "messages"}</span>
         </div>
         <div className="mt-2.5 grid gap-2">
           {messages.map((message) => <ThreadMessage key={message.id} message={message} garageName={garageName} />)}
-          {!messages.length && <p className="rounded-2xl border border-[#E4EAF0] bg-white p-8 text-center text-grey-600">No conversation messages are available.</p>}
+          {!messages.length && <p className="rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center text-grey-600">No conversation messages are available.</p>}
         </div>
         {enquiry.enquiry_attachments.length > 0 && (
-          <div className="mt-3 rounded-xl border border-[#E4EAF0] bg-white p-3">
+          <div className="mt-3 rounded-xl border border-[#E2E8F0] bg-white p-3">
             <p className="text-xs font-extrabold tracking-widest text-grey-600 uppercase">Original private attachments · links expire in 5 minutes</p>
             <div className="mt-3 flex flex-wrap gap-2">{enquiry.enquiry_attachments.map((attachment) => {
               const url = signedByPath.get(attachment.object_path);
-              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EAF3FF] px-3 py-2 text-sm font-bold text-accent">{attachment.file_name}</a> : null;
+              return url ? <a key={attachment.id} href={url} className="rounded-lg bg-[#EFF6FF] px-3 py-2 text-sm font-bold text-accent-text">{attachment.file_name}</a> : null;
             })}</div>
           </div>
         )}
@@ -136,18 +136,18 @@ function ThreadMessage({ message, garageName }: { message: MessageRow; garageNam
   const outbound = message.direction === "outbound";
   const heading = message.message_type === "website_enquiry" ? "Customer enquiry" : message.message_type === "automatic_confirmation" ? `${garageName} · Automatic confirmation` : internal ? "Internal note" : outbound ? garageName : "Customer";
   return (
-    <article className={`rounded-xl border p-3 ${internal ? "border-amber-300 bg-amber-50" : outbound ? "border-[#8EBEF5] bg-[#EAF3FF]" : "border-emerald-200 bg-white"}`}>
+    <article className={`rounded-xl border p-3 ${internal ? "border-amber-300 bg-amber-50" : outbound ? "border-[#8EBEF5] bg-[#EFF6FF]" : "border-emerald-200 bg-white"}`}>
       <div className="flex items-start gap-2.5">
-        <span aria-hidden="true" className={`grid size-8 shrink-0 place-items-center rounded-full text-[0.6rem] font-black shadow-sm ${internal ? "bg-amber-200 text-amber-950" : outbound ? "bg-[#1446A5] text-white" : "bg-emerald-100 text-emerald-800"}`}>
+        <span aria-hidden="true" className={`grid size-8 shrink-0 place-items-center rounded-full text-[0.6rem] font-black shadow-sm ${internal ? "bg-amber-200 text-amber-950" : outbound ? "bg-[#1D4ED8] text-white" : "bg-emerald-100 text-emerald-800"}`}>
           {internal ? "IN" : outbound ? garageInitials(garageName) : <UserRound size={16} />}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div><h3 className={`text-sm leading-5 font-extrabold ${internal ? "text-amber-950" : outbound ? "text-[#1446A5]" : "text-emerald-900"}`}>{heading}</h3>{outbound && message.sender_name && <p className="text-[0.7rem] leading-4 text-grey-600">Sent by {message.sender_name}</p>}</div>
+            <div><h3 className={`text-sm leading-5 font-extrabold ${internal ? "text-amber-950" : outbound ? "text-[#1D4ED8]" : "text-emerald-900"}`}>{heading}</h3>{outbound && message.sender_name && <p className="text-[0.7rem] leading-4 text-grey-600">Sent by {message.sender_name}</p>}</div>
             <time className="text-[0.7rem] leading-4 text-grey-600" dateTime={message.created_at}>{formatDate(message.created_at)}</time>
           </div>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-5 text-[#263446]">{message.text_body}</p>
-          {(outbound || message.delivery_status === "failed") && <p className={`mt-1.5 text-[0.65rem] font-bold uppercase tracking-wide ${message.delivery_status === "failed" || message.delivery_status === "bounced" ? "text-red-700" : "text-[#586575]"}`}>{deliveryLabel(message.delivery_status)}</p>}
+          {(outbound || message.delivery_status === "failed") && <p className={`mt-1.5 text-[0.65rem] font-bold uppercase tracking-wide ${message.delivery_status === "failed" || message.delivery_status === "bounced" ? "text-red-700" : "text-[#475569]"}`}>{deliveryLabel(message.delivery_status)}</p>}
         </div>
       </div>
     </article>
@@ -155,7 +155,7 @@ function ThreadMessage({ message, garageName }: { message: MessageRow; garageNam
 }
 
 function ActionLink({ href, icon, label, external = false }: { href: string; icon: React.ReactNode; label: string; external?: boolean }) {
-  return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#D7E0E9] px-3 text-sm font-bold text-[#071127] hover:border-[#1974E2]">{icon}{label}</a>;
+  return <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#CBD5E1] px-3 text-sm font-bold text-[#0f2747] hover:border-[#2563EB]">{icon}{label}</a>;
 }
 
 function formatType(value: string) { return value.replaceAll("_", " "); }

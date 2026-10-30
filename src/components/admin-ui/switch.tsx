@@ -31,7 +31,7 @@ export type SwitchProps = {
 /**
  * On/off switch: a real `<button role="switch">` with `aria-checked`. The visible track is 46×28
  * (as drawn) inside a 44px-tall touch target. The off track is #7d8ca1 (3.4:1 against white) rather
- * than the drawn #cfd8e3, so the control stays visible for low-vision users.
+ * than the drawn #cbd5e1, so the control stays visible for low-vision users.
  */
 export function Switch({
   label,

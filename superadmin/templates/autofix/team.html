@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Team · Autofix Super Admin{% endblock %}
+{% block title %}Team · Pitline Super Admin{% endblock %}
 {% block content %}
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1>Team</h1>
-      <p class="muted mt-1 text-sm">Vitalos staff who can sign in here, and the Autofix platform admins they act as.</p>
+      <p class="muted mt-1 text-sm">Vitalos staff who can sign in here, and the Pitline platform admins they act as.</p>
     </div>
     {% if is_superadmin %}<a class="btn btn-secondary" href="{% url 'accounts:settings_users' %}">{% icon "settings" "h-4 w-4" %} Manage users</a>{% endif %}
   </div>
@@ -13,7 +13,7 @@
     <h2 id="staff-heading" class="px-4 pt-4 text-xl">Vitalos staff</h2>
     <table class="table-base mt-2" data-testid="team-table">
       <caption class="sr-only">Active super admin users</caption>
-      <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Two-factor</th><th scope="col">Autofix changes</th><th scope="col">Last sign-in</th></tr></thead>
+      <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Two-factor</th><th scope="col">Pitline changes</th><th scope="col">Last sign-in</th></tr></thead>
       <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
         {% for row in rows %}
           <tr>
@@ -28,16 +28,16 @@
     </table>
   </section>
   <section class="card mt-6 overflow-x-auto" tabindex="0" aria-labelledby="admins-heading">
-    <h2 id="admins-heading" class="px-4 pt-4 text-xl">Autofix platform admins</h2>
-    <p class="muted px-4 text-xs">From Autofix's platform_admins. Adding one is a change in Autofix (service role), not here.</p>
+    <h2 id="admins-heading" class="px-4 pt-4 text-xl">Pitline platform admins</h2>
+    <p class="muted px-4 text-xs">From Pitline's platform_admins. Adding one is a change in Pitline (service role), not here.</p>
     {% if admins_error %}<p class="px-4 py-3 text-sm" role="status">{{ admins_error }}</p>{% else %}
     <table class="table-base mt-2">
-      <caption class="sr-only">Autofix platform admins</caption>
+      <caption class="sr-only">Pitline platform admins</caption>
       <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Since</th><th scope="col">Linked here</th></tr></thead>
       <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
         {% for admin in admins %}
           <tr><td class="font-medium">{{ admin.display_name|default:"Unnamed" }}</td><td class="text-xs">{{ admin.email|default:"—" }}</td><td class="text-xs">{{ admin.created_at|date:"j M Y" }}</td><td>{% if admin.user_id|stringformat:"s" in linked %}Yes{% else %}<span class="muted">No</span>{% endif %}</td></tr>
-        {% empty %}<tr><td colspan="4" class="muted py-6 text-center">No platform admins in Autofix.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="4" class="muted py-6 text-center">No platform admins in Pitline.</td></tr>{% endfor %}
       </tbody>
     </table>
     {% endif %}

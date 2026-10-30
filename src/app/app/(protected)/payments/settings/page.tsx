@@ -24,7 +24,7 @@ const MESSAGES: Record<string, string> = {
   "done:disconnected": "Payments disconnected. No deposits are taken and no new links can be sent.",
   "error:owner_only": "Only the garage owner can connect or disconnect payments.",
   "error:plan_required": "Payments are on Pro. Upgrade in Settings, Plan.",
-  "error:unavailable": "Card payments aren't available on Autofix right now.",
+  "error:unavailable": "Card payments aren't available on Pitline right now.",
   "error:provider": "The payment provider didn't respond. Try again in a few minutes.",
   "error:save_failed": "That could not be saved. Try again.",
 };
@@ -129,7 +129,7 @@ export default async function PaymentSettingsPage({ searchParams }: { searchPara
                   <span className="text-[14px] text-grey-700">{account.provider === "stripe" ? "Stripe (test mode)" : "Test payments (no money moves)"}</span>
                 </div>
                 <p className="m-0 text-[14px] text-grey-700">
-                  Customers pay {admin.garage.name} directly. Autofix takes no fee on these payments.
+                  Customers pay {admin.garage.name} directly. Pitline takes no fee on these payments.
                 </p>
               </div>
             ) : (

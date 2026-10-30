@@ -23,20 +23,6 @@
 @custom-variant collapsed (&:where([data-sidebar="collapsed"], [data-sidebar="collapsed"] *));
 
 @font-face {
-  font-family: "Barlow Condensed";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../fonts/barlow-condensed-600.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Barlow Condensed";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("../fonts/barlow-condensed-700.woff2") format("woff2");
-}
-@font-face {
   font-family: "Inter";
   font-style: normal;
   font-weight: 100 900;
@@ -52,60 +38,66 @@
 }
 
 /*
- * Autofix tokens (design/tokens.css): navy #071127 ground, number-plate yellow #f6c700 for the primary
- * action and the active marker, blue #1446a5 for links and focus. Flat colour only. The token names
- * (midnight, cobalt, mineral) match the Vitalos Super Admin templates so its components carry over.
+ * Pitline brand kit (DECISIONS D23): Navy #0f2747 ground, Electric Blue #2563eb for primary buttons and
+ * links, Signal Orange #f97316 for the active marker, counts and focus (orange-600 #ea580c on light
+ * surfaces, where #f97316 is under 3:1), slate greys. Flat colour only. The token names (midnight,
+ * plate, cobalt, mineral) match the Vitalos Super Admin templates so its components carry over;
+ * "plate" now holds Signal Orange, with Navy text on it (5.4:1).
  */
 @theme {
-  --color-midnight: #071127;
-  --color-midnight-900: #0c1d3d;
-  --color-midnight-800: #22385f;
-  --color-plate: #f6c700;
-  --color-plate-600: #dcb200;
-  --color-plate-ink: #111111;
-  --color-cobalt: #1446a5;
-  --color-cobalt-300: #9dbcf5;
-  --color-cobalt-600: #1446a5;
-  --color-cobalt-700: #0d3b7a;
+  --color-midnight: #0f2747;
+  --color-midnight-900: #16325a;
+  --color-midnight-800: #2a4468;
+  --color-plate: #f97316;
+  --color-plate-600: #ea580c;
+  --color-plate-ink: #0f2747;
+  --color-cobalt: #2563eb;
+  --color-cobalt-300: #93c5fd;
+  --color-cobalt-600: #2563eb;
+  --color-cobalt-700: #1d4ed8;
   --color-mineral: #16a34a;
   --color-mineral-300: #4ade80;
   --color-mineral-700: #166534;
-  --color-offwhite: #f4f7fa;
-  --color-line: #e4eaf0;
-  --color-line-strong: #cfd8e3;
+  --color-offwhite: #f8fafc;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
 
-  /* Neutrals re-tinted towards navy (Autofix greys) so dark surfaces share the brand ground. */
-  --color-slate-50: #f4f7fa;
-  --color-slate-100: #eef1f5;
-  --color-slate-200: #e4eaf0;
-  --color-slate-300: #cfd8e3;
-  /* Muted text: 5.9:1 on white and 5.5:1 on off-white. */
-  --color-slate-500: #586575;
-  --color-slate-600: #4b5868;
-  --color-slate-700: #3d4a5a;
-  --color-slate-800: #17284a;
-  --color-slate-900: #0c1d3d;
-  --color-slate-950: #071127;
+  /* Slate neutrals (the kit's Steel Gray #64748b and Light Gray #e2e8f0); the darkest ones are Navy so
+     dark surfaces share the brand ground. */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  /* Muted text in dark mode: 5.6:1 on an unread (blue-tinted) row; Tailwind's #94a3b8 is under 4.6:1 there. */
+  --color-slate-400: #a5b4c8;
+  /* Muted text: 6.4:1 on white, 5.2:1 on slate-200 (Steel Gray #64748b is under 4.5:1 on the grey
+     surfaces, so it is not used for text). */
+  --color-slate-500: #526072;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1c3557;
+  --color-slate-900: #16325a;
+  --color-slate-950: #0f2747;
 
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", Inter, ui-sans-serif, sans-serif;
+  --font-display: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-md: 10px;
 }
 
 @layer base {
   :root {
-    --focus: var(--color-cobalt-600);
+    --focus: var(--color-plate-600);
     color-scheme: light;
     scroll-padding-top: 4.5rem; /* WCAG 2.4.11: focused items never sit under the sticky header. */
   }
   :root[data-theme="dark"] {
-    --focus: var(--color-cobalt-300);
+    --focus: var(--color-plate);
     color-scheme: dark;
   }
   @media (prefers-color-scheme: dark) {
     :root[data-theme="system"] {
-      --focus: var(--color-cobalt-300);
+      --focus: var(--color-plate);
       color-scheme: dark;
     }
   }
@@ -121,7 +113,7 @@
   .font-display {
     font-family: var(--font-display);
     font-weight: 700;
-    letter-spacing: 0.005em;
+    letter-spacing: -0.02em;
   }
   h1 {
     font-size: 2rem;
@@ -156,7 +148,7 @@
       transition disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply bg-plate text-plate-ink shadow-sm hover:bg-plate-600;
+    @apply bg-cobalt text-white shadow-sm hover:bg-cobalt-700;
   }
   .btn-secondary {
     @apply bg-white text-slate-800 ring-1 ring-slate-300 ring-inset hover:bg-slate-50 dark:bg-slate-800
@@ -173,7 +165,7 @@
     @apply min-h-11 px-2.5 py-1 text-xs md:min-h-9;
   }
   .text-link {
-    @apply text-cobalt-600 underline-offset-2 dark:text-cobalt-300;
+    @apply text-cobalt-700 underline-offset-2 dark:text-cobalt-300;
   }
   .input-sm {
     @apply block min-h-11 w-40 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs md:min-h-9
@@ -204,7 +196,7 @@
   }
   .tab[aria-selected="true"],
   .tab[aria-pressed="true"] {
-    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+    @apply bg-cobalt-600/10 text-cobalt-700 dark:bg-cobalt/20 dark:text-cobalt-300;
   }
   .mono-label {
     @apply font-mono text-[11px] tracking-wider uppercase;
@@ -309,7 +301,7 @@
     @apply text-xs text-slate-500 dark:text-slate-400;
   }
   .tab[aria-current="page"] {
-    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+    @apply bg-cobalt-600/10 text-cobalt-700 dark:bg-cobalt/20 dark:text-cobalt-300;
   }
   .dt {
     @apply rounded-md border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900;
@@ -322,7 +314,7 @@
       text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
   }
   .dt-chip[aria-current="true"] {
-    @apply bg-cobalt-600/10 text-cobalt-600 dark:bg-cobalt/20 dark:text-cobalt-300;
+    @apply bg-cobalt-600/10 text-cobalt-700 dark:bg-cobalt/20 dark:text-cobalt-300;
   }
   .dt-sort {
     @apply -mx-1 inline-flex min-h-8 items-center gap-1 rounded px-1 uppercase hover:text-slate-900
@@ -348,7 +340,7 @@
   backdrop-filter: blur(4px);
 }
 
-/* ---- Autofix ------------------------------------------------------------------------------- */
+/* ---- Pitline ------------------------------------------------------------------------------- */
 @layer components {
   /* Funnel and bar charts: widths come from a fixed scale class (no inline styles under the CSP). */
   .bar-track {

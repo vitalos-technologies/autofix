@@ -1,7 +1,7 @@
-"""``migrate`` that refuses the Autofix database outright.
+"""``migrate`` that refuses the Pitline database outright.
 
 The router already skips every operation there, but Django would still create its own
-``django_migrations`` table on the alias. Autofix's schema belongs to its Supabase migrations only.
+``django_migrations`` table on the alias. Pitline's schema belongs to its Supabase migrations only.
 Test settings switch the guard off so the test runner can create its empty ``autofix`` test database.
 """
 
@@ -18,6 +18,6 @@ class Command(MigrateCommand):
         guarded = getattr(settings, "AUTOFIX_MIGRATE_GUARD", True)
         if guarded and (database == ALIAS or database.startswith(f"{ALIAS}_")):
             raise CommandError(
-                "The Autofix database is never migrated from here (supabase/migrations owns it)."
+                "The Pitline database is never migrated from here (supabase/migrations owns it)."
             )
         return super().handle(*args, **options)

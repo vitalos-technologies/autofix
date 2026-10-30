@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Help · Autofix Super Admin{% endblock %}
+{% block title %}Help · Pitline Super Admin{% endblock %}
 {% block breadcrumbs %}<li class="truncate font-medium" aria-current="page">Help &amp; docs</li>{% endblock %}
 {% block content %}
   <h1>Help</h1>
@@ -16,7 +16,7 @@
     <section class="card p-5" aria-labelledby="roles">
       <h2 id="roles" class="text-xl">Who can do what</h2>
       <dl class="mt-3 space-y-3 text-sm">
-        <div><dt class="font-semibold">SuperAdmin</dt><dd class="muted">Everything. Plan and status changes, job retries and domain re-checks need a reason, your authenticator, and a link to your Autofix platform admin (Settings → Users).</dd></div>
+        <div><dt class="font-semibold">SuperAdmin</dt><dd class="muted">Everything. Plan and status changes, job retries and domain re-checks need a reason, your authenticator, and a link to your Pitline platform admin (Settings → Users).</dd></div>
         <div><dt class="font-semibold">Support</dt><dd class="muted">Reads every page, sees customer names and masked contact details on a garage's bookings (each view is audited), can hand off to View as support, and handles enquiries.</dd></div>
         <div><dt class="font-semibold">Finance</dt><dd class="muted">Plans, statuses, counts and the sign-up funnel. No personal data and no changes.</dd></div>
       </dl>
@@ -24,17 +24,17 @@
     <section class="card p-5 lg:col-span-2" aria-labelledby="enquiries-help">
       <h2 id="enquiries-help" class="text-xl">Enquiries</h2>
       <ul class="mt-3 list-disc space-y-2 pl-5 text-sm">
-        <li><a class="text-link underline" href="{% url 'autofix:enquiries' %}">Enquiries</a> lists what people send from the contact page on autofix.vitalos.co.uk, newest first. Filter by status (New, In progress, Closed) and topic.</li>
+        <li><a class="text-link underline" href="{% url 'autofix:enquiries' %}">Enquiries</a> lists what people send from the contact page on pitline.co.uk, newest first. Filter by status (New, In progress, Closed) and topic.</li>
         <li>Open one to see the sender's email, phone and message, and reply from your own mailbox. Each opening is recorded in the audit trail. Finance cannot see enquiries.</li>
-        <li>SuperAdmin and Support move an enquiry to In progress or Closed and keep internal notes. Each change needs your authenticator and a link to your Autofix platform admin, and Autofix logs it (notes by length only).</li>
+        <li>SuperAdmin and Support move an enquiry to In progress or Closed and keep internal notes. Each change needs your authenticator and a link to your Pitline platform admin, and Pitline logs it (notes by length only).</li>
       </ul>
     </section>
     <section class="card p-5 lg:col-span-2" aria-labelledby="rules">
-      <h2 id="rules" class="text-xl">How changes reach Autofix</h2>
+      <h2 id="rules" class="text-xl">How changes reach Pitline</h2>
       <ul class="mt-3 list-disc space-y-2 pl-5 text-sm">
-        <li>This system reads Autofix through a read-only database role. It can call exactly four Autofix functions: change a garage's plan or status, retry a failed job, queue a domain re-check, and change an enquiry's status or notes. Each one checks you are a platform admin and writes Autofix's own audit log; the garage's owners see the changes to their garage.</li>
-        <li><strong>View as support</strong> records why you need it, then opens the garage in Autofix. The read-only session starts there, under your own Autofix sign-in and authenticator. No password, token or session is passed in the link.</li>
-        <li>Registrations, phone numbers and email addresses of garages' customers arrive masked. Message bodies, job payloads and addresses never leave Autofix. Enquiries are the exception: they were sent to Vitalos, so their contact details are shown in full to SuperAdmin and Support.</li>
+        <li>This system reads Pitline through a read-only database role. It can call exactly four Pitline functions: change a garage's plan or status, retry a failed job, queue a domain re-check, and change an enquiry's status or notes. Each one checks you are a platform admin and writes Pitline's own audit log; the garage's owners see the changes to their garage.</li>
+        <li><strong>View as support</strong> records why you need it, then opens the garage in Pitline. The read-only session starts there, under your own Pitline sign-in and authenticator. No password, token or session is passed in the link.</li>
+        <li>Registrations, phone numbers and email addresses of garages' customers arrive masked. Message bodies, job payloads and addresses never leave Pitline. Enquiries are the exception: they were sent to Vitalos, so their contact details are shown in full to SuperAdmin and Support.</li>
         <li>Times are shown in Europe/London.</li>
       </ul>
     </section>

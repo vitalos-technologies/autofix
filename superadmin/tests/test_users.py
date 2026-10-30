@@ -1,4 +1,4 @@
-"""Users and roles: the Autofix platform admin link and role rules."""
+"""Users and roles: the Pitline platform admin link and role rules."""
 
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError

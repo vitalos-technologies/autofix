@@ -1,4 +1,4 @@
-"""Unmanaged, read-only models over Autofix's Supabase Postgres (the ``autofix`` alias).
+"""Unmanaged, read-only models over Pitline's Supabase Postgres (the ``autofix`` alias).
 
 Each model maps one view in schema ``superadmin`` (migration ``20261028004000_superadmin_role.sql``),
 which carries only the columns the super admin shows, with contact details and registrations masked in
@@ -16,30 +16,30 @@ from django.db import models
 
 
 class ReadOnlyModelError(RuntimeError):
-    """Autofix data is read-only in the super admin; writes go through the platform functions."""
+    """Pitline data is read-only in the super admin; writes go through the platform functions."""
 
 
 class ReadOnlyQuerySet(models.QuerySet):
     def update(self, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def delete(self):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def bulk_create(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def bulk_update(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def create(self, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def get_or_create(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def update_or_create(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
 
 class AutofixModel(models.Model):
@@ -53,10 +53,10 @@ class AutofixModel(models.Model):
         return f"{self._meta.verbose_name} {self.pk}"
 
     def save(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
     def delete(self, *args, **kwargs):
-        raise ReadOnlyModelError("Autofix data is read-only here.")
+        raise ReadOnlyModelError("Pitline data is read-only here.")
 
 
 def _garage_fk(related_name: str, *, null: bool = False):
@@ -158,7 +158,7 @@ class GarageInvite(AutofixModel):
 
 
 class PlatformAdmin(AutofixModel):
-    """Vitalos staff in Autofix's ``platform_admins``; a Django user links to one to write."""
+    """Vitalos staff in Pitline's ``platform_admins``; a Django user links to one to write."""
 
     user_id = models.UUIDField(primary_key=True)
     display_name = models.TextField(default="")
@@ -351,12 +351,12 @@ class Message(AutofixModel):
         db_table = "messages"
 
 
-# Shown for calls to Autofix's own number (``Call.is_platform``, DECISIONS A420).
-PLATFORM_LINE_LABEL = "Autofix (platform line)"
+# Shown for calls to Pitline's own number (``Call.is_platform``, DECISIONS A420).
+PLATFORM_LINE_LABEL = "Pitline (platform line)"
 
 
 class Call(AutofixModel):
-    """A garage's call, or a call to Autofix's own line (``is_platform``: no garage, no text-back)."""
+    """A garage's call, or a call to Pitline's own line (``is_platform``: no garage, no text-back)."""
 
     id = models.UUIDField(primary_key=True)
     garage = _garage_fk("calls", null=True)
@@ -379,7 +379,7 @@ class Call(AutofixModel):
 
     @property
     def line_name(self) -> str:
-        """The garage's name, or Autofix's own line."""
+        """The garage's name, or Pitline's own line."""
         return PLATFORM_LINE_LABEL if self.is_platform or not self.garage_id else self.garage.name
 
 
@@ -410,7 +410,7 @@ class GarageAgreement(AutofixModel):
 
 
 class PlatformAuditEntry(AutofixModel):
-    """Autofix's own append-only ``platform_audit_log`` (actions taken in /admin and here)."""
+    """Pitline's own append-only ``platform_audit_log`` (actions taken in /admin and here)."""
 
     id = models.BigIntegerField(primary_key=True)
     actor_id = models.UUIDField(null=True, blank=True)

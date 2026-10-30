@@ -16,7 +16,7 @@ import { AccountingError, type AccountingProvider, type InvoiceInput, type Payme
 // and the fake against the same behavioural contract.
 
 const NOW = new Date("2096-05-01T09:00:00Z");
-const REDIRECT = "https://autofix.vitalos.co.uk/api/admin/accounting/xero/callback";
+const REDIRECT = "https://pitline.co.uk/api/admin/accounting/xero/callback";
 
 type FixtureResponse = { status: number; body: unknown; headers?: Record<string, string> };
 type Fixture = { responses: Record<string, FixtureResponse>; requests: Record<string, { method: string; url: string; headers: Record<string, string>; body: unknown }> };

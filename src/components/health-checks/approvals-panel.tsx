@@ -12,7 +12,7 @@ export function HealthCheckApprovalsPanel({ id, approvals, className }: { id: st
     <Panel id={id} title="Approved on health checks" count={approvals.length} countLabel={`${approvals.length} approved today`} className={className}>
       <ul className="m-0 flex list-none flex-col p-0">
         {approvals.map((approval) => (
-          <li key={approval.id} className="border-t border-[#eef2f6] first:border-t-0">
+          <li key={approval.id} className="border-t border-[#f1f5f9] first:border-t-0">
             <Link
               href={`/app/health-checks/${approval.id}`}
               className="flex min-h-11 items-center gap-2.5 py-2.5 no-underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent focus-visible:outline-solid"

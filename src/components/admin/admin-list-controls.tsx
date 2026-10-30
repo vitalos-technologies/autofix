@@ -5,19 +5,19 @@ type FilterOption = { value: string; label: string };
 
 export function AdminListFilters({ action, query, status, statusOptions, placeholder = "Search records…", additionalParams = {} }: { action: string; query: string; status: string; statusOptions: FilterOption[]; placeholder?: string; additionalParams?: Record<string, string> }) {
   return (
-    <form action={action} method="get" className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#E4EAF0] bg-white p-4 sm:flex-row sm:items-end">
+    <form action={action} method="get" className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:flex-row sm:items-end">
       {Object.entries(additionalParams).map(([name, value]) => value && <input key={name} type="hidden" name={name} value={value} />)}
       <label className="min-w-0 flex-1 text-xs font-extrabold tracking-wide text-grey-600 uppercase">Search
-        <input name="q" defaultValue={query} placeholder={placeholder} className="mt-2 block min-h-11 w-full rounded-xl border border-[#D7E0E9] px-4 text-sm font-medium text-[#071127] outline-none focus:border-[#1974E2] focus:ring-4 focus:ring-[#1974E2]/10" />
+        <input name="q" defaultValue={query} placeholder={placeholder} className="mt-2 block min-h-11 w-full rounded-xl border border-[#CBD5E1] px-4 text-sm font-medium text-[#0f2747] outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10" />
       </label>
       <label className="text-xs font-extrabold tracking-wide text-grey-600 uppercase sm:w-52">Status
-        <select name="status" defaultValue={status} className="mt-2 block min-h-11 w-full rounded-xl border border-[#D7E0E9] bg-white px-4 text-sm font-bold text-[#071127] outline-none focus:border-[#1974E2] focus:ring-4 focus:ring-[#1974E2]/10">
+        <select name="status" defaultValue={status} className="mt-2 block min-h-11 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm font-bold text-[#0f2747] outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10">
           <option value="">All statuses</option>
           {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
-      <button className="min-h-11 rounded-xl bg-[#1974E2] px-5 text-sm font-extrabold text-white transition hover:bg-[#155FBD]">Apply filters</button>
-      {(query || status || Object.values(additionalParams).some(Boolean)) && <Link href={action} className="grid min-h-11 place-items-center rounded-xl border border-[#D7E0E9] px-4 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA]">Clear</Link>}
+      <button className="min-h-11 rounded-xl bg-[#2563EB] px-5 text-sm font-extrabold text-white transition hover:bg-[#155FBD]">Apply filters</button>
+      {(query || status || Object.values(additionalParams).some(Boolean)) && <Link href={action} className="grid min-h-11 place-items-center rounded-xl border border-[#CBD5E1] px-4 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC]">Clear</Link>}
     </form>
   );
 }
@@ -29,11 +29,11 @@ export function AdminPagination({ path, page, pageSize, totalItems, totalPages, 
   const start = BigInt((page - 1) * pageSize + 1);
   const end = total < BigInt(page * pageSize) ? total : BigInt(page * pageSize);
   return (
-    <nav aria-label="List pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E4EAF0] bg-white px-4 py-3">
+    <nav aria-label="List pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3">
       <p className="text-sm font-semibold text-grey-600">Showing {start.toString()}–{end.toString()} of {total.toString()}</p>
       <div className="flex items-center gap-2">
         <PageLink disabled={page <= 1} href={pageHref(path, page - 1, query, status, additionalParams)}><ChevronLeft aria-hidden="true" size={16} /> Previous</PageLink>
-        <span className="px-2 text-sm font-extrabold text-[#071127]">Page {page} of {pages}</span>
+        <span className="px-2 text-sm font-extrabold text-[#0f2747]">Page {page} of {pages}</span>
         <PageLink disabled={page >= pages} href={pageHref(path, page + 1, query, status, additionalParams)}>Next <ChevronRight aria-hidden="true" size={16} /></PageLink>
       </div>
     </nav>
@@ -42,8 +42,8 @@ export function AdminPagination({ path, page, pageSize, totalItems, totalPages, 
 
 function PageLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
   return disabled
-    ? <span aria-disabled="true" className="inline-flex items-center gap-1 rounded-lg border border-[#E4EAF0] px-3 py-2 text-sm font-bold text-[#A3AFBC]">{children}</span>
-    : <Link href={href} data-admin-pagination-link className="inline-flex items-center gap-1 rounded-lg border border-[#C9D5E2] px-3 py-2 text-sm font-bold text-[#1446A5] hover:border-[#1974E2] hover:bg-[#F1F7FF]">{children}</Link>;
+    ? <span aria-disabled="true" className="inline-flex items-center gap-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-bold text-[#A3AFBC]">{children}</span>
+    : <Link href={href} data-admin-pagination-link className="inline-flex items-center gap-1 rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm font-bold text-[#1D4ED8] hover:border-[#2563EB] hover:bg-[#F1F7FF]">{children}</Link>;
 }
 
 function pageHref(path: string, page: number, query: string, status: string, additionalParams: Record<string, string>) {

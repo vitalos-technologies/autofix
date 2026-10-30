@@ -2,7 +2,7 @@
 
 **Why:** GitHub-hosted runners for `vitalos-technologies` are blocked by org billing: every hosted job failed in about two
 seconds with "The job was not started because recent account payments have failed or your spending limit needs to be
-increased". Autofix CI runs on self-hosted runners instead. Self-hosted minutes are free. Billing itself is handled
+increased". Pitline CI runs on self-hosted runners instead. Self-hosted minutes are free. Billing itself is handled
 separately; switching back is one repository variable (below).
 
 ## What runs where (27 Oct 2026)
@@ -11,7 +11,7 @@ separately; switching back is one repository variable (below).
 | --- | --- |
 | **Primary** | Azure VM `autofix-ci` (ukwest, `F8as_v6`, 8 vCPU, 31 GiB, Ubuntu, runs 24/7), set up and run by Temitope until the Azure credit ends (about 5 Nov 2026). Runners `autofix-azure-1` … `-4`, labels `self-hosted, linux, x64, autofix, azure` |
 | **Fallback** | AWS EC2 `vitalos-workforce-build` (`i-0acc8453065a3eb23`, eu-west-2, shared with workforce's runners and agents, runs 06:00–23:59 London). Runner `autofix-build-vm-1` is stopped and its service disabled; `autofix-build-vm-2` was removed. Re-enable with `provision-vm.sh` (below) when Azure goes away |
-| Runner software | `actions/runner` v2.338.0 (SHA-256 checked), repo-level on `vitalos-technologies/autofix`, in `/home/ghrunner-autofix/actions-runner-N` |
+| Runner software | `actions/runner` v2.338.0 (SHA-256 checked), repo-level on `vitalos-technologies/pitline`, in `/home/ghrunner-autofix/actions-runner-N` |
 | User | `ghrunner-autofix` on each machine: non-root, no sudo, not in the `docker` group, home `0750`. On AWS it cannot read `/srv/workforce/secrets` and is separate from workforce's `ghrunner`, which these scripts refuse to touch |
 | Services | systemd `actions.runner.vitalos-technologies-autofix.<runner>.service`, enabled at boot, with a drop-in (`rootless-docker.conf`) that sets `DOCKER_HOST`/`XDG_RUNTIME_DIR` and orders it after the user's systemd instance |
 | Docker | rootless: the user's own daemon (`~/.config/systemd/user/docker.service`), started from boot by systemd linger. Socket `/run/user/<uid>/docker.sock`. Supabase images are cached in it |
@@ -54,7 +54,7 @@ infrastructure/runner/provision-vm.sh remove 2         # stop + unregister + del
 
 `provision-vm.sh` sends `setup-rootless-docker.sh` and `setup-runner.sh` base64-embedded in an SSM `AWS-RunShellScript`
 command (the VM's checkouts can't authenticate to GitHub non-interactively) and polls `get-command-invocation`. The
-registration token comes from `gh api -X POST repos/vitalos-technologies/autofix/actions/runners/registration-token`; it
+registration token comes from `gh api -X POST repos/vitalos-technologies/pitline/actions/runners/registration-token`; it
 is never printed or written to disk and only reaches the VM inside the command as `RUNNER_TOKEN` (it expires in an hour).
 Both setup scripts are idempotent and can also be run by hand as root on the VM.
 
@@ -79,7 +79,7 @@ re-run `provision-vm.sh docker` once to apply it (idempotent; it only writes the
 systemctl --no-pager list-units 'actions.runner.vitalos-technologies-autofix.*'
 journalctl -u actions.runner.vitalos-technologies-autofix.autofix-build-vm-1 -f
 sudo -u ghrunner-autofix XDG_RUNTIME_DIR=/run/user/$(id -u ghrunner-autofix) systemctl --user status docker
-gh api repos/vitalos-technologies/autofix/actions/runners --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
+gh api repos/vitalos-technologies/pitline/actions/runners --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
 ## Security rules

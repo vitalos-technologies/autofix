@@ -61,7 +61,7 @@ export function PageHeader({ eyebrow, phoneEyebrow, title, phoneTitle, descripti
         <div className="grid min-w-0 flex-[1_1_300px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 lg:flex lg:flex-col lg:items-stretch lg:gap-1">
           <div className="col-start-1 row-start-1 flex min-w-0 flex-col gap-0.5 lg:gap-1">
             {eyebrow || shortEyebrow ? (
-              <p className="m-0 text-[12px] font-bold tracking-[0.08em] text-accent uppercase lg:tracking-[0.1em]">
+              <p className="m-0 text-[12px] font-bold tracking-[0.08em] text-accent-text uppercase lg:tracking-[0.1em]">
                 {hasPhoneEyebrow ? (
                   <>
                     <span className="lg:hidden">{shortEyebrow}</span>

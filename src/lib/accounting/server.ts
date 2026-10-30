@@ -21,7 +21,7 @@ export const ACCOUNTING_SETTINGS_PATH = "/app/settings/accounting";
 
 /**
  * The OAuth redirect URI. Live providers get the registered admin-host URI
- * (https://autofix.vitalos.co.uk/api/admin/accounting/<provider>/callback); the fake, which never leaves
+ * (https://pitline.co.uk/api/admin/accounting/<provider>/callback); the fake, which never leaves
  * the app, comes back to the host the request came in on (local runs and e2e on another port).
  */
 export function accountingCallbackUrl(provider: AccountingProviderId, requestUrl?: string): string {

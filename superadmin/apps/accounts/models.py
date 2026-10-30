@@ -44,10 +44,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     # The single named owner. Only the owner grants or revokes SuperAdmin, and the owner cannot be
     # demoted or deactivated in the app (see services.set_role).
     is_primary_owner = models.BooleanField(default=False)
-    # The Autofix platform admin (public.platform_admins.user_id) this person acts as when they change
-    # something in Autofix. Empty: Autofix is read-only for them. Set by a SuperAdmin in Settings.
+    # The Pitline platform admin (public.platform_admins.user_id) this person acts as when they change
+    # something in Pitline. Empty: Pitline is read-only for them. Set by a SuperAdmin in Settings.
     autofix_admin_id = models.UUIDField(
-        null=True, blank=True, unique=True, verbose_name="Linked Autofix platform admin"
+        null=True, blank=True, unique=True, verbose_name="Linked Pitline platform admin"
     )
 
     objects = UserManager()

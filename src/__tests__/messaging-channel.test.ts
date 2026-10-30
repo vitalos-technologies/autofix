@@ -17,7 +17,7 @@ const liveEnv = {
   TWILIO_AUTH_TOKEN: authToken,
   TWILIO_MESSAGING_SERVICE_SID: messagingServiceSid,
   TWILIO_WHATSAPP_FROM: "whatsapp:+447700900999",
-  TWILIO_STATUS_CALLBACK_BASE_URL: "https://autofix.vitalos.co.uk/",
+  TWILIO_STATUS_CALLBACK_BASE_URL: "https://pitline.co.uk/",
 };
 
 let keySequence = 0;
@@ -178,7 +178,7 @@ describe("getChannel in live mode", () => {
     expect(url).toBe(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`);
     expect(Object.fromEntries(new URLSearchParams(String(init.body)))).toMatchObject({
       MessagingServiceSid: messagingServiceSid,
-      StatusCallback: "https://autofix.vitalos.co.uk/api/webhooks/twilio/status",
+      StatusCallback: "https://pitline.co.uk/api/webhooks/twilio/status",
     });
     expect(getMockOutbox()).toEqual([]);
   });
@@ -198,10 +198,10 @@ describe("getChannel in live mode", () => {
   it("asks for delivery receipts on the site URL when no callback base is set", async () => {
     const { TWILIO_STATUS_CALLBACK_BASE_URL: _unset, ...withoutBase } = liveEnv;
     void _unset;
-    await getChannel("sms", { ...withoutBase, NEXT_PUBLIC_SITE_URL: "https://autofix.vitalos.co.uk" }).send(message());
+    await getChannel("sms", { ...withoutBase, NEXT_PUBLIC_SITE_URL: "https://pitline.co.uk" }).send(message());
     const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect(new URLSearchParams(String(init.body)).get("StatusCallback")).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/status");
-    expect(getMessagingReadiness({ ...withoutBase, NEXT_PUBLIC_SITE_URL: "https://autofix.vitalos.co.uk" }).statusCallbacks).toBe("configured");
+    expect(new URLSearchParams(String(init.body)).get("StatusCallback")).toBe("https://pitline.co.uk/api/webhooks/twilio/status");
+    expect(getMessagingReadiness({ ...withoutBase, NEXT_PUBLIC_SITE_URL: "https://pitline.co.uk" }).statusCallbacks).toBe("configured");
     // A local http site URL asks for none (Twilio cannot reach it).
     expect(getMessagingReadiness({ ...withoutBase, NEXT_PUBLIC_SITE_URL: "http://localhost:3000" }).statusCallbacks).toBe("not_configured");
   });
@@ -209,7 +209,7 @@ describe("getChannel in live mode", () => {
   it("prefers an explicit callback base over the site URL", async () => {
     await getChannel("sms", { ...liveEnv, NEXT_PUBLIC_SITE_URL: "https://elsewhere.example" }).send(message());
     const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect(new URLSearchParams(String(init.body)).get("StatusCallback")).toBe("https://autofix.vitalos.co.uk/api/webhooks/twilio/status");
+    expect(new URLSearchParams(String(init.body)).get("StatusCallback")).toBe("https://pitline.co.uk/api/webhooks/twilio/status");
   });
 });
 

@@ -1,7 +1,7 @@
 """Step-up: a fresh authenticator code with every sensitive action (DECISIONS D18, A412).
 
-The super admin is served under ``autofix.vitalos.co.uk/superadmin``, the same origin as the Autofix
-app. A signed-in session alone is therefore not enough for anything that changes Autofix or shows
+The super admin is served under ``pitline.co.uk/superadmin``, the same origin as the Pitline
+app. A signed-in session alone is therefore not enough for anything that changes Pitline or shows
 personal data: each such request also carries a new TOTP code. Script running on the origin cannot
 produce one, and django-otp refuses a code it has already accepted (``last_t``) and throttles failures.
 

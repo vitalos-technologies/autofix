@@ -38,7 +38,7 @@ export class TransactionalEmailDeliveryError extends Error {
 
 export type ResendConfiguration = {
   apiKey: string;
-  /** RESEND_FROM_EMAIL as configured, e.g. `Autofix <notifications@autofix.vitalos.co.uk>`. */
+  /** RESEND_FROM_EMAIL as configured, e.g. `Pitline <notifications@pitline.co.uk>`. */
   from: string;
   /** The bare platform sender address. */
   fromAddress: string;

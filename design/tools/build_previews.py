@@ -28,7 +28,7 @@ for path in sorted(glob.glob(os.path.join(ROOT, "screens", "*.dc.html"))):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} · Autofix design preview</title>
+<title>{title} · Pitline design preview</title>
 {helmet}
 <style>{page_style}</style>
 </head>

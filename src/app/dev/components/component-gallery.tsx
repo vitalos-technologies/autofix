@@ -28,6 +28,7 @@ import {
 } from "@/components/book";
 import { ACCENT_PALETTE, garageAccentStyle } from "@/lib/branding/accent";
 import { cn } from "@/lib/utils";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 /* Sample data for the gallery only. Components never hard-code any of this. */
 const GARAGE = { name: "Hartley Road Motors", phone: "+441302000000", location: "Doncaster · Diagnostics & repairs" };
@@ -79,7 +80,7 @@ const SLOTS_BST: TimeSlot[] = [
 
 /* Text inputs are page markup (not in the component list); shown here so Book 4 can be compared. */
 const GALLERY_INPUT =
-  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#6a7686] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
+  "h-[52px] rounded-input border border-grey-300 bg-white px-3.5 text-[16px] text-navy-950 placeholder:text-[#475569] focus-visible:border-2 focus-visible:border-accent focus-visible:outline-none!";
 
 const ACCENTS = [...ACCENT_PALETTE.map((value) => ({ value, label: value })), { value: "#ffcc00", label: "#ffcc00 (darkened)" }];
 
@@ -196,8 +197,8 @@ export function ComponentGallery() {
                 now={NOW}
               />
               <div className="flex justify-between text-[14px] font-semibold">
-                <a href="#af-gallery" className="text-accent underline">Not your car?</a>
-                <a href="#af-gallery" className="text-accent underline">Enter details manually</a>
+                <a href="#af-gallery" className="text-accent-text underline">Not your car?</a>
+                <a href="#af-gallery" className="text-accent-text underline">Enter details manually</a>
               </div>
               <div className="flex flex-col gap-2.5 pt-1 text-[13px] text-grey-700">
                 <p className="m-0 flex items-center gap-2.5">
@@ -210,7 +211,7 @@ export function ComponentGallery() {
                 </p>
               </div>
             </div>
-            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote="Powered by Autofix" />
+            <StickyActionBar fixed={false} className="mt-auto" label="Continue" href="#book-2" footnote={<PoweredByPitline />} />
           </Frame>
 
           {/* Book 2 · Service */}
@@ -371,8 +372,8 @@ export function ComponentGallery() {
                 manageHref="#af-gallery"
                 whatsappHref="#af-gallery"
               />
-              <a href="#af-gallery" className="text-[14px] font-semibold text-accent underline">Book another car</a>
-              <span className="text-[11.5px] text-grey-600">Powered by Autofix</span>
+              <a href="#af-gallery" className="text-[14px] font-semibold text-accent-text underline">Book another car</a>
+              <PoweredByPitline className="text-[11.5px]" />
             </div>
           </Frame>
 

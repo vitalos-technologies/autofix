@@ -2,8 +2,8 @@
 
 - SuperAdmin: everything, including plan and status changes, job retries, domain re-checks, users.
 - Support: reads everything a garage needs help with, the audited personal-data views and "View as
-  support" (the read-only hand-off to Autofix). Handles contact page enquiries (status and notes);
-  never changes anything else in Autofix.
+  support" (the read-only hand-off to Pitline). Handles contact page enquiries (status and notes);
+  never changes anything else in Pitline.
 - Finance: plans, statuses and the sign-up funnel (read). No personal data, no hand-off, no writes.
 """
 
@@ -82,7 +82,7 @@ def can_operate(user) -> bool:
 def can_handle_enquiries(user) -> bool:
     """Contact page enquiries: read them and change status and notes. SuperAdmin and Support (no Finance).
 
-    A change also needs a verified device and a link to an Autofix platform admin, like every write.
+    A change also needs a verified device and a link to a Pitline platform admin, like every write.
     """
     return has_role(user, SUPPORT)
 

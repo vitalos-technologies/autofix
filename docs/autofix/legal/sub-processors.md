@@ -1,4 +1,4 @@
-# Autofix sub-processors (internal list)
+# Pitline sub-processors (internal list)
 
 Kept by Vitalos and given to a garage on request (DPA v1.1 clause 7.1). Not shown in the DPA itself (Temitope, 29 Oct 2026). Update it, and give garages 30 days' notice, when a sub-processor is added or replaced.
 

@@ -212,7 +212,9 @@ def test_audio_streams_through_the_proxy_with_credentials_and_is_audited(
     event = AuditEvent.objects.get(action="autofix.voicemail_played")
     assert event.entity_type == "autofix.call" and event.entity_id == str(call.pk)
     assert event.actor == support and "Hartley Road Motors" in event.summary
-    assert "07" not in event.summary and "twilio" not in str(event.metadata).lower()
+    # No caller number, masked or full. ("07" alone would also match the time in the summary, e.g. 22:07.)
+    assert "•••" not in event.summary and "+44" not in event.summary
+    assert "twilio" not in str(event.metadata).lower()
     client.get(audio_url(player(client, call)))
     assert AuditEvent.objects.filter(action="autofix.voicemail_played").count() == 2
 
@@ -277,7 +279,7 @@ def test_only_our_own_recordings_are_fetched(client_for, support, af, seeded, up
     client = client_for(support)
     response = player(client, call)
     assert (
-        "not on Autofix" in response.content.decode() and "voicemail-player" not in response.content.decode()
+        "not on Pitline" in response.content.decode() and "voicemail-player" not in response.content.decode()
     )
     ticket = voicemail.issue_ticket(support, call.pk)
     audio = client.get(f"{reverse('autofix:voicemail_audio', args=[call.pk])}?ticket={ticket}")
@@ -386,7 +388,7 @@ def test_calls_badge_counts_unplayed_voicemails_and_playing_reads_them(client_fo
     assert not Notification.objects.filter(recipient=support, read_at__isnull=True, kind="voicemail").exists()
 
 
-# --- Autofix's own line (A420) -----------------------------------------------------------------
+# --- Pitline's own line (A420) -----------------------------------------------------------------
 
 
 @pytest.fixture
@@ -405,7 +407,7 @@ def test_platform_line_calls_are_listed_as_autofix_without_a_text_back(client_fo
     table = html.split('data-testid="data-table"')[1]
     row = next(row for row in table.split("<tr>") if "07••• •••777" in row).split("</tr>")[0]
     assert (
-        "Autofix (platform line)" in row
+        "Pitline (platform line)" in row
         and 'data-testid="platform-line"' in row
         and "?garage=platform" in row
     )
@@ -419,7 +421,7 @@ def test_platform_line_filter(client_for, support, seeded, platform_call):
     html = client.get(f"{reverse('autofix:calls')}?garage=platform").content.decode()
     table = html.split('data-testid="data-table"')[1]
     assert "07••• •••777" in table and "07••• •••123" not in table and "01••• •••789" not in table
-    assert '<option value="platform" selected>Autofix (platform line)</option>' in html
+    assert '<option value="platform" selected>Pitline (platform line)</option>' in html
     by_garage = client.get(f"{reverse('autofix:calls')}?garage={seeded['hartley'].pk}").content.decode()
     assert "07••• •••777" not in by_garage.split('data-testid="data-table"')[1]
 
@@ -438,13 +440,13 @@ def test_platform_line_voicemail_plays_and_is_audited(client_for, support, platf
     response = client.get(audio_url(player(client, platform_call)))
     assert response.status_code == 200 and b"".join(response.streaming_content) == MP3
     event = AuditEvent.objects.get(action="autofix.voicemail_played")
-    assert event.entity_id == str(platform_call.pk) and event.summary.startswith("Autofix (platform line)")
+    assert event.entity_id == str(platform_call.pk) and event.summary.startswith("Pitline (platform line)")
     assert event.metadata["line"] == "platform"
 
 
 def test_platform_line_voicemails_raise_alerts(support, finance, platform_call):
     scan()
     alert = Notification.objects.get(recipient=support, dedupe_key=f"voicemail:{platform_call.pk}")
-    assert alert.title == "New voicemail on Autofix (platform line)" and "31 seconds" in alert.body
+    assert alert.title == "New voicemail on Pitline (platform line)" and "31 seconds" in alert.body
     assert alert.url == "/calls/?garage=platform&voicemail=1"
     assert not Notification.objects.filter(recipient=finance, kind="voicemail").exists()

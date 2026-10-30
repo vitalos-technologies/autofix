@@ -8,6 +8,7 @@ import { askbridgeScriptUrl } from "@/lib/askbridge/config";
 import { ADMIN_SECURITY_HEADERS, bookingSiteHeaders } from "@/lib/booking-page/security-headers";
 import { findValidTrustedDevice, isSensitiveAdminPath, TRUSTED_DEVICE_COOKIE } from "@/lib/auth/trusted-device";
 import { classifyHost } from "@/lib/tenancy/hosts";
+import { legacyHostDecision } from "@/lib/tenancy/legacy-hosts";
 import { REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from "@/lib/tenancy/request-headers";
 import { resolveHost, type HostGarage } from "@/lib/tenancy/resolve";
 import { isSuperadminPath, superadminRequest } from "@/lib/superadmin/proxy";
@@ -27,7 +28,7 @@ function hasPrefix(pathname: string, prefix: string) {
 function notFound() {
   return new NextResponse(
     "<!doctype html><html lang=\"en-GB\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>Page not found</title></head>"
-      + "<body style=\"font-family:system-ui,sans-serif;margin:0;padding:40px 20px;color:#202a36;background:#f4f7fa\"><h1 style=\"margin:0 0 8px;color:#071127\">Page not found</h1>"
+      + "<body style=\"font-family:system-ui,sans-serif;margin:0;padding:40px 20px;color:#1e293b;background:#f8fafc\"><h1 style=\"margin:0 0 8px;color:#0f2747\">Page not found</h1>"
       + "<p style=\"margin:0;line-height:1.5\">There is no booking page at this address. Check the link you were given, or contact the garage.</p></body></html>",
     { status: 404, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } },
   );
@@ -104,9 +105,13 @@ function trailingSlashRedirect(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const host = requestHost(request);
+  // The old Autofix addresses first, so one redirect lands on the final URL (DECISIONS D23).
+  const legacy = legacyHostDecision(request.url, host);
+  if (legacy?.kind === "redirect") return NextResponse.redirect(legacy.location, 308);
+  if (legacy?.kind === "serve") return withSecurityHeaders(await adminHost(request, null), null);
   const slashRedirect = trailingSlashRedirect(request);
   if (slashRedirect) return slashRedirect;
-  const host = requestHost(request);
   const param = devGarageParam(request);
   let resolution;
   try {

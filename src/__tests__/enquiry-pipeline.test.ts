@@ -70,11 +70,11 @@ describe("enquiry persistence and notification pipeline", () => {
 
     vi.mocked(createAdminClient).mockReturnValue(adminClient as never);
     vi.mocked(createInitialEnquiryMessage).mockResolvedValue(undefined);
-    vi.mocked(getEnquiryReplyAddress).mockResolvedValue("enquiry+9f99f1f0-2252-4b5e-9000-9bc913650f15@reply.autofix.vitalos.co.uk");
+    vi.mocked(getEnquiryReplyAddress).mockResolvedValue("enquiry+9f99f1f0-2252-4b5e-9000-9bc913650f15@reply.pitline.co.uk");
     vi.mocked(getResendConfig).mockReturnValue({
       apiKey: "test-key",
-      from: "Autofix <notifications@autofix.vitalos.co.uk>",
-      fromAddress: "notifications@autofix.vitalos.co.uk",
+      from: "Pitline <notifications@pitline.co.uk>",
+      fromAddress: "notifications@pitline.co.uk",
       replyTo: null,
     });
     vi.mocked(sendTransactionalEmail).mockImplementation(async () => {
@@ -110,8 +110,8 @@ describe("enquiry persistence and notification pipeline", () => {
       senderName: "Hartley Road Motors",
       to: "customer@example.com",
       subject: "We received your Hartley Road Motors request",
-      replyTo: "enquiry+9f99f1f0-2252-4b5e-9000-9bc913650f15@reply.autofix.vitalos.co.uk",
-      html: expect.stringContaining("Sent by Autofix on behalf of Hartley Road Motors"),
+      replyTo: "enquiry+9f99f1f0-2252-4b5e-9000-9bc913650f15@reply.pitline.co.uk",
+      html: expect.stringContaining("Sent by Pitline on behalf of Hartley Road Motors"),
       text: expect.stringContaining("REQUEST RECEIVED"),
     }));
     expect(events).toContain(`enquiries:update:${JSON.stringify({ notification_status: "sent" })}`);
@@ -126,7 +126,7 @@ describe("enquiry persistence and notification pipeline", () => {
       }),
     };
     vi.mocked(createAdminClient).mockReturnValue(adminClient as never);
-    vi.mocked(getResendConfig).mockReturnValue({ apiKey: "k", from: "Autofix <n@autofix.vitalos.co.uk>", fromAddress: "n@autofix.vitalos.co.uk", replyTo: null });
+    vi.mocked(getResendConfig).mockReturnValue({ apiKey: "k", from: "Pitline <n@pitline.co.uk>", fromAddress: "n@pitline.co.uk", replyTo: null });
     vi.mocked(getEnquiryReplyAddress).mockResolvedValue(null);
     vi.mocked(sendTransactionalEmail).mockResolvedValue({ data: { id: "email-id" }, error: null } as never);
 

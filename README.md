@@ -1,9 +1,9 @@
-# Autofix
+# Pitline
 
 Multi-tenant garage booking platform by Vitalos (working name). Forked from SOB Autofix.
 
-- Customers book on a phone-first page on the garage's own domain (`book.theirgarage.co.uk`) or the free link `<slug>.autofix.vitalos.co.uk`.
-- Garages run their day at `autofix.vitalos.co.uk`: diary by bay, bookings, customers and cars, MOT and service reminders, missed-call text-back, booking page and domain setup.
+- Customers book on a phone-first page on the garage's own domain (`book.theirgarage.co.uk`) or the free link `<slug>.pitline.co.uk`.
+- Garages run their day at `pitline.co.uk`: diary by bay, bookings, customers and cars, MOT and service reminders, missed-call text-back, booking page and domain setup.
 - Vitalos Workforce and Askbridge plug in through a garage-scoped agent API.
 
 ## Docs

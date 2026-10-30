@@ -11,11 +11,12 @@ import type { DraftVehicle } from "@/lib/booking-flow/vehicle";
 import { cn } from "@/lib/utils";
 import { FormAlert } from "./booking-screen";
 import { TextField } from "./text-field";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 const FORM_ID = "vehicle-form";
 
 const linkButton = cn(
-  "inline-flex min-h-11 items-center rounded-[6px] bg-transparent p-0 text-left text-[14px] font-semibold text-accent underline underline-offset-2 hover:text-blue-700",
+  "inline-flex min-h-11 items-center rounded-[6px] bg-transparent p-0 text-left text-[14px] font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700",
   focusRing,
 );
 
@@ -223,7 +224,7 @@ export function VehicleStep({ motEnabled, timeZone, initialVehicle, humanCheck }
         label="Continue"
         busy={pending && intent === "continue"}
         disabled={pending}
-        footnote={<span className="text-[11px] text-[#6a7686]">Powered by Autofix</span>}
+        footnote={<PoweredByPitline />}
       />
     </>
   );

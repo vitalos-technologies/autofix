@@ -1,6 +1,6 @@
-"""The only write path to Autofix: the platform SQL functions, called as a linked platform admin.
+"""The only write path to Pitline: the platform SQL functions, called as a linked platform admin.
 
-Every Autofix rule stays in Autofix's database. Each function checks that ``auth.uid()`` is a platform
+Every Pitline rule stays in Pitline's database. Each function checks that ``auth.uid()`` is a platform
 admin at AAL2, validates the reason and writes ``platform_audit_log`` and the garage's own audit log.
 The super admin connects as ``autofix_superadmin`` (SELECT on views, EXECUTE on the four functions
 below, read-only sessions by default). For a write it opens a read-write transaction, sets
@@ -33,7 +33,7 @@ _alias: ContextVar[str] = ContextVar("autofix_alias", default=ALIAS)
 
 
 class AutofixUnavailable(Exception):
-    """Autofix data could not be read (not configured, unreachable, or a query failed)."""
+    """Pitline data could not be read (not configured, unreachable, or a query failed)."""
 
 
 class PlatformError(Exception):
@@ -73,7 +73,7 @@ def reads(func):
             return func(*args, **kwargs)
         except DatabaseError as exc:
             logger.warning(
-                "Autofix read failed", extra={"selector": func.__name__, "error": type(exc).__name__}
+                "Pitline read failed", extra={"selector": func.__name__, "error": type(exc).__name__}
             )
             raise AutofixUnavailable("unavailable") from exc
 
@@ -93,7 +93,7 @@ def call_platform_function(name: str, args: list, *, actor_id: uuid.UUID | str):
     if name not in PLATFORM_FUNCTIONS or len(args) != PLATFORM_FUNCTIONS[name]:
         raise ValueError(f"{name} is not a platform function the super admin may call.")
     if not is_configured():
-        raise PlatformError("NOT_CONFIGURED", "Autofix data is not connected.")
+        raise PlatformError("NOT_CONFIGURED", "Pitline data is not connected.")
     actor = str(uuid.UUID(str(actor_id)))
     claims = json.dumps({"sub": actor, "role": "authenticated", "aal": "aal2"})
     alias = current_alias()

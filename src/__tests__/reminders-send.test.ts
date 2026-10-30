@@ -18,7 +18,7 @@ import { jobContext, jobRow, recordingQueue } from "./support/jobs";
 
 const GARAGE_ID = "a0000000-0000-4000-8000-00000000000a";
 const TUESDAY_11 = new Date("2026-10-27T11:00:00Z");
-const PROD_ENV = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk" };
+const PROD_ENV = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk" };
 
 const garage: ReminderSendGarage = { id: GARAGE_ID, slug: "hartley-road", customDomain: null, name: "Hartley Road Motors", timezone: "Europe/London", status: "active" };
 
@@ -157,9 +157,9 @@ describe("composing and sending", () => {
     expect(outbox).toMatchObject({ kind: "sms", garageId: GARAGE_ID, to: "+447700900123", idempotencyKey: `reminder_send:${row.id}` });
     expect(outbox!.senderId).toBeUndefined();
 
-    const token = /https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/r\/([A-Za-z0-9_-]{22})\n/.exec(outbox!.body)?.[1];
+    const token = /https:\/\/hartley-road\.pitline\.co\.uk\/r\/([A-Za-z0-9_-]{22})\n/.exec(outbox!.body)?.[1];
     expect(token).toBeTruthy();
-    expect(outbox!.body).toBe(`Hi Sam, the MOT on your Ford Focus (AB12 CDE) is due on 10 Nov. Book a time: https://hartley-road.autofix.vitalos.co.uk/r/${token}\nHartley Road Motors. Reply STOP to opt out.`);
+    expect(outbox!.body).toBe(`Hi Sam, the MOT on your Ford Focus (AB12 CDE) is due on 10 Nov. Book a time: https://hartley-road.pitline.co.uk/r/${token}\nHartley Road Motors. Reply STOP to opt out.`);
 
     const [prepared] = calls.prepared;
     expect(prepared).toMatchObject({ id: row.id, to: "+447700900123", provider: "mock", body: outbox!.body });
@@ -184,7 +184,7 @@ describe("composing and sending", () => {
     await run([[row]], { env });
     const [email] = getMockOutbox();
     expect(email).toMatchObject({ kind: "email", to: "sam@example.com", subject: "Your MOT is due on 10 Nov" });
-    const link = /\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
+    const link = /\nStop reminders: https:\/\/hartley-road\.pitline\.co\.uk\/unsubscribe\/(\S+)$/.exec(email!.body);
     expect(link).toBeTruthy();
     expect(verifyUnsubscribeToken(GARAGE_ID, link![1], env)).toBe(row.customer_id);
     expect(email!.body).not.toMatch(/reply stop/i);
@@ -192,7 +192,7 @@ describe("composing and sending", () => {
 
   it("falls back to the garage's unsubscribe form when links cannot be signed", async () => {
     await run([[reminder({ channel: "email" })]]);
-    expect(getMockOutbox()[0]!.body).toMatch(/\nStop reminders: https:\/\/hartley-road\.autofix\.vitalos\.co\.uk\/unsubscribe$/);
+    expect(getMockOutbox()[0]!.body).toMatch(/\nStop reminders: https:\/\/hartley-road\.pitline\.co\.uk\/unsubscribe$/);
   });
 
   it.each([

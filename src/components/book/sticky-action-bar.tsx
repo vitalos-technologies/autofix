@@ -24,7 +24,7 @@ export type StickyActionBarProps = ActionProps & {
   showArrow?: boolean;
   /** Shows a spinner and marks the button busy (button form only). */
   busy?: boolean;
-  /** Small line under the button, e.g. "Powered by Autofix" or "Nothing to pay now." with a link. */
+  /** Small line under the button, e.g. "Powered by Pitline" or "Nothing to pay now." with a link. */
   footnote?: ReactNode;
   /** Fixed to the bottom of the viewport (default). `false` renders it in place (component gallery). */
   fixed?: boolean;

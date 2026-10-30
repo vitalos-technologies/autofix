@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Audit trail · Autofix Super Admin{% endblock %}
+{% block title %}Audit trail · Pitline Super Admin{% endblock %}
 {% block breadcrumbs %}
   <li class="muted hidden sm:block">Operate</li>
   <li class="muted hidden sm:block" aria-hidden="true">/</li>
@@ -8,7 +8,7 @@
 {% block content %}
   <div>
     <h1>Audit</h1>
-    <p class="muted mt-1 text-sm">Append-only. Security and operations events here, with IP addresses, and Autofix's own platform log. SuperAdmins only.</p>
+    <p class="muted mt-1 text-sm">Append-only. Security and operations events here, with IP addresses, and Pitline's own platform log. SuperAdmins only.</p>
   </div>
   {% include "audit/_tabs.html" with active="superadmin" %}
 

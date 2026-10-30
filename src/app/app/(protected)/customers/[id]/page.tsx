@@ -98,7 +98,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
         <Panel title="Details">
           <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-[14px]">
             <dt className="font-semibold text-grey-600">Mobile</dt>
-            <dd className="m-0 text-navy-950"><a href={`tel:${customer.phone}`} className="font-semibold text-accent underline underline-offset-2">{formatUkMobile(customer.phone)}</a></dd>
+            <dd className="m-0 text-navy-950"><a href={`tel:${customer.phone}`} className="font-semibold text-accent-text underline underline-offset-2">{formatUkMobile(customer.phone)}</a></dd>
             <dt className="font-semibold text-grey-600">Email</dt>
             <dd className="m-0 break-words text-navy-950">{customer.email ?? <span className="text-grey-600">None</span>}</dd>
             <dt className="font-semibold text-grey-600">Messages by</dt>

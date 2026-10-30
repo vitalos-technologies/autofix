@@ -10,7 +10,7 @@
  * the full Public Suffix List, so the result is a friendly pre-check; Vercel stays the authority.
  */
 
-export const DEFAULT_PLATFORM_DOMAINS = ["vitalos.co.uk", "autofix.vitalos.co.uk"] as const;
+export const DEFAULT_PLATFORM_DOMAINS = ["vitalos.co.uk", "pitline.co.uk"] as const;
 
 /** Shared hosting suffixes whose subdomains belong to the host, not to the garage. */
 const HOSTED_SUFFIXES = [
@@ -169,7 +169,7 @@ export function validateGarageHostname(input: string, options: HostnameValidatio
   if (!TLD.test(tld)) return reject("invalid_characters", "That doesn't end in a real domain ending, such as .co.uk or .com.");
 
   if (isPlatformHostname(host, options.platformDomains ?? defaultPlatformDomains())) {
-    return reject("platform_domain", "That's an Autofix address. Your free link already works; enter your own domain here instead.");
+    return reject("platform_domain", "That's a Pitline address. Your free link already works; enter your own domain here instead.");
   }
   if (HOSTED_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))) {
     return reject("not_owned", "That address belongs to a website service. Use a domain you own, such as book.yourgarage.co.uk.");

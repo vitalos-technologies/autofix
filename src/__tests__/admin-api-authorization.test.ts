@@ -48,7 +48,7 @@ describe("admin API authorization", () => {
   });
 
   it("returns 401 with no-store before handling either endpoint", async () => {
-    const pdfResponse = await invoicePdf(new Request(`https://autofix.vitalos.co.uk/api/admin/invoices/${invoiceId}/pdf`), {
+    const pdfResponse = await invoicePdf(new Request(`https://pitline.co.uk/api/admin/invoices/${invoiceId}/pdf`), {
       params: Promise.resolve({ id: invoiceId }),
     });
     expect(pdfResponse.status).toBe(401);
@@ -56,7 +56,7 @@ describe("admin API authorization", () => {
     expect(pdfResponse.headers.get("cache-control")).toContain("no-store");
     expect(harness.renderInvoicePdf).not.toHaveBeenCalled();
 
-    const exportResponse = await invoiceExport(new Request("https://autofix.vitalos.co.uk/api/admin/invoices/export?format=csv"));
+    const exportResponse = await invoiceExport(new Request("https://pitline.co.uk/api/admin/invoices/export?format=csv"));
     expect(exportResponse.status).toBe(401);
     expect(exportResponse.headers.get("cache-control")).toContain("no-store");
     expect(harness.loadInvoiceExportRows).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe("admin API authorization", () => {
 
   it("serves a garage-branded private PDF after the strict admin guard succeeds", async () => {
     harness.admin = { user: { id: "admin-id" }, garage, client: rlsClient, mfaVerified: true };
-    const response = await invoicePdf(new Request(`https://autofix.vitalos.co.uk/api/admin/invoices/${invoiceId}/pdf?preview=1`), {
+    const response = await invoicePdf(new Request(`https://pitline.co.uk/api/admin/invoices/${invoiceId}/pdf?preview=1`), {
       params: Promise.resolve({ id: invoiceId }),
     });
     expect(response.status).toBe(200);
@@ -77,14 +77,14 @@ describe("admin API authorization", () => {
 
   it("rejects a malformed invoice id without loading anything", async () => {
     harness.admin = { user: { id: "admin-id" }, garage, client: rlsClient, mfaVerified: true };
-    const response = await invoicePdf(new Request("https://autofix.vitalos.co.uk/api/admin/invoices/not-an-id/pdf"), { params: Promise.resolve({ id: "not-an-id" }) });
+    const response = await invoicePdf(new Request("https://pitline.co.uk/api/admin/invoices/not-an-id/pdf"), { params: Promise.resolve({ id: "not-an-id" }) });
     expect(response.status).toBe(404);
     expect(harness.renderInvoicePdf).not.toHaveBeenCalled();
   });
 
   it("exports through the admin's RLS garage client, never the service role", async () => {
     harness.admin = { user: { id: "admin-id" }, garage, client: rlsClient, mfaVerified: true };
-    const response = await invoiceExport(new Request("https://autofix.vitalos.co.uk/api/admin/invoices/export?format=csv"));
+    const response = await invoiceExport(new Request("https://pitline.co.uk/api/admin/invoices/export?format=csv"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/csv");

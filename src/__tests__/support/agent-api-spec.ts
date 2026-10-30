@@ -12,7 +12,7 @@ import { parse } from "yaml";
 import type { AgentTool } from "@/lib/agent-api/schemas";
 
 const SPEC_PATH = path.join(process.cwd(), "docs/autofix/agent-api.yaml");
-const SPEC_ID = "https://autofix.vitalos.co.uk/agent-api.yaml";
+const SPEC_ID = "https://pitline.co.uk/agent-api.yaml";
 type Operation = {
   operationId: string;
   requestBody?: { required?: boolean; content: Record<string, { schema: unknown; example?: unknown }> };

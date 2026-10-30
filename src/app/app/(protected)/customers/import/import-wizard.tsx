@@ -160,7 +160,7 @@ export function ImportWizard({ declaration, motEnabled }: ImportWizardProps) {
         <p className="m-0 text-[14px] text-grey-700">
           A CSV with a heading row: <strong>name</strong> and <strong>mobile</strong> are needed; <strong>email</strong>, <strong>registration</strong> and <strong>consent</strong> (yes or no) are optional.
           Most column names work (Customer, Phone, Reg, VRM…). Save from Excel or Google Sheets as CSV.{" "}
-          <a href={TEMPLATE_HREF} download="customers-template.csv" className="font-semibold text-accent underline underline-offset-2">Download a template</a>
+          <a href={TEMPLATE_HREF} download="customers-template.csv" className="font-semibold text-accent-text underline underline-offset-2">Download a template</a>
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor={inputId} className={cn(buttonClass("secondary"), "cursor-pointer has-[:focus-visible]:ring-4")}>

@@ -16,21 +16,21 @@ export default async function AgreementsPage() {
 
   return (
     <>
-      <p className="text-xs font-extrabold tracking-widest text-accent uppercase">Configuration</p>
-      <h1 className="mt-2 text-4xl font-extrabold text-[#071127]">Agreements</h1>
-      <p className="mt-3 max-w-2xl text-[#586575]">
-        The terms under which Vitalos Technologies processes {admin.garage.name}&apos;s customer data for Autofix.
+      <p className="text-xs font-extrabold tracking-widest text-accent-text uppercase">Configuration</p>
+      <h1 className="mt-2 text-4xl font-extrabold text-[#0f2747]">Agreements</h1>
+      <p className="mt-3 max-w-2xl text-[#475569]">
+        The terms under which Vitalos Technologies processes {admin.garage.name}&apos;s customer data for Pitline.
       </p>
-      <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#D7E0E9] bg-white p-1">
-        <Link href="/app/settings" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-accent">Settings</Link>
-        <Link href="/app/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#586575] hover:bg-[#F4F7FA] hover:text-accent">Security</Link>
-        <Link href="/app/settings/agreements" aria-current="page" className="rounded-lg bg-[#071127] px-4 py-2 text-sm font-bold text-white">Agreements</Link>
+      <nav aria-label="Configuration pages" className="mt-6 flex w-fit gap-1 rounded-xl border border-[#CBD5E1] bg-white p-1">
+        <Link href="/app/settings" className="rounded-lg px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC] hover:text-accent-text">Settings</Link>
+        <Link href="/app/configuration/security" className="rounded-lg px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#F8FAFC] hover:text-accent-text">Security</Link>
+        <Link href="/app/settings/agreements" aria-current="page" className="rounded-lg bg-[#0f2747] px-4 py-2 text-sm font-bold text-white">Agreements</Link>
       </nav>
       <div className="mt-8 max-w-3xl">
         {status ? (
           <DpaAcceptance garage={admin.garage} status={status} canAccept />
         ) : (
-          <p className="rounded-xl border border-[#D7E0E9] bg-white p-4 text-sm text-[#586575]">Only a garage owner can view and accept agreements.</p>
+          <p className="rounded-xl border border-[#CBD5E1] bg-white p-4 text-sm text-[#475569]">Only a garage owner can view and accept agreements.</p>
         )}
       </div>
     </>

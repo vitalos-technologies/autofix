@@ -3,7 +3,7 @@ import "server-only";
 import { platformEmailBrand, PLATFORM_NAME } from "@/lib/email/brand";
 import { emailLayout, notice, plainTextFooter, plainTextHeader, type RenderedEmail } from "./components";
 
-// Account mail is platform mail: garage staff sign in to Autofix, not to a garage.
+// Account mail is platform mail: garage staff sign in to Pitline, not to a garage.
 
 export function renderPasswordReset(input: { actionUrl: string }): RenderedEmail {
   const brand = platformEmailBrand();
@@ -32,8 +32,8 @@ export function renderPasswordChanged(): RenderedEmail {
       tone: "success",
       title: "Password updated",
       intro: `Your ${PLATFORM_NAME} password was changed successfully.`,
-      contentHtml: notice("No action is needed if this was you", "If you did not make this change, contact your garage owner or Autofix support immediately.", brand),
+      contentHtml: notice("No action is needed if this was you", "If you did not make this change, contact your garage owner or Pitline support immediately.", brand),
     }),
-    text: [plainTextHeader(brand), "", "PASSWORD UPDATED", "", `Your ${PLATFORM_NAME} password was changed successfully.`, "", "If you made this change, no further action is required.", "If you did not make this change, contact your garage owner or Autofix support immediately.", plainTextFooter(brand)].join("\n"),
+    text: [plainTextHeader(brand), "", "PASSWORD UPDATED", "", `Your ${PLATFORM_NAME} password was changed successfully.`, "", "If you made this change, no further action is required.", "If you did not make this change, contact your garage owner or Pitline support immediately.", plainTextFooter(brand)].join("\n"),
   };
 }

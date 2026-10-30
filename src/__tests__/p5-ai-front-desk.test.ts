@@ -1,7 +1,7 @@
 /**
  * P5.12 AI front desk on Pro (voice desk): the hook in the Twilio voice webhook (Essentials unchanged,
  * Pro with the switch on and minutes left gets the disclosure and the ConversationRelay connection to
- * Autofix's voice service, a failed session falls back to voicemail + text-back), the relay claim, the
+ * Pitline's voice service, a failed session falls back to voicemail + text-back), the relay claim, the
  * settings states and actions' plan and role gates, and the usage month shared with the Plan page.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -122,7 +122,7 @@ describe("settings states", () => {
     expect(voiceDeskStatus(ready)).toMatchObject({ tone: "success", label: "Answering" });
     expect(voiceDeskStatus({ ...ready, enabled: false }).label).toBe("Off");
     expect(voiceDeskStatus({ ...ready, serviceConfigured: false }).label).toBe("Waiting for Vitalos");
-    expect(voiceDeskStatus({ ...ready, hasNumber: false }).label).toBe("No Autofix number");
+    expect(voiceDeskStatus({ ...ready, hasNumber: false }).label).toBe("No Pitline number");
     expect(voiceDeskStatus({ ...ready, overAllowance: true }).label).toBe("Allowance used");
   });
 });
@@ -132,7 +132,7 @@ describe("settings states", () => {
 // ---------------------------------------------------------------------------
 
 const AUTH_TOKEN = "twilio-test-auth-token-0123456789";
-const BASE = "https://autofix.vitalos.co.uk";
+const BASE = "https://pitline.co.uk";
 const ENV = { TWILIO_AUTH_TOKEN: AUTH_TOKEN, TWILIO_WEBHOOK_BASE_URL: BASE, PLAN_PRO_AI_MINUTES: "200" };
 const GARAGE_NUMBER = "+447700100200";
 const CALLER = "+447700900123";

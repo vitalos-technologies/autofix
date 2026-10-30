@@ -9,11 +9,11 @@ import { runTool, toolDefinitions, type CallFacts, type ToolOutcome } from "./to
 // One AI front desk call over Twilio ConversationRelay
 // (https://www.twilio.com/docs/voice/conversationrelay/websocket-messages): Twilio turns the caller's
 // speech into `prompt` messages and speaks the `text` tokens we stream back; `interrupt` means the caller
-// talked over us; `end` hands the call back to Autofix's voice webhook (?step=relay) with HandoffData
+// talked over us; `end` hands the call back to Pitline's voice webhook (?step=relay) with HandoffData
 // {"to":"hangup"} or {"to":"voicemail"}.
 //
 // When the socket closes the desk reports the minutes (report_usage, per started minute, counted once per
-// CallSid) and writes the staff summary (log_call_summary). If Autofix or Claude cannot be reached the
+// CallSid) and writes the staff summary (log_call_summary). If Pitline or Claude cannot be reached the
 // desk apologises and hands the caller to the voicemail. The conversation history is append-only; a reply
 // the caller cut off is kept as the words they actually heard.
 
@@ -290,7 +290,7 @@ export class DeskCall {
     await this.handBack(LINES.wrapUp, "hangup");
   }
 
-  /** The socket closed: report the minutes and the summary to Autofix. Never throws. */
+  /** The socket closed: report the minutes and the summary to Pitline. Never throws. */
   async close() {
     if (this.finished) return this.done;
     this.finished = true;

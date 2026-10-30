@@ -1,4 +1,4 @@
-"""Shared view helpers for Autofix pages: the unavailable state and UUID parsing."""
+"""Shared view helpers for Pitline pages: the unavailable state and UUID parsing."""
 
 import uuid
 
@@ -8,8 +8,8 @@ from django.shortcuts import render
 from ..db import AutofixUnavailable
 
 UNAVAILABLE_TEXT = {
-    "not_configured": "Autofix data is not connected. Set AUTOFIX_DATABASE_URL (see README).",
-    "unavailable": "Autofix data could not be read just now. Try again in a minute; the System health page shows the connection.",
+    "not_configured": "Pitline data is not connected. Set AUTOFIX_DATABASE_URL (see README).",
+    "unavailable": "Pitline data could not be read just now. Try again in a minute; the System health page shows the connection.",
 }
 
 

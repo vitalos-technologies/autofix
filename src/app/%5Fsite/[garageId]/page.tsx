@@ -6,7 +6,7 @@ import { BookingScreen } from "./_components/booking-screen";
 import { VehicleStep } from "./_components/vehicle-step";
 
 // No title here: the site layout's default ("Book online | <garage name>")
-// applies. A page's own title takes the root "| Autofix" template instead,
+// applies. A page's own title takes the root "| Pitline" template instead,
 // because a layout's title template only reaches child segments.
 export const metadata: Metadata = {
   description: "Book your car in online: enter the registration, choose the work and pick a time.",

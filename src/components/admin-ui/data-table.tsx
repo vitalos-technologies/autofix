@@ -84,7 +84,7 @@ export function DataTable<Row>({
           {rows.map((row) => {
             const muted = isRowMuted?.(row) ?? false;
             return (
-              <tr key={getRowKey(row)} className={cn("border-t", tinted ? "border-grey-200" : "border-[#eef2f6]", muted ? "text-grey-600" : "text-grey-800")}>
+              <tr key={getRowKey(row)} className={cn("border-t", tinted ? "border-grey-200" : "border-[#f1f5f9]", muted ? "text-grey-600" : "text-grey-800")}>
                 {columns.map((column) => {
                   const Cell = column.rowHeader ? "th" : "td";
                   return (

@@ -18,7 +18,7 @@ const inputClass = cn(
 );
 const labelClass = "text-[14px] font-semibold text-grey-800";
 const summaryClass = cn(
-  "inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent underline underline-offset-2 [&::-webkit-details-marker]:hidden",
+  "inline-flex min-h-11 cursor-pointer list-none items-center rounded-input px-1 text-[14px] font-semibold text-accent-text underline underline-offset-2 [&::-webkit-details-marker]:hidden",
   focusRing,
 );
 
@@ -46,7 +46,7 @@ export function CourtesyNotice({ flash, className }: { flash: { tone: "success" 
 /** Small "Courtesy car" chip for booking cards (Today, Diary). */
 export function CourtesyCarChip({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-[#e8f0fb] px-2 py-0.5 text-[11.5px] font-bold text-[#0f3f80]", className)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full bg-[#e8f0fb] px-2 py-0.5 text-[11.5px] font-bold text-[#1e40af]", className)}>
       <CarFront size={12} strokeWidth={2.4} aria-hidden="true" />
       Courtesy car
     </span>
@@ -154,7 +154,7 @@ export function LoanItem({
     ? `${formatShortDate(loan.startsAt, timeZone)}, ${formatTimeRange(loan.startsAt, loan.endsAt, timeZone)}`
     : `${formatShortDate(loan.startsAt, timeZone)} to ${formatShortDate(loan.endsAt, timeZone)}`;
   return (
-    <div className="flex flex-col gap-1.5 border-t border-[#eef2f6] py-3 first:border-t-0">
+    <div className="flex flex-col gap-1.5 border-t border-[#f1f5f9] py-3 first:border-t-0">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <span className="text-[14.5px] font-bold text-navy-950">{when}</span>
         <Badge tone={LOAN_TONES[loan.status]}>{LOAN_STATUS_LABELS[loan.status]}</Badge>

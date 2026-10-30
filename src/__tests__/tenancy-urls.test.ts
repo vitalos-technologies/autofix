@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { addressLine, addressLines, formatPhoneForDisplay, telHref, whatsappHref } from "@/lib/tenancy/contact";
 import { adminBaseUrl, adminUrl, garageBaseUrl, garageUrl } from "@/lib/tenancy/urls";
 
-const production = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "autofix.vitalos.co.uk", NEXT_PUBLIC_ADMIN_HOST: "autofix.vitalos.co.uk" };
+const production = { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "pitline.co.uk", NEXT_PUBLIC_ADMIN_HOST: "pitline.co.uk" };
 const development = { NODE_ENV: "development", DEV_TENANT_ROOT_DOMAIN: "localhost:3000" };
 
 describe("garageBaseUrl", () => {
   it("uses the free link on the tenant root in production", () => {
-    expect(garageBaseUrl({ slug: "hartley-road" }, production)).toBe("https://hartley-road.autofix.vitalos.co.uk");
-    expect(garageBaseUrl({ slug: "hartley-road", customDomain: null }, production)).toBe("https://hartley-road.autofix.vitalos.co.uk");
+    expect(garageBaseUrl({ slug: "hartley-road" }, production)).toBe("https://hartley-road.pitline.co.uk");
+    expect(garageBaseUrl({ slug: "hartley-road", customDomain: null }, production)).toBe("https://hartley-road.pitline.co.uk");
   });
 
   it("prefers the garage's verified custom domain", () => {
@@ -17,12 +17,12 @@ describe("garageBaseUrl", () => {
   });
 
   it("ignores a custom domain value that carries a port", () => {
-    expect(garageBaseUrl({ slug: "hartley-road", customDomain: "book.hartleyroad.co.uk:8443" }, production)).toBe("https://hartley-road.autofix.vitalos.co.uk");
+    expect(garageBaseUrl({ slug: "hartley-road", customDomain: "book.hartleyroad.co.uk:8443" }, production)).toBe("https://hartley-road.pitline.co.uk");
   });
 
-  it("follows NEXT_PUBLIC_TENANT_ROOT_DOMAIN and defaults to autofix.vitalos.co.uk", () => {
+  it("follows NEXT_PUBLIC_TENANT_ROOT_DOMAIN and defaults to pitline.co.uk", () => {
     expect(garageBaseUrl({ slug: "demo-b" }, { NODE_ENV: "production", NEXT_PUBLIC_TENANT_ROOT_DOMAIN: "garages.example.test" })).toBe("https://demo-b.garages.example.test");
-    expect(garageBaseUrl({ slug: "demo-b" }, { NODE_ENV: "production" })).toBe("https://demo-b.autofix.vitalos.co.uk");
+    expect(garageBaseUrl({ slug: "demo-b" }, { NODE_ENV: "production" })).toBe("https://demo-b.pitline.co.uk");
   });
 
   it("uses <slug>.localhost:3000 over http in development, even with a custom domain", () => {
@@ -31,7 +31,7 @@ describe("garageBaseUrl", () => {
   });
 
   it("builds absolute links on the garage host", () => {
-    expect(garageUrl({ slug: "hartley-road" }, "/manage", production)).toBe("https://hartley-road.autofix.vitalos.co.uk/manage");
+    expect(garageUrl({ slug: "hartley-road" }, "/manage", production)).toBe("https://hartley-road.pitline.co.uk/manage");
     expect(garageUrl({ slug: "hartley-road", customDomain: "book.hartleyroad.co.uk" }, "/api/bookings/calendar/HRM-4821?signature=a%2Bb", production))
       .toBe("https://book.hartleyroad.co.uk/api/bookings/calendar/HRM-4821?signature=a%2Bb");
   });
@@ -39,15 +39,15 @@ describe("garageBaseUrl", () => {
 
 describe("adminBaseUrl", () => {
   it("uses NEXT_PUBLIC_SITE_URL's origin when set", () => {
-    expect(adminBaseUrl({ ...production, NEXT_PUBLIC_SITE_URL: "https://autofix.vitalos.co.uk/some/path" })).toBe("https://autofix.vitalos.co.uk");
+    expect(adminBaseUrl({ ...production, NEXT_PUBLIC_SITE_URL: "https://pitline.co.uk/some/path" })).toBe("https://pitline.co.uk");
     expect(adminUrl("/app/bookings", { NEXT_PUBLIC_SITE_URL: "http://localhost:3000" })).toBe("http://localhost:3000/app/bookings");
   });
 
   it("falls back to the admin host in production and localhost in development", () => {
-    expect(adminBaseUrl(production)).toBe("https://autofix.vitalos.co.uk");
-    expect(adminBaseUrl({ NODE_ENV: "production" })).toBe("https://autofix.vitalos.co.uk");
+    expect(adminBaseUrl(production)).toBe("https://pitline.co.uk");
+    expect(adminBaseUrl({ NODE_ENV: "production" })).toBe("https://pitline.co.uk");
     expect(adminBaseUrl({ NODE_ENV: "development" })).toBe("http://localhost:3000");
-    expect(adminBaseUrl({ NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "not a url" })).toBe("https://autofix.vitalos.co.uk");
+    expect(adminBaseUrl({ NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "not a url" })).toBe("https://pitline.co.uk");
   });
 });
 

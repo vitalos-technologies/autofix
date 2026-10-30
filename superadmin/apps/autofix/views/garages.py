@@ -59,7 +59,7 @@ COLUMNS = [
 
 
 def _allow_handoff(response):
-    """CSP form-action also covers the redirect after a form post: let View as support leave for Autofix."""
+    """CSP form-action also covers the redirect after a form post: let View as support leave for Pitline."""
     origin = urlsplit(settings.AUTOFIX_APP_URL)
     if origin.scheme in ("http", "https") and origin.netloc:
         response._csp_update = {"form-action": [f"{origin.scheme}://{origin.netloc}"]}
@@ -122,7 +122,7 @@ def garage_list(request):
             queryset,
             COLUMNS,
             _row,
-            caption="Garages on Autofix",
+            caption="Garages on Pitline",
             target_id=TARGET_ID,
             url=reverse("autofix:garages"),
             default_sort="joined",
@@ -382,7 +382,7 @@ def garage_plan(request, pk):
 @role_required(SUPPORT)
 @require_http_methods(["GET", "POST"])
 def view_as_support(request, pk):
-    """Audited POST, then a redirect to Autofix's own read-only support session. No credentials."""
+    """Audited POST, then a redirect to Pitline's own read-only support session. No credentials."""
     try:
         garage = _garage_or_404(pk)
     except AutofixUnavailable as error:

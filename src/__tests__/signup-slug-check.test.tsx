@@ -29,7 +29,7 @@ function fill(label: string, value: string) {
 }
 
 async function openLinkStep() {
-  render(<GarageWizard placesEnabled={false} linkTemplate="https://__slug__.autofix.vitalos.co.uk" ownerEmail="owner@example.test" />);
+  render(<GarageWizard placesEnabled={false} linkTemplate="https://__slug__.pitline.co.uk" ownerEmail="owner@example.test" />);
   fill("Garage name", "Kingsway Autocare");
   fill("Phone number", "01302 123456");
   fill("Address line 1", "1 Kingsway");

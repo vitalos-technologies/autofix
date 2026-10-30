@@ -1,6 +1,6 @@
 """Product status for the Vitalos Product Pipeline (ADR-044 contract), served at /api/platform/v1/status.
 
-Counts and alerts only: no garage names, no people, no free text from Autofix. Validated against the
+Counts and alerts only: no garage names, no people, no free text from Pitline. Validated against the
 contract by ``tests/test_status_contract.py`` (a copy of the Product Pipeline's own validator).
 """
 
@@ -18,8 +18,8 @@ ENVIRONMENT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 MAX_ALERTS = 100
 TENANT_KEYS = ("total", "active", "trial", "suspended", "onboarding", "cancelled")
 ALERT_TITLES = {
-    "job_failed": ("{n} Autofix job{s} failed", "/jobs/"),
-    "job_stuck": ("{n} Autofix job{s} stuck with an expired lock", "/jobs/"),
+    "job_failed": ("{n} Pitline job{s} failed", "/jobs/"),
+    "job_stuck": ("{n} Pitline job{s} stuck with an expired lock", "/jobs/"),
     "domain_failed": ("{n} custom domain{s} failing verification", "/domains/"),
     "onboarding_stuck": ("{n} garage{s} onboarding for over {hours} hours", "/signups/"),
     "messaging_failed": ("Text or email failures in the last 24 hours ({n} provider{s})", "/messaging/"),
@@ -62,7 +62,7 @@ def _alerts(items, now: datetime) -> list[dict]:
 
 
 def payload(now: datetime | None = None) -> dict:
-    """The ADR-044 status document. Raises ``AutofixUnavailable`` when Autofix cannot be read."""
+    """The ADR-044 status document. Raises ``AutofixUnavailable`` when Pitline cannot be read."""
     now = now or timezone.now()
     snapshot = selectors.status_snapshot(now=now)
     tenants = {key: snapshot["tenants"].get(key, 0) for key in TENANT_KEYS}

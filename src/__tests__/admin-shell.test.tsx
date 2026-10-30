@@ -18,7 +18,7 @@ const garageB = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Demo Garage
 const switchGarage = vi.fn(async () => undefined);
 
 describe("admin layout", () => {
-  it("renders the Autofix admin shell with the real garage switcher, search, bell and sign-out", () => {
+  it("renders the Pitline admin shell with the real garage switcher, search, bell and sign-out", () => {
     const layout = read("src/app/app/(protected)/layout.tsx");
     expect(layout).toContain('from "@/components/admin-ui"');
     expect(layout).toContain("<AdminShell");
@@ -30,7 +30,7 @@ describe("admin layout", () => {
     expect(layout).toContain("getAdminNotificationSummary(admin.client)");
     // Layouts do not re-render on client navigation, so the shell follows the browser path itself.
     expect(layout).not.toContain("activeHref=");
-    expect(read("src/components/admin-ui/admin-shell.tsx")).toContain(">Autofix<");
+    expect(read("src/components/admin-ui/admin-shell.tsx")).toContain('<PitlineLogo variant="mono" title="Pitline"');
   });
 
   it("leaves <main> to the admin shell, the booking site layout and standalone pages", () => {

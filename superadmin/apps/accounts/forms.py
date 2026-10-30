@@ -82,15 +82,15 @@ class UserEditForm(StyledFormMixin, StepUpMixin, forms.Form):
     full_name = forms.CharField(max_length=150, required=False)
     role = forms.ChoiceField(choices=[("", "No role (no access)"), *ROLE_CHOICES], required=False)
     autofix_admin = forms.ChoiceField(
-        label="Linked Autofix platform admin",
+        label="Linked Pitline platform admin",
         required=False,
-        help_text="Needed to change anything in Autofix. Autofix's audit logs show this platform admin.",
+        help_text="Needed to change anything in Pitline. Pitline's audit logs show this platform admin.",
     )
     is_active = forms.BooleanField(label="Active", required=False)
 
     def __init__(self, *args, admin_choices=(), **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["autofix_admin"].choices = [("", "Not linked (read-only in Autofix)"), *admin_choices]
+        self.fields["autofix_admin"].choices = [("", "Not linked (read-only in Pitline)"), *admin_choices]
 
 
 class ProfileForm(StyledFormMixin, forms.ModelForm):

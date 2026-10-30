@@ -95,7 +95,7 @@ export function ContactForm({ copy }: { copy: ContactFormCopy }) {
       setErrors(result?.error?.fields ?? {});
       setMessage(result?.error?.message ?? "We couldn't send your message just now. Try again in a few minutes.");
     } catch {
-      setMessage("We couldn't reach Autofix. Check your connection and try again.");
+      setMessage("We couldn't reach Pitline. Check your connection and try again.");
     } finally {
       setPending(false);
     }
@@ -128,7 +128,7 @@ export function ContactForm({ copy }: { copy: ContactFormCopy }) {
               setTurnstile("");
               setTurnstileKey((key) => key + 1);
             }}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-control border border-grey-300 bg-white px-6 text-[16px] font-semibold text-navy-950 transition hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+            className="inline-flex min-h-[54px] items-center justify-center rounded-control border border-grey-300 bg-white px-6 text-[16px] font-semibold text-navy-950 transition hover:border-blue-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
             {copy.thanks.again}
           </button>

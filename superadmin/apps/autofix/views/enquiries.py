@@ -1,8 +1,8 @@
-"""Enquiries: what people send from the contact page (autofix.vitalos.co.uk/contact).
+"""Enquiries: what people send from the contact page (pitline.co.uk/contact).
 
 SuperAdmin and Support read them and change status and notes; Finance never sees them (they carry
 contact details). The list shows who, about what and where it stands; the sender's email, phone and
-message are on the detail page, and each opening of it is audited. Changes go through Autofix's
+message are on the detail page, and each opening of it is audited. Changes go through Pitline's
 ``platform_update_enquiry`` with a fresh authenticator code, like every other change.
 """
 

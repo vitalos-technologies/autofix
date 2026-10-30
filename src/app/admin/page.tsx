@@ -68,7 +68,7 @@ export default async function PlatformGaragesPage({ searchParams }: { searchPara
 
   return (
     <>
-      <PageHeader eyebrow="Vitalos platform" title="Garages" description="Every garage on Autofix. Open one to change its plan or status, or to view it as support." />
+      <PageHeader eyebrow="Vitalos platform" title="Garages" description="Every garage on Pitline. Open one to change its plan or status, or to view it as support." />
       {requests.length ? (
         <Panel id="plan-requests" title="Plan requests" count={requests.length} countLabel="open plan requests">
           <ul className="m-0 flex list-none flex-col gap-2 p-0">

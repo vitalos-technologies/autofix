@@ -32,16 +32,16 @@ export function DpaAcceptForm({ version, legalName }: DpaAcceptFormProps) {
 
   const message = messages[state.status];
   return (
-    <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-[#D7E0E9] bg-white p-5">
+    <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-[#CBD5E1] bg-white p-5">
       <input type="hidden" name="version" value={version} />
-      <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm leading-6 text-[#202A36]">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm leading-6 text-[#1E293B]">
         <input
           type="checkbox"
           name="confirm"
           value="yes"
           checked={confirmed}
           onChange={(event) => setConfirmed(event.target.checked)}
-          className="mt-1 size-5 shrink-0 cursor-pointer accent-[#1974E2]"
+          className="mt-1 size-5 shrink-0 cursor-pointer accent-[#2563EB]"
         />
         <span>
           I have read this Data Processing Agreement (version {version}) and accept it on behalf of {legalName}, as its owner.
@@ -55,7 +55,7 @@ export function DpaAcceptForm({ version, legalName }: DpaAcceptFormProps) {
       <button
         type="submit"
         disabled={pending}
-        className="min-h-11 w-fit rounded-xl bg-[#071127] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0C1D3D] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1974E2] disabled:cursor-wait disabled:opacity-70"
+        className="min-h-11 w-fit rounded-xl bg-[#0f2747] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16325A] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] disabled:cursor-wait disabled:opacity-70"
       >
         {pending ? "Saving…" : "Accept agreement"}
       </button>

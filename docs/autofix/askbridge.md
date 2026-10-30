@@ -1,11 +1,11 @@
-# Askbridge on Autofix booking pages (P4.6)
+# Askbridge on Pitline booking pages (P4.6)
 
-Askbridge by Vitalos is an AI chat that a business adds to its website with one script tag. Autofix lets a garage show its own Askbridge chat on its booking pages. This file describes what Askbridge actually ships, checked against the Askbridge repo (`apps/widget/src/loader.ts`, `docs/architecture/widget.md`, `packages/db/migrations/0002_core.sql`) and approved by Temitope on 29 Oct 2026.
+Askbridge by Vitalos is an AI chat that a business adds to its website with one script tag. Pitline lets a garage show its own Askbridge chat on its booking pages. This file describes what Askbridge actually ships, checked against the Askbridge repo (`apps/widget/src/loader.ts`, `docs/architecture/widget.md`, `packages/db/migrations/0002_core.sql`) and approved by Temitope on 29 Oct 2026.
 
 Two facts shape the whole integration:
 
-1. **Each garage brings its own Askbridge workspace.** The garage signs up at askbridge.vitalos.co.uk, adds its booking page addresses as allowed websites, and copies its site key into Autofix. Autofix holds no Askbridge account, token or secret.
-2. **Askbridge learns by crawling the business's website** (and from files and FAQs added in its dashboard). There is no partner API to push knowledge, so Autofix sends Askbridge nothing. What the chat knows, how it looks and what it says first are all set in the garage's Askbridge workspace.
+1. **Each garage brings its own Askbridge workspace.** The garage signs up at askbridge.vitalos.co.uk, adds its booking page addresses as allowed websites, and copies its site key into Pitline. Pitline holds no Askbridge account, token or secret.
+2. **Askbridge learns by crawling the business's website** (and from files and FAQs added in its dashboard). There is no partner API to push knowledge, so Pitline sends Askbridge nothing. What the chat knows, how it looks and what it says first are all set in the garage's Askbridge workspace.
 
 Bookings never go through Askbridge: customers book on the booking page as usual. Agents that book on a caller's behalf use the agent tool API (`docs/autofix/agent-api.yaml`), which Askbridge does not call.
 
@@ -18,12 +18,12 @@ Askbridge's install snippet:
 ```
 
 - `data-site` (required): the site key. The loader sends it on every call as `x-askbridge-site`.
-- `data-api` (optional): base URL of Askbridge's API. Autofix does not set it, so the loader calls the API on the script's own origin.
+- `data-api` (optional): base URL of Askbridge's API. Pitline does not set it, so the loader calls the API on the script's own origin.
 - Nothing else is read from the tag. Theme, launcher label, logo, greeting, suggested questions, team status and the bot check all come from `GET /api/v1/visitor/config?site=pk_…` on Askbridge's side.
 - The loader draws a 56 px launcher in a shadow root on a zero-size host element, `position: fixed`, so nothing on the page moves. The panel (`panel.js`, same directory) loads on first intent. The only global is `window.Askbridge`.
 - If the config call fails (unknown or retired key, page origin not in the workspace's allowed websites, API down), nothing is shown and a warning goes to the console.
 
-### How Autofix renders it
+### How Pitline renders it
 
 `src/app/%5Fsite/[garageId]/layout.tsx` renders `AskbridgeWidget` (`src/components/askbridge/askbridge-widget.tsx`) on every page of a garage host when the garage has the chat on with a valid site key and the loader URL is valid. Admin pages never load it.
 
@@ -54,7 +54,7 @@ Stored in `garages.settings.askbridge` as `{ "enabled": boolean, "siteKey": stri
 The settings panel walks the owner through it:
 
 1. Create a workspace at askbridge.vitalos.co.uk.
-2. Add the booking page addresses as allowed websites. The panel lists the garage's own: the free link (`https://<slug>.autofix.vitalos.co.uk`) and, once one is connected, its own address (`https://book.theirgarage.co.uk`). Askbridge matches exact origins and has no wildcards, so each address goes in separately.
+2. Add the booking page addresses as allowed websites. The panel lists the garage's own: the free link (`https://<slug>.pitline.co.uk`) and, once one is connected, its own address (`https://book.theirgarage.co.uk`). Askbridge matches exact origins and has no wildcards, so each address goes in separately.
 3. Paste the site key.
 
 Plans: the chat is part of Essentials (D17), so every plan can turn it on. The garage's Askbridge subscription is between the garage and Askbridge.
@@ -64,7 +64,7 @@ Plans: the chat is part of Essentials (D17), so every plan can turn it on. The g
 The booking host's CSP is set per garage in `src/proxy.ts`, built by `bookingSiteCsp()` in `src/lib/booking-page/security-headers.ts`. For a garage with the chat on, the loader URL's origin is added to:
 
 - `script-src`: the loader and its panel, same directory;
-- `connect-src`: the visitor API (config, conversations, streamed answers, polling), on the same origin because Autofix sets no `data-api`.
+- `connect-src`: the visitor API (config, conversations, streamed answers, polling), on the same origin because Pitline sets no `data-api`.
 
 Everything else the widget needs is already allowed on every booking page:
 
@@ -87,5 +87,5 @@ The first version of this file defined a contract Askbridge never had: a `data-w
 
 ## Open with Askbridge
 
-- When a garage turns the chat off or leaves Autofix, its Askbridge workspace carries on (Autofix just stops loading the loader). Whether to tell the garage to cancel Askbridge separately is a product decision.
+- When a garage turns the chat off or leaves Pitline, its Askbridge workspace carries on (Pitline just stops loading the loader). Whether to tell the garage to cancel Askbridge separately is a product decision.
 - If Askbridge later offers a partner API (provisioning a workspace, or pushing services and opening hours), this integration can grow into it. Until then the booking page should be crawlable for Askbridge to learn from it.

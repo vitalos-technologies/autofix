@@ -13,7 +13,7 @@ export default function NotFound() {
         <p className="m-0 text-[16px] leading-normal text-grey-600">This page could not be found.</p>
         <Link
           href="/"
-          className="mt-2 inline-flex min-h-11 items-center self-start font-semibold text-accent underline underline-offset-2 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="mt-2 inline-flex min-h-11 items-center self-start font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           Go to the start
         </Link>

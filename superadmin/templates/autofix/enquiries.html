@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Enquiries · Autofix Super Admin{% endblock %}
+{% block title %}Enquiries · Pitline Super Admin{% endblock %}
 {% block content %}
   <h1>Enquiries</h1>
-  <p class="muted mt-1 text-sm">Messages from the contact page on autofix.vitalos.co.uk, newest first. Open one to see the sender's details and to change its status or notes.</p>
+  <p class="muted mt-1 text-sm">Messages from the contact page on pitline.co.uk, newest first. Open one to see the sender's details and to change its status or notes.</p>
   <div class="mt-6 grid grid-cols-3 gap-3">
     <div class="kpi" data-testid="kpi-enquiries-new"><p class="kpi-label">New</p><p class="kpi-value">{{ counts.new }}</p><p class="kpi-time">Not picked up yet</p></div>
     <div class="kpi" data-testid="kpi-enquiries-in-progress"><p class="kpi-label">In progress</p><p class="kpi-value">{{ counts.in_progress }}</p><p class="kpi-time">Being handled</p></div>

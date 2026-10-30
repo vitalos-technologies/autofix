@@ -1,11 +1,11 @@
-// Copy for the Autofix marketing page on the admin host (`/`). Kept as data, like the Answerd site's
+// Copy for the Pitline marketing page on the admin host (`/`). Kept as data, like the Answerd site's
 // content module, so wording changes don't touch layout. Every claim here is something the product does
 // today: no prices, no customer numbers, no testimonials until Temitope supplies real ones.
 
 export const marketing = {
-  name: "Autofix",
+  name: "Pitline",
   by: "by Vitalos",
-  metaTitle: "Autofix · Online booking for independent garages",
+  metaTitle: "Pitline · Online booking for independent garages",
   description:
     "Give your garage a booking page customers finish on their phone, a diary that never double-books a bay, and MOT and service reminders that bring cars back.",
 
@@ -23,18 +23,19 @@ export const marketing = {
     badge: "Built for independent garages",
     headline: "Your garage,",
     highlight: "fully booked.",
-    subline:
-      "A booking page customers finish on their phone in under a minute, a diary that never double-books a bay, and reminders that bring cars back for their MOT and service.",
+    // Brand kit (D23): tagline, subline and the "Built for independent garages" line.
+    subline: "Online booking, reminders and AI front desk tools for independent garages.",
     secondary: { label: "See how it works", href: "#how-it-works" },
     notes: ["Live on your free link in minutes", "Your own domain when you're ready", "Works on any phone"],
   },
 
   trustLabel: "What every garage gets",
+  // The kit's three feature lines, then reminders.
   trust: [
-    { icon: "globe", label: "Your own booking domain", detail: "book.yourgarage.co.uk, or a free Autofix link" },
-    { icon: "shield", label: "No double bookings", detail: "Every bay is checked at the moment of booking" },
+    { icon: "globe", label: "Online booking pages", detail: "Let customers book 24/7" },
+    { icon: "shield", label: "No double bookings", detail: "Keep your diary in sync" },
+    { icon: "phone", label: "AI front desk for calls", detail: "Never miss a customer" },
     { icon: "bell", label: "MOT and service reminders", detail: "Only to customers who said yes" },
-    { icon: "phone", label: "Missed calls texted back", detail: "With a link to book, within a minute" },
   ],
 
   howItWorks: {
@@ -95,7 +96,7 @@ export const marketing = {
   },
 
   // Two plans (DECISIONS D17). Essentials is what ships today. Pro lists its features; `shipped: false` marks
-  // the ones still being built ("Coming soon"), so the page only claims what Autofix does. Every new garage
+  // the ones still being built ("Coming soon"), so the page only claims what Pitline does. Every new garage
   // starts on a 14-day Pro trial (P5.2). Prices set by Temitope on 29 Oct 2026, excluding VAT; keep them
   // in step with PLAN_ESSENTIALS_PRICE_PENCE, PLAN_PRO_PRICE_PENCE and PLAN_EXTRA_SITE_PRICE_PENCE.
   plans: {
@@ -151,11 +152,11 @@ export const marketing = {
     items: [
       {
         q: "How long does it take to get started?",
-        a: "Minutes. Sign up, add your garage details, services and opening hours, and your booking page is live on a free yourgarage.autofix.vitalos.co.uk link straight away.",
+        a: "Minutes. Sign up, add your garage details, services and opening hours, and your booking page is live on a free yourgarage.pitline.co.uk link straight away.",
       },
       {
         q: "Can customers book on our own website address?",
-        a: "Yes. Add one DNS record (for example book.yourgarage.co.uk) and Autofix connects it, with its own security certificate. We show you exactly what to add.",
+        a: "Yes. Add one DNS record (for example book.yourgarage.co.uk) and Pitline connects it, with its own security certificate. We show you exactly what to add.",
       },
       {
         q: "Do customers need to download an app?",
@@ -212,21 +213,21 @@ export const marketing = {
   // `/contact` on the admin host: the form posts to /api/contact, which stores the message in
   // platform_enquiries and emails Vitalos. Only promise what happens: a person reads it and replies.
   contact: {
-    metaTitle: "Contact Autofix · Online booking for independent garages",
-    description: "Questions about Autofix, a demo for your garage, or help with your account: send the Autofix team at Vitalos a message.",
+    metaTitle: "Contact Pitline · Online booking for independent garages",
+    description: "Questions about Pitline, a demo for your garage, or help with your account: send the Pitline team at Vitalos a message.",
     eyebrow: "Contact",
-    heading: "Talk to the Autofix team",
-    intro: "Questions about Autofix, a demo for your garage, help with your account or a partnership idea. Send us a message and a person at Vitalos will reply by email.",
+    heading: "Talk to the Pitline team",
+    intro: "Questions about Pitline, a demo for your garage, help with your account or a partnership idea. Send us a message and a person at Vitalos will reply by email.",
     faqCta: { lead: "Something we haven't answered?", label: "Send us a message", after: "and a person at Vitalos will reply." },
     aside: {
       heading: "What happens next",
       steps: [
-        "Your message goes straight to the Autofix team at Vitalos.",
+        "Your message goes straight to the Pitline team at Vitalos.",
         "A person reads it and replies to the email address you give.",
         "If you'd rather talk, add a phone number and say when suits you.",
       ],
       privacy: "We use your details only to answer your message.",
-      customers: { lead: "Already using Autofix?", label: "Log in", href: "/app/login" },
+      customers: { lead: "Already using Pitline?", label: "Log in", href: "/app/login" },
       start: { lead: "Ready to start?", label: "Set up your garage", href: "/signup" },
     },
     form: {
@@ -237,7 +238,7 @@ export const marketing = {
     },
     thanks: {
       heading: "Thanks, your message is on its way.",
-      body: "It has reached the Autofix team at Vitalos. We'll reply to",
+      body: "It has reached the Pitline team at Vitalos. We'll reply to",
       again: "Send another message",
       home: "Back to the home page",
     },

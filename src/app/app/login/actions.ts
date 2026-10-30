@@ -71,7 +71,7 @@ export async function loginWithPassword(_: LoginState, formData: FormData): Prom
 
 export async function requestPasswordReset(_: LoginState, formData: FormData): Promise<LoginState> {
   const parsed = z.object({ email: z.email() }).safeParse({ email: formData.get("email") });
-  const genericMessage = "If that address belongs to an Autofix account, a password reset link has been sent.";
+  const genericMessage = "If that address belongs to a Pitline account, a password reset link has been sent.";
   if (!parsed.success) return { message: genericMessage };
   const email = parsed.data.email.trim().toLowerCase();
   const source = await requestSource();

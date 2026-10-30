@@ -20,7 +20,7 @@ function adminFor(garage: ReturnType<typeof testGarage>, role = "owner") {
 }
 
 function get(kind: string, query = "range=last_month") {
-  return GET(new Request(`https://autofix.vitalos.co.uk/api/admin/reports/${kind}?${query}`), { params: Promise.resolve({ report: kind }) });
+  return GET(new Request(`https://pitline.co.uk/api/admin/reports/${kind}?${query}`), { params: Promise.resolve({ report: kind }) });
 }
 
 describe("P5.6 report CSV export", () => {
@@ -75,7 +75,7 @@ describe("P5.6 report CSV export", () => {
     const response = await get("revenue-by-service", "range=custom&from=2026-10-01&to=2026-10-31");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-    expect(response.headers.get("content-disposition")).toBe('attachment; filename="autofix-revenue-by-service-2026-10-01-to-2026-10-31.csv"');
+    expect(response.headers.get("content-disposition")).toBe('attachment; filename="pitline-revenue-by-service-2026-10-01-to-2026-10-31.csv"');
     expect(response.headers.get("cache-control")).toContain("private");
     expect(harness.rpc).toHaveBeenCalledWith("report_revenue_by_service", { p_from: "2026-10-01", p_to: "2026-10-31" });
     const body = await response.text();

@@ -105,8 +105,8 @@ describe("hostname validation", () => {
     ["book.garage.test", "reserved_tld"],
     ["book.garage.local", "reserved_tld"],
     ["book.garage.c0m", "invalid_characters"],
-    ["autofix.vitalos.co.uk", "platform_domain"],
-    ["hartley-road.autofix.vitalos.co.uk", "platform_domain"],
+    ["pitline.co.uk", "platform_domain"],
+    ["hartley-road.pitline.co.uk", "platform_domain"],
     ["vitalos.co.uk", "platform_domain"],
     ["book.vitalos.co.uk", "platform_domain"],
     ["mygarage.vercel.app", "not_owned"],
@@ -133,7 +133,7 @@ describe("hostname validation", () => {
     vi.stubEnv("NEXT_PUBLIC_TENANT_ROOT_DOMAIN", "garages.example-platform.net:3000");
     try {
       expect(validateGarageHostname("demo.garages.example-platform.net")).toMatchObject({ ok: false, reason: "platform_domain" });
-      expect(isPlatformHostname("autofix.vitalos.co.uk")).toBe(true);
+      expect(isPlatformHostname("pitline.co.uk")).toBe(true);
     } finally {
       vi.unstubAllEnvs();
     }
@@ -250,8 +250,8 @@ describe("Vercel domains client: request shape", () => {
   it("refuses to add or remove platform domains", async () => {
     const { fetch, fn } = fakeFetch();
     const client = liveClient(fetch);
-    expect((await caught(client.removeDomain("autofix.vitalos.co.uk"))).code).toBe("invalid_domain");
-    expect((await caught(client.addDomain("hartley-road.autofix.vitalos.co.uk"))).code).toBe("invalid_domain");
+    expect((await caught(client.removeDomain("pitline.co.uk"))).code).toBe("invalid_domain");
+    expect((await caught(client.addDomain("hartley-road.pitline.co.uk"))).code).toBe("invalid_domain");
     expect(fn).not.toHaveBeenCalled();
   });
 
@@ -451,7 +451,7 @@ describe("mock domains client", () => {
     await expect(client.removeDomain(HOST)).resolves.toEqual({ removed: false });
     expect((await caught(client.getDomain(HOST))).code).toBe("not_found");
     expect((await caught(client.verifyDomain(HOST))).code).toBe("not_found");
-    expect((await caught(client.removeDomain("autofix.vitalos.co.uk"))).code).toBe("invalid_domain");
+    expect((await caught(client.removeDomain("pitline.co.uk"))).code).toBe("invalid_domain");
   });
 });
 
@@ -510,11 +510,11 @@ describe.skipIf(process.env.VERCEL_DOMAINS_LIVE_TEST !== "1")("Vercel domains li
   it("reads the platform domain from the real API", async () => {
     const client = getDomainsClient({ ...process.env, VERCEL_DOMAINS_MODE: "live" });
     expect(client.mode).toBe("live");
-    const config = await client.getConfig("autofix.vitalos.co.uk");
+    const config = await client.getConfig("pitline.co.uk");
     expect(typeof config.misconfigured).toBe("boolean");
     try {
-      const domain = await client.getDomain("autofix.vitalos.co.uk");
-      expect(domain.name).toBe("autofix.vitalos.co.uk");
+      const domain = await client.getDomain("pitline.co.uk");
+      expect(domain.name).toBe("pitline.co.uk");
     } catch (error) {
       expect(isDomainsError(error) && error.code).toBe("not_found");
     }

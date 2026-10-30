@@ -5,7 +5,7 @@ set local search_path = public, extensions;
 
 select plan(12);
 
--- Autofix's own line (20261029002100_platform_calls.sql, A420): a platform
+-- Pitline's own line (20261029002100_platform_calls.sql, A420): a platform
 -- table no garage can read, written by the service role only, with the same
 -- 12-month voicemail retention as garage calls.
 

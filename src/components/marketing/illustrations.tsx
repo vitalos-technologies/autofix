@@ -33,7 +33,7 @@ export function BookingScreen() {
         <p className="font-display text-[22px] leading-none font-bold">Kingsway Autocare</p>
         <div className="mt-4 flex gap-1.5">
           {[0, 1, 2, 3, 4].map((step) => (
-            <span key={step} className={cn("h-1.5 flex-1 rounded-full", step === 0 ? "bg-plate" : "bg-white/25")} />
+            <span key={step} className={cn("h-1.5 flex-1 rounded-full", step === 0 ? "bg-brand-orange" : "bg-white/25")} />
           ))}
         </div>
       </div>
@@ -89,7 +89,7 @@ export function TodayScreen() {
         <p className="text-[14px] font-semibold">Full service · Thu 10:00</p>
         <p className="text-[12px] text-white/75">Requested online · Bay 1</p>
         <div className="mt-3 flex gap-2">
-          <span className="flex-1 rounded-[10px] bg-plate py-2 text-center text-[13px] font-semibold text-plate-ink">Accept</span>
+          <span className="flex-1 rounded-[10px] bg-brand-orange py-2 text-center text-[13px] font-semibold text-navy-950">Accept</span>
           <span className="flex-1 rounded-[10px] border border-white/30 py-2 text-center text-[13px] font-semibold">Another time</span>
         </div>
       </div>
@@ -123,7 +123,7 @@ export function FloatingCard({ kind }: { kind: "booked" | "reminder" }) {
   const booked = kind === "booked";
   return (
     <div aria-hidden="true" className="flex w-[232px] items-start gap-3 rounded-[16px] border border-grey-200 bg-white p-3.5 shadow-[0_20px_40px_-20px_rgba(7,17,39,0.35)]">
-      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", booked ? "bg-success-bg text-success-ink" : "bg-[#fff6cc] text-plate-ink")}>
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", booked ? "bg-success-bg text-success-ink" : "bg-[#ffedd5] text-[#9a3412]")}>
         {booked ? <CalendarCheck size={17} /> : <BellRing size={17} />}
       </span>
       <span className="min-w-0">
@@ -184,11 +184,11 @@ export function FeatureArt({ kind }: { kind: "booking" | "diary" | "reminders" |
     return (
       <div className="w-[270px] space-y-3">
         <div className="rounded-[16px] rounded-bl-[6px] bg-white p-3.5 text-[13px] leading-5 text-navy-950 shadow-[0_16px_32px_-20px_rgba(7,17,39,0.35)]">
-          Kingsway Autocare: Hi Sam, MOT due 14 Mar. Book: kingsway.autofix…/r/… Reply STOP to opt out.
+          Kingsway Autocare: Hi Sam, MOT due 14 Mar. Book: kingsway.pitline…/r/… Reply STOP to opt out.
         </div>
         <div className="ml-auto w-fit rounded-[14px] bg-navy-950 px-4 py-3 text-white">
           <p className="text-[11px] tracking-[0.06em] text-white/75 uppercase">Won back this month</p>
-          <p className="font-display text-[28px] leading-none font-bold text-plate">£1,240</p>
+          <p className="font-display text-[28px] leading-none font-bold text-brand-orange">£1,240</p>
         </div>
       </div>
     );
@@ -206,7 +206,7 @@ export function FeatureArt({ kind }: { kind: "booking" | "diary" | "reminders" |
       </div>
       <div className="ml-6 flex items-start gap-2 rounded-[16px] rounded-tl-[6px] bg-blue-700 p-3.5 text-[13px] leading-5 text-white">
         <MessageSquareText size={16} className="mt-0.5 shrink-0" />
-        Sorry we missed you. Book online at kingsway.autofix… or we&apos;ll call you back.
+        Sorry we missed you. Book online at kingsway.pitline… or we&apos;ll call you back.
       </div>
     </div>
   );

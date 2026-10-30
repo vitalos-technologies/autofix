@@ -2,12 +2,12 @@
 {% load ui %}
 {% block settings_panel %}
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <p class="muted text-sm">SuperAdmin: everything. Support: read-only plus audited customer details and View as support. Finance: plans, statuses and sign-ups, read-only. Changing anything in Autofix also needs a linked Autofix platform admin.</p>
+    <p class="muted text-sm">SuperAdmin: everything. Support: read-only plus audited customer details and View as support. Finance: plans, statuses and sign-ups, read-only. Changing anything in Pitline also needs a linked Pitline platform admin.</p>
     <button type="button" class="btn btn-primary" hx-get="{% url 'accounts:user_create' %}" hx-target="#modal">{% icon "plus" "h-4 w-4" %} Add user</button>
   </div>
   <div class="card mt-4 overflow-x-auto" tabindex="0" role="region" aria-label="Users and roles">
     <table class="table-base" data-testid="users-table">
-      <thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Autofix link</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col">Pitline link</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
         {% for row in rows %}
           <tr>

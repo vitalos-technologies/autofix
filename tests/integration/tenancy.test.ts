@@ -621,7 +621,7 @@ const FIXTURES: Record<string, Fixture> = {
   garage_domains: {
     create: async (rows) => {
       await rows.insert("garage_domains", { hostname: `book.${rows.garage.slug}.example`, kind: "custom", status: "pending_dns" });
-      return rows.insert("garage_domains", { hostname: `${rows.garage.slug}.autofix.vitalos.co.uk`, kind: "subdomain", status: "active" });
+      return rows.insert("garage_domains", { hostname: `${rows.garage.slug}.pitline.co.uk`, kind: "subdomain", status: "active" });
     },
     patch: { deleted_at: "2096-04-01T00:00:00.000Z" },
   },
@@ -1241,8 +1241,8 @@ describe("tenancy isolation", () => {
     }
   });
 
-  describe("platform_calls (Autofix's own line, A420)", () => {
-    // Calls to Autofix's own number belong to no garage: no member of any garage, and nobody signed
+  describe("platform_calls (Pitline's own line, A420)", () => {
+    // Calls to Pitline's own number belong to no garage: no member of any garage, and nobody signed
     // out, may read or touch them, whatever garage they have selected or forge.
     for (const spec of ACTORS) {
       it(`${spec.label} cannot select, insert, update or delete platform calls`, async () => {

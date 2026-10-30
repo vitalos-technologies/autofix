@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deploy the Autofix Super Admin to Azure Container Apps (consumption plan, UK South, scale to zero).
+# Deploy the Pitline Super Admin to Azure Container Apps (consumption plan, UK South, scale to zero).
 # Run by .github/workflows/superadmin-deploy.yml; `--dry-run` prints the plan and calls nothing.
 #
-# Served at https://autofix.vitalos.co.uk/superadmin through the Autofix app's proxy (DECISIONS D18): the
+# Served at https://pitline.co.uk/superadmin through the Pitline app's proxy (DECISIONS D18): the
 # container's own address is only Vercel's SUPERADMIN_ORIGIN and answers 404 without the proxy secret.
 # Idempotent: creates what is missing, updates the rest, deletes nothing. Secret values are never printed:
 # they live in Container Apps secrets, referenced with secretref:. Existing secrets are kept, so a
@@ -25,23 +25,23 @@ ENVIRONMENT="cae-autofix-superadmin"
 WORKSPACE="log-autofix-superadmin"
 RELEASE_JOB="${APP}-release"
 NOTIFY_JOB="${APP}-notify"
-PUBLIC_HOST="autofix.vitalos.co.uk"
+PUBLIC_HOST="pitline.co.uk"
 PREFIX="/superadmin"
 REGISTRY="ghcr.io"
 
 plan() {
   cat <<PLAN
-Autofix Super Admin deployment (resource group ${RG}, ${LOCATION})
+Pitline Super Admin deployment (resource group ${RG}, ${LOCATION})
   Log Analytics          ${WORKSPACE}: daily cap 0.1 GB, 30-day retention (inside the free 5 GB/month)
   Environment            ${ENVIRONMENT}: Container Apps, consumption only (no workload profiles, no fixed charge)
   Container app          ${APP}: external ingress :8000, 0-1 replicas, 0.25 vCPU / 0.5 GiB (scale to zero)
   Release job            ${RELEASE_JOB}: manual, bin/release.sh (migrates the super admin's own schema)
   Scheduled job          ${NOTIFY_JOB}: manage.py notify_attention every 5 minutes
   Image                  ${REGISTRY} private package, pulled with a read-only token (GHCR_PULL_TOKEN)
-  Public address         https://${PUBLIC_HOST}${PREFIX} via the Autofix app (Vercel SUPERADMIN_ORIGIN,
+  Public address         https://${PUBLIC_HOST}${PREFIX} via the Pitline app (Vercel SUPERADMIN_ORIGIN,
                          SUPERADMIN_PROXY_SECRET); no DNS change
-  Data                   Autofix's Supabase project: schema superadmin_app (role superadmin_app) for its own
-                         data, autofix_superadmin for Autofix data (A415)
+  Data                   Pitline's Supabase project: schema superadmin_app (role superadmin_app) for its own
+                         data, autofix_superadmin for Pitline data (A415)
   Secrets                django-secret-key, database-url, autofix-database-url, superadmin-proxy-secret,
                          autofix-status-token, bootstrap-admin-password (generated once, then kept)
   Expected cost          £0: Container Apps free grant (scale to zero), free Log Analytics tier, private
@@ -127,7 +127,7 @@ env_vars=(
   "SUPERADMIN_PATH_PREFIX=$PREFIX"
   "APP_BASE_URL=https://$PUBLIC_HOST"
   "AUTOFIX_SUPERADMIN_URL=https://$PUBLIC_HOST$PREFIX"
-  "AUTOFIX_APP_URL=https://autofix.vitalos.co.uk"
+  "AUTOFIX_APP_URL=https://pitline.co.uk"
   "ALLOWED_HOSTS=$PUBLIC_HOST"
   "CSRF_TRUSTED_ORIGINS=https://$PUBLIC_HOST"
   "TRUSTED_PROXY_COUNT=1"
@@ -210,7 +210,7 @@ else
     --secrets "${secrets[@]}" --env-vars "${env_vars[@]}" "${registry[@]}" -o none
 fi
 
-echo "== Scheduled job (Autofix alerts into the bell every 5 minutes)"
+echo "== Scheduled job (Pitline alerts into the bell every 5 minutes)"
 job_upsert "$NOTIFY_JOB" env_vars --trigger-type Schedule --cron-expression "*/5 * * * *" -- \
   --command "python" --args "manage.py" "notify_attention"
 

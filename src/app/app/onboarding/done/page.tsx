@@ -25,7 +25,7 @@ export default async function OnboardingDonePage() {
   return (
     <OnboardingFrame eyebrow="All set" title="You're live" description={`${admin.garage.name} can take bookings now. Share your booking link with customers.`}>
       <section aria-labelledby="link-heading" className="flex flex-col gap-3 rounded-card bg-navy-950 p-5 text-white">
-        <h2 id="link-heading" className="m-0 text-[13px] font-semibold tracking-[0.08em] text-[#cfd8e3] uppercase">Your booking link</h2>
+        <h2 id="link-heading" className="m-0 text-[13px] font-semibold tracking-[0.08em] text-[#cbd5e1] uppercase">Your booking link</h2>
         <p className="m-0 font-mono text-[16px] break-all" data-testid="booking-link">{link}</p>
         <div className="flex flex-wrap gap-2">
           <a href={`${link}/`} target="_blank" rel="noopener" className={buttonClass("onDarkPrimary", "md")}>
@@ -39,7 +39,7 @@ export default async function OnboardingDonePage() {
         <ul className="m-0 flex list-none flex-col divide-y divide-grey-200 p-0">
           {NEXT_STEPS.map((step) => (
             <li key={step.href} className="flex items-start gap-3 py-3">
-              <step.icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-accent" />
+              <step.icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text" />
               <span className="flex flex-col">
                 <Link href={step.href} className={textLinkClass}>{step.title}</Link>
                 <span className="text-[14px] text-grey-600">{step.text}</span>

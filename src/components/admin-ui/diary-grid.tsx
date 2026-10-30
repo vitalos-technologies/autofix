@@ -61,7 +61,7 @@ export type DiaryTone = "booked" | "in_progress" | "waiting_parts" | "ready" | "
 /** Block colours (design/screens/Admin-Dashboard.dc.html). Each text colour passes 4.5:1 on its fill. */
 export const DIARY_BLOCK_TONES: Record<DiaryTone, { block: string; title: string; sub: string; legend: string; label: string }> = {
   booked: { block: "bg-[#dbe8fb]", title: "text-[#0d2a52]", sub: "text-[#2c4a73]", legend: "bg-[#dbe8fb]", label: "Booked" },
-  in_progress: { block: "bg-[#155fba]", title: "text-white", sub: "text-[#d6e6fb]", legend: "bg-[#155fba]", label: "In progress" },
+  in_progress: { block: "bg-[#2563eb]", title: "text-white", sub: "text-white", legend: "bg-[#2563eb]", label: "In progress" },
   waiting_parts: { block: "bg-[#fde7b0]", title: "text-[#5a3a00]", sub: "text-[#6e4a06]", legend: "bg-[#fde7b0]", label: "Waiting parts" },
   ready: { block: "bg-[#c9f0d6]", title: "text-[#0b3b1f]", sub: "text-[#1e5132]", legend: "bg-[#c9f0d6]", label: "Ready" },
   requested: {
@@ -270,11 +270,11 @@ export function DiaryGrid({
             <div className="relative flex flex-col gap-2">
               {/* Slot lines: hours darker than half hours. */}
               <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0" style={{ left: LABEL_COLUMN }}>
-                <span className="absolute inset-y-0 left-0 w-px bg-[#eef2f6]" />
+                <span className="absolute inset-y-0 left-0 w-px bg-[#f1f5f9]" />
                 {slotLines.map((line) => (
                   <span
                     key={line.minute}
-                    className={cn("absolute inset-y-0 w-px", line.hour ? "bg-[#eef2f6]" : "bg-[#f5f7fa]")}
+                    className={cn("absolute inset-y-0 w-px", line.hour ? "bg-[#f1f5f9]" : "bg-[#f5f7fa]")}
                     style={{ left: `${round((line.minute / total) * 100)}%` }}
                   />
                 ))}

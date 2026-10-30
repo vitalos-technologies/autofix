@@ -165,7 +165,7 @@ describe("domains.check status machine", () => {
 
   it("fails rows with a hostname we would never connect without calling Vercel", async () => {
     const client = scriptedClient();
-    const { repo, row } = memoryRepo([domainRow("d1", "hartley-road.autofix.vitalos.co.uk"), domainRow("d2", "theirgarage.co.uk")]);
+    const { repo, row } = memoryRepo([domainRow("d1", "hartley-road.pitline.co.uk"), domainRow("d2", "theirgarage.co.uk")]);
     await runDomainsCheck({ repo, client, now: T0 });
     expect(row("d1")?.status).toBe("failed");
     expect(row("d2")?.status).toBe("failed");
@@ -178,7 +178,7 @@ describe("domains.check status machine", () => {
     const { repo, updates } = memoryRepo([
       domainRow("a", "book.active.co.uk", { status: "active" }),
       domainRow("f", "book.failed.co.uk", { status: "failed" }),
-      domainRow("s", "hartley-road.autofix.vitalos.co.uk", { kind: "subdomain" }),
+      domainRow("s", "hartley-road.pitline.co.uk", { kind: "subdomain" }),
       domainRow("p", "book.pending.co.uk"),
     ], { filter: false });
     const result = await runDomainsCheck({ repo, client, now: T0 });
@@ -281,7 +281,7 @@ describe("startDomainConnection", () => {
     expect(result.records[1]?.value).toMatch(/^vc-domain-verify=/);
   });
 
-  it.each(["https://book.hartleyroad.co.uk", "hartleyroad.co.uk", "hartley-road.autofix.vitalos.co.uk", "localhost"])(
+  it.each(["https://book.hartleyroad.co.uk", "hartleyroad.co.uk", "hartley-road.pitline.co.uk", "localhost"])(
     "rejects %s with invalid_domain before calling Vercel",
     async (input) => {
       const client = scriptedClient();
@@ -313,7 +313,7 @@ describe("removeDomainConnection", () => {
     await expect(removeDomainConnection("book.hartleyroad.co.uk", { client })).resolves.toEqual({ hostname: "book.hartleyroad.co.uk", removed: false });
   });
 
-  it.each(["autofix.vitalos.co.uk", "hartley-road.autofix.vitalos.co.uk", ""])("refuses to remove %j", async (input) => {
+  it.each(["pitline.co.uk", "hartley-road.pitline.co.uk", ""])("refuses to remove %j", async (input) => {
     const client = scriptedClient();
     await expect(removeDomainConnection(input, { client })).rejects.toMatchObject({ code: "invalid_domain" });
     expect(client.removeDomain).not.toHaveBeenCalled();

@@ -266,12 +266,12 @@ describe("invoice email configuration", () => {
 
   it("uses the platform sender with only a fallback reply-to for invoices", () => {
     process.env.RESEND_API_KEY = "re_test";
-    process.env.RESEND_FROM_EMAIL = "Autofix <notifications@autofix.vitalos.co.uk>";
+    process.env.RESEND_FROM_EMAIL = "Pitline <notifications@pitline.co.uk>";
     process.env.RESEND_REPLY_TO = "another-valid-address@example.com";
 
     expect(getResendConfig()?.replyTo).toBe("another-valid-address@example.com");
     expect(getInvoiceResendConfig()).toEqual(getResendConfig());
-    expect(getInvoiceResendConfig()?.fromAddress).toBe("notifications@autofix.vitalos.co.uk");
+    expect(getInvoiceResendConfig()?.fromAddress).toBe("notifications@pitline.co.uk");
   });
 
   it("rejects a malformed garage reply-to before claiming", async () => {

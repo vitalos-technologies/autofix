@@ -102,7 +102,7 @@ test("the owner sees the three providers", async () => {
   await page.goto(`${adminOrigin}${PATH}`);
   await expect(page.getByRole("heading", { level: 1, name: "Accounting" })).toBeVisible();
   for (const name of ["Xero", "QuickBooks", "Sage Accounting"]) await expect(page.getByRole("button", { name: `Connect ${name}` })).toBeEnabled();
-  await expect(page.getByText(/Test mode: connections use Autofix's built-in test accounts/)).toBeVisible();
+  await expect(page.getByText(/Test mode: connections use Pitline's built-in test accounts/)).toBeVisible();
   await expect(page.getByRole("link", { name: /Accounting/ }).first()).toHaveAttribute("href", PATH);
   await expectAccessibleAt(page, "connect");
 });
@@ -113,7 +113,7 @@ test("Connect Xero runs the OAuth round trip and asks which organisation", async
   await expect(page).toHaveURL(new RegExp(`${PATH}\\?choose=1$`));
   // The code and state never stay in the address bar; the state cookie is gone after the callback.
   expect((await context.cookies()).some((cookie) => cookie.name === "af_accounting_oauth")).toBe(false);
-  await expect(page.getByRole("group", { name: "Which organisation should Autofix use?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Which organisation should Pitline use?" })).toBeVisible();
   expect((await connection())?.status).toBe("pending");
   const { count } = await service.from("accounting_connection_secrets").select("connection_id", { count: "exact", head: true }).eq("garage_id", garage.id);
   expect(count).toBe(1);
@@ -190,7 +190,7 @@ test("when the provider refuses the connection the banner asks for a reconnect, 
 test("Disconnect deletes the stored sign-in and keeps the history", async () => {
   await page.goto(`${adminOrigin}${PATH}`);
   await page.getByRole("button", { name: "Disconnect" }).click();
-  await expect(page.getByText(/We sign Autofix out of it and delete the stored sign-in/)).toBeVisible();
+  await expect(page.getByText(/We sign Pitline out of it and delete the stored sign-in/)).toBeVisible();
   await page.getByRole("button", { name: "Yes, disconnect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Disconnected." })).toBeVisible();
   expect(await connection()).toBeNull();

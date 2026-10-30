@@ -1,11 +1,11 @@
 /**
- * The Django super admin at `autofix.vitalos.co.uk/superadmin` (DECISIONS D18, `superadmin/`).
+ * The Django super admin at `pitline.co.uk/superadmin` (DECISIONS D18, `superadmin/`).
  *
  * `src/proxy.ts` forwards `/superadmin/*` on the admin host to the super admin's own origin
  * (`SUPERADMIN_ORIGIN`, a container that answers only this proxy). On the way it:
  * - adds the shared secret (`SUPERADMIN_PROXY_SECRET`) the origin requires, or it answers 404;
  * - drops any `x-autofix-superadmin-*` header the browser sent, then sets the client IP and public host;
- * - forwards only the super admin's own cookies (`afsa_*`, `__Secure-afsa_*`), so Autofix's Supabase
+ * - forwards only the super admin's own cookies (`afsa_*`, `__Secure-afsa_*`), so Pitline's Supabase
  *   session never leaves for the super admin, whatever the browser sends.
  * Without a valid origin and secret, /superadmin is a 404.
  */

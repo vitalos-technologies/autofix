@@ -1,6 +1,6 @@
 import type { RelayClaim } from "./claim.js";
 
-// Autofix, seen from the voice service: the session exchange (POST /api/voice/v1/session with the relay
+// Pitline, seen from the voice service: the session exchange (POST /api/voice/v1/session with the relay
 // claim and VOICE_RELAY_SECRET as the service key) and the agent tool API (POST /api/agent/v1/<tool> with
 // the call's token). The garage always comes from the token; nothing here names one in a tool body.
 

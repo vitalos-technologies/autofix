@@ -33,7 +33,7 @@ const valid = {
 };
 
 function post(body: unknown, headers: Record<string, string> = {}) {
-  return new NextRequest("https://autofix.vitalos.co.uk/api/contact", {
+  return new NextRequest("https://pitline.co.uk/api/contact", {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9, 10.0.0.1", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),

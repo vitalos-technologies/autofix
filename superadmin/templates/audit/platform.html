@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Autofix platform log · Autofix Super Admin{% endblock %}
+{% block title %}Pitline platform log · Pitline Super Admin{% endblock %}
 {% block breadcrumbs %}<li class="truncate font-medium" aria-current="page">Audit</li>{% endblock %}
 {% block content %}
   <div>
     <h1>Audit</h1>
-    <p class="muted mt-1 text-sm">Autofix's own append-only platform log: every plan and status change, retry, re-check and support session, from here or Autofix's /admin.</p>
+    <p class="muted mt-1 text-sm">Pitline's own append-only platform log: every plan and status change, retry, re-check and support session, from here or Pitline's /admin.</p>
   </div>
   {% include "audit/_tabs.html" with active="autofix" %}
   <form method="get" action="{% url 'autofix:platform_audit' %}" class="card mt-4 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5"

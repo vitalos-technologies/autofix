@@ -7,17 +7,17 @@ describe("platform sender and garage contact details", () => {
 
   it("sends from one platform address with the garage's name as display name", () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Autofix <notifications@autofix.vitalos.co.uk>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "Pitline <notifications@pitline.co.uk>");
     vi.stubEnv("RESEND_REPLY_TO", "");
     const config = getResendConfig();
-    expect(config).toMatchObject({ fromAddress: "notifications@autofix.vitalos.co.uk", replyTo: null });
-    expect(senderFor(config!, "Hartley Road Motors")).toBe('"Hartley Road Motors" <notifications@autofix.vitalos.co.uk>');
-    expect(senderFor(config!)).toBe("Autofix <notifications@autofix.vitalos.co.uk>");
+    expect(config).toMatchObject({ fromAddress: "notifications@pitline.co.uk", replyTo: null });
+    expect(senderFor(config!, "Hartley Road Motors")).toBe('"Hartley Road Motors" <notifications@pitline.co.uk>');
+    expect(senderFor(config!)).toBe("Pitline <notifications@pitline.co.uk>");
   });
 
   it("refuses an unusable sender instead of guessing one", () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
-    vi.stubEnv("RESEND_FROM_EMAIL", "Autofix <not-an-address>");
+    vi.stubEnv("RESEND_FROM_EMAIL", "Pitline <not-an-address>");
     expect(getResendConfig()).toBeNull();
   });
 
@@ -30,8 +30,8 @@ describe("platform sender and garage contact details", () => {
 
   it("documents the platform sender and reply domain without single-business values", () => {
     const env = readFileSync(".env.example", "utf8");
-    expect(env).toContain("RESEND_FROM_EMAIL=Autofix <notifications@autofix.vitalos.co.uk>");
-    expect(env).toContain("ENQUIRY_REPLY_DOMAIN=reply.autofix.vitalos.co.uk");
+    expect(env).toContain("RESEND_FROM_EMAIL=Pitline <notifications@pitline.co.uk>");
+    expect(env).toContain("ENQUIRY_REPLY_DOMAIN=reply.pitline.co.uk");
     expect(env).not.toContain("ENQUIRY_NOTIFICATION_EMAIL");
     expect(env).not.toMatch(/sobautofix/i);
   });

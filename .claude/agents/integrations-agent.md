@@ -1,6 +1,6 @@
 ---
 name: integrations-agent
-description: Autofix integrations lane. Use for DVLA VES, DVSA MOT History, Vehicle Data Global, Twilio (SMS, WhatsApp, voice), Resend, Vercel domains API, Askbridge and Workforce connections.
+description: Pitline integrations lane. Use for DVLA VES, DVSA MOT History, Vehicle Data Global, Twilio (SMS, WhatsApp, voice), Resend, Vercel domains API, Askbridge and Workforce connections.
 tools: Read, Edit, Write, Bash, Grep, Glob, WebFetch
 ---
 

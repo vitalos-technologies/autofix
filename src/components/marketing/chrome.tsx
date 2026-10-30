@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, Menu, Wrench } from "lucide-react";
+import { ArrowRight, Menu } from "lucide-react";
+import { PitlineLogo } from "@/components/brand/pitline-logo";
 import { primaryButton, shell } from "@/components/marketing/styles";
 import { marketing } from "@/lib/marketing/content";
 import { cn } from "@/lib/utils";
@@ -31,14 +32,9 @@ function NavLink({ href, base, current, className, children }: { href: string; b
 
 export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <Link href="/" aria-label={`${marketing.name} home`} className="inline-flex min-h-11 items-center gap-2.5 rounded-[10px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
-      <span className="grid size-9 place-items-center rounded-[10px] bg-plate text-navy-950">
-        <Wrench size={19} strokeWidth={2.4} aria-hidden="true" />
-      </span>
-      <span className="flex items-baseline gap-1.5">
-        <span className={cn("font-display text-[26px] leading-none font-bold tracking-[0.01em]", inverse ? "text-white" : "text-navy-950")}>{marketing.name}</span>
-        <span className={cn("hidden text-[12px] font-medium sm:inline", inverse ? "text-white/75" : "text-grey-600")}>{marketing.by}</span>
-      </span>
+    <Link href="/" aria-label={`${marketing.name} home`} className="inline-flex min-h-11 items-center gap-2.5 rounded-[10px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus">
+      <PitlineLogo variant={inverse ? "reversed" : "primary"} className="h-9" />
+      <span className={cn("hidden text-[12px] font-medium sm:inline", inverse ? "text-white/75" : "text-grey-600")}>{marketing.by}</span>
     </Link>
   );
 }
@@ -64,7 +60,7 @@ export function MarketingHeader({ base = "", current }: { base?: Base; current?:
               href={item.href}
               base={base}
               current={current}
-              className="inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-medium text-grey-700 transition hover:bg-grey-50 hover:text-navy-950 aria-[current=page]:text-navy-950 aria-[current=page]:underline aria-[current=page]:decoration-plate aria-[current=page]:decoration-[3px] aria-[current=page]:underline-offset-8"
+              className="inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-medium text-grey-700 transition hover:bg-grey-50 hover:text-navy-950 aria-[current=page]:text-navy-950 aria-[current=page]:underline aria-[current=page]:decoration-brand-orange aria-[current=page]:decoration-[3px] aria-[current=page]:underline-offset-8"
             >
               {item.label}
             </NavLink>
@@ -74,7 +70,7 @@ export function MarketingHeader({ base = "", current }: { base?: Base; current?:
           <Link href={marketing.login.href} className="inline-flex min-h-11 items-center rounded-[10px] px-3.5 text-[15px] font-semibold whitespace-nowrap text-navy-950 transition hover:bg-grey-50">
             {marketing.login.label}
           </Link>
-          <Link href={marketing.start.href} className="hidden min-h-11 items-center gap-1.5 rounded-control bg-plate px-4 text-[15px] font-semibold whitespace-nowrap text-plate-ink transition hover:bg-[#ffd21f] sm:inline-flex">
+          <Link href={marketing.start.href} className="hidden min-h-11 items-center gap-1.5 rounded-control bg-brand-orange px-4 text-[15px] font-semibold whitespace-nowrap text-navy-950 transition hover:bg-[#fb923c] sm:inline-flex">
             {marketing.start.label}
           </Link>
           <details className="group relative lg:hidden">
@@ -93,7 +89,7 @@ export function MarketingHeader({ base = "", current }: { base?: Base; current?:
                   {item.label}
                 </NavLink>
               ))}
-              <Link href={marketing.start.href} className="mt-1 flex min-h-11 items-center justify-center rounded-[12px] bg-plate px-3 text-[16px] font-semibold text-plate-ink">
+              <Link href={marketing.start.href} className="mt-1 flex min-h-11 items-center justify-center rounded-[12px] bg-brand-orange px-3 text-[16px] font-semibold text-navy-950">
                 {marketing.start.label}
               </Link>
             </nav>
@@ -125,7 +121,7 @@ export function MarketingFooter({ base = "" }: { base?: Base }) {
           </div>
           {footer.columns.map((column) => (
             <nav key={column.title} aria-label={`Footer: ${column.title}`}>
-              <h2 className="font-sans text-[13px] font-semibold tracking-[0.1em] text-plate uppercase">{column.title}</h2>
+              <h2 className="font-sans text-[13px] font-semibold tracking-[0.1em] text-brand-orange uppercase">{column.title}</h2>
               <ul className="mt-3 space-y-1">
                 {column.links.map((link) => (
                   <li key={link.href}>

@@ -97,7 +97,7 @@ def test_api_answers_503_when_autofix_is_down(token, settings):
 def test_schema_and_docs(client_for, finance):
     client = client_for(finance)
     schema = client.get("/api/schema/")
-    assert schema.status_code == 200 and b"Autofix Super Admin API" in schema.content
+    assert schema.status_code == 200 and b"Pitline Super Admin API" in schema.content
     assert client.get("/api/docs/").status_code == 200
     assert Client().get("/api/schema/").status_code in (401, 403)
 

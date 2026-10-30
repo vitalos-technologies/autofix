@@ -185,7 +185,7 @@ export async function CourtesyBookingPanel({ client, garage, booking, timeZone, 
       </section>
 
       {offersCollection || data.legs.length > 0 ? (
-        <section aria-labelledby="collection-title" className="flex flex-col gap-2 border-t border-[#eef2f6] pt-3.5">
+        <section aria-labelledby="collection-title" className="flex flex-col gap-2 border-t border-[#f1f5f9] pt-3.5">
           <h3 id="collection-title" className="m-0 font-sans text-[12px] font-bold tracking-[0.06em] text-grey-600 uppercase">
             Collection and delivery
           </h3>

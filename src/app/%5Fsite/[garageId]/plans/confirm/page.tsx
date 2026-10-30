@@ -132,7 +132,7 @@ export default async function ConfirmPlanPage({ params, searchParams }: ConfirmP
             Start again
           </Link>
         ) : null}
-        <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent underline underline-offset-2">
+        <Link href="/" className="inline-flex min-h-11 items-center justify-center text-[14px] font-semibold text-accent-text underline underline-offset-2">
           Go to the booking page
         </Link>
       </div>

@@ -12,7 +12,7 @@ export type UrlEnvironment = HostEnvironment & {
 /** What a garage link needs: its slug and, when verified, its custom booking host. */
 export type GarageUrlSubject = { slug: string; customDomain?: string | null };
 
-const DEFAULT_ADMIN_HOST = "autofix.vitalos.co.uk";
+const DEFAULT_ADMIN_HOST = "pitline.co.uk";
 const DEFAULT_DEV_ROOT = "localhost:3000";
 
 function isProduction(env: UrlEnvironment) {
@@ -40,7 +40,7 @@ export function garageUrl(garage: GarageUrlSubject, path: string, env: UrlEnviro
   return new URL(path, `${garageBaseUrl(garage, env)}/`).toString();
 }
 
-/** The admin origin (`https://autofix.vitalos.co.uk`, `http://localhost:3000` in development). */
+/** The admin origin (`https://pitline.co.uk`, `http://localhost:3000` in development). */
 export function adminBaseUrl(env: UrlEnvironment = process.env): string {
   const configured = env.NEXT_PUBLIC_SITE_URL?.trim();
   if (configured) {

@@ -32,7 +32,7 @@ export default async function TeamSettingsPage({ searchParams }: { searchParams:
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <PageHeader eyebrow="Settings" title="Team" description={`Who works at ${admin.garage.name} on Autofix, and what they can do.`} />
+      <PageHeader eyebrow="Settings" title="Team" description={`Who works at ${admin.garage.name} on Pitline, and what they can do.`} />
       {flash ? <Notice tone={flash.tone} role={flash.tone === "error" ? "alert" : "status"}>{flash.text}</Notice> : null}
       {needsStepUp ? (
         <Notice tone="warning">

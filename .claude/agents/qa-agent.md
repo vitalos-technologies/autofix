@@ -1,6 +1,6 @@
 ---
 name: qa-agent
-description: Autofix QA lane. Use to write and run the tenancy isolation suite, booking concurrency test, Playwright journeys, axe accessibility, Lighthouse and gate checks. Use proactively at the end of every phase.
+description: Pitline QA lane. Use to write and run the tenancy isolation suite, booking concurrency test, Playwright journeys, axe accessibility, Lighthouse and gate checks. Use proactively at the end of every phase.
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 

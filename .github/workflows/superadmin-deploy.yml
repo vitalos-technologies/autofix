@@ -1,9 +1,9 @@
 name: Super Admin deploy
 
 # Deploys the Django super admin (superadmin/, DECISIONS D18, A415-A417) to Azure Container Apps and points
-# https://autofix.vitalos.co.uk/superadmin at it. Run by hand: Actions > Super Admin deploy > Run workflow,
+# https://pitline.co.uk/superadmin at it. Run by hand: Actions > Super Admin deploy > Run workflow,
 # type DEPLOY. Approved by Temitope on 28 Oct 2026; cost £0 (Container Apps free grant with scale to zero,
-# a private GitHub package, Autofix's existing Supabase project). Safe to re-run: kept secrets and
+# a private GitHub package, Pitline's existing Supabase project). Safe to re-run: kept secrets and
 # passwords are reused. Logs show names and states only; every secret is masked.
 #
 # Repository secrets it needs (superadmin/README.md "Deploy"): AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
@@ -78,7 +78,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker buildx build --push -t "$IMAGE" \
             --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
-            --label org.opencontainers.image.description="Autofix Super Admin" .
+            --label org.opencontainers.image.description="Pitline Super Admin" .
           docker logout ghcr.io
 
       - uses: actions/setup-python@v5
@@ -132,7 +132,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           SENTRY_DSN: ${{ secrets.SUPERADMIN_SENTRY_DSN }}
-          # The account Autofix records voicemails on (the same secrets the Vercel sync uses).
+          # The account Pitline records voicemails on (the same secrets the Vercel sync uses).
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           DB_ENV_FILE: ${{ runner.temp }}/db.env
@@ -150,13 +150,13 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' "$origin/superadmin/login/")" = 404
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: wrong" "$origin/superadmin/login/")" = 404
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-autofix-superadmin-proxy: $secret" \
-            -H "x-autofix-superadmin-host: autofix.vitalos.co.uk" "$origin/superadmin/login/")" = 200
+            -H "x-autofix-superadmin-host: pitline.co.uk" "$origin/superadmin/login/")" = 200
           echo "origin: 404 without the secret, 200 with it"
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Point autofix.vitalos.co.uk/superadmin at it (Vercel env, production redeploy)
+      - name: Point pitline.co.uk/superadmin at it (Vercel env, production redeploy)
         env:
           VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -168,7 +168,7 @@ jobs:
 
       - name: Live check
         run: |
-          url=https://autofix.vitalos.co.uk/superadmin/login/
+          url=https://pitline.co.uk/superadmin/login/
           for _ in $(seq 1 30); do
             code="$(curl -s -o "$RUNNER_TEMP/login.html" -w '%{http_code}' "$url")"
             [[ "$code" == 200 ]] && break

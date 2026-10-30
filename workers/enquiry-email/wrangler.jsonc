@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "sobautofix-enquiry-email",
+  "name": "pitline-enquiry-email",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-11",
   "workers_dev": false,
@@ -14,8 +14,8 @@
       "invocation_logs": true
     }
   },
-  "addresses": ["enquiry@reply.sobautofix.com"],
+  "addresses": ["enquiry@reply.pitline.co.uk"],
   "vars": {
-    "SOB_AUTOFIX_INBOUND_ENDPOINT": "https://sobautofix.com/api/webhooks/cloudflare-email"
+    "PITLINE_INBOUND_ENDPOINT": "https://pitline.co.uk/api/webhooks/cloudflare-email"
   }
 }

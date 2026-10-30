@@ -99,9 +99,9 @@ describe("widget gating", () => {
 
 describe("allowed websites to add in Askbridge", () => {
   it("lists the free link, then the garage's own address once connected", () => {
-    expect(askbridgeAllowedOrigins("https://hartley-road.autofix.vitalos.co.uk")).toEqual(["https://hartley-road.autofix.vitalos.co.uk"]);
-    expect(askbridgeAllowedOrigins("https://hartley-road.autofix.vitalos.co.uk/", " Book.HartleyRoad.co.uk ")).toEqual([
-      "https://hartley-road.autofix.vitalos.co.uk",
+    expect(askbridgeAllowedOrigins("https://hartley-road.pitline.co.uk")).toEqual(["https://hartley-road.pitline.co.uk"]);
+    expect(askbridgeAllowedOrigins("https://hartley-road.pitline.co.uk/", " Book.HartleyRoad.co.uk ")).toEqual([
+      "https://hartley-road.pitline.co.uk",
       "https://book.hartleyroad.co.uk",
     ]);
     expect(askbridgeAllowedOrigins("http://hartley-road.localhost:3000", null)).toEqual(["http://hartley-road.localhost:3000"]);

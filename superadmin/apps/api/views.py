@@ -13,7 +13,7 @@ from . import serializers
 
 class Unavailable(APIException):
     status_code = 503
-    default_detail = "Autofix data could not be read."
+    default_detail = "Pitline data could not be read."
     default_code = "autofix_unavailable"
 
 

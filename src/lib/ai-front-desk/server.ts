@@ -62,7 +62,7 @@ export function voiceServiceConfigured(env: Readonly<Record<string, string | und
   return parseVoiceRelayTarget(env) !== null;
 }
 
-/** The garage's Autofix number (provisioned by the platform, so Twilio routes it to us), for the test-call guide. */
+/** The garage's Pitline number (provisioned by the platform, so Twilio routes it to us), for the test-call guide. */
 export async function loadAutofixNumber(client: SupabaseClient, garageId: string): Promise<string | null> {
   const { data, error } = await client
     .from("garage_phone_numbers")

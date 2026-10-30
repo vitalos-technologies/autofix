@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# Autofix — project guide for Claude Code
+# Pitline — project guide for Claude Code
 
-Autofix is Vitalos's multi-tenant garage booking platform (working name). Garages get a phone-first booking page on their own domain (`book.theirgarage.co.uk`, free fallback `<slug>.autofix.vitalos.co.uk`) and manage bookings, customers and reminders at `autofix.vitalos.co.uk`. The code is a fork of SOB Autofix (single garage, sobautofix.com). Repo: https://github.com/vitalos-technologies/autofix (private).
+Pitline (formerly Autofix; internal names such as `AUTOFIX_*`, `x-autofix-*` and `docs/autofix/` keep the old name, DECISIONS D23) is Vitalos's multi-tenant garage booking platform. Garages get a phone-first booking page on their own domain (`book.theirgarage.co.uk`, free fallback `<slug>.pitline.co.uk`) and manage bookings, customers and reminders at `pitline.co.uk`. The code is a fork of SOB Autofix (single garage, sobautofix.com). Repo: https://github.com/vitalos-technologies/pitline (private).
 
 ## Read before you build
 
@@ -16,7 +16,7 @@ Autofix is Vitalos's multi-tenant garage booking platform (working name). Garage
 | `design/DESIGN.md` | Design system, components, screen-to-route map |
 | `design/screenshots/*.png` | What each screen must look like (2x). Look at these before UI work |
 | `design/screens/*.dc.html` | Exact markup and inline styles per screen (`{{accent}}` = garage colour) |
-| `superadmin/README.md` | The Django super admin (P5.1): pages, how it reaches Autofix (role `autofix_superadmin`), quality gates |
+| `superadmin/README.md` | The Django super admin (P5.1): pages, how it reaches Pitline (role `autofix_superadmin`), quality gates |
 | `docs/SOB_Autofix_Full_Codex_Architecture.md` | SOB's original spec. Context only; SOB-specific rules (no MOT, no tyres, Doncaster SEO) do NOT apply here |
 
 ## Stack and commands

@@ -1,4 +1,4 @@
-# Autofix architecture contract
+# Pitline architecture contract
 
 Shared contract for the lane agents. SPEC.md says *what*; this file pins the names every lane codes against. Change it only together with the code.
 
@@ -33,14 +33,14 @@ Every tenant table: `garage_id uuid not null default public.current_garage_id() 
 | `src/lib/tenancy/admin.ts` | `getAdminContext()` → `{ user, garage, role, memberships, client }` where `client` is the RLS client carrying `x-garage-id`; selected garage from the `af_garage` cookie validated against `garage_members`, defaulting to the first membership |
 | `src/components/garage/garage-provider.tsx` | `GarageProvider` + `useGarage()` for client components (public fields only) |
 
-Env: `NEXT_PUBLIC_ADMIN_HOST` (`autofix.vitalos.co.uk`), `NEXT_PUBLIC_TENANT_ROOT_DOMAIN` (`autofix.vitalos.co.uk`), `DEV_TENANT_ROOT_DOMAIN` (`localhost:3000`).
+Env: `NEXT_PUBLIC_ADMIN_HOST` (`pitline.co.uk`), `NEXT_PUBLIC_TENANT_ROOT_DOMAIN` (`pitline.co.uk`), `DEV_TENANT_ROOT_DOMAIN` (`localhost:3000`).
 
 ## Routes
 
 | Host | Internal route |
 | --- | --- |
-| admin host (`autofix.vitalos.co.uk`, `localhost:3000`) | `/` and `/contact` marketing site (the only indexable pages), `/app/…` garage admin (was SOB `/admin`), `/admin/…` super admin (P4.5), `/signup`, `/api/…` (`/api/contact` is admin-host only) |
-| `<slug>.autofix.vitalos.co.uk`, verified custom host, `<slug>.localhost:3000`, `localhost:3000/?__garage=<slug>` (dev only) | `/_site/<garageId>/…` (folder `src/app/%5Fsite/[garageId]`); `/api/…` is not rewritten and resolves the garage from the host |
+| admin host (`pitline.co.uk`, `localhost:3000`) | `/` and `/contact` marketing site (the only indexable pages), `/app/…` garage admin (was SOB `/admin`), `/admin/…` super admin (P4.5), `/signup`, `/api/…` (`/api/contact` is admin-host only) |
+| `<slug>.pitline.co.uk`, verified custom host, `<slug>.localhost:3000`, `localhost:3000/?__garage=<slug>` (dev only) | `/_site/<garageId>/…` (folder `src/app/%5Fsite/[garageId]`); `/api/…` is not rewritten and resolves the garage from the host |
 | unknown | 404 |
 
 Booking flow on the garage host: `/` (vehicle), `/service`, `/time`, `/details`, `/confirmed/[reference]`, `/manage`, `/r/[token]`, `/privacy`, `/unsubscribe` (form), `/unsubscribe/[token]` (signed link, opts out on open) and `/unsubscribe/[token]/resumed`. Legal (P4.9): `src/lib/legal/*` (drafts embedded from `docs/autofix/legal/`, `renderPrivacyNotice`, `renderDpa`, `dpaTextHash`, `acceptDpaAction`), `src/lib/consent/*` (`unsubscribeUrl(garage, customerId)`, `optOutWithToken`, `optOutByPhone`, `resumeWithToken`), `src/components/legal/*` (`LegalDocumentBody`, `DraftFlag`, `DpaAcceptance`); admin `/app/settings/agreements`; SQL `garage_agreements`, `accept_garage_agreement()`, `opt_out_customer()`, `resume_customer_reminders()` (`20261028000300_dpa_acceptance.sql`).
@@ -424,11 +424,11 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 
 ## Django super admin (Phase 5, P5.1)
 
-`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D18; assumptions A400–A414; served at `autofix.vitalos.co.uk/superadmin` through `src/proxy.ts` (`src/lib/superadmin/proxy.ts`: shared-secret gate, only `afsa_*` cookies forwarded); full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
+`superadmin/` is a separate Django 5.2 service (its own container, sign-in, TOTP, roles and audit trail) that replicates the Vitalos platform Super Admin. ADR: DECISIONS D18; assumptions A400–A414; served at `pitline.co.uk/superadmin` through `src/proxy.ts` (`src/lib/superadmin/proxy.ts`: shared-secret gate, only `afsa_*` cookies forwarded); full guide: [superadmin/README.md](../../superadmin/README.md). The Next.js `/admin` (P4.5) keeps working alongside it.
 
 | Piece | Where | What |
 | --- | --- | --- |
-| Platform line | `supabase/migrations/20261029002100_platform_calls.sql`, pgTAP 040; `src/lib/calls/platform-line.ts`, `twilio-webhooks.ts` (`platformVoice`) | Numbers in `AUTOFIX_PLATFORM_VOICE_NUMBERS` are answered in Autofix's name and go to voicemail; calls in `public.platform_calls` (no `garage_id`, RLS on, service role only, A420); `apply_platform_call_retention()` from the `retention` job |
+| Platform line | `supabase/migrations/20261029002100_platform_calls.sql`, pgTAP 040; `src/lib/calls/platform-line.ts`, `twilio-webhooks.ts` (`platformVoice`) | Numbers in `AUTOFIX_PLATFORM_VOICE_NUMBERS` are answered in Pitline's name and go to voicemail; calls in `public.platform_calls` (no `garage_id`, RLS on, service role only, A420); `apply_platform_call_retention()` from the `retention` job |
 | Calls and voicemails | `supabase/migrations/20261029002200_superadmin_calls.sql`, pgTAP 041; `superadmin/apps/autofix/views/calls.py`, `voicemail.py` | `superadmin.calls` gains `caller_masked` (`superadmin.mask_caller`, as `maskMobile`), `voicemail_duration_s`, `has_voicemail`, `is_platform` and unions in `platform_calls`; recording links only in `superadmin.call_voicemails`. `/calls/` and the garage Calls tab (SuperAdmin, Support); playback = step-up POST → ticketed `/calls/<id>/voicemail.mp3`, fetched from Twilio server-side (own account's recordings only, `isTwilioRecordingUrl`), audited `autofix.voicemail_played`; `notify_attention` raises "New voicemail" alerts |
 | Role and views | `supabase/migrations/20261028004000_superadmin_role.sql`, pgTAP 028 | Role `autofix_superadmin` (NOLOGIN in the migration; read-only sessions, `search_path = superadmin`, 10s statement timeout, 10 connections). Schema `superadmin`: one read-only view per table it reads (`garages`, `garage_members`, `garage_invites`, `admin_profiles`, `platform_admins`, `customers`, `vehicles`, `services`, `resources`, `bookings`, `garage_domains`, `jobs`, `reminder_sends`, `messages`, `calls`, `garage_agreements`, `platform_audit_log`, `platform_impersonations`; `platform_enquiries` from `20261029003000`), contact details and registrations masked by `superadmin.mask_phone/mask_email/mask_registration`, no bodies, payloads or token hashes (enquiries excepted: sent to Vitalos, so unmasked, no IP hash). EXECUTE on `platform_update_garage`, `platform_retry_job`, `platform_request_domains_check`, `platform_update_enquiry` only |
 | `platform_request_domains_check(uuid, text)` | same migration | Platform admin at AAL2, reason 5–500, pending/verifying custom domains only; queues `domains.check` with dedupe key `domains.check:platform:<5-minute bucket>`; audited `platform.domain_check_requested` |
@@ -437,7 +437,7 @@ No background job kinds: invite emails are sent inline through `getChannel("emai
 | Reads / writes | `apps/autofix/selectors.py`, `services.py` | Page data (Europe/London windows) / role + TOTP + link + reason checks, the platform call and our audit event |
 | Status | `apps/autofix/status.py`, `GET /api/platform/v1/status` | ADR-044 product status for the Vitalos Product Pipeline (Bearer `AUTOFIX_STATUS_TOKEN`; counts only) |
 | Path mode | `src/lib/superadmin/proxy.ts`, `superadmin/apps/core/wsgi.py`, `ProxyGateMiddleware`, `apps/accounts/stepup.py` | `/superadmin/*` on the admin host is forwarded to `SUPERADMIN_ORIGIN` with `x-autofix-superadmin-proxy`; the container 404s anything without it; cookies `__Secure-afsa_*` on `Path=/superadmin/`; a fresh TOTP code with each change, personal-data view, user change and API token (D18) |
-| View as support | `POST /garages/<id>/view-as-support/` | Audited, then redirects to `AUTOFIX_APP_URL/admin/garages/<id>`; the read-only session starts in Autofix under the admin's own sign-in and MFA |
+| View as support | `POST /garages/<id>/view-as-support/` | Audited, then redirects to `AUTOFIX_APP_URL/admin/garages/<id>`; the read-only session starts in Pitline under the admin's own sign-in and MFA |
 
 Pages: `/` Overview, `/enquiries/` (+ `/enquiries/<id>/`), `/garages/` (+ `/garages/<id>/?tab=overview|team|bookings|domains|messaging|plan|agreements|audit`), `/jobs/`, `/messaging/`, `/domains/`, `/signups/`, `/activity/`, `/audit/` and `/audit/autofix/`, `/team/`, `/notifications/`, `/settings/`, `/help/`, `/system/health/`, `/api/v1/` (+ `/api/schema/`, `/api/docs/`), `/django-admin/`, `/healthz/`.
 
@@ -517,7 +517,7 @@ No booking function is replaced (`create_booking*`, `available_slots*`, `staff_a
 | `src/lib/agent-api/store.ts` (+) | `AgentTokenRecord.audience` and `.garage.plan` (`PlanState`); `AgentApiStore.recordAiMinutes({garageId, conversationId, minutes, endedAt})` → `recorded`/`replayed` (with the stored minutes)/`failed` (calls `recordUsage()`, then reads `usage_events` to tell a repeat from a failure); `aiUsageSourceKey(id)` = `ai:<id>`; `issueAgentToken({…, audience})` (default `workforce` with all seven tools; `PlanRequiredError` for an Essentials garage); `AiMinutesResult` |
 | `src/lib/agent-api/handler.ts` (+) | Pipeline: token → garage status → **plan** (workforce + not Pro → `PLAN_REQUIRED`, uses `hasFeature()` on the token's garage) → askbridge tool guard → scope → limits → body → tool. Tool `report_usage` (201 counted / 200 `replayed` / 422 `endedAt` outside the last 31 days or > 5 min ahead / 503 when it could not be stored). Rate limit 600 per 10 min per token |
 | `src/app/api/agent/v1/report_usage/route.ts` | one line, like the other tools |
-| `src/lib/ai-front-desk/hand-off.ts` (client-safe) | `WorkforceConnection`, `workforceConnectionStatus` (partner tokens), `VoiceDeskState`, `voiceDeskStatus` (D20: Off / Waiting for Vitalos / No Autofix number / Allowance used / Answering) |
+| `src/lib/ai-front-desk/hand-off.ts` (client-safe) | `WorkforceConnection`, `workforceConnectionStatus` (partner tokens), `VoiceDeskState`, `voiceDeskStatus` (D20: Off / Waiting for Vitalos / No Pitline number / Allowance used / Answering) |
 | `src/lib/ai-front-desk/voice-relay.ts` (D20) | `VOICE_RELAY_ENV`, `parseVoiceRelayTarget(env)` (`VOICE_RELAY_URL` wss://…/relay, `VOICE_RELAY_SECRET` 32+), `signRelayClaim`, `relayConnectUrl(target, {garageId, callSid})` (`?g&c&e&s`, 5 min), `verifyRelayClaim`, `voiceServiceKeyMatches`, `VOICE_SERVICE_KEY_HEADER` |
 | `src/lib/ai-front-desk/voice-session.ts` (D20) | `handleVoiceSessionRequest` for `POST /api/voice/v1/session` (key, claim, then `issueVoiceCallToken()`: 201 token / 401 / 403 `FRONT_DESK_OFF` / 404 `CALL_NOT_FOUND` / 409 `ALREADY_ISSUED` / 503) |
 | `src/lib/ai-front-desk/server.ts` | `usageMonthFirst(garage, now)`, `loadAiFrontDeskSettings`, `listAgentTokens` (RLS client → `AgentTokenRow[]`; per-call tokens are not listed), `workforceConnection(tokens)`, `voiceServiceConfigured(env)`, `loadAutofixNumber(client, garageId)`, `loadAiMinutesThisMonth(client, garage, now)` (`loadUsageMonth()` → `.ai`) |

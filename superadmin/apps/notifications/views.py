@@ -14,7 +14,7 @@ from .models import Notification
 
 
 def _attention_items(user):
-    """Autofix items needing attention, for SuperAdmin and Support; otherwise None (no tab)."""
+    """Pitline items needing attention, for SuperAdmin and Support; otherwise None (no tab)."""
     from apps.accounts.roles import can_operate
     from apps.autofix import selectors
     from apps.autofix.db import AutofixUnavailable
@@ -89,7 +89,7 @@ def read_all(request):
 @login_required
 @require_http_methods(["GET", "POST"])
 def preferences_view(request):
-    """Settings → Notifications: which Autofix alerts appear in the bell."""
+    """Settings → Notifications: which Pitline alerts appear in the bell."""
     instance = services.preferences(request.user)
     form = PreferenceForm(request.POST or None, instance=instance)
     if request.method == "POST" and form.is_valid():

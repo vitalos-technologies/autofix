@@ -1,11 +1,11 @@
 # AI front desk on calls (voice desk, D20)
 
-Pro garages with the AI front desk switched on have their missed calls answered by Autofix's own voice service. Decisions and assumptions: DECISIONS D20, AV1–AV10.
+Pro garages with the AI front desk switched on have their missed calls answered by Pitline's own voice service. Decisions and assumptions: DECISIONS D20, AV1–AV10.
 
 ## Call flow
 
 ```
-caller ─► Twilio number ─► POST /api/webhooks/twilio/voice (Autofix, Vercel)
+caller ─► Twilio number ─► POST /api/webhooks/twilio/voice (Pitline, Vercel)
                               │ garage phone rings first (if it has one); missed, or no phone:
                               │ ai_front_desk_voice_ready(garage, PLAN_PRO_AI_MINUTES)?
                               │   no  ─► voicemail + text-back (Essentials flow)
@@ -34,7 +34,7 @@ caller ─► Twilio number ─► POST /api/webhooks/twilio/voice (Autofix, Ver
 | Token exchange | `src/app/api/voice/v1/session/route.ts`, `src/lib/ai-front-desk/voice-session.ts`, `issueVoiceCallToken()` in `src/lib/agent-api/store.ts` |
 | Summary tool | `log_call_summary` in `src/lib/agent-api/{schemas,handler}.ts`, `docs/autofix/agent-api.yaml` |
 | Database | `supabase/migrations/20261029002000_ai_voice_desk.sql`, pgTAP `039_ai_voice_desk.test.sql` |
-| Staff view | missed-call card (`src/components/admin-ui/missed-call-card.tsx`), Settings · AI front desk (status, Autofix number, test-call guide, minutes) |
+| Staff view | missed-call card (`src/components/admin-ui/missed-call-card.tsx`), Settings · AI front desk (status, Pitline number, test-call guide, minutes) |
 | Voice service | `services/voice/` (README there), deploy `services/voice/deploy/azure/deploy.sh`, `.github/workflows/voice-deploy.yml` |
 
 ## Switching it on in production
@@ -46,4 +46,4 @@ caller ─► Twilio number ─► POST /api/webhooks/twilio/voice (Autofix, Ver
 
 ## Testing without Twilio or Claude
 
-`pnpm test` covers the webhook, claim, session exchange and summary tool. `services/voice` has its own tests (`pnpm verify` there), with a scripted Claude and a fake Autofix: a full booking call, barge-in, Autofix or Claude being down, voicemail hand-back, and the WebSocket upgrade checks.
+`pnpm test` covers the webhook, claim, session exchange and summary tool. `services/voice` has its own tests (`pnpm verify` there), with a scripted Claude and a fake Pitline: a full booking call, barge-in, Pitline or Claude being down, voicemail hand-back, and the WebSocket upgrade checks.

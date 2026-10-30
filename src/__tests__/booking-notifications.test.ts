@@ -280,7 +280,7 @@ describe("GET /api/bookings/calendar/[reference]", () => {
 
   it("serves the signed .ics for the host garage's booking", async () => {
     const url = new URL(bookingCalendarDownloadUrl(garage, "HRM-4821")!);
-    const response = await calendarRoute(new NextRequest(`https://hartley-road.autofix.vitalos.co.uk${url.pathname}${url.search}`), { params: Promise.resolve({ reference: "HRM-4821" }) });
+    const response = await calendarRoute(new NextRequest(`https://hartley-road.pitline.co.uk${url.pathname}${url.search}`), { params: Promise.resolve({ reference: "HRM-4821" }) });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/calendar");
     const body = await response.text();
@@ -290,7 +290,7 @@ describe("GET /api/bookings/calendar/[reference]", () => {
 
   it("404s a signature made for another garage", async () => {
     const url = new URL(bookingCalendarDownloadUrl(otherTestGarage(), "HRM-4821")!);
-    const response = await calendarRoute(new NextRequest(`https://hartley-road.autofix.vitalos.co.uk${url.pathname}${url.search}`), { params: Promise.resolve({ reference: "HRM-4821" }) });
+    const response = await calendarRoute(new NextRequest(`https://hartley-road.pitline.co.uk${url.pathname}${url.search}`), { params: Promise.resolve({ reference: "HRM-4821" }) });
     expect(response.status).toBe(404);
   });
 });

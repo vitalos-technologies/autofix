@@ -5,8 +5,13 @@ import type { Garage } from "@/lib/tenancy/garage";
 import { addressLine, formatPhoneForDisplay, telHref } from "@/lib/tenancy/contact";
 import { adminBaseUrl, garageBaseUrl } from "@/lib/tenancy/urls";
 
-/** The platform's own name. The admin, staff and account emails are Autofix-branded. */
-export const PLATFORM_NAME = "Autofix";
+/** The platform's own name. The admin, staff and account emails are Pitline-branded. */
+export const PLATFORM_NAME = "Pitline";
+
+/** Brand kit (D23): the tagline, Electric Blue for buttons, and the colour logo (public/brand/, 2x PNG). */
+export const PLATFORM_TAGLINE = "Your garage, fully booked.";
+export const PLATFORM_ACCENT = "#2563eb";
+export const PLATFORM_EMAIL_LOGO_PATH = "/brand/pitline-logo-email.png";
 
 /** Who an email speaks for: a garage (customer and staff mail) or the platform (account mail). */
 export type EmailBrand = {
@@ -22,7 +27,7 @@ export type EmailBrand = {
   phoneHref: string | null;
   email: string | null;
   address: string;
-  /** Host shown in the footer, e.g. `hartley-road.autofix.vitalos.co.uk`. */
+  /** Host shown in the footer, e.g. `hartley-road.pitline.co.uk`. */
   website: string;
   /** Origin that relative links resolve against (the garage's booking host or the admin host). */
   baseUrl: string;
@@ -78,15 +83,15 @@ export function platformEmailBrand(): EmailBrand {
     kind: "platform",
     name: PLATFORM_NAME,
     legalName: `${PLATFORM_NAME} by Vitalos`,
-    tagline: "Online booking and garage management",
-    accent: DEFAULT_ACCENT,
+    tagline: PLATFORM_TAGLINE,
+    accent: PLATFORM_ACCENT,
     phone: null,
     phoneHref: null,
     email: null,
     address: "",
     website: hostOf(baseUrl),
     baseUrl,
-    logoUrl: null,
+    logoUrl: new URL(PLATFORM_EMAIL_LOGO_PATH, `${baseUrl}/`).toString(),
     companyNumber: null,
   };
 }

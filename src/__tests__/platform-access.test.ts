@@ -50,9 +50,9 @@ import { requirePlatformAdmin } from "@/lib/platform/access";
 const garageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function patchRequest(init: { origin?: string; contentType?: string } = {}) {
-  return new NextRequest(`https://autofix.vitalos.co.uk/api/platform/garages/${garageId}`, {
+  return new NextRequest(`https://pitline.co.uk/api/platform/garages/${garageId}`, {
     method: "PATCH",
-    headers: { host: "autofix.vitalos.co.uk", "content-type": init.contentType ?? "application/json", ...(init.origin ? { origin: init.origin } : {}) },
+    headers: { host: "pitline.co.uk", "content-type": init.contentType ?? "application/json", ...(init.origin ? { origin: init.origin } : {}) },
     body: JSON.stringify({ status: "suspended", reason: "Unpaid for 60 days" }),
   });
 }
@@ -85,21 +85,21 @@ describe("platform access", () => {
   });
 
   it("answers the JSON API with 404 for non-admins and without MFA", async () => {
-    const response = await garagesRoute(new NextRequest("https://autofix.vitalos.co.uk/api/platform/garages"));
+    const response = await garagesRoute(new NextRequest("https://pitline.co.uk/api/platform/garages"));
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "NOT_FOUND" });
     harness.isPlatformAdmin = true;
     harness.assurance = { currentLevel: "aal1", nextLevel: "aal2" };
-    expect((await garagesRoute(new NextRequest("https://autofix.vitalos.co.uk/api/platform/garages"))).status).toBe(404);
+    expect((await garagesRoute(new NextRequest("https://pitline.co.uk/api/platform/garages"))).status).toBe(404);
     expect(harness.rpcCalls).not.toContain("platform_garages");
   });
 
   it("serves the list to a platform admin and validates filters", async () => {
     harness.isPlatformAdmin = true;
-    const ok = await garagesRoute(new NextRequest("https://autofix.vitalos.co.uk/api/platform/garages?status=active"));
+    const ok = await garagesRoute(new NextRequest("https://pitline.co.uk/api/platform/garages?status=active"));
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ page: 1, pageSize: 25, total: 0, garages: [] });
-    expect((await garagesRoute(new NextRequest("https://autofix.vitalos.co.uk/api/platform/garages?plan=gold"))).status).toBe(422);
+    expect((await garagesRoute(new NextRequest("https://pitline.co.uk/api/platform/garages?plan=gold"))).status).toBe(422);
   });
 
   it("refuses cross-site or non-JSON mutations", async () => {
@@ -108,7 +108,7 @@ describe("platform access", () => {
     expect((await patchGarage(patchRequest({ origin: "https://evil.example" }), context)).status).toBe(400);
     expect((await patchGarage(patchRequest({ contentType: "text/plain" }), context)).status).toBe(400);
     expect(harness.rpcCalls).not.toContain("platform_update_garage");
-    await patchGarage(patchRequest({ origin: "https://autofix.vitalos.co.uk" }), context);
+    await patchGarage(patchRequest({ origin: "https://pitline.co.uk" }), context);
     expect(harness.rpcCalls).toContain("platform_update_garage");
   });
 });

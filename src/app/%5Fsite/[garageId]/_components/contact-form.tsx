@@ -217,7 +217,7 @@ export function ContactForm({ garageName, phone, phoneDisplay, initialRegistrati
             aria-invalid={messageError ? true : undefined}
             aria-describedby={messageError ? `${FIELD_IDS.message}-error` : `${FIELD_IDS.message}-hint`}
             className={cn(
-              "min-h-32 w-full resize-y rounded-input border bg-white px-3.5 py-3 text-[16px] leading-normal text-navy-950 placeholder:text-[#6a7686]",
+              "min-h-32 w-full resize-y rounded-input border bg-white px-3.5 py-3 text-[16px] leading-normal text-navy-950 placeholder:text-[#475569]",
               "focus:ring-1 focus:outline-none focus-visible:outline-none",
               messageError ? "border-danger ring-1 ring-danger focus:ring-2 focus:ring-danger" : "border-grey-300 focus:border-accent focus:ring-accent",
             )}

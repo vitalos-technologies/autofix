@@ -1,6 +1,6 @@
 # autofix-voice
 
-The AI front desk on calls (DECISIONS D20, [docs/autofix/voice-desk.md](../../docs/autofix/voice-desk.md)). A small Node 22 service: Twilio ConversationRelay connects a missed call's audio-as-text to `wss://<host>/relay`; the desk answers with Claude and books through Autofix's agent tool API with a per-call token. The design comes from Answerd's desk (vitalos-technologies/workforce).
+The AI front desk on calls (DECISIONS D20, [docs/autofix/voice-desk.md](../../docs/autofix/voice-desk.md)). A small Node 22 service: Twilio ConversationRelay connects a missed call's audio-as-text to `wss://<host>/relay`; the desk answers with Claude and books through Pitline's agent tool API with a per-call token. The design comes from Answerd's desk (vitalos-technologies/workforce).
 
 ```bash
 pnpm install
@@ -10,9 +10,9 @@ pnpm build && VOICE_RELAY_SECRET=… ANTHROPIC_API_KEY=… AUTOFIX_BASE_URL=http
 
 | Env | |
 | --- | --- |
-| `VOICE_RELAY_SECRET` | 32+ characters, the same value as the Autofix app's. Checks the relay claim; the key for `/api/voice/v1/session` |
+| `VOICE_RELAY_SECRET` | 32+ characters, the same value as the Pitline app's. Checks the relay claim; the key for `/api/voice/v1/session` |
 | `ANTHROPIC_API_KEY` | Claude. Without it `/readyz` is 503 and calls are refused (Twilio then falls back to the voicemail) |
-| `AUTOFIX_BASE_URL` | default `https://autofix.vitalos.co.uk` |
+| `AUTOFIX_BASE_URL` | default `https://pitline.co.uk` |
 | `VOICE_CLAUDE_MODEL` | default `claude-haiku-5-5` |
 | `TWILIO_AUTH_TOKEN`, `PUBLIC_RELAY_URL` | optional: also check `X-Twilio-Signature` on the upgrade, against `PUBLIC_RELAY_URL` + query |
 | `VOICE_MAX_CALL_SECONDS` | default 600 |

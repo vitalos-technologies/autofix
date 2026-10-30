@@ -400,8 +400,8 @@ describe("header, progress and summary", () => {
     const header = screen.getByRole("banner");
     expect(header).not.toHaveClass("bg-navy-950");
     expect(screen.getByText("Hartley Road Motors")).toHaveClass("text-navy-950");
-    // The call button keeps a visible focus ring on white (the garage accent, not white).
-    expect(screen.getByRole("link", { name: "Call Hartley Road Motors" }).className).toContain("focus-visible:outline-accent");
+    // The call button keeps a visible focus ring on white (--focus-ring: the garage accent on booking sites, not white).
+    expect(screen.getByRole("link", { name: "Call Hartley Road Motors" }).className).toContain("focus-visible:outline-focus");
   });
 
   it("StepProgress exposes progressbar semantics", () => {
@@ -448,9 +448,9 @@ describe("header, progress and summary", () => {
   });
 
   it("StickyActionBar renders a link or a busy button", () => {
-    const { rerender } = render(<StickyActionBar label="Continue" href="/service" footnote="Powered by Autofix" />);
+    const { rerender } = render(<StickyActionBar label="Continue" href="/service" footnote="Powered by Pitline" />);
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/service");
-    expect(screen.getByText("Powered by Autofix")).toBeInTheDocument();
+    expect(screen.getByText("Powered by Pitline")).toBeInTheDocument();
     rerender(<StickyActionBar label="Confirm booking" type="submit" busy />);
     const button = screen.getByRole("button", { name: "Confirm booking" });
     expect(button).toBeDisabled();
@@ -482,7 +482,7 @@ describe("header, progress and summary", () => {
     expect(card).toHaveClass("border", "border-grey-200", "bg-white");
     const manage = screen.getByRole("link", { name: "Change or cancel" });
     expect(manage).toHaveClass("text-navy-950", "border-grey-300");
-    expect(manage.className).toContain("focus-visible:outline-accent");
+    expect(manage.className).toContain("focus-visible:outline-focus");
     expect(manage.className).not.toContain("outline-white");
   });
 });

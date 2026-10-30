@@ -10,6 +10,7 @@ import { lookupBookingAction } from "@/lib/booking-flow/manage-actions";
 import { FormAlert } from "./booking-screen";
 import { manageTextLink } from "./manage-ui";
 import { TextField } from "./text-field";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 const FORM_ID = "manage-lookup-form";
 
@@ -93,7 +94,7 @@ export function ManageLookup({ bookingPrefix, notice, humanCheck }: ManageLookup
         </p>
       </form>
 
-      <StickyActionBar type="submit" form={FORM_ID} label={pending ? "Finding your booking" : "Find my booking"} busy={pending} footnote="Powered by Autofix" />
+      <StickyActionBar type="submit" form={FORM_ID} label={pending ? "Finding your booking" : "Find my booking"} busy={pending} footnote={<PoweredByPitline />} />
     </>
   );
 }

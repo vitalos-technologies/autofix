@@ -34,7 +34,7 @@ function withLinks(text: string): ReactNode[] {
     url = trailing ? url.slice(0, -trailing.length) : url;
     if (index > last) nodes.push(text.slice(last, index));
     nodes.push(
-      <span key={`${index}-${url}`} className="break-all text-accent underline">
+      <span key={`${index}-${url}`} className="break-all text-accent-text underline">
         {url}
       </span>,
     );

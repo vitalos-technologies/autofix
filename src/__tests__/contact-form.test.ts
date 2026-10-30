@@ -123,7 +123,7 @@ describe("the garage's new-enquiry email", () => {
 
 function post(body: unknown) {
   return POST(
-    new NextRequest("https://hartley-road.autofix.vitalos.co.uk/api/enquiries", {
+    new NextRequest("https://hartley-road.pitline.co.uk/api/enquiries", {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.9" },
       body: JSON.stringify(body),

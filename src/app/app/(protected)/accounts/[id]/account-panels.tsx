@@ -46,7 +46,7 @@ export function AddVehiclesPanel({ accountId }: { accountId: string }) {
   const id = useId();
 
   return (
-    <div className="flex flex-col gap-4 border-t border-[#eef2f6] pt-4">
+    <div className="flex flex-col gap-4 border-t border-[#f1f5f9] pt-4">
       <FormMessage state={formMessage(added)} />
       <form action={searchAction} className="flex flex-col gap-2" role="search" aria-label="Find a car by registration">
         <label htmlFor={`${id}-q`} className={labelClass}>Find one of your cars</label>
@@ -103,7 +103,7 @@ export function AddPeoplePanel({ accountId }: { accountId: string }) {
   const [added, addAction] = useActionState(addAccountPersonAction, idlePanel);
   const id = useId();
   return (
-    <div className="flex flex-col gap-3 border-t border-[#eef2f6] pt-4">
+    <div className="flex flex-col gap-3 border-t border-[#f1f5f9] pt-4">
       <FormMessage state={formMessage(added)} />
       <form action={searchAction} className="flex flex-col gap-2" role="search" aria-label="Find a customer">
         <label htmlFor={`${id}-q`} className={labelClass}>Add a driver or contact</label>

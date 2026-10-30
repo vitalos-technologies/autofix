@@ -160,7 +160,7 @@ function agentRequest(tool: AgentTool, body: unknown, init: { token?: string | n
   const headers: Record<string, string> = { "content-type": init.contentType ?? "application/json" };
   const token = init.token === undefined ? TOKEN : init.token;
   if (token) headers.authorization = `Bearer ${token}`;
-  return new NextRequest(`https://autofix.vitalos.co.uk/api/agent/v1/${tool}`, {
+  return new NextRequest(`https://pitline.co.uk/api/agent/v1/${tool}`, {
     method: "POST",
     headers,
     body: init.raw ?? (body === undefined ? undefined : JSON.stringify(body)),

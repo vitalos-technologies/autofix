@@ -44,7 +44,7 @@ jobs:
           SECRET__DVSA_MOT_API_KEY: ${{ secrets.DVSA_MOT_API_KEY }}
           SECRET__DVSA_MOT_CLIENT_ID: ${{ secrets.DVSA_MOT_CLIENT_ID }}
           SECRET__DVSA_MOT_CLIENT_SECRET: ${{ secrets.DVSA_MOT_CLIENT_SECRET }}
-          # Autofix's own repository secret when there is one, else the organisation's shared key
+          # Pitline's own repository secret when there is one, else the organisation's shared key
           # (Temitope, 29 Oct 2026: repository first, organisation second).
           SECRET__GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           # Must stay a repository secret: without one this name falls back to the organisation's shared
@@ -69,9 +69,9 @@ jobs:
           SECRET__VEHICLE_FACTS_PEPPER: ${{ secrets.VEHICLE_FACTS_PEPPER }}
           SECRET__VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
           # Variables (Vercel "encrypted")
-          # Pitline's own line (A420, D22: Temitope, 29 Oct 2026, "only on pitline"): answered in the product's name, voicemail only.
+          # Pitline's own line (A420, D23: Temitope, 29 Oct 2026, "only on pitline"): answered in the product's name, voicemail only.
           VAR__AUTOFIX_PLATFORM_VOICE_NUMBERS: ${{ vars.AUTOFIX_PLATFORM_VOICE_NUMBERS || '+441146974393' }}
-          # Stripe test mode for Autofix's own billing and garage payments (Temitope, 29 Oct 2026; Connect on).
+          # Stripe test mode for Pitline's own billing and garage payments (Temitope, 29 Oct 2026; Connect on).
           # Run Launch ops stripe-setup first: it puts the price ids and webhook secrets in Vercel.
           VAR__BILLING_PROVIDER: ${{ vars.BILLING_PROVIDER || 'stripe' }}
           VAR__COOKIE_CONFIGURATION_APPROVED: ${{ vars.COOKIE_CONFIGURATION_APPROVED }}

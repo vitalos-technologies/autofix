@@ -1,7 +1,7 @@
 """Test settings: fast hashing, isolated databases (SQLite unless DATABASE_URL / AUTOFIX_TEST_DATABASE_URL).
 
 The ``autofix`` alias gets its own test database; ``tests/conftest.py`` creates the tables of the
-unmanaged Autofix models in it (the router never migrates that alias).
+unmanaged Pitline models in it (the router never migrates that alias).
 """
 
 from django.core.management.utils import get_random_secret_key

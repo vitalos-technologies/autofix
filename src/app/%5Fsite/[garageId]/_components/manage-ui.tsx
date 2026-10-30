@@ -30,7 +30,7 @@ export const manageWhatsappAction = cn(
 
 /** Underlined 44px text link (Book another car, Look up another booking). */
 export const manageTextLink = cn(
-  "inline-flex min-h-11 items-center justify-center rounded-[6px] bg-transparent px-1 text-[14px] font-semibold text-accent underline underline-offset-2 hover:text-blue-700",
+  "inline-flex min-h-11 items-center justify-center rounded-[6px] bg-transparent px-1 text-[14px] font-semibold text-accent-text underline underline-offset-2 hover:text-blue-700",
   focusRing,
 );
 

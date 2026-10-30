@@ -1,9 +1,9 @@
 ---
-description: Run the whole Autofix build, Phases 1 to 4, back to back without stopping between phases. Reports only at the end or when truly blocked.
+description: Run the whole Pitline build, Phases 1 to 4, back to back without stopping between phases. Reports only at the end or when truly blocked.
 argument-hint: "[start phase, default: first phase with open tasks]"
 ---
 
-Build Autofix end to end from `docs/autofix/BUILD-PLAN.md`. Start at Phase $ARGUMENTS if given, otherwise at the first phase that still has open tasks (run `/bootstrap` first if `src/` does not exist).
+Build Pitline end to end from `docs/autofix/BUILD-PLAN.md`. Start at Phase $ARGUMENTS if given, otherwise at the first phase that still has open tasks (run `/bootstrap` first if `src/` does not exist).
 
 Loop over the phases in order. For each phase:
 

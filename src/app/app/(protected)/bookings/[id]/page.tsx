@@ -264,7 +264,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
                 </a>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2.5 border-t border-[#eef2f6] pt-3.5">
+            <div className="flex flex-wrap items-center gap-2.5 border-t border-[#f1f5f9] pt-3.5">
               {booking.registration ? <PlateChip registration={booking.registration} size="md" /> : null}
               <span className="text-[15px] text-grey-700">{car ?? "Car details not recorded"}</span>
             </div>
@@ -287,7 +287,7 @@ export default async function BookingPage({ params, searchParams }: { params: Pr
                 {timeline.map((entry) => {
                   const Icon = KIND_ICONS[entry.kind];
                   return (
-                    <li key={entry.id} className="flex gap-3 border-t border-[#eef2f6] py-3 first:border-t-0">
+                    <li key={entry.id} className="flex gap-3 border-t border-[#f1f5f9] py-3 first:border-t-0">
                       <span
                         aria-hidden="true"
                         className={cn(

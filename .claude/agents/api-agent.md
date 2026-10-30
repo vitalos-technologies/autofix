@@ -1,6 +1,6 @@
 ---
 name: api-agent
-description: Autofix API lane. Use for Next.js route handlers, middleware host routing, zod schemas, server actions, the job runner and webhooks. Use for removing SOB-only code and Cal.com.
+description: Pitline API lane. Use for Next.js route handlers, middleware host routing, zod schemas, server actions, the job runner and webhooks. Use for removing SOB-only code and Cal.com.
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 

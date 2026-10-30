@@ -193,7 +193,7 @@ export function BrandingPreview({ garageName, logoUrl }: { garageName: string; l
         <div className="flex h-10 items-center justify-center rounded-[7px] border-2 border-[#111827] bg-plate">
           <PlateChip registration="AB12CDE" className="bg-transparent text-[20px] tracking-[0.08em]" />
         </div>
-        <span className="text-[13px] font-semibold text-accent underline underline-offset-2">Enter details manually</span>
+        <span className="text-[13px] font-semibold text-accent-text underline underline-offset-2">Enter details manually</span>
         <div className="flex h-[42px] items-center justify-center rounded-[12px] bg-accent text-[14px] font-bold text-accent-ink">Continue</div>
       </div>
     </div>

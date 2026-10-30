@@ -26,7 +26,7 @@ const SLUG_CHECK_DELAY_MS = 300;
 
 export type GarageWizardProps = {
   placesEnabled: boolean;
-  /** The free link with `__slug__` where the slug goes, e.g. `https://__slug__.autofix.vitalos.co.uk`. */
+  /** The free link with `__slug__` where the slug goes, e.g. `https://__slug__.pitline.co.uk`. */
   linkTemplate: string;
   ownerEmail: string;
 };
@@ -248,7 +248,7 @@ export function GarageWizard({ placesEnabled, linkTemplate, ownerEmail }: Garage
                               selected ? "border-2 border-accent" : "border-grey-300 hover:border-grey-600",
                             )}
                           >
-                            <MapPin size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-accent" />
+                            <MapPin size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-accent-text" />
                             <span className="flex min-w-0 flex-col">
                               <span className="font-semibold text-navy-950">{place.name}</span>
                               <span className="text-[13px] text-grey-600">{place.address}</span>

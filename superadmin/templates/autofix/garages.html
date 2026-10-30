@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block title %}Garages · Autofix Super Admin{% endblock %}
+{% block title %}Garages · Pitline Super Admin{% endblock %}
 {% block content %}
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1>Garages</h1>
-      <p class="muted mt-1 text-sm">Every garage on Autofix, newest first. Select rows for bulk actions.</p>
+      <p class="muted mt-1 text-sm">Every garage on Pitline, newest first. Select rows for bulk actions.</p>
     </div>
     <a href="{{ export_url }}" class="btn btn-secondary" data-testid="garages-export">{% icon "download" "h-4 w-4" %} Export CSV</a>
   </div>

@@ -18,11 +18,11 @@ async function expectAccessibleAt(page: Page) {
   }
 }
 
-test("/ is the Autofix marketing page, indexable, with no axe violations at 390 and 1440", async ({ page }) => {
+test("/ is the Pitline marketing page, indexable, with no axe violations at 390 and 1440", async ({ page }) => {
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
   expect(new URL(page.url()).pathname).toBe("/");
-  await expect(page).toHaveTitle("Autofix · Online booking for independent garages");
+  await expect(page).toHaveTitle("Pitline · Online booking for independent garages");
   await expect(page.getByRole("heading", { level: 1, name: "Your garage, fully booked." })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
   await expectAccessibleAt(page);

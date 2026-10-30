@@ -1,4 +1,4 @@
-"""Autofix plans across the D17 switch (two plans, Essentials and Pro, with a 14-day Pro trial).
+"""Pitline plans across the D17 switch (two plans, Essentials and Pro, with a 14-day Pro trial).
 
 Before the switch ``garages.plan`` holds ``trial``, ``growth`` or ``front_desk``. After it
 (``20261029000100_plans.sql``) it holds ``essentials`` or ``pro``: a garage is on the trial while

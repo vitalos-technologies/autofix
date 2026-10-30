@@ -32,6 +32,7 @@ import {
   manageTextLink,
   manageWhatsappAction,
 } from "../_components/manage-ui";
+import { PoweredByPitline } from "@/components/brand/powered-by";
 
 export const metadata: Metadata = {
   title: "Manage your booking",
@@ -291,7 +292,7 @@ export default async function ManagePage({ params, searchParams }: ManagePagePro
               Look up another booking
             </button>
           </form>
-          <span className="text-[11px] text-grey-600">Powered by Autofix</span>
+          <PoweredByPitline />
         </div>
       </div>
     </BookingScreen>

@@ -20,8 +20,8 @@ export type HostEnvironment = {
   VERCEL_BRANCH_URL?: string;
 };
 
-const DEFAULT_ADMIN_HOST = "autofix.vitalos.co.uk";
-const DEFAULT_TENANT_ROOT = "autofix.vitalos.co.uk";
+const DEFAULT_ADMIN_HOST = "pitline.co.uk";
+const DEFAULT_TENANT_ROOT = "pitline.co.uk";
 
 /** Labels under the tenant root that can never be a garage slug. */
 export const RESERVED_SLUGS = new Set([
@@ -44,6 +44,16 @@ export function normaliseHost(raw: string | null | undefined): string | null {
   if (host.endsWith(":80") || host.endsWith(":443")) host = host.slice(0, host.lastIndexOf(":"));
   if (host.endsWith(".")) host = host.slice(0, -1);
   return host || null;
+}
+
+/** The admin host (`NEXT_PUBLIC_ADMIN_HOST`, normalised; `pitline.co.uk` when unset). */
+export function configuredAdminHost(env: HostEnvironment = process.env) {
+  return normaliseHost(env.NEXT_PUBLIC_ADMIN_HOST) ?? DEFAULT_ADMIN_HOST;
+}
+
+/** The root free links live under (`NEXT_PUBLIC_TENANT_ROOT_DOMAIN`, normalised; `pitline.co.uk` when unset). */
+export function configuredTenantRoot(env: HostEnvironment = process.env) {
+  return normaliseHost(env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN) ?? DEFAULT_TENANT_ROOT;
 }
 
 function splitPort(host: string) {
@@ -81,8 +91,8 @@ export function classifyHost(
   const host = normaliseHost(rawHost);
   if (!host) return { kind: "unknown" };
 
-  const adminHost = normaliseHost(env.NEXT_PUBLIC_ADMIN_HOST) ?? DEFAULT_ADMIN_HOST;
-  const tenantRoot = normaliseHost(env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN) ?? DEFAULT_TENANT_ROOT;
+  const adminHost = configuredAdminHost(env);
+  const tenantRoot = configuredTenantRoot(env);
   const { name } = splitPort(host);
 
   if (devHostsEnabled(env)) {
@@ -115,8 +125,7 @@ export function classifyHost(
   return { kind: "custom", hostname: name };
 }
 
-/** Builds the free-link host for a garage slug, e.g. `hartley-road.autofix.vitalos.co.uk`. */
+/** Builds the free-link host for a garage slug, e.g. `hartley-road.pitline.co.uk`. */
 export function freeLinkHost(slug: string, env: HostEnvironment = process.env) {
-  const tenantRoot = normaliseHost(env.NEXT_PUBLIC_TENANT_ROOT_DOMAIN) ?? DEFAULT_TENANT_ROOT;
-  return `${slug}.${tenantRoot}`;
+  return `${slug}.${configuredTenantRoot(env)}`;
 }

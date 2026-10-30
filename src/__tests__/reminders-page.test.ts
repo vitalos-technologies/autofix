@@ -144,8 +144,8 @@ describe("the rule in words, timing and sample details", () => {
 
   it("uses sample details as long as the real ones, so the 160-character counter is honest", () => {
     expect(SAMPLE_LINK_TOKEN).toHaveLength(22);
-    const values = sampleTemplateValues({ kind: "mot", garageName: "Hartley Road Motors", bookingBaseUrl: "https://hartley-road.autofix.vitalos.co.uk", dueDate: "24 Nov" });
-    expect(values.link).toBe(`https://hartley-road.autofix.vitalos.co.uk/r/${SAMPLE_LINK_TOKEN}`);
+    const values = sampleTemplateValues({ kind: "mot", garageName: "Hartley Road Motors", bookingBaseUrl: "https://hartley-road.pitline.co.uk", dueDate: "24 Nov" });
+    expect(values.link).toBe(`https://hartley-road.pitline.co.uk/r/${SAMPLE_LINK_TOKEN}`);
     const sms = renderTemplate(defaultTemplate("mot"), values, { channel: "sms" }).text;
     expect(sms.endsWith("Reply STOP to opt out.")).toBe(true);
     // The default MOT wording with a real-length link fits one text (A169, A184).

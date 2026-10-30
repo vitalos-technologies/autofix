@@ -22,12 +22,12 @@ export function parseTokenName(value: unknown): { ok: true; name: string } | { o
 
 /** Flash messages for the page's redirects (`?done=` / `?error=` codes, never free text). */
 export const AI_FRONT_DESK_MESSAGES: Record<string, string> = {
-  "done:enabled": "The AI front desk is on. It answers missed calls to your Autofix number.",
+  "done:enabled": "The AI front desk is on. It answers missed calls to your Pitline number.",
   "done:disabled": "The AI front desk is off. Missed calls get your voicemail and a text back.",
   "done:revoked": "Token revoked. Anything using it is refused straight away.",
   "done:already_revoked": "That token was already revoked.",
   "error:owner_only": "Only the garage owner can switch the AI front desk on or off.",
   "error:manage_only": "Only the garage's owners and managers can manage tokens.",
-  "error:plan_required": "The AI front desk is part of Autofix Pro. The garage owner can upgrade in Settings, Plan.",
+  "error:plan_required": "The AI front desk is part of Pitline Pro. The garage owner can upgrade in Settings, Plan.",
   "error:save_failed": "That change could not be saved. Try again.",
 };

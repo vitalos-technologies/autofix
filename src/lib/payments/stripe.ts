@@ -3,7 +3,7 @@ import type { AccountState, PaymentsEvent, PaymentsProvider } from "./provider";
 import { mapStripePlanEvent, stripeMandateMethods } from "./stripe-direct-debit";
 
 // Stripe Connect for garages' own payments (P5.4), TEST MODE ONLY, over Stripe's REST API with fetch
-// (no SDK), as src/lib/billing/stripe.ts does for Autofix's own plans.
+// (no SDK), as src/lib/billing/stripe.ts does for Pitline's own plans.
 //
 //   connect   POST /v1/accounts (Express, GB, metadata garage_id) once, then POST /v1/account_links
 //             (account_onboarding) each time the owner continues; GET /v1/accounts/{id} for status.

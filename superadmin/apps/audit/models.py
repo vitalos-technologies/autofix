@@ -1,7 +1,7 @@
 """Append-only security and operations audit trail (who, what, when, from where).
 
-Autofix keeps its own platform_audit_log (read on the Audit page). This table records what Vitalos
-staff did here: sign-ins, roles, two-factor, hand-offs, personal-data views and Autofix changes.
+Pitline keeps its own platform_audit_log (read on the Audit page). This table records what Vitalos
+staff did here: sign-ins, roles, two-factor, hand-offs, personal-data views and Pitline changes.
 Rows are never updated or deleted by the application.
 """
 

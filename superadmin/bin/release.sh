@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Release step, run as a one-off job before new revisions take traffic. Safe to re-run.
 # Each command is retried 3 times with backoff: a free-tier database can be slow or refuse the first
-# connection. Only the super admin's own database is migrated; Autofix's never is (AutofixRouter).
+# connection. Only the super admin's own database is migrated; Pitline's never is (AutofixRouter).
 set -eu
 cd "$(dirname "$0")/.."
 

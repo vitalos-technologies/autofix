@@ -23,7 +23,7 @@ const essentials = { plan: "essentials", trialEndsAt: null, planChosen: "essenti
 const paidPro = { plan: "pro", trialEndsAt: null, planChosen: "pro" };
 
 describe("plans: one map from feature to plan (D17)", () => {
-  it("keeps everything Autofix did before Phase 5 on Essentials, except the AI front desk", () => {
+  it("keeps everything Pitline did before Phase 5 on Essentials, except the AI front desk", () => {
     for (const feature of ["booking_page", "custom_domain", "vehicle_lookup", "approvals", "diary", "customers", "import", "reminders",
       "review_requests", "missed_calls", "inbox", "invoices", "team", "askbridge", "basic_reports", "sms_allowance"] as const) {
       expect(FEATURES[feature].plan, feature).toBe("essentials");
@@ -100,7 +100,7 @@ describe("plans: entitlements", () => {
       code: "PLAN_REQUIRED",
       feature: "campaigns",
       plan: "pro",
-      message: "Campaigns is part of Autofix Pro. The garage owner can upgrade in Settings, Plan.",
+      message: "Campaigns is part of Pitline Pro. The garage owner can upgrade in Settings, Plan.",
     });
     expect(isPlanRequiredDatabaseError({ code: "P0001", message: "PLAN_REQUIRED: campaigns" })).toBe(true);
     expect(isPlanRequiredDatabaseError({ code: "42501", message: "new row violates row-level security policy" })).toBe(false);

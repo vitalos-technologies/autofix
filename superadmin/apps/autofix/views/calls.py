@@ -1,4 +1,4 @@
-"""Calls and voicemails: every garage's calls and Autofix's own line (A420), the garage Calls tab, and
+"""Calls and voicemails: every garage's calls and Pitline's own line (A420), the garage Calls tab, and
 audited voicemail playback.
 
 SuperAdmin and Support only (``can_support``): callers are masked by the database, but who called a
@@ -45,7 +45,7 @@ GARAGE_COLUMNS = [column for column in COLUMNS if column.key != "garage"]
 NOT_CONFIGURED = (
     "Voicemail playback is not set up here: the super admin needs TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN."
 )
-NOT_OURS = "This recording is not on Autofix's Twilio account, so it cannot be played here."
+NOT_OURS = "This recording is not on Pitline's Twilio account, so it cannot be played here."
 PRIVATE = "private, no-store, max-age=0"
 WITHHELD = format_html('<span class="muted font-sans">{}</span>', "Withheld")
 NO_VOICEMAIL = format_html('<span class="muted">{}</span>', "None")
@@ -95,7 +95,7 @@ def _row(csrf_input, show_garage: bool):
         else:
             heard = NO_VOICEMAIL
         if not call.missed or call.is_platform:
-            # Autofix's own line has no SMS sender, so there is never a text-back (A420).
+            # Pitline's own line has no SMS sender, so there is never a text-back (A420).
             text_back = "—"
         elif call.text_back_status:
             label = selectors.TEXT_BACK_LABELS.get(call.text_back_status, call.text_back_status.title())

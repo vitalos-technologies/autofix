@@ -232,11 +232,11 @@ def test_unlinked_users_cannot_change_enquiries(
     for user in (support, unlinked_superadmin):
         client = client_for(user)
         page = client.get(reverse("autofix:enquiry", args=[enquiries["new"].pk])).content.decode()
-        assert "not linked to an Autofix platform admin" in page and 'data-testid="enquiry-form"' not in page
+        assert "not linked to a Pitline platform admin" in page and 'data-testid="enquiry-form"' not in page
         response = update(client, enquiries["new"], status="closed", notes="")
         assert (
             response.status_code == 200
-            and "not linked to an Autofix platform admin" in response.content.decode()
+            and "not linked to a Pitline platform admin" in response.content.decode()
         )
     platform.assert_not_called()
 

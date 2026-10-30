@@ -88,7 +88,7 @@ def test_failures_make_it_degraded_with_critical_alerts(client, token, settings,
     snapshot = parse_status(body, product(settings))
     assert snapshot.status == "degraded"
     titles = {alert.title for alert in snapshot.alerts}
-    assert "1 Autofix job failed" in titles
+    assert "1 Pitline job failed" in titles
     assert "1 custom domain failing verification" in titles
     assert "1 garage onboarding for over 48 hours" in titles
     for alert in snapshot.alerts:

@@ -66,7 +66,7 @@ export default async function HoursSetupPage({ searchParams }: PageProps) {
           {upcoming.length ? (
             <ul aria-label="Upcoming closures" className="m-0 flex list-none flex-col p-0">
               {upcoming.map((closure) => (
-                <li key={closure.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#eef2f6] py-2.5 first:border-t-0">
+                <li key={closure.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#f1f5f9] py-2.5 first:border-t-0">
                   <div className="flex min-w-0 flex-[1_1_180px] flex-col gap-0.5">
                     <span className="text-[15px] font-semibold text-navy-950">{closureDates(closure)}</span>
                     <span className="text-[13px] text-grey-600">{[closure.reason, closure.starts_on <= today ? "Closed now" : null].filter(Boolean).join(" · ") || "No reason given"}</span>

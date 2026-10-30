@@ -294,7 +294,7 @@ export default async function TodayPage() {
               {waiting > 0 ? (
                 <ul className="m-0 flex list-none flex-col p-0">
                   {view.approvals.map((booking) => (
-                    <li key={booking.id} className="border-b border-[#eef2f6] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
+                    <li key={booking.id} className="border-b border-[#f1f5f9] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
                       <ApprovalCard
                         bookingId={booking.id}
                         registration={booking.registration}
@@ -312,7 +312,7 @@ export default async function TodayPage() {
                     </li>
                   ))}
                   {calls.map((call) => (
-                    <li key={call.id} className="border-b border-[#eef2f6] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
+                    <li key={call.id} className="border-b border-[#f1f5f9] py-3.5 first:pt-0 last:border-b-0 last:pb-0">
                       <MissedCallCard call={call} timeZone={timeZone} tone="light" markHandledAction={markMissedCallHandledAction} />
                     </li>
                   ))}
@@ -377,7 +377,7 @@ function RecentActivityPanel({ id, entries, userId, now, className }: { id: stri
       ) : (
         <ol className="m-0 flex list-none flex-col p-0">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex flex-col gap-0.5 border-t border-[#eef2f6] py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+            <li key={entry.id} className="flex flex-col gap-0.5 border-t border-[#f1f5f9] py-2.5 first:border-t-0 first:pt-0 last:pb-0">
               <p className="m-0 text-[14px] text-grey-800">
                 <strong className="font-semibold text-navy-950">{auditActionLabel(entry.action, entry.entityType)}</strong> {auditEntityLabel(entry.entityType, entry.detail)}
               </p>
