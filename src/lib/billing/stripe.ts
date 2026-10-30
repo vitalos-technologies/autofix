@@ -12,6 +12,9 @@ export type StripeBillingConfig = {
   webhookSecret: string;
   proPriceId: string;
   extraSitePriceId: string | null;
+  /** UK VAT as a Stripe tax rate (txr_…, exclusive): added to the Pro and extra-site lines at checkout.
+   *  Prices are shown without VAT; it appears only where the garage pays (D25). Null: no VAT is added. */
+  vatTaxRateId: string | null;
 };
 
 type Fetch = typeof fetch;
@@ -120,6 +123,7 @@ export function createStripeBillingProvider(config: StripeBillingConfig, fetcher
           mode: "subscription",
           "line_items[0][price]": config.proPriceId,
           "line_items[0][quantity]": 1,
+          "line_items[0][tax_rates][0]": config.vatTaxRateId ?? undefined,
           client_reference_id: garage.id,
           "metadata[garage_id]": garage.id,
           "subscription_data[metadata][garage_id]": garage.id,
@@ -151,7 +155,7 @@ export function createStripeBillingProvider(config: StripeBillingConfig, fetcher
       try {
         const { ok } = await call(
           "/subscription_items",
-          { subscription: subscriptionRef, price: config.extraSitePriceId, quantity: Math.max(0, Math.min(100, count)), proration_behavior: "create_prorations" },
+          { subscription: subscriptionRef, price: config.extraSitePriceId, quantity: Math.max(0, Math.min(100, count)), proration_behavior: "create_prorations", "tax_rates[0]": config.vatTaxRateId ?? undefined },
           `extra-sites:${garageId}:${subscriptionRef}:${count}`,
         );
         return ok ? { ok: true } : { ok: false, code: "provider_error" };

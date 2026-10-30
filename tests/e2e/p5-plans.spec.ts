@@ -3,7 +3,7 @@
  * production build and local Supabase. Billing runs on the mock provider (BILLING_PROVIDER unset), so
  * "Upgrade" is "Request Pro".
  *
- * The spec makes its own garages (new garages start on the 14-day Pro trial), an owner and a manager with
+ * The spec makes its own garages (new garages start on the one-month Pro trial, D25), an owner and a manager with
  * verified TOTP, and removes them afterwards. Checks: the trial and its days left, Request Pro (a plan request
  * for Vitalos), moving to Essentials (confirmation, trial ends, plan label), the manager's read-only view with
  * usage, an expired trial counting as Essentials before the expiry job and the job moving it, axe with no
@@ -68,14 +68,15 @@ async function garageRow(id: string) {
   return data as { plan: string; plan_chosen: string | null; trial_ends_at: string | null };
 }
 
-test("a new garage is on the 14-day Pro trial and the page says so", async () => {
+test("a new garage is on the one-month Pro trial and the page says so", async () => {
   const row = await garageRow(garage.id);
   expect(row.plan).toBe("pro");
   expect(row.trial_ends_at).not.toBeNull();
   await page.goto(`${adminOrigin}${PATH}`);
   await expect(page.getByRole("heading", { level: 1, name: "Plan" })).toBeVisible();
   await expect(page.getByText("Pro trial", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^Pro trial: 14 days left, until/)).toBeVisible();
+  // One calendar month: 28 to 31 days, depending on the month it starts in.
+  await expect(page.getByText(/^Pro trial: (28|29|30|31) days left, until/)).toBeVisible();
   await expect(page.getByText(/When the trial ends you move to Essentials unless you choose Pro/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Essentials and Pro" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pro", exact: true })).toBeVisible();

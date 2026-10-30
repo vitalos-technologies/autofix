@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { allowanceFor, formatPlanPrice, getPlansConfig } from "@/lib/plans/config";
+import { allowanceFor, formatPlanPrice, formatTrialLength, getPlansConfig } from "@/lib/plans/config";
 import {
   effectivePlan,
   hasFeature,
@@ -117,7 +117,9 @@ describe("plans: prices and allowances are placeholders until Temitope sets them
     expect(config.pro.aiMinutesAllowance).toBeNull();
     expect(config.extraSitePricePence).toBeNull();
     expect(config.essentials.aiMinutesAllowance).toBe(0);
-    expect(config.trialDays).toBe(14);
+    expect(config.trialMonths).toBe(1);
+    expect(formatTrialLength(config.trialMonths)).toBe("one month");
+    expect(formatTrialLength(2)).toBe("2 months");
     expect(formatPlanPrice(null)).toBe("Price to be confirmed");
   });
 

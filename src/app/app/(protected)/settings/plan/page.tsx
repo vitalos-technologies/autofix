@@ -5,9 +5,9 @@ import { buttonClass, PageHeader, Panel, SubmitButton } from "@/components/admin
 import { Notice } from "@/components/onboarding/field";
 import { PlanComparison, UsageMeter } from "@/components/plans";
 import { localDateKey, monthStart } from "@/lib/admin/dates";
-import { getBillingReadiness } from "@/lib/billing";
+import { checkoutAddsVat, getBillingReadiness } from "@/lib/billing";
 import { loadSubscription } from "@/lib/billing/server";
-import { formatPlanPrice, getPlansConfig } from "@/lib/plans/config";
+import { formatPlanPrice, formatTrialLength, getPlansConfig } from "@/lib/plans/config";
 import { effectivePlan, isOnTrial, trialDaysLeft } from "@/lib/plans/entitlements";
 import { PLAN_NAMES } from "@/lib/plans/features";
 import { loadUsageMonth } from "@/lib/plans/usage";
@@ -60,6 +60,7 @@ export default async function PlanSettingsPage({ searchParams }: { searchParams:
   const config = getPlansConfig(process.env);
   const readiness = getBillingReadiness();
   const selfServe = readiness === "stripe_test";
+  const addsVat = checkoutAddsVat();
 
   const [usage, subscription, request] = await Promise.all([
     canSeeUsage ? loadUsageMonth(admin.client, { plan, monthFirst: monthStart(localDateKey(now, garage.timezone)) }) : Promise.resolve(null),
@@ -126,6 +127,8 @@ export default async function PlanSettingsPage({ searchParams }: { searchParams:
                     <SubmitButton className={buttonClass("primary", "md", "w-full sm:w-fit")} disabled={!canChange}>
                       {selfServe ? (onTrial ? "Choose Pro" : "Upgrade to Pro") : openRequest ? "Send the request again" : "Request Pro"}
                     </SubmitButton>
+                    {/* Prices are shown without VAT everywhere else; it appears only where the garage pays (D25). */}
+                    {selfServe && addsVat ? <p className="m-0 text-[13px] text-grey-700">VAT is added at checkout.</p> : null}
                     {!selfServe ? <p className="m-0 text-[13px] text-grey-700">Vitalos switches Pro on for you and sets up billing.</p> : null}
                   </form>
                 ) : null}
@@ -189,7 +192,7 @@ export default async function PlanSettingsPage({ searchParams }: { searchParams:
             ],
           }}
         />
-        <p className="m-0 text-[13px] text-grey-700">Texts over the allowance are billed at cost. New garages get Pro free for {config.trialDays} days.</p>
+        <p className="m-0 text-[13px] text-grey-700">Texts over the allowance are billed at cost. New garages get Pro free for {formatTrialLength(config.trialMonths)}.</p>
       </section>
     </div>
   );

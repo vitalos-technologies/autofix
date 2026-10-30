@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { getBillingProvider, getBillingReadiness } from "@/lib/billing";
+import { checkoutAddsVat, getBillingProvider, getBillingReadiness } from "@/lib/billing";
 import { createStripeBillingProvider, signStripePayload, subscriptionState, verifyStripeSignature } from "@/lib/billing/stripe";
 import { meterSmsChannel } from "@/lib/messaging/metering";
 import type { MessageChannel } from "@/lib/messaging/channel";
 
 const GARAGE = "0b9a7c4e-1d2f-4a3b-8c5d-6e7f8a9b0c1d";
-const config = { secretKey: "sk_test_abc", webhookSecret: "whsec_test", proPriceId: "price_pro", extraSitePriceId: "price_site" };
+const config = { secretKey: "sk_test_abc", webhookSecret: "whsec_test", proPriceId: "price_pro", extraSitePriceId: "price_site", vatTaxRateId: null };
 
 function subscriptionEvent(type: string, overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
@@ -109,6 +109,27 @@ describe("Stripe webhooks", () => {
     expect(body.get("client_reference_id")).toBe(GARAGE);
     expect(body.get("subscription_data[metadata][garage_id]")).toBe(GARAGE);
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk_test_abc");
+  });
+
+  it("adds VAT only where the garage pays, and only when a tax rate is set (D25)", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ url: "https://checkout.stripe.com/c/pay/cs_test_1" }), { status: 200 }));
+    const plain = createStripeBillingProvider(config, fetcher as unknown as typeof fetch);
+    await plain.startUpgrade({ garage: { id: GARAGE, name: "G", email: null }, customerRef: null, successUrl: "https://a", cancelUrl: "https://a" });
+    expect(new URLSearchParams(String((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body)).has("line_items[0][tax_rates][0]")).toBe(false);
+
+    const withVat = createStripeBillingProvider({ ...config, vatTaxRateId: "txr_vat20" }, fetcher as unknown as typeof fetch);
+    await withVat.startUpgrade({ garage: { id: GARAGE, name: "G", email: null }, customerRef: null, successUrl: "https://a", cancelUrl: "https://a" });
+    expect(new URLSearchParams(String((fetcher.mock.calls[1] as unknown as [string, RequestInit])[1].body)).get("line_items[0][tax_rates][0]")).toBe("txr_vat20");
+    await withVat.setExtraSites({ garageId: GARAGE, subscriptionRef: "sub_1", count: 2 });
+    expect(new URLSearchParams(String((fetcher.mock.calls[2] as unknown as [string, RequestInit])[1].body)).get("tax_rates[0]")).toBe("txr_vat20");
+  });
+
+  it("reads STRIPE_VAT_TAX_RATE, ignoring anything that is not a tax rate id", () => {
+    const env = { BILLING_PROVIDER: "stripe", STRIPE_SECRET_KEY: "sk_test_abc", STRIPE_BILLING_WEBHOOK_SECRET: "whsec_x", STRIPE_PRICE_PRO: "price_pro" };
+    expect(checkoutAddsVat(env)).toBe(false);
+    expect(checkoutAddsVat({ ...env, STRIPE_VAT_TAX_RATE: "20%" })).toBe(false);
+    expect(checkoutAddsVat({ ...env, STRIPE_VAT_TAX_RATE: " txr_vat20 " })).toBe(true);
+    expect(checkoutAddsVat({ STRIPE_VAT_TAX_RATE: "txr_vat20" })).toBe(false);
   });
 
   it("reports a provider error instead of throwing", async () => {
